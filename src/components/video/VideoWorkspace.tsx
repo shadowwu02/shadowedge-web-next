@@ -279,61 +279,53 @@ export function VideoWorkspace() {
   );
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(300px,360px)_minmax(0,1fr)_minmax(340px,420px)]">
-      <div className="grid gap-5">
-        {modelLoading ? <LoadingState label="Loading live model registry..." /> : null}
-        <ModelSelector models={models} onChange={handleModelChange} selectedModelId={selectedModel.id} />
-        <VideoParamsPanel
-          durations={modelSummary.durations}
-          onChange={setParams}
-          qualities={modelSummary.qualities}
-          ratios={modelSummary.ratios}
-          value={params}
-        />
-        <div className="rounded-[24px] border border-white/10 bg-white/[.045] p-4">
-          <p className="text-xs font-bold uppercase tracking-[.16em] text-white/40">API contract</p>
-          <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/58">
-            <li>POST /api/video/generate</li>
-            <li>GET /api/video/status?jobId=...</li>
-            <li>GET /api/video/history</li>
-            <li>GET /api/video/models</li>
-            <li>POST /api/upload-media</li>
-          </ul>
+    <div className="se-scrollbar h-full min-h-0 space-y-5 overflow-y-auto overflow-x-hidden xl:grid xl:space-y-0 xl:gap-5 xl:overflow-hidden xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)_minmax(320px,380px)] 2xl:grid-cols-[minmax(340px,400px)_minmax(0,1fr)_minmax(340px,400px)]">
+      <aside className="se-scrollbar min-h-0 overflow-visible pr-1 xl:overflow-y-auto xl:overflow-x-hidden">
+        <div className="grid gap-4 pb-2">
+          {modelLoading ? <LoadingState label="Loading live model registry..." /> : null}
+          <ModelSelector models={models} onChange={handleModelChange} selectedModelId={selectedModel.id} />
+          <VideoParamsPanel
+            durations={modelSummary.durations}
+            onChange={setParams}
+            qualities={modelSummary.qualities}
+            ratios={modelSummary.ratios}
+            value={params}
+          />
+          <UploadBox media={media} onChange={setMedia} />
+          <ReferenceMediaMention media={media} />
+          <PromptBox media={media} onChange={setPrompt} value={prompt} />
+          {!token && !isSignedIn ? (
+            <div className="rounded-[24px] border border-[#ffb44d]/25 bg-[#ffb44d]/10 p-4">
+              <p className="text-sm font-black text-[#ffd08a]">Sign in required</p>
+              <p className="mt-2 text-sm leading-6 text-white/62">
+                Sign in to upload media, launch video jobs, refresh credits, and load generation history.
+              </p>
+              <Link
+                className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-[#ffb44d] px-5 text-sm font-black text-[#1f2027] transition hover:bg-[#ffc766]"
+                href="/sign-in?next=/workspace/video"
+              >
+                Sign in
+              </Link>
+            </div>
+          ) : null}
+          <GenerateButton
+            credits={selectedModel.credits}
+            disabled={!canGenerate}
+            isSubmitting={isSubmitting}
+            label={generateButtonLabel}
+            onClick={submitCurrent}
+          />
+          <ErrorState message={workspaceNotice || error || modelError} />
         </div>
-      </div>
+      </aside>
 
-      <div className="grid gap-5">
-        <UploadBox media={media} onChange={setMedia} />
-        <ReferenceMediaMention media={media} />
-        <PromptBox media={media} onChange={setPrompt} value={prompt} />
-        {!token && !isSignedIn ? (
-          <div className="rounded-[24px] border border-[#ffb44d]/25 bg-[#ffb44d]/10 p-4">
-            <p className="text-sm font-black text-[#ffd08a]">Sign in required</p>
-            <p className="mt-2 text-sm leading-6 text-white/62">
-              Sign in to upload media, launch video jobs, refresh credits, and load generation history.
-            </p>
-            <Link
-              className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-[#ffb44d] px-5 text-sm font-black text-[#1f2027] transition hover:bg-[#ffc766]"
-              href="/sign-in?next=/workspace/video"
-            >
-              Sign in
-            </Link>
-          </div>
-        ) : null}
-        <GenerateButton
-          credits={selectedModel.credits}
-          disabled={!canGenerate}
-          isSubmitting={isSubmitting}
-          label={generateButtonLabel}
-          onClick={submitCurrent}
-        />
-        <ErrorState message={workspaceNotice || error || modelError} />
-      </div>
-
-      <div className="grid content-start gap-5">
+      <main className="min-h-[380px] min-w-0 overflow-hidden xl:min-h-0">
         <ResultViewer task={task} />
+      </main>
+
+      <aside className="min-h-[420px] min-w-0 overflow-hidden xl:min-h-0">
         <HistoryPanel error={historyError} history={history} isLoading={isHistoryLoading} onRetry={handleRetry} />
-      </div>
+      </aside>
     </div>
   );
 }

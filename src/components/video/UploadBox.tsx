@@ -154,7 +154,7 @@ export function UploadBox({
       />
 
       {media.length ? (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3">
           {media.map((item) => (
             <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/24" key={item.id}>
               <div className="grid aspect-video place-items-center bg-white/[.04]">
@@ -196,7 +196,7 @@ export function UploadBox({
         </div>
       ) : (
         <button
-          className="grid min-h-40 w-full place-items-center rounded-3xl border border-white/10 bg-black/18 text-center text-sm text-white/50 transition hover:border-[#ffb44d]/40 hover:text-[#ffd08a]"
+          className="grid min-h-28 w-full place-items-center rounded-3xl border border-white/10 bg-black/18 px-4 text-center text-sm text-white/50 transition hover:border-[#ffb44d]/40 hover:text-[#ffd08a]"
           onClick={() => inputRef.current?.click()}
           type="button"
         >

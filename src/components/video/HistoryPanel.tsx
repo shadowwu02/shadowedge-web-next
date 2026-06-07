@@ -49,8 +49,8 @@ export function HistoryPanel({ error, history, isLoading = false, onRetry }: His
   const visibleHistory = useMemo(() => history.filter((item) => filterHistoryItem(item, filter)), [filter, history]);
 
   return (
-    <section className="rounded-[24px] border border-white/10 bg-white/[.055] p-4">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-white/[.055] p-4">
+      <div className="mb-4 flex flex-none flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-black text-white">Saved history</h2>
           <span className="text-xs text-white/42">
@@ -76,12 +76,13 @@ export function HistoryPanel({ error, history, isLoading = false, onRetry }: His
       </div>
 
       {error ? (
-        <div className="mb-3 rounded-2xl border border-[#ffb44d]/20 bg-[#ffb44d]/10 px-3 py-2 text-xs text-[#ffd08a]">
+        <div className="mb-3 flex-none rounded-2xl border border-[#ffb44d]/20 bg-[#ffb44d]/10 px-3 py-2 text-xs text-[#ffd08a]">
           Server history could not load: {error}
         </div>
       ) : null}
 
-      <div className="grid gap-3">
+      <div className="se-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1">
+        <div className="grid gap-3">
         {visibleHistory.length ? (
           visibleHistory.map((item) => {
             const url = getVideoOutputUrl(item);
@@ -137,6 +138,7 @@ export function HistoryPanel({ error, history, isLoading = false, onRetry }: His
             {emptyMessage(filter)}
           </div>
         )}
+        </div>
       </div>
     </section>
   );

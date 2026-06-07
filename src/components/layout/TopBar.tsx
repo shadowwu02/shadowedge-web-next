@@ -13,7 +13,7 @@ export function TopBar() {
   const { credits } = useCredits();
 
   return (
-    <header className="flex min-h-20 items-center justify-between border-b border-white/10 bg-[#08090d]/92 px-4 backdrop-blur-xl md:px-6">
+    <header className="flex min-h-20 shrink-0 items-center justify-between border-b border-white/10 bg-[#08090d]/92 px-4 backdrop-blur-xl md:px-6">
       <div>
         <p className="text-xs font-bold uppercase tracking-[.2em] text-[#ffcf83]">Workspace</p>
         <h1 className="text-xl font-black text-white md:text-2xl">Video generation</h1>

@@ -7,18 +7,18 @@ export function ResultViewer({ task }: { task: VideoTaskRecord | null }) {
   const isFailed = isVideoFailedStatus(task?.status);
 
   return (
-    <section className="rounded-[24px] border border-white/10 bg-white/[.055] p-4">
-      <div className="mb-4 flex items-center justify-between">
+    <section className="flex h-full min-h-[360px] flex-col overflow-hidden rounded-[28px] border border-white/10 bg-white/[.055] p-4">
+      <div className="mb-4 flex flex-none items-center justify-between">
         <h2 className="text-sm font-black text-white">Latest output</h2>
         <span className="rounded-full border border-white/10 px-3 py-1 text-xs font-bold text-white/52">
           {task?.status || "idle"}
         </span>
       </div>
 
-      <div className="overflow-hidden rounded-3xl border border-white/10 bg-black/28">
-        <div className="grid aspect-video place-items-center bg-black/40">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-3xl border border-white/10 bg-black/28">
+        <div className="grid h-full min-h-[320px] place-items-center bg-black/40">
           {videoUrl ? (
-            <video className="h-full w-full object-cover" controls playsInline src={videoUrl} />
+            <video className="h-full max-h-full w-full object-contain" controls playsInline src={videoUrl} />
           ) : isFailed ? (
             <div className="px-6 text-center">
               <p className="text-lg font-black text-red-100">Generation failed</p>
@@ -37,7 +37,7 @@ export function ResultViewer({ task }: { task: VideoTaskRecord | null }) {
       </div>
 
       {task ? (
-        <div className="mt-4 grid gap-2 text-xs text-white/48">
+        <div className="mt-4 grid flex-none gap-2 text-xs text-white/48">
           <div>Created: {formatTime(task.createdAt)}</div>
           <div>Model: {task.model || "--"}</div>
           <div>Job ID: {task.jobId}</div>
