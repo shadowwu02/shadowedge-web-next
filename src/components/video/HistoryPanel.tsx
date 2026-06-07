@@ -10,6 +10,7 @@ type HistoryPanelProps = {
   history: VideoTaskRecord[];
   isLoading?: boolean;
   error?: string;
+  onRetry?: (record: VideoTaskRecord) => void;
 };
 
 const filters: Array<{ id: HistoryFilter; label: string }> = [
@@ -42,7 +43,7 @@ function emptyMessage(filter: HistoryFilter) {
   return "No saved videos yet.";
 }
 
-export function HistoryPanel({ error, history, isLoading = false }: HistoryPanelProps) {
+export function HistoryPanel({ error, history, isLoading = false, onRetry }: HistoryPanelProps) {
   const [filter, setFilter] = useState<HistoryFilter>("all");
 
   const visibleHistory = useMemo(() => history.filter((item) => filterHistoryItem(item, filter)), [filter, history]);
@@ -114,15 +115,18 @@ export function HistoryPanel({ error, history, isLoading = false }: HistoryPanel
                       <span>Model: {item.model || item.frontendModel || "--"}</span>
                       <span>Job: {item.jobId || item.providerJobId || "--"}</span>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        className="rounded-full border border-white/10 px-3 py-1 text-xs font-bold text-white/42"
-                        disabled
-                        type="button"
-                      >
-                        Retry soon
-                      </button>
-                    </div>
+                    {isVideoFailedStatus(item.status) ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          className="rounded-full border border-[#ffb44d]/35 bg-[#ffb44d]/10 px-3 py-1 text-xs font-bold text-[#ffd08a] transition hover:bg-[#ffb44d]/16 disabled:cursor-not-allowed disabled:opacity-45"
+                          disabled={!onRetry}
+                          onClick={() => onRetry?.(item)}
+                          type="button"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </article>

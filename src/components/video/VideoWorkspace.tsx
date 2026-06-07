@@ -12,8 +12,11 @@ import { ResultViewer } from "@/components/video/ResultViewer";
 import { UploadBox } from "@/components/video/UploadBox";
 import { type VideoParams, VideoParamsPanel } from "@/components/video/VideoParamsPanel";
 import { useTaskPolling } from "@/hooks/useTaskPolling";
+import { useAuthSession } from "@/hooks/useAuthSession";
+import { useCredits } from "@/hooks/useCredits";
 import { useVideoGeneration } from "@/hooks/useVideoGeneration";
 import { getVideoModels } from "@/lib/video-api";
+import { isVideoActiveStatus } from "@/lib/utils";
 import type { UploadMediaItem, VideoModel, VideoStatusResponse } from "@/types/video";
 
 const fallbackModels: VideoModel[] = [
@@ -45,6 +48,38 @@ const fallbackModels: VideoModel[] = [
   },
 ];
 
+function buildRetryMedia(record: { mediaList?: UploadMediaItem[] | Array<{ id?: string; type: UploadMediaItem["type"]; url: string; name?: string; mimeType?: string; size?: number; duration?: number }>; reference_images?: string[]; reference_videos?: string[]; reference_audios?: string[] }) {
+  const mediaList = Array.isArray(record.mediaList) ? record.mediaList : [];
+  const fromMediaList = mediaList.map((item, index) => ({
+    id: item.id || `retry-media-${index}`,
+    type: item.type,
+    name: item.name || `Retry ${item.type} ${index + 1}`,
+    url: item.url,
+    previewUrl: item.type === "image" ? item.url : "",
+    size: item.size,
+    mimeType: item.mimeType,
+    duration: item.duration,
+    uploadStatus: "ready" as const,
+  }));
+
+  const fromRefs = [
+    ...(record.reference_images || []).map((url, index) => ({ type: "image" as const, url, index })),
+    ...(record.reference_videos || []).map((url, index) => ({ type: "video" as const, url, index })),
+    ...(record.reference_audios || []).map((url, index) => ({ type: "audio" as const, url, index })),
+  ]
+    .filter((item) => !fromMediaList.some((mediaItem) => mediaItem.url === item.url))
+    .map((item) => ({
+      id: `retry-${item.type}-${item.index}-${item.url}`,
+      type: item.type,
+      name: `Retry ${item.type} ${item.index + 1}`,
+      url: item.url,
+      previewUrl: item.type === "image" ? item.url : "",
+      uploadStatus: "ready" as const,
+    }));
+
+  return [...fromMediaList, ...fromRefs];
+}
+
 export function VideoWorkspace() {
   const [models, setModels] = useState<VideoModel[]>(fallbackModels);
   const [selectedModel, setSelectedModel] = useState<VideoModel>(fallbackModels[0]);
@@ -59,7 +94,21 @@ export function VideoWorkspace() {
     generateAudio: false,
   });
 
-  const { error, history, historyError, isHistoryLoading, isSubmitting, loadHistory, refreshTask, submit, task } = useVideoGeneration();
+  const { isSignedIn, token } = useAuthSession();
+  const { credits, maxConcurrency } = useCredits();
+  const {
+    activeTaskCount,
+    error,
+    history,
+    historyError,
+    isHistoryLoading,
+    isSubmitting,
+    loadHistory,
+    refreshTask,
+    submit,
+    task,
+  } = useVideoGeneration();
+  const [workspaceNotice, setWorkspaceNotice] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -131,6 +180,103 @@ export function VideoWorkspace() {
     [selectedModel],
   );
 
+  const isUploadingMedia = media.some((item) => item.uploadStatus === "uploading");
+  const isProcessing = activeTaskCount > 0 || isVideoActiveStatus(task?.status);
+  const hasEnoughCredits = credits === null || selectedModel.credits <= credits;
+  const canGenerate = Boolean(selectedModel) && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits;
+
+  const generateButtonLabel = useMemo(() => {
+    if (isUploadingMedia) return "Uploading media";
+    if (isProcessing) return "Processing";
+    if (!token && !isSignedIn) return "Sign in required";
+    if (!hasEnoughCredits) return "Not enough credits";
+    return `Generate · ${selectedModel.credits} credits`;
+  }, [hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, selectedModel.credits, token]);
+
+  const findRetryModel = useCallback((record: { modelId?: string; providerModel?: string; frontendModel?: string; model?: string }) => {
+    return (
+      models.find((model) => model.id === record.modelId) ||
+      models.find((model) => model.providerModel && model.providerModel === record.providerModel) ||
+      models.find((model) => model.label === record.frontendModel || model.label === record.model) ||
+      null
+    );
+  }, [models]);
+
+  const submitCurrent = useCallback(() => {
+    setWorkspaceNotice("");
+
+    if (isUploadingMedia) {
+      setWorkspaceNotice("Media is still uploading. Please wait for uploads to finish.");
+      return;
+    }
+
+    if (isProcessing) {
+      setWorkspaceNotice("You already have active generation tasks. Please wait until one finishes.");
+      return;
+    }
+
+    if (!token && !isSignedIn) {
+      setWorkspaceNotice("Sign in required.");
+      return;
+    }
+
+    if (!hasEnoughCredits) {
+      setWorkspaceNotice("Not enough credits.");
+      return;
+    }
+
+    void submit({
+      prompt: prompt.trim(),
+      model: selectedModel,
+      duration: params.duration,
+      ratio: params.ratio,
+      quality: params.quality,
+      generateAudio: params.generateAudio,
+      maxConcurrency,
+      media,
+    });
+  }, [hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, maxConcurrency, media, params, prompt, selectedModel, submit, token]);
+
+  const handleRetry = useCallback(
+    (record: (typeof history)[number]) => {
+      setWorkspaceNotice("");
+      const retryModel = findRetryModel(record);
+      if (!retryModel) {
+        setWorkspaceNotice("Cannot retry: original model is not available.");
+        return;
+      }
+
+      const retryMedia = buildRetryMedia(record);
+      const hasMissingMedia = retryMedia.some((item) => !item.url || item.url.startsWith("blob:") || item.url.startsWith("data:"));
+      if (hasMissingMedia) {
+        setWorkspaceNotice("Cannot retry: original media URL is missing.");
+        return;
+      }
+
+      const promptText = String(record.meta?.original_prompt || record.prompt || "").trim();
+      if (!promptText) {
+        setWorkspaceNotice("Cannot retry: original prompt is missing.");
+        return;
+      }
+
+      const duration = Number.parseInt(String(record.duration || retryModel.durationDefault), 10) || retryModel.durationDefault;
+      const ratio = record.ratio && retryModel.ratios.includes(record.ratio) ? record.ratio : retryModel.ratios[0] || "16:9";
+      const quality = record.quality && retryModel.qualities.includes(record.quality) ? record.quality : retryModel.qualities[0] || "720p";
+
+      void submit({
+        prompt: promptText,
+        model: retryModel,
+        duration,
+        ratio,
+        quality,
+        generateAudio: Boolean(record.meta?.generate_audio),
+        media: retryMedia,
+        maxConcurrency,
+      });
+    },
+    [findRetryModel, maxConcurrency, submit],
+  );
+
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(300px,360px)_minmax(0,1fr)_minmax(340px,420px)]">
       <div className="grid gap-5">
@@ -161,26 +307,17 @@ export function VideoWorkspace() {
         <PromptBox media={media} onChange={setPrompt} value={prompt} />
         <GenerateButton
           credits={selectedModel.credits}
-          disabled={!selectedModel}
+          disabled={!canGenerate}
           isSubmitting={isSubmitting}
-          onClick={() =>
-            submit({
-              prompt: prompt.trim(),
-              model: selectedModel,
-              duration: params.duration,
-              ratio: params.ratio,
-              quality: params.quality,
-              generateAudio: params.generateAudio,
-              media,
-            })
-          }
+          label={generateButtonLabel}
+          onClick={submitCurrent}
         />
-        <ErrorState message={error || modelError} />
+        <ErrorState message={workspaceNotice || error || modelError} />
       </div>
 
       <div className="grid content-start gap-5">
         <ResultViewer task={task} />
-        <HistoryPanel error={historyError} history={history} isLoading={isHistoryLoading} />
+        <HistoryPanel error={historyError} history={history} isLoading={isHistoryLoading} onRetry={handleRetry} />
       </div>
     </div>
   );

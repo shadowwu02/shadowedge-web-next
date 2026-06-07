@@ -11,4 +11,5 @@ export type ShadowEdgeProfile = {
   credits_balance?: number;
   max_concurrency?: number;
   maxConcurrency?: number;
+  concurrency?: number;
 };
