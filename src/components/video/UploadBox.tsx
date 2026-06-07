@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
+import { MediaPickerDrawer } from "@/components/video/MediaPickerDrawer";
 import { uploadMedia } from "@/lib/video-api";
 import type { UploadMediaItem } from "@/types/video";
 
@@ -47,6 +48,7 @@ export function UploadBox({
   onChange: Dispatch<SetStateAction<UploadMediaItem[]>>;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
 
   async function handleFiles(files: File[]) {
     const availableSlots = Math.max(0, 12 - media.length);
@@ -124,22 +126,16 @@ export function UploadBox({
     );
   }
 
+  const readyCount = media.filter((item) => item.uploadStatus === "ready").length;
+  const uploadingCount = media.filter((item) => item.uploadStatus === "uploading").length;
+  const failedCount = media.filter((item) => item.uploadStatus === "failed").length;
+
+  function removeMedia(id: string) {
+    onChange((currentItems) => currentItems.filter((current) => current.id !== id));
+  }
+
   return (
     <section className="rounded-[22px] border border-dashed border-white/14 bg-white/[.045] p-3">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-black text-white">Reference media</h2>
-          <p className="mt-1 text-xs text-white/45">Images, video, and audio for this creation.</p>
-        </div>
-        <button
-          className="shrink-0 rounded-full border border-[#ffb44d]/35 bg-[#ffb44d]/10 px-3 py-2 text-xs font-black text-[#ffd08a] transition hover:bg-[#ffb44d]/16"
-          onClick={() => inputRef.current?.click()}
-          type="button"
-        >
-          Add
-        </button>
-      </div>
-
       <input
         accept="image/*,video/*,audio/*"
         className="hidden"
@@ -153,56 +149,35 @@ export function UploadBox({
         type="file"
       />
 
-      {media.length ? (
-        <div className="se-scrollbar grid max-h-48 grid-cols-2 gap-2 overflow-y-auto pr-1">
-          {media.map((item) => (
-            <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/24" key={item.id}>
-              <div className="grid aspect-video place-items-center bg-white/[.04]">
-                {item.type === "image" && item.previewUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img alt="" className="h-full w-full object-cover" src={item.previewUrl} />
-                ) : (
-                  <span className="text-xs font-black uppercase tracking-[.18em] text-white/45">{item.type}</span>
-                )}
-              </div>
-              <div className="grid gap-2 p-2">
-                <span className="min-w-0">
-                  <span className="block truncate text-xs text-white/62">{item.name}</span>
-                  <span className="mt-1 block text-[11px] font-bold uppercase tracking-[.12em] text-white/34">
-                    {item.uploadStatus === "uploading"
-                      ? "Uploading"
-                      : item.uploadStatus === "failed"
-                        ? "Failed"
-                        : item.url
-                          ? "Ready"
-                      : "Local"}
-                  </span>
-                </span>
-                <button
-                  className="justify-self-start rounded-full border border-white/10 px-2 py-1 text-xs text-white/52 hover:border-red-300/40 hover:text-red-100"
-                  onClick={() => onChange((currentItems) => currentItems.filter((current) => current.id !== item.id))}
-                  type="button"
-                >
-                  Remove
-                </button>
-              </div>
-              {item.errorMessage ? (
-                <div className="border-t border-red-300/15 bg-red-400/10 px-3 py-2 text-xs text-red-100/80">
-                  {item.errorMessage}
-                </div>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <button
-          className="grid min-h-24 w-full place-items-center rounded-3xl border border-white/10 bg-black/18 px-4 text-center text-sm text-white/50 transition hover:border-[#ffb44d]/40 hover:text-[#ffd08a]"
-          onClick={() => inputRef.current?.click()}
-          type="button"
-        >
-          Drop or choose reference media
-        </button>
-      )}
+      <button
+        className="grid min-h-28 w-full place-items-center rounded-3xl border border-white/10 bg-black/18 px-4 text-center transition hover:border-[#ffb44d]/40 hover:bg-[#ffb44d]/8"
+        onClick={() => setIsPickerOpen(true)}
+        type="button"
+      >
+        <span>
+          <span className="mx-auto mb-3 flex justify-center gap-2">
+            {["IMG", "VID", "AUD"].map((item) => (
+              <span className="grid size-9 place-items-center rounded-full border border-white/10 bg-white/[.06] text-[10px] font-black text-white/48" key={item}>
+                {item}
+              </span>
+            ))}
+          </span>
+          <span className="block text-sm font-black text-white">Upload media</span>
+          <span className="mt-1 block text-xs text-white/45">Image, video, or audio</span>
+          <span className="mt-3 block text-[11px] font-bold text-white/38">
+            {readyCount} ready · {uploadingCount} uploading · {failedCount} failed
+          </span>
+        </span>
+      </button>
+
+      <MediaPickerDrawer
+        inputRef={inputRef}
+        isOpen={isPickerOpen}
+        media={media}
+        onClose={() => setIsPickerOpen(false)}
+        onFiles={(files) => void handleFiles(files)}
+        onRemove={removeMedia}
+      />
     </section>
   );
 }

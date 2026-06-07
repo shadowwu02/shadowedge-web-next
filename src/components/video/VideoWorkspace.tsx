@@ -8,7 +8,7 @@ import { GenerateButton } from "@/components/video/GenerateButton";
 import { HistoryPanel } from "@/components/video/HistoryPanel";
 import { ModelSelector } from "@/components/video/ModelSelector";
 import { PromptBox } from "@/components/video/PromptBox";
-import { ReferenceMediaMention } from "@/components/video/ReferenceMediaMention";
+import { ReferenceMediaTray } from "@/components/video/ReferenceMediaTray";
 import { ResultViewer } from "@/components/video/ResultViewer";
 import { UploadBox } from "@/components/video/UploadBox";
 import { type VideoParams, VideoParamsPanel } from "@/components/video/VideoParamsPanel";
@@ -181,6 +181,10 @@ export function VideoWorkspace() {
     [selectedModel],
   );
 
+  const removeMedia = useCallback((id: string) => {
+    setMedia((currentItems) => currentItems.filter((item) => item.id !== id));
+  }, []);
+
   const isUploadingMedia = media.some((item) => item.uploadStatus === "uploading");
   const isProcessing = activeTaskCount > 0 || isVideoActiveStatus(task?.status);
   const hasEnoughCredits = credits === null || selectedModel.credits <= credits;
@@ -279,14 +283,59 @@ export function VideoWorkspace() {
   );
 
   return (
-    <div className="se-scrollbar h-full min-h-0 space-y-4 overflow-y-auto overflow-x-hidden xl:grid xl:grid-cols-[minmax(230px,280px)_minmax(0,1fr)_minmax(260px,300px)] xl:grid-rows-[minmax(0,1fr)_auto] xl:gap-4 xl:space-y-0 xl:overflow-hidden 2xl:grid-cols-[minmax(280px,320px)_minmax(0,1fr)_minmax(320px,360px)]">
-      <aside className="min-h-0 overflow-hidden rounded-[30px] border border-white/10 bg-white/[.04] shadow-2xl shadow-black/20">
-        <div className="border-b border-white/10 px-4 py-3">
-          <p className="text-[11px] font-black uppercase tracking-[.18em] text-[#ffcf83]">Creator setup</p>
-          <h2 className="mt-1 text-base font-black text-white">Video controls</h2>
+    <div className="se-scrollbar h-full min-h-0 space-y-4 overflow-y-auto overflow-x-hidden xl:grid xl:grid-cols-[minmax(300px,330px)_minmax(0,1fr)_minmax(260px,300px)] xl:gap-4 xl:space-y-0 xl:overflow-hidden 2xl:grid-cols-[minmax(320px,350px)_minmax(0,1fr)_minmax(320px,360px)]">
+      <aside className="flex min-h-0 flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[.04] shadow-2xl shadow-black/20">
+        <div className="shrink-0 border-b border-white/10 px-4 py-3">
+          <div className="flex gap-4 text-sm font-bold text-white/52">
+            <button className="border-b-2 border-[#ffb44d] pb-2 text-white" type="button">
+              Create Video
+            </button>
+            <button className="cursor-not-allowed pb-2 text-white/40" disabled type="button">
+              Edit Video
+            </button>
+            <button className="cursor-not-allowed pb-2 text-white/40" disabled type="button">
+              Motion Control
+            </button>
+          </div>
         </div>
-        <div className="se-scrollbar grid max-h-[520px] gap-3 overflow-y-auto p-3 xl:max-h-none xl:h-[calc(100%-70px)]">
+
+        <div className="se-scrollbar grid min-h-0 flex-1 gap-3 overflow-y-auto p-3">
           {modelLoading ? <LoadingState label="Loading live model registry..." /> : null}
+          <section className="overflow-hidden rounded-[22px] border border-white/10 bg-[radial-gradient(circle_at_12%_0%,rgba(255,180,77,.20),transparent_34%),rgba(255,255,255,.055)] p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[11px] font-black uppercase tracking-[.18em] text-[#ffcf83]">Selected model</p>
+                <h2 className="mt-2 truncate text-lg font-black text-white">{selectedModel.label}</h2>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-white/52">{selectedModel.desc || "Create motion from prompt and references."}</p>
+              </div>
+              <span className="shrink-0 rounded-full border border-[#ffb44d]/24 bg-[#ffb44d]/12 px-3 py-1 text-xs font-black text-[#ffd08a]">
+                {selectedModel.credits} credits
+              </span>
+            </div>
+          </section>
+          <UploadBox media={media} onChange={setMedia} />
+          <ReferenceMediaTray media={media} onRemove={removeMedia} />
+          <PromptBox media={media} onChange={setPrompt} value={prompt} />
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-black text-white/70 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a]"
+              onClick={() => setPrompt((current) => `${current}${current && !current.endsWith(" ") ? " " : ""}@`)}
+              type="button"
+            >
+              @ Elements
+            </button>
+            <button
+              className={`rounded-2xl border px-3 py-2 text-xs font-black transition ${
+                params.generateAudio
+                  ? "border-[#ffb44d]/45 bg-[#ffb44d]/14 text-[#ffd08a]"
+                  : "border-white/10 bg-black/20 text-white/70 hover:border-[#ffb44d]/35 hover:text-[#ffd08a]"
+              }`}
+              onClick={() => setParams((current) => ({ ...current, generateAudio: !current.generateAudio }))}
+              type="button"
+            >
+              Audio {params.generateAudio ? "On" : "Off"}
+            </button>
+          </div>
           <ModelSelector models={models} onChange={handleModelChange} selectedModelId={selectedModel.id} />
           <VideoParamsPanel
             durations={modelSummary.durations}
@@ -295,26 +344,6 @@ export function VideoWorkspace() {
             ratios={modelSummary.ratios}
             value={params}
           />
-          {modelError ? <ErrorState message={modelError} /> : null}
-        </div>
-      </aside>
-
-      <main className="min-h-[420px] min-w-0 overflow-hidden xl:min-h-0">
-        <ResultViewer task={task} />
-      </main>
-
-      <aside className="min-h-[460px] min-w-0 overflow-hidden xl:row-span-2 xl:min-h-0">
-        <HistoryPanel error={historyError} history={history} isLoading={isHistoryLoading} onRetry={handleRetry} />
-      </aside>
-
-      <section className="se-scrollbar min-w-0 overflow-y-auto overflow-x-hidden rounded-[30px] border border-white/10 bg-[#0d1119]/92 p-3 shadow-2xl shadow-black/24 backdrop-blur-xl xl:col-span-2 xl:max-h-[320px] xl:min-h-0">
-        <div className="grid gap-3 lg:grid-cols-[minmax(240px,340px)_minmax(0,1fr)]">
-          <div className="grid min-w-0 gap-3">
-            <UploadBox media={media} onChange={setMedia} />
-            <ReferenceMediaMention media={media} />
-          </div>
-          <div className="grid min-w-0 gap-3">
-            <PromptBox media={media} onChange={setPrompt} value={prompt} />
           {!token && !isSignedIn ? (
             <div className="rounded-[22px] border border-[#ffb44d]/25 bg-[#ffb44d]/10 p-4">
               <p className="text-sm font-black text-[#ffd08a]">Sign in required</p>
@@ -329,21 +358,27 @@ export function VideoWorkspace() {
               </Link>
             </div>
           ) : null}
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-              <ErrorState message={workspaceNotice || error} />
-              <div className="sm:min-w-[220px]">
-                <GenerateButton
-                  credits={selectedModel.credits}
-                  disabled={!canGenerate}
-                  isSubmitting={isSubmitting}
-                  label={generateButtonLabel}
-                  onClick={submitCurrent}
-                />
-              </div>
-            </div>
-          </div>
+          <ErrorState message={workspaceNotice || error || modelError} />
         </div>
-      </section>
+
+        <div className="shrink-0 border-t border-white/10 p-3">
+          <GenerateButton
+            credits={selectedModel.credits}
+            disabled={!canGenerate}
+            isSubmitting={isSubmitting}
+            label={generateButtonLabel}
+            onClick={submitCurrent}
+          />
+        </div>
+      </aside>
+
+      <main className="min-h-[520px] min-w-0 overflow-hidden xl:min-h-0">
+        <ResultViewer task={task} />
+      </main>
+
+      <aside className="min-h-[460px] min-w-0 overflow-hidden xl:min-h-0">
+        <HistoryPanel error={historyError} history={history} isLoading={isHistoryLoading} onRetry={handleRetry} />
+      </aside>
     </div>
   );
 }

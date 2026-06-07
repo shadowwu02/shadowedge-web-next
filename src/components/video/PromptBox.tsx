@@ -165,7 +165,7 @@ export function PromptBox({ value, media, onChange }: PromptBoxProps) {
     }
   }
 
-  function insertMention(item: MentionableMediaItem) {
+  function insertMentionText(display: string) {
     const textarea = textareaRef.current;
     const currentStart = textarea?.selectionStart ?? value.length;
     const currentEnd = textarea?.selectionEnd ?? value.length;
@@ -173,8 +173,8 @@ export function PromptBox({ value, media, onChange }: PromptBoxProps) {
     const before = value.slice(0, range.start);
     const after = value.slice(range.end);
     const trailingSpace = after.length && !/^\s/.test(after) ? " " : "";
-    const nextValue = `${before}${item.display}${trailingSpace}${after}`.slice(0, 1200);
-    const nextCaret = Math.min(before.length + item.display.length + trailingSpace.length, nextValue.length);
+    const nextValue = `${before}${display}${trailingSpace}${after}`.slice(0, 1200);
+    const nextCaret = Math.min(before.length + display.length + trailingSpace.length, nextValue.length);
 
     onChange(nextValue);
     closeMentionMenu();
@@ -186,9 +186,24 @@ export function PromptBox({ value, media, onChange }: PromptBoxProps) {
     });
   }
 
+  function insertMention(item: MentionableMediaItem) {
+    insertMentionText(item.display);
+  }
+
   function handleMenuMouseDown(event: ReactMouseEvent) {
     event.preventDefault();
   }
+
+  useEffect(() => {
+    function handleExternalMention(event: Event) {
+      const detail = (event as CustomEvent<{ display?: string }>).detail;
+      if (!detail?.display) return;
+      insertMentionText(detail.display);
+    }
+
+    window.addEventListener("shadowedge:insert-video-mention", handleExternalMention);
+    return () => window.removeEventListener("shadowedge:insert-video-mention", handleExternalMention);
+  });
 
   useEffect(() => {
     if (!isMenuOpen) return;
