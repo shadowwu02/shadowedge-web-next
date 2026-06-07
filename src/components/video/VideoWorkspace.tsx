@@ -94,6 +94,7 @@ export function VideoWorkspace() {
     quality: fallbackModels[0].qualities[0],
     generateAudio: false,
   });
+  const [isAssetPickerUploading, setIsAssetPickerUploading] = useState(false);
 
   const { isSignedIn, token } = useAuthSession();
   const { credits, maxConcurrency } = useCredits();
@@ -185,7 +186,7 @@ export function VideoWorkspace() {
     setMedia((currentItems) => currentItems.filter((item) => item.id !== id));
   }, []);
 
-  const isUploadingMedia = media.some((item) => item.uploadStatus === "uploading");
+  const isUploadingMedia = isAssetPickerUploading || media.some((item) => item.uploadStatus === "uploading");
   const isProcessing = activeTaskCount > 0 || isVideoActiveStatus(task?.status);
   const hasEnoughCredits = credits === null || selectedModel.credits <= credits;
   const canGenerate = Boolean(selectedModel) && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits;
@@ -301,7 +302,7 @@ export function VideoWorkspace() {
 
         <div className="se-subtle-scrollbar grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-3">
           {modelLoading ? <LoadingState label="Loading live model registry..." /> : null}
-          <UploadBox media={media} onChange={setMedia} />
+          <UploadBox media={media} onBusyChange={setIsAssetPickerUploading} onChange={setMedia} />
           <ReferenceMediaTray media={media} onRemove={removeMedia} />
           <PromptBox media={media} onChange={setPrompt} value={prompt} />
           <div className="grid grid-cols-2 gap-2">
