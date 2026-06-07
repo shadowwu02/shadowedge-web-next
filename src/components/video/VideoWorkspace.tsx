@@ -157,7 +157,7 @@ export function VideoWorkspace() {
         <PromptBox onChange={setPrompt} value={prompt} />
         <GenerateButton
           credits={selectedModel.credits}
-          disabled={!prompt.trim() || !selectedModel}
+          disabled={!selectedModel}
           isSubmitting={isSubmitting}
           onClick={() =>
             submit({

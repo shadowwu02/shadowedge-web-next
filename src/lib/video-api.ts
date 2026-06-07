@@ -49,7 +49,48 @@ export async function getVideoModels() {
   return (envelope.data?.models || []).map(normalizeVideoModel);
 }
 
-export async function createVideoTask(request: VideoGenerationRequest) {
+function assertRemoteMediaUrl(url: string) {
+  const value = String(url || "").trim();
+  if (!value) return;
+  if (value.startsWith("blob:") || value.startsWith("data:")) {
+    throw new Error("Local preview media cannot be sent to generation. Please wait for upload to finish.");
+  }
+}
+
+export function normalizeVideoGenerationRequest(request: VideoGenerationRequest): VideoGenerationRequest {
+  const referenceImages = (request.reference_images || []).filter(Boolean);
+  const referenceVideos = (request.reference_videos || []).filter(Boolean);
+  const referenceAudios = (request.reference_audios || []).filter(Boolean);
+  const mediaList = (request.mediaList || []).filter((item) => item?.url);
+
+  [...referenceImages, ...referenceVideos, ...referenceAudios, ...mediaList.map((item) => item.url)].forEach(assertRemoteMediaUrl);
+
+  return {
+    ...request,
+    prompt: String(request.prompt || "").trim(),
+    assets: {
+      images: (request.assets?.images || []).filter(Boolean),
+      videos: (request.assets?.videos || []).filter(Boolean),
+      audios: (request.assets?.audios || []).filter(Boolean),
+    },
+    first_frame_image: request.first_frame_image || "",
+    last_frame_image: request.last_frame_image || "",
+    reference_images: referenceImages,
+    reference_videos: referenceVideos,
+    reference_audios: referenceAudios,
+    mediaList,
+    image: request.image || request.imageUrl || referenceImages[0] || request.assets?.images?.[0] || "",
+    imageUrl: request.imageUrl || request.image || referenceImages[0] || request.assets?.images?.[0] || "",
+    video: request.video || request.videoUrl || referenceVideos[0] || request.assets?.videos?.[0] || "",
+    videoUrl: request.videoUrl || request.video || referenceVideos[0] || request.assets?.videos?.[0] || "",
+    upload_assets: {
+      media: request.upload_assets?.media || mediaList,
+    },
+  };
+}
+
+export async function generateVideo(request: VideoGenerationRequest) {
+  const payload = normalizeVideoGenerationRequest(request);
   return apiRequest<{
     jobId: string;
     providerJobId?: string;
@@ -60,9 +101,11 @@ export async function createVideoTask(request: VideoGenerationRequest) {
     creditsBalance?: number;
   }>("/api/video/generate", {
     method: "POST",
-    body: JSON.stringify(request),
+    body: JSON.stringify(payload),
   });
 }
+
+export const createVideoTask = generateVideo;
 
 export async function getVideoStatus(jobId: string, force = false) {
   const params = new URLSearchParams({ jobId, t: String(Date.now()) });

@@ -19,13 +19,84 @@ function mediaUrl(item: UploadMediaItem) {
   return item.url || "";
 }
 
+function isRemoteUrl(url: string) {
+  return /^https?:\/\//i.test(url);
+}
+
+function validateSubmitOptions(options: SubmitVideoOptions) {
+  if (!options.prompt.trim()) {
+    return "Please enter a prompt first.";
+  }
+
+  if (options.media.some((item) => item.uploadStatus === "uploading")) {
+    return "Media is still uploading. Please wait for uploads to finish.";
+  }
+
+  if (options.media.some((item) => item.uploadStatus === "failed")) {
+    return "Some media failed to upload. Remove failed items before generating.";
+  }
+
+  if (options.media.some((item) => item.previewUrl?.startsWith("blob:") && !item.url)) {
+    return "Local preview media cannot be used for generation. Please wait for upload to finish.";
+  }
+
+  return "";
+}
+
+function getReadyUploadedMedia(media: UploadMediaItem[]) {
+  return media.filter((item) => item.uploadStatus === "ready" && item.url && isRemoteUrl(item.url));
+}
+
+function toMediaList(items: UploadMediaItem[]) {
+  return items.map((item) => ({
+    id: item.id,
+    type: item.type,
+    url: mediaUrl(item),
+    role: "reference",
+    duration: item.duration,
+    name: item.name,
+    mimeType: item.mimeType,
+    size: item.size,
+  }));
+}
+
+function buildMediaAwarePrompt(promptText: string, mediaList: ReturnType<typeof toMediaList>) {
+  const cleanPrompt = promptText.trim();
+  if (!mediaList.length) return cleanPrompt;
+
+  const counters = { image: 0, video: 0, audio: 0 };
+  const mapping = mediaList
+    .map((item) => {
+      counters[item.type] += 1;
+      if (item.type === "video") return `【@视频${counters.video}】 = reference video ${counters.video}`;
+      if (item.type === "audio") return `【@音频${counters.audio}】 = reference audio ${counters.audio}`;
+      return `【@图${counters.image}】 = reference image ${counters.image}`;
+    })
+    .join("\n");
+
+  return [
+    "Reference media mapping:",
+    mapping,
+    "",
+    "User prompt:",
+    cleanPrompt,
+    "",
+    "Use the numbered reference images, videos, and audio above when interpreting the prompt.",
+  ].join("\n");
+}
+
 function buildVideoRequest(options: SubmitVideoOptions): VideoGenerationRequest {
-  const images = options.media.filter((item) => item.type === "image").map(mediaUrl).filter(Boolean);
-  const videos = options.media.filter((item) => item.type === "video").map(mediaUrl).filter(Boolean);
-  const audios = options.media.filter((item) => item.type === "audio").map(mediaUrl).filter(Boolean);
+  const readyMedia = getReadyUploadedMedia(options.media);
+  const mediaList = toMediaList(readyMedia);
+  const images = mediaList.filter((item) => item.type === "image").map((item) => item.url);
+  const videos = mediaList.filter((item) => item.type === "video").map((item) => item.url);
+  const audios = mediaList.filter((item) => item.type === "audio").map((item) => item.url);
+  const enhancedPrompt = buildMediaAwarePrompt(options.prompt, mediaList);
+  const primaryImageUrl = images[0] || "";
+  const primaryVideoUrl = videos[0] || "";
 
   return {
-    prompt: options.prompt,
+    prompt: enhancedPrompt,
     frontendModel: options.model.label,
     model: options.model.id,
     modelId: options.model.id,
@@ -42,11 +113,15 @@ function buildVideoRequest(options: SubmitVideoOptions): VideoGenerationRequest 
     reference_images: images,
     reference_videos: videos,
     reference_audios: audios,
-    mediaList: [
-      ...images.map((url) => ({ type: "image" as const, url, role: "reference" })),
-      ...videos.map((url) => ({ type: "video" as const, url, role: "reference" })),
-      ...audios.map((url) => ({ type: "audio" as const, url, role: "reference" })),
-    ],
+    mediaList,
+    mode: mediaList.length ? "media-to-video" : "text-to-video",
+    image: primaryImageUrl,
+    imageUrl: primaryImageUrl,
+    video: primaryVideoUrl,
+    videoUrl: primaryVideoUrl,
+    upload_assets: {
+      media: mediaList,
+    },
     clientCost: options.model.credits,
     meta: {
       frontend_model: options.model.label,
@@ -54,9 +129,14 @@ function buildVideoRequest(options: SubmitVideoOptions): VideoGenerationRequest 
       duration: `${options.duration}s`,
       ratio: options.ratio,
       quality: options.quality,
+      original_prompt: options.prompt,
+      enhanced_prompt: enhancedPrompt,
+      mode: mediaList.length ? "media-to-video" : "text-to-video",
+      assets: { images, videos, audios },
       reference_images: images,
       reference_videos: videos,
       reference_audios: audios,
+      mediaList,
     },
   };
 }
@@ -72,6 +152,11 @@ export function useVideoGeneration() {
     setError("");
 
     try {
+      const validationMessage = validateSubmitOptions(options);
+      if (validationMessage) {
+        throw new Error(validationMessage);
+      }
+
       const request = buildVideoRequest(options);
       const response = await createVideoTask(request);
       const result = response.data;
@@ -93,7 +178,7 @@ export function useVideoGeneration() {
         duration: `${options.duration}s`,
         ratio: options.ratio,
         quality: options.quality,
-        prompt: options.prompt,
+        prompt: options.prompt.trim(),
         reference_images: request.reference_images,
         reference_videos: request.reference_videos,
         reference_audios: request.reference_audios,
@@ -114,7 +199,15 @@ export function useVideoGeneration() {
   }, []);
 
   const refreshTask = useCallback(async (jobId: string) => {
-    const response = await getVideoStatus(jobId);
+    let response;
+    try {
+      response = await getVideoStatus(jobId);
+    } catch (statusError) {
+      const message = statusError instanceof Error ? statusError.message : "Failed to refresh video status.";
+      setError(message);
+      throw statusError;
+    }
+
     const result = response.data || {};
 
     setTask((current) => {

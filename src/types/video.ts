@@ -89,11 +89,31 @@ export type VideoGenerationRequest = {
   reference_videos: string[];
   reference_audios: string[];
   mediaList: Array<{
+    id?: string;
     type: UploadMediaType;
     url: string;
     role?: string;
     duration?: number;
+    name?: string;
+    mimeType?: string;
+    size?: number;
   }>;
+  mode: string;
+  image: string;
+  imageUrl: string;
+  video: string;
+  videoUrl: string;
+  upload_assets: {
+    media: Array<{
+      id?: string;
+      type: UploadMediaType;
+      url: string;
+      name?: string;
+      mimeType?: string;
+      size?: number;
+      duration?: number;
+    }>;
+  };
   clientCost: number;
   meta: Record<string, unknown>;
 };
