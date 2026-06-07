@@ -154,7 +154,7 @@ export function VideoWorkspace() {
       <div className="grid gap-5">
         <UploadBox media={media} onChange={setMedia} />
         <ReferenceMediaMention media={media} />
-        <PromptBox onChange={setPrompt} value={prompt} />
+        <PromptBox media={media} onChange={setPrompt} value={prompt} />
         <GenerateButton
           credits={selectedModel.credits}
           disabled={!selectedModel}

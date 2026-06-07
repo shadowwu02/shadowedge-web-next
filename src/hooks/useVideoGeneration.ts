@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { createVideoTask, getVideoStatus } from "@/lib/video-api";
+import { buildMediaAwarePrompt, getReadyMentionableMediaItems, toGenerationMediaList } from "@/lib/video-mentions";
 import { getVideoOutputUrl, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { UploadMediaItem, VideoGenerationRequest, VideoModel, VideoStatusResponse, VideoTaskRecord } from "@/types/video";
 
@@ -14,10 +15,6 @@ type SubmitVideoOptions = {
   generateAudio: boolean;
   media: UploadMediaItem[];
 };
-
-function mediaUrl(item: UploadMediaItem) {
-  return item.url || "";
-}
 
 function isRemoteUrl(url: string) {
   return /^https?:\/\//i.test(url);
@@ -40,58 +37,20 @@ function validateSubmitOptions(options: SubmitVideoOptions) {
     return "Local preview media cannot be used for generation. Please wait for upload to finish.";
   }
 
+  if (options.media.some((item) => item.url && !isRemoteUrl(item.url))) {
+    return "Only uploaded remote media URLs can be used for generation.";
+  }
+
   return "";
 }
 
-function getReadyUploadedMedia(media: UploadMediaItem[]) {
-  return media.filter((item) => item.uploadStatus === "ready" && item.url && isRemoteUrl(item.url));
-}
-
-function toMediaList(items: UploadMediaItem[]) {
-  return items.map((item) => ({
-    id: item.id,
-    type: item.type,
-    url: mediaUrl(item),
-    role: "reference",
-    duration: item.duration,
-    name: item.name,
-    mimeType: item.mimeType,
-    size: item.size,
-  }));
-}
-
-function buildMediaAwarePrompt(promptText: string, mediaList: ReturnType<typeof toMediaList>) {
-  const cleanPrompt = promptText.trim();
-  if (!mediaList.length) return cleanPrompt;
-
-  const counters = { image: 0, video: 0, audio: 0 };
-  const mapping = mediaList
-    .map((item) => {
-      counters[item.type] += 1;
-      if (item.type === "video") return `【@视频${counters.video}】 = reference video ${counters.video}`;
-      if (item.type === "audio") return `【@音频${counters.audio}】 = reference audio ${counters.audio}`;
-      return `【@图${counters.image}】 = reference image ${counters.image}`;
-    })
-    .join("\n");
-
-  return [
-    "Reference media mapping:",
-    mapping,
-    "",
-    "User prompt:",
-    cleanPrompt,
-    "",
-    "Use the numbered reference images, videos, and audio above when interpreting the prompt.",
-  ].join("\n");
-}
-
 function buildVideoRequest(options: SubmitVideoOptions): VideoGenerationRequest {
-  const readyMedia = getReadyUploadedMedia(options.media);
-  const mediaList = toMediaList(readyMedia);
+  const mentionMediaItems = getReadyMentionableMediaItems(options.media);
+  const mediaList = toGenerationMediaList(mentionMediaItems);
   const images = mediaList.filter((item) => item.type === "image").map((item) => item.url);
   const videos = mediaList.filter((item) => item.type === "video").map((item) => item.url);
   const audios = mediaList.filter((item) => item.type === "audio").map((item) => item.url);
-  const enhancedPrompt = buildMediaAwarePrompt(options.prompt, mediaList);
+  const enhancedPrompt = buildMediaAwarePrompt(options.prompt, mentionMediaItems);
   const primaryImageUrl = images[0] || "";
   const primaryVideoUrl = videos[0] || "";
 
