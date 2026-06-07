@@ -279,9 +279,13 @@ export function VideoWorkspace() {
   );
 
   return (
-    <div className="se-scrollbar h-full min-h-0 space-y-5 overflow-y-auto overflow-x-hidden xl:grid xl:space-y-0 xl:gap-5 xl:overflow-hidden xl:grid-cols-[minmax(320px,380px)_minmax(0,1fr)_minmax(320px,380px)] 2xl:grid-cols-[minmax(340px,400px)_minmax(0,1fr)_minmax(340px,400px)]">
-      <aside className="se-scrollbar min-h-0 overflow-visible pr-1 xl:overflow-y-auto xl:overflow-x-hidden">
-        <div className="grid gap-4 pb-2">
+    <div className="se-scrollbar h-full min-h-0 space-y-4 overflow-y-auto overflow-x-hidden xl:grid xl:grid-cols-[minmax(230px,280px)_minmax(0,1fr)_minmax(260px,300px)] xl:grid-rows-[minmax(0,1fr)_auto] xl:gap-4 xl:space-y-0 xl:overflow-hidden 2xl:grid-cols-[minmax(280px,320px)_minmax(0,1fr)_minmax(320px,360px)]">
+      <aside className="min-h-0 overflow-hidden rounded-[30px] border border-white/10 bg-white/[.04] shadow-2xl shadow-black/20">
+        <div className="border-b border-white/10 px-4 py-3">
+          <p className="text-[11px] font-black uppercase tracking-[.18em] text-[#ffcf83]">Creator setup</p>
+          <h2 className="mt-1 text-base font-black text-white">Video controls</h2>
+        </div>
+        <div className="se-scrollbar grid max-h-[520px] gap-3 overflow-y-auto p-3 xl:max-h-none xl:h-[calc(100%-70px)]">
           {modelLoading ? <LoadingState label="Loading live model registry..." /> : null}
           <ModelSelector models={models} onChange={handleModelChange} selectedModelId={selectedModel.id} />
           <VideoParamsPanel
@@ -291,11 +295,28 @@ export function VideoWorkspace() {
             ratios={modelSummary.ratios}
             value={params}
           />
-          <UploadBox media={media} onChange={setMedia} />
-          <ReferenceMediaMention media={media} />
-          <PromptBox media={media} onChange={setPrompt} value={prompt} />
+          {modelError ? <ErrorState message={modelError} /> : null}
+        </div>
+      </aside>
+
+      <main className="min-h-[420px] min-w-0 overflow-hidden xl:min-h-0">
+        <ResultViewer task={task} />
+      </main>
+
+      <aside className="min-h-[460px] min-w-0 overflow-hidden xl:row-span-2 xl:min-h-0">
+        <HistoryPanel error={historyError} history={history} isLoading={isHistoryLoading} onRetry={handleRetry} />
+      </aside>
+
+      <section className="se-scrollbar min-w-0 overflow-y-auto overflow-x-hidden rounded-[30px] border border-white/10 bg-[#0d1119]/92 p-3 shadow-2xl shadow-black/24 backdrop-blur-xl xl:col-span-2 xl:max-h-[320px] xl:min-h-0">
+        <div className="grid gap-3 lg:grid-cols-[minmax(240px,340px)_minmax(0,1fr)]">
+          <div className="grid min-w-0 gap-3">
+            <UploadBox media={media} onChange={setMedia} />
+            <ReferenceMediaMention media={media} />
+          </div>
+          <div className="grid min-w-0 gap-3">
+            <PromptBox media={media} onChange={setPrompt} value={prompt} />
           {!token && !isSignedIn ? (
-            <div className="rounded-[24px] border border-[#ffb44d]/25 bg-[#ffb44d]/10 p-4">
+            <div className="rounded-[22px] border border-[#ffb44d]/25 bg-[#ffb44d]/10 p-4">
               <p className="text-sm font-black text-[#ffd08a]">Sign in required</p>
               <p className="mt-2 text-sm leading-6 text-white/62">
                 Sign in to upload media, launch video jobs, refresh credits, and load generation history.
@@ -308,24 +329,21 @@ export function VideoWorkspace() {
               </Link>
             </div>
           ) : null}
-          <GenerateButton
-            credits={selectedModel.credits}
-            disabled={!canGenerate}
-            isSubmitting={isSubmitting}
-            label={generateButtonLabel}
-            onClick={submitCurrent}
-          />
-          <ErrorState message={workspaceNotice || error || modelError} />
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+              <ErrorState message={workspaceNotice || error} />
+              <div className="sm:min-w-[220px]">
+                <GenerateButton
+                  credits={selectedModel.credits}
+                  disabled={!canGenerate}
+                  isSubmitting={isSubmitting}
+                  label={generateButtonLabel}
+                  onClick={submitCurrent}
+                />
+              </div>
+            </div>
+          </div>
         </div>
-      </aside>
-
-      <main className="min-h-[380px] min-w-0 overflow-hidden xl:min-h-0">
-        <ResultViewer task={task} />
-      </main>
-
-      <aside className="min-h-[420px] min-w-0 overflow-hidden xl:min-h-0">
-        <HistoryPanel error={historyError} history={history} isLoading={isHistoryLoading} onRetry={handleRetry} />
-      </aside>
+      </section>
     </div>
   );
 }

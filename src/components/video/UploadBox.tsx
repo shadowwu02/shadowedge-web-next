@@ -125,18 +125,18 @@ export function UploadBox({
   }
 
   return (
-    <section className="rounded-[24px] border border-dashed border-white/14 bg-white/[.045] p-4">
-      <div className="mb-4 flex items-center justify-between gap-3">
+    <section className="rounded-[22px] border border-dashed border-white/14 bg-white/[.045] p-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-black text-white">Reference media</h2>
-          <p className="mt-1 text-xs text-white/45">Images, video, and audio upload UI for phase 1.</p>
+          <p className="mt-1 text-xs text-white/45">Images, video, and audio for this creation.</p>
         </div>
         <button
-          className="rounded-full border border-[#ffb44d]/35 bg-[#ffb44d]/10 px-4 py-2 text-sm font-bold text-[#ffd08a] transition hover:bg-[#ffb44d]/16"
+          className="shrink-0 rounded-full border border-[#ffb44d]/35 bg-[#ffb44d]/10 px-3 py-2 text-xs font-black text-[#ffd08a] transition hover:bg-[#ffb44d]/16"
           onClick={() => inputRef.current?.click()}
           type="button"
         >
-          Add media
+          Add
         </button>
       </div>
 
@@ -154,7 +154,7 @@ export function UploadBox({
       />
 
       {media.length ? (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="se-scrollbar grid max-h-48 grid-cols-2 gap-2 overflow-y-auto pr-1">
           {media.map((item) => (
             <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/24" key={item.id}>
               <div className="grid aspect-video place-items-center bg-white/[.04]">
@@ -165,7 +165,7 @@ export function UploadBox({
                   <span className="text-xs font-black uppercase tracking-[.18em] text-white/45">{item.type}</span>
                 )}
               </div>
-              <div className="flex items-center justify-between gap-2 p-3">
+              <div className="grid gap-2 p-2">
                 <span className="min-w-0">
                   <span className="block truncate text-xs text-white/62">{item.name}</span>
                   <span className="mt-1 block text-[11px] font-bold uppercase tracking-[.12em] text-white/34">
@@ -175,11 +175,11 @@ export function UploadBox({
                         ? "Failed"
                         : item.url
                           ? "Ready"
-                          : "Local"}
+                      : "Local"}
                   </span>
                 </span>
                 <button
-                  className="rounded-full border border-white/10 px-2 py-1 text-xs text-white/52 hover:border-red-300/40 hover:text-red-100"
+                  className="justify-self-start rounded-full border border-white/10 px-2 py-1 text-xs text-white/52 hover:border-red-300/40 hover:text-red-100"
                   onClick={() => onChange((currentItems) => currentItems.filter((current) => current.id !== item.id))}
                   type="button"
                 >
@@ -196,7 +196,7 @@ export function UploadBox({
         </div>
       ) : (
         <button
-          className="grid min-h-28 w-full place-items-center rounded-3xl border border-white/10 bg-black/18 px-4 text-center text-sm text-white/50 transition hover:border-[#ffb44d]/40 hover:text-[#ffd08a]"
+          className="grid min-h-24 w-full place-items-center rounded-3xl border border-white/10 bg-black/18 px-4 text-center text-sm text-white/50 transition hover:border-[#ffb44d]/40 hover:text-[#ffd08a]"
           onClick={() => inputRef.current?.click()}
           type="button"
         >
