@@ -6,7 +6,7 @@ import { mergeMediaAssets } from "@/lib/media-assets";
 import { slotAllowsAssetType } from "@/lib/upload-rules";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
 
-type MediaFilter = "current" | "uploads" | UploadMediaType;
+type MediaFilter = "uploads" | UploadMediaType | "elements" | "liked";
 
 type DrawerPosition = {
   left: number;
@@ -15,16 +15,17 @@ type DrawerPosition = {
   maxHeight: number;
 };
 
-const drawerWidth = 640;
-const drawerMinWidth = 560;
-const drawerMaxHeight = 560;
+const drawerWidth = 600;
+const drawerMinWidth = 520;
+const drawerMaxHeight = 520;
 
 const filters: Array<{ key: MediaFilter; label: string }> = [
-  { key: "current", label: "Current" },
   { key: "uploads", label: "Uploads" },
   { key: "image", label: "Images" },
   { key: "video", label: "Videos" },
   { key: "audio", label: "Audios" },
+  { key: "elements", label: "Elements" },
+  { key: "liked", label: "Liked" },
 ];
 
 function mediaTypeLabel(type: UploadMediaItem["type"]) {
@@ -68,13 +69,13 @@ function getDrawerPosition(anchor: HTMLElement | null): DrawerPosition {
   const rect = anchor.getBoundingClientRect();
   const preferredWidth = Math.min(drawerWidth, Math.max(drawerMinWidth, viewportWidth - rect.right - gap - edge));
   let widthForPosition = preferredWidth;
-  let left = rect.right + gap;
-  let top = rect.top;
+  let left = rect.right + 10;
+  let top = rect.top - 4;
 
   if (left + widthForPosition > viewportWidth - edge) {
-    widthForPosition = Math.min(drawerWidth, Math.max(drawerMinWidth, viewportWidth - rect.left - edge));
-    left = rect.left;
-    top = rect.bottom + gap;
+    widthForPosition = Math.min(drawerWidth, Math.max(drawerMinWidth, viewportWidth - edge * 2));
+    left = Math.max(edge, rect.left - widthForPosition - gap);
+    top = rect.top - 4;
   }
 
   if (left + widthForPosition > viewportWidth - edge) {
@@ -121,18 +122,18 @@ export function MediaPickerDrawer({
   onRemove: (id: string) => void;
   slot: string;
 }) {
-  const [activeFilter, setActiveFilter] = useState<MediaFilter>("current");
-  const [position, setPosition] = useState<DrawerPosition>({ left: 16, maxHeight: 520, top: 72, width: 640 });
+  const [activeFilter, setActiveFilter] = useState<MediaFilter>("uploads");
+  const [position, setPosition] = useState<DrawerPosition>({ left: 16, maxHeight: 520, top: 72, width: 600 });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const previousStatusesRef = useRef<Map<string, UploadMediaItem["uploadStatus"]>>(new Map());
   const rafRef = useRef<number | null>(null);
 
   const allMedia = useMemo(() => mergeMediaAssets(currentMedia, localMedia), [currentMedia, localMedia]);
   const visibleMedia = useMemo(() => {
-    if (activeFilter === "current") return currentMedia;
-    if (activeFilter === "uploads") return localMedia;
+    if (activeFilter === "uploads") return allMedia;
+    if (activeFilter === "elements" || activeFilter === "liked") return [];
     return allMedia.filter((item) => item.type === activeFilter);
-  }, [activeFilter, allMedia, currentMedia, localMedia]);
+  }, [activeFilter, allMedia]);
 
   const selectedCount = selectedIds.size;
 
@@ -141,7 +142,7 @@ export function MediaPickerDrawer({
 
     previousStatusesRef.current = new Map();
     const frame = window.requestAnimationFrame(() => {
-      setActiveFilter("current");
+      setActiveFilter("uploads");
       setSelectedIds(new Set());
       setPosition(getDrawerPosition(anchorRef.current));
     });
@@ -256,16 +257,19 @@ export function MediaPickerDrawer({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/18" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/8" onClick={onClose}>
       <section
-        className="fixed flex flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#0d1119]/98 shadow-2xl shadow-black/55"
+        className="fixed flex flex-col overflow-visible rounded-[22px] border border-white/10 bg-[#10141c]/98 shadow-2xl shadow-black/55"
         onClick={(event) => event.stopPropagation()}
         style={drawerStyle}
       >
-        <header className="flex shrink-0 items-center justify-between border-b border-white/10 px-4 py-3">
+        <span className="pointer-events-none absolute -left-2 top-12 h-4 w-4 rotate-45 border-b border-l border-white/10 bg-[#10141c]" />
+
+        <header className="flex shrink-0 items-start justify-between border-b border-white/10 px-4 py-3">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#ffcf83]">Media picker</p>
-            <h2 className="mt-1 text-lg font-black text-white">Reference media</h2>
+            <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#ffcf83]">ShadowEdge Assets</p>
+            <h2 className="mt-1 text-xl font-black text-white">My Assets</h2>
+            <p className="mt-1 text-xs font-medium text-white/42">Upload or select existing media for this generation.</p>
           </div>
           <button
             aria-label="Close media picker"
@@ -277,9 +281,9 @@ export function MediaPickerDrawer({
           </button>
         </header>
 
-        <div className="se-subtle-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="se-subtle-scrollbar min-h-0 flex-1 overflow-y-auto p-3.5">
           <button
-            className="grid min-h-28 w-full place-items-center rounded-3xl border border-dashed border-[#ffb44d]/32 bg-[#ffb44d]/8 px-5 text-center transition hover:bg-[#ffb44d]/12"
+            className="grid min-h-[94px] w-full place-items-center rounded-[20px] border border-dashed border-[#ffb44d]/32 bg-[#ffb44d]/8 px-4 text-center transition hover:bg-[#ffb44d]/12"
             onClick={() => {
               onClearNotice?.();
               inputRef.current?.click();
@@ -289,22 +293,25 @@ export function MediaPickerDrawer({
             type="button"
           >
             <span>
-              <span className="mx-auto mb-3 flex justify-center gap-2">
+              <span className="mx-auto mb-2 grid size-8 place-items-center rounded-full border border-white/10 bg-black/32 text-xl font-black text-white/58">
+                +
+              </span>
+              <span className="mb-2 flex justify-center gap-1.5">
                 {["Image", "Video", "Audio"].map((item) => (
-                  <span className="rounded-full border border-white/10 bg-black/24 px-3 py-1 text-[11px] font-black uppercase tracking-[.12em] text-white/58" key={item}>
+                  <span className="rounded-full border border-white/10 bg-black/24 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[.12em] text-white/54" key={item}>
                     {item}
                   </span>
                 ))}
               </span>
-              <span className="block text-base font-black text-white">Upload media</span>
-              <span className="mt-2 block text-sm text-white/48">Drop files here or choose image, video, and audio references.</span>
+              <span className="block text-sm font-black text-white">Upload new media</span>
+              <span className="mt-1 block text-xs text-white/48">Image, Video or Audio</span>
             </span>
           </button>
 
-          <div className="mt-4 flex flex-wrap items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             {filters.map((filter) => (
               <button
-                className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${
+                className={`rounded-full border px-3 py-1.5 text-[11px] font-black transition ${
                   activeFilter === filter.key
                     ? "border-[#ffb44d]/60 bg-[#ffb44d]/18 text-[#ffd08a]"
                     : "border-white/10 bg-white/[.045] text-white/52 hover:border-[#ffb44d]/30 hover:text-white"
@@ -321,11 +328,26 @@ export function MediaPickerDrawer({
             ))}
           </div>
 
-          <div className="mt-4 flex items-center justify-between">
-            <h3 className="text-sm font-black text-white">Assets</h3>
-            <span className="text-xs font-bold text-white/38">
-              {visibleMedia.length} shown / {allMedia.length} total
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/18 px-3 py-2">
+            <span className="min-w-0 truncate text-xs font-bold text-white/58">
+              Target: <span className="text-white">Upload media</span>
             </span>
+            <button
+              className="shrink-0 rounded-full border border-white/10 px-3 py-1 text-[11px] font-black text-white/52 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a] disabled:cursor-not-allowed disabled:opacity-45"
+              disabled={!selectedCount}
+              onClick={() => {
+                onClearNotice?.();
+                setSelectedIds(new Set());
+              }}
+              type="button"
+            >
+              Clear selected
+            </button>
+          </div>
+
+          <div className="mt-3 flex items-center justify-between">
+            <h3 className="text-sm font-black text-white">Assets</h3>
+            <span className="text-xs font-bold text-white/38">{visibleMedia.length} shown</span>
           </div>
 
           {notice ? (
@@ -335,7 +357,7 @@ export function MediaPickerDrawer({
           ) : null}
 
           {visibleMedia.length ? (
-            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="mt-3 grid grid-cols-3 gap-2.5">
               {visibleMedia.map((item) => {
                 const isAllowed = slotAllowsAssetType(slot, item.type);
                 const isSelected = selectedIds.has(item.id);
@@ -345,7 +367,7 @@ export function MediaPickerDrawer({
 
                 return (
                   <article
-                    className={`group relative overflow-hidden rounded-2xl border transition ${
+                    className={`group relative overflow-hidden rounded-[18px] border transition ${
                       isFailed
                         ? "border-red-300/30 bg-red-400/10"
                         : isUnsupported
@@ -363,7 +385,7 @@ export function MediaPickerDrawer({
                       onClick={() => toggleSelected(item)}
                       type="button"
                     >
-                      <span className="relative grid aspect-video place-items-center overflow-hidden bg-white/[.045]">
+                      <span className="relative grid aspect-square place-items-center overflow-hidden bg-white/[.045]">
                         {item.type === "image" && item.previewUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img alt="" className="h-full w-full object-cover" src={item.previewUrl} />
@@ -407,26 +429,19 @@ export function MediaPickerDrawer({
               })}
             </div>
           ) : (
-            <div className="mt-3 rounded-3xl border border-dashed border-white/12 p-8 text-center text-sm text-white/42">
-              Uploaded references will appear here.
+            <div className="mt-3 rounded-[20px] border border-dashed border-white/12 p-8 text-center text-sm text-white/42">
+              {activeFilter === "elements" || activeFilter === "liked"
+                ? "No assets in this section yet."
+                : "Uploaded references will appear here."}
             </div>
           )}
         </div>
 
         <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-white/10 px-4 py-3">
-          <span className="text-xs font-bold text-white/45">{selectedCount} selected</span>
+          <span className="text-xs font-bold text-white/45">
+            {selectedCount} {selectedCount === 1 ? "selected" : "selected"}
+          </span>
           <div className="flex gap-2">
-            <button
-              className="rounded-full border border-white/10 px-4 py-2 text-xs font-black text-white/58 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a] disabled:cursor-not-allowed disabled:opacity-45"
-              disabled={!selectedCount}
-              onClick={() => {
-                onClearNotice?.();
-                setSelectedIds(new Set());
-              }}
-              type="button"
-            >
-              Clear
-            </button>
             <button
               className="rounded-full bg-[#ffb44d] px-4 py-2 text-xs font-black text-[#1f2027] transition hover:bg-[#ffc766] disabled:cursor-not-allowed disabled:bg-white/12 disabled:text-white/34"
               disabled={!selectedCount}

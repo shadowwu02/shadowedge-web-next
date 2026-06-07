@@ -18,7 +18,7 @@ import { useCredits } from "@/hooks/useCredits";
 import { useVideoGeneration } from "@/hooks/useVideoGeneration";
 import { getVideoModels } from "@/lib/video-api";
 import { isVideoActiveStatus } from "@/lib/utils";
-import type { UploadMediaItem, VideoModel, VideoStatusResponse } from "@/types/video";
+import type { UploadMediaItem, UploadMediaRole, VideoModel, VideoStatusResponse } from "@/types/video";
 
 const fallbackModels: VideoModel[] = [
   {
@@ -186,6 +186,10 @@ export function VideoWorkspace() {
     setMedia((currentItems) => currentItems.filter((item) => item.id !== id));
   }, []);
 
+  const updateMediaRole = useCallback((id: string, role: UploadMediaRole) => {
+    setMedia((currentItems) => currentItems.map((item) => (item.id === id ? { ...item, role } : item)));
+  }, []);
+
   const isUploadingMedia = isAssetPickerUploading || media.some((item) => item.uploadStatus === "uploading");
   const isProcessing = activeTaskCount > 0 || isVideoActiveStatus(task?.status);
   const hasEnoughCredits = credits === null || selectedModel.credits <= credits;
@@ -303,7 +307,7 @@ export function VideoWorkspace() {
         <div className="se-subtle-scrollbar grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-3">
           {modelLoading ? <LoadingState label="Loading live model registry..." /> : null}
           <UploadBox media={media} onBusyChange={setIsAssetPickerUploading} onChange={setMedia} />
-          <ReferenceMediaTray media={media} onRemove={removeMedia} />
+          <ReferenceMediaTray media={media} onRemove={removeMedia} onRoleChange={updateMediaRole} />
           <PromptBox media={media} onChange={setPrompt} value={prompt} />
           <div className="grid grid-cols-2 gap-2">
             <button

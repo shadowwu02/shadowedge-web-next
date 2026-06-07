@@ -18,10 +18,12 @@ export type VideoTaskStatus =
   | "unknown";
 
 export type UploadMediaType = "image" | "video" | "audio";
+export type UploadMediaRole = "reference" | "start_frame" | "end_frame";
 
 export type UploadMediaItem = {
   id: string;
   type: UploadMediaType;
+  role?: UploadMediaRole;
   file?: File;
   name: string;
   previewUrl?: string;

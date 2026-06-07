@@ -216,7 +216,12 @@ export function UploadBox({
       return false;
     }
 
-    onChange((currentItems) => mergeMediaAssets(currentItems, selectedRemoteItems).slice(0, 12));
+    onChange((currentItems) =>
+      mergeMediaAssets(
+        currentItems,
+        selectedRemoteItems.map((item) => ({ ...item, role: item.role || "reference" })),
+      ).slice(0, 12),
+    );
 
     return true;
   }
