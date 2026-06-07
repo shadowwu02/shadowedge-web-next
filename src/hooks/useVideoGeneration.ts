@@ -16,7 +16,7 @@ type SubmitVideoOptions = {
 };
 
 function mediaUrl(item: UploadMediaItem) {
-  return item.url || item.previewUrl || "";
+  return item.url || "";
 }
 
 function buildVideoRequest(options: SubmitVideoOptions): VideoGenerationRequest {

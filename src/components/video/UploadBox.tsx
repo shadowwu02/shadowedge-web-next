@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef } from "react";
+import type { Dispatch, SetStateAction } from "react";
+import { uploadMedia } from "@/lib/video-api";
 import type { UploadMediaItem } from "@/types/video";
 
 function inferMediaType(file: File): UploadMediaItem["type"] {
@@ -9,14 +11,118 @@ function inferMediaType(file: File): UploadMediaItem["type"] {
   return "image";
 }
 
+const maxFileSizeBytes = 250 * 1024 * 1024;
+const acceptedPrefixes = ["image/", "video/", "audio/"];
+
+function createLocalMediaItem(file: File, index: number): UploadMediaItem {
+  return {
+    id: `${file.name}-${file.lastModified}-${index}-${crypto.randomUUID?.() || Date.now()}`,
+    type: inferMediaType(file),
+    file,
+    name: file.name,
+    size: file.size,
+    mimeType: file.type,
+    previewUrl: URL.createObjectURL(file),
+    uploadStatus: "uploading",
+  };
+}
+
+function validateFile(file: File) {
+  if (!acceptedPrefixes.some((prefix) => file.type.startsWith(prefix))) {
+    return "Only image, video, and audio files are supported.";
+  }
+
+  if (file.size > maxFileSizeBytes) {
+    return "File is too large. Please upload a file under 250MB.";
+  }
+
+  return "";
+}
+
 export function UploadBox({
   media,
   onChange,
 }: {
   media: UploadMediaItem[];
-  onChange: (items: UploadMediaItem[]) => void;
+  onChange: Dispatch<SetStateAction<UploadMediaItem[]>>;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  async function handleFiles(files: File[]) {
+    const availableSlots = Math.max(0, 12 - media.length);
+    const localItems = files.slice(0, availableSlots).map(createLocalMediaItem);
+    if (!localItems.length) return;
+
+    onChange((current) => [...current, ...localItems].slice(0, 12));
+
+    await Promise.all(
+      localItems.map(async (item) => {
+        const file = item.file;
+        if (!file) return;
+
+        const validationMessage = validateFile(file);
+        if (validationMessage) {
+          onChange(
+            (currentItems) =>
+              currentItems.map((current) =>
+                current.id === item.id
+                ? {
+                    ...current,
+                    uploadStatus: "failed",
+                    errorMessage: validationMessage,
+                  }
+                : current,
+              ),
+          );
+          return;
+        }
+
+        try {
+          const uploaded = await uploadMedia(file);
+          onChange(
+            (currentItems) =>
+              currentItems.map((current) =>
+                current.id === item.id
+                ? {
+                    ...current,
+                    id: uploaded.id || current.id,
+                    type: uploaded.type || current.type,
+                    file: undefined,
+                    name: uploaded.name || current.name,
+                    url: uploaded.url,
+                    size: uploaded.size || current.size,
+                    mimeType: uploaded.mimeType || current.mimeType,
+                    filename: uploaded.filename,
+                    originalName: uploaded.originalName,
+                    duration: uploaded.duration || current.duration,
+                    previewUrl:
+                      uploaded.type === "image"
+                        ? uploaded.previewUrl || uploaded.url || current.previewUrl
+                        : current.previewUrl || uploaded.previewUrl,
+                    uploadStatus: "ready",
+                    errorMessage: "",
+                  }
+                : current,
+              ),
+          );
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Upload failed.";
+          onChange(
+            (currentItems) =>
+              currentItems.map((current) =>
+                current.id === item.id
+                ? {
+                    ...current,
+                    uploadStatus: "failed",
+                    errorMessage: message,
+                  }
+                : current,
+              ),
+          );
+        }
+      }),
+    );
+  }
 
   return (
     <section className="rounded-[24px] border border-dashed border-white/14 bg-white/[.045] p-4">
@@ -40,14 +146,7 @@ export function UploadBox({
         multiple
         onChange={(event) => {
           const files = Array.from(event.target.files || []);
-          const next = files.map((file, index) => ({
-            id: `${file.name}-${file.lastModified}-${index}`,
-            type: inferMediaType(file),
-            file,
-            name: file.name,
-            previewUrl: URL.createObjectURL(file),
-          }));
-          onChange([...media, ...next].slice(0, 12));
+          void handleFiles(files);
           event.target.value = "";
         }}
         ref={inputRef}
@@ -67,15 +166,31 @@ export function UploadBox({
                 )}
               </div>
               <div className="flex items-center justify-between gap-2 p-3">
-                <span className="truncate text-xs text-white/62">{item.name}</span>
+                <span className="min-w-0">
+                  <span className="block truncate text-xs text-white/62">{item.name}</span>
+                  <span className="mt-1 block text-[11px] font-bold uppercase tracking-[.12em] text-white/34">
+                    {item.uploadStatus === "uploading"
+                      ? "Uploading"
+                      : item.uploadStatus === "failed"
+                        ? "Failed"
+                        : item.url
+                          ? "Ready"
+                          : "Local"}
+                  </span>
+                </span>
                 <button
                   className="rounded-full border border-white/10 px-2 py-1 text-xs text-white/52 hover:border-red-300/40 hover:text-red-100"
-                  onClick={() => onChange(media.filter((current) => current.id !== item.id))}
+                  onClick={() => onChange((currentItems) => currentItems.filter((current) => current.id !== item.id))}
                   type="button"
                 >
                   Remove
                 </button>
               </div>
+              {item.errorMessage ? (
+                <div className="border-t border-red-300/15 bg-red-400/10 px-3 py-2 text-xs text-red-100/80">
+                  {item.errorMessage}
+                </div>
+              ) : null}
             </div>
           ))}
         </div>

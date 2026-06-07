@@ -26,7 +26,27 @@ export type UploadMediaItem = {
   name: string;
   previewUrl?: string;
   url?: string;
+  size?: number;
+  mimeType?: string;
+  filename?: string;
+  originalName?: string;
   duration?: number;
+  uploadStatus?: "local" | "uploading" | "ready" | "failed";
+  errorMessage?: string;
+};
+
+export type UploadedMediaResponse = {
+  id: string;
+  type: UploadMediaType;
+  name: string;
+  url: string;
+  size?: number;
+  mimeType?: string;
+  filename?: string;
+  originalName?: string;
+  previewUrl?: string;
+  duration?: number;
+  raw?: unknown;
 };
 
 export type VideoModel = {
