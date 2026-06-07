@@ -283,7 +283,7 @@ export function VideoWorkspace() {
   );
 
   return (
-    <div className="se-scrollbar h-full min-h-0 space-y-4 overflow-y-auto overflow-x-hidden xl:grid xl:grid-cols-[minmax(300px,330px)_minmax(0,1fr)_minmax(260px,300px)] xl:gap-4 xl:space-y-0 xl:overflow-hidden 2xl:grid-cols-[minmax(320px,350px)_minmax(0,1fr)_minmax(320px,360px)]">
+    <div className="se-scrollbar h-full min-h-0 space-y-3 overflow-y-auto overflow-x-hidden xl:grid xl:grid-cols-[minmax(310px,340px)_minmax(0,1fr)_minmax(300px,340px)] xl:gap-3 xl:space-y-0 xl:overflow-hidden 2xl:grid-cols-[340px_minmax(0,1fr)_340px]">
       <aside className="flex min-h-0 flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[.04] shadow-2xl shadow-black/20">
         <div className="shrink-0 border-b border-white/10 px-4 py-3">
           <div className="flex gap-4 text-sm font-bold text-white/52">
@@ -299,20 +299,8 @@ export function VideoWorkspace() {
           </div>
         </div>
 
-        <div className="se-scrollbar grid min-h-0 flex-1 gap-3 overflow-y-auto p-3">
+        <div className="se-scrollbar grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-3">
           {modelLoading ? <LoadingState label="Loading live model registry..." /> : null}
-          <section className="overflow-hidden rounded-[22px] border border-white/10 bg-[radial-gradient(circle_at_12%_0%,rgba(255,180,77,.20),transparent_34%),rgba(255,255,255,.055)] p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[11px] font-black uppercase tracking-[.18em] text-[#ffcf83]">Selected model</p>
-                <h2 className="mt-2 truncate text-lg font-black text-white">{selectedModel.label}</h2>
-                <p className="mt-1 line-clamp-2 text-xs leading-5 text-white/52">{selectedModel.desc || "Create motion from prompt and references."}</p>
-              </div>
-              <span className="shrink-0 rounded-full border border-[#ffb44d]/24 bg-[#ffb44d]/12 px-3 py-1 text-xs font-black text-[#ffd08a]">
-                {selectedModel.credits} credits
-              </span>
-            </div>
-          </section>
           <UploadBox media={media} onChange={setMedia} />
           <ReferenceMediaTray media={media} onRemove={removeMedia} />
           <PromptBox media={media} onChange={setPrompt} value={prompt} />

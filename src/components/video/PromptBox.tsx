@@ -238,7 +238,7 @@ export function PromptBox({ value, media, onChange }: PromptBoxProps) {
         <span className="text-xs font-bold text-white/38">{value.length}/1200</span>
       </div>
       <textarea
-        className="se-scrollbar h-32 min-h-32 w-full resize-y rounded-[22px] border border-white/10 bg-[#10141f] p-4 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70"
+        className="se-scrollbar h-40 min-h-36 w-full resize-y rounded-[22px] border border-white/10 bg-[#10141f] p-4 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70"
         maxLength={1200}
         onChange={handleChange}
         onKeyDown={handleKeyDown}

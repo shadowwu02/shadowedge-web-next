@@ -3,7 +3,7 @@ import { VideoWorkspace } from "@/components/video/VideoWorkspace";
 
 export default function VideoWorkspacePage() {
   return (
-    <AppShell>
+    <AppShell hideSidebar workspaceNav>
       <VideoWorkspace />
     </AppShell>
   );

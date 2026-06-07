@@ -31,9 +31,9 @@ export function MediaPickerDrawer({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/42 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/34 backdrop-blur-[2px]" onClick={onClose}>
       <section
-        className="se-scrollbar absolute left-1/2 top-20 flex max-h-[calc(100vh-140px)] w-[min(720px,calc(100vw-32px))] -translate-x-1/2 flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0d1119]/96 shadow-2xl shadow-black/50"
+        className="se-scrollbar absolute left-1/2 top-[72px] flex max-h-[calc(100vh-130px)] w-[min(740px,calc(100vw-32px))] -translate-x-1/2 flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0d1119]/96 shadow-2xl shadow-black/50"
         onClick={(event) => event.stopPropagation()}
       >
         <header className="flex shrink-0 items-center justify-between border-b border-white/10 px-5 py-4">
@@ -53,7 +53,7 @@ export function MediaPickerDrawer({
 
         <div className="se-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
           <button
-            className="grid min-h-36 w-full place-items-center rounded-3xl border border-dashed border-[#ffb44d]/32 bg-[#ffb44d]/8 px-5 text-center transition hover:bg-[#ffb44d]/12"
+            className="grid min-h-32 w-full place-items-center rounded-3xl border border-dashed border-[#ffb44d]/32 bg-[#ffb44d]/8 px-5 text-center transition hover:bg-[#ffb44d]/12"
             onClick={() => inputRef.current?.click()}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
@@ -78,7 +78,7 @@ export function MediaPickerDrawer({
           </div>
 
           {media.length ? (
-            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
               {media.map((item) => (
                 <MediaCard item={item} key={item.id} onRemove={onRemove} />
               ))}
