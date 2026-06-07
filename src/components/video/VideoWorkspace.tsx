@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingState } from "@/components/common/LoadingState";
 import { GenerateButton } from "@/components/video/GenerateButton";
@@ -305,6 +306,20 @@ export function VideoWorkspace() {
         <UploadBox media={media} onChange={setMedia} />
         <ReferenceMediaMention media={media} />
         <PromptBox media={media} onChange={setPrompt} value={prompt} />
+        {!token && !isSignedIn ? (
+          <div className="rounded-[24px] border border-[#ffb44d]/25 bg-[#ffb44d]/10 p-4">
+            <p className="text-sm font-black text-[#ffd08a]">Sign in required</p>
+            <p className="mt-2 text-sm leading-6 text-white/62">
+              Sign in to upload media, launch video jobs, refresh credits, and load generation history.
+            </p>
+            <Link
+              className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-[#ffb44d] px-5 text-sm font-black text-[#1f2027] transition hover:bg-[#ffc766]"
+              href="/sign-in?next=/workspace/video"
+            >
+              Sign in
+            </Link>
+          </div>
+        ) : null}
         <GenerateButton
           credits={selectedModel.credits}
           disabled={!canGenerate}

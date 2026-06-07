@@ -1,5 +1,5 @@
 import { ApiError, type ApiEnvelope, type ApiRequestOptions } from "@/types/api";
-import { getStoredAuthToken } from "@/lib/auth";
+import { getStoredAuthToken, getStoredRefreshToken, saveAuthSession } from "@/lib/auth";
 
 const fallbackApiBaseUrl = "https://api.shadowedgeai.com";
 
@@ -46,6 +46,52 @@ export function normalizeApiError(status: number, payload: ApiEnvelope<unknown> 
   });
 }
 
+async function readJsonEnvelope<T>(response: Response) {
+  const text = await response.text();
+  let payload: ApiEnvelope<T> | null = null;
+
+  try {
+    payload = text ? (JSON.parse(text) as ApiEnvelope<T>) : null;
+  } catch {
+    payload = { ok: false, message: text };
+  }
+
+  return payload;
+}
+
+async function refreshStoredAuthToken() {
+  const refreshToken = getStoredRefreshToken();
+  if (!refreshToken) return "";
+
+  const response = await fetch(resolveUrl("/api/auth/refresh"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      refresh_token: refreshToken,
+    }),
+    cache: "no-store",
+  });
+
+  const payload = await readJsonEnvelope<{
+    session?: {
+      access_token?: string;
+      refresh_token?: string;
+      expires_at?: number;
+      expires_in?: number;
+      token_type?: string;
+    };
+    user?: { email?: string; user_metadata?: { name?: string; full_name?: string } };
+  }>(response);
+
+  const session = payload?.data?.session;
+  if (!response.ok || payload?.ok === false || !session?.access_token) return "";
+
+  saveAuthSession(session, payload?.data?.user);
+  return session.access_token;
+}
+
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}) {
   const headers = new Headers(options.headers);
   const token = options.token || (typeof window !== "undefined" ? getStoredAuthToken() : "");
@@ -59,26 +105,48 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     headers.set("Content-Type", "application/json");
   }
 
-  let response: Response;
-  try {
-    response = await fetch(resolveUrl(path), {
+  const requestUrl = resolveUrl(path);
+  const requestInit: RequestInit = {
       ...options,
       headers,
       cache: options.cache || "no-store",
-    });
+    };
+
+  let response: Response;
+  try {
+    response = await fetch(requestUrl, requestInit);
   } catch (error) {
     throw new ApiError(error instanceof Error ? error.message : "Network request failed.", {
       kind: "network",
     });
   }
 
-  const text = await response.text();
-  let payload: ApiEnvelope<T> | null = null;
+  let payload = await readJsonEnvelope<T>(response);
 
-  try {
-    payload = text ? (JSON.parse(text) as ApiEnvelope<T>) : null;
-  } catch {
-    payload = { ok: false, message: text };
+  if (
+    response.status === 401 &&
+    !options.token &&
+    typeof window !== "undefined" &&
+    !path.includes("/api/auth/login") &&
+    !path.includes("/api/auth/refresh")
+  ) {
+    const refreshedToken = await refreshStoredAuthToken().catch(() => "");
+    if (refreshedToken) {
+      const retryHeaders = new Headers(headers);
+      retryHeaders.set("Authorization", `Bearer ${refreshedToken}`);
+
+      try {
+        response = await fetch(requestUrl, {
+          ...requestInit,
+          headers: retryHeaders,
+        });
+        payload = await readJsonEnvelope<T>(response);
+      } catch (error) {
+        throw new ApiError(error instanceof Error ? error.message : "Network request failed.", {
+          kind: "network",
+        });
+      }
+    }
   }
 
   if (!response.ok || payload?.ok === false) {
