@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export type VideoParams = {
   duration: number;
@@ -11,23 +11,39 @@ export type VideoParams = {
 
 type ParamKey = "duration" | "ratio" | "quality";
 
-type ParamOption = {
-  label: string;
-  value: number | string;
-};
-
 type MenuPosition = {
   left: number;
   top: number;
   width: number;
 };
 
-const menuMaxHeight = 220;
+const menuMaxHeight = 240;
 
-function getMenuPosition(trigger: HTMLElement): MenuPosition {
+function uniqueSortedDurations(durations: number[], currentDuration: number) {
+  const values = durations.length ? durations : [currentDuration || 5];
+  return Array.from(new Set(values.map((duration) => Number(duration)).filter(Boolean))).sort((a, b) => a - b);
+}
+
+function getClosestDurationIndex(durations: number[], currentDuration: number) {
+  const current = Number(currentDuration) || durations[0] || 5;
+  let closestIndex = 0;
+  let closestDistance = Number.POSITIVE_INFINITY;
+
+  durations.forEach((duration, index) => {
+    const distance = Math.abs(duration - current);
+    if (distance < closestDistance) {
+      closestIndex = index;
+      closestDistance = distance;
+    }
+  });
+
+  return closestIndex;
+}
+
+function getMenuPosition(trigger: HTMLElement, key: ParamKey): MenuPosition {
   const rect = trigger.getBoundingClientRect();
   const gap = 8;
-  const width = Math.max(150, Math.min(220, rect.width + 28));
+  const width = key === "duration" ? 260 : Math.max(150, Math.min(220, rect.width + 30));
   let left = rect.left;
   let top = rect.bottom + gap;
 
@@ -60,27 +76,11 @@ export function VideoParamsPanel({
   qualities: string[];
 }) {
   const [openKey, setOpenKey] = useState<ParamKey | null>(null);
-  const [menuPosition, setMenuPosition] = useState<MenuPosition>({ left: 0, top: 0, width: 160 });
+  const [menuPosition, setMenuPosition] = useState<MenuPosition>({ left: 0, top: 0, width: 180 });
   const rootRef = useRef<HTMLElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
-
-  const config: Record<ParamKey, { label: string; currentLabel: string; options: ParamOption[] }> = {
-    duration: {
-      label: "Duration",
-      currentLabel: `${value.duration}s`,
-      options: durations.map((duration) => ({ label: `${duration}s`, value: duration })),
-    },
-    ratio: {
-      label: "Ratio",
-      currentLabel: value.ratio,
-      options: ratios.map((ratio) => ({ label: ratio, value: ratio })),
-    },
-    quality: {
-      label: "Quality",
-      currentLabel: value.quality,
-      options: qualities.map((quality) => ({ label: quality, value: quality })),
-    },
-  };
+  const durationOptions = useMemo(() => uniqueSortedDurations(durations, value.duration), [durations, value.duration]);
+  const durationIndex = getClosestDurationIndex(durationOptions, value.duration);
 
   useEffect(() => {
     if (!openKey) return;
@@ -96,61 +96,63 @@ export function VideoParamsPanel({
       closeMenu();
     }
 
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") closeMenu();
+    }
+
     window.addEventListener("pointerdown", handlePointerDown);
-    window.addEventListener("scroll", closeMenu, true);
+    window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("resize", closeMenu);
 
     return () => {
       window.removeEventListener("pointerdown", handlePointerDown);
-      window.removeEventListener("scroll", closeMenu, true);
+      window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("resize", closeMenu);
     };
   }, [openKey]);
 
   function openMenu(key: ParamKey, trigger: HTMLElement) {
-    setMenuPosition(getMenuPosition(trigger));
+    setMenuPosition(getMenuPosition(trigger, key));
     setOpenKey((current) => (current === key ? null : key));
   }
 
-  function updateValue(key: ParamKey, nextValue: number | string) {
-    setOpenKey(null);
-
-    if (key === "duration") {
-      onChange({ ...value, duration: Number(nextValue) });
-      return;
-    }
-
-    if (key === "ratio") {
-      onChange({ ...value, ratio: String(nextValue) });
-      return;
-    }
-
-    onChange({ ...value, quality: String(nextValue) });
+  function updateDuration(nextIndex: number) {
+    const nextDuration = durationOptions[nextIndex] || durationOptions[0] || value.duration;
+    onChange({ ...value, duration: nextDuration });
   }
 
-  const activeMenu = openKey ? config[openKey] : null;
+  function updateListValue(key: "ratio" | "quality", nextValue: string) {
+    setOpenKey(null);
+    onChange({
+      ...value,
+      [key]: nextValue,
+    });
+  }
+
+  const chips: Array<{ key: ParamKey; label: string; value: string }> = [
+    { key: "duration", label: "Duration", value: `${value.duration}s` },
+    { key: "ratio", label: "Ratio", value: value.ratio },
+    { key: "quality", label: "Quality", value: value.quality },
+  ];
 
   return (
     <section className="flex flex-wrap gap-2" ref={rootRef}>
-      {(Object.keys(config) as ParamKey[]).map((key) => {
-        const item = config[key];
-        return (
-          <button
-            aria-expanded={openKey === key}
-            className="flex min-h-11 flex-1 items-center justify-between gap-2 rounded-2xl border border-white/10 bg-white/[.055] px-3 text-left text-xs font-bold text-white/42 transition hover:border-[#ffb44d]/32 hover:bg-white/[.075]"
-            key={key}
-            onClick={(event) => openMenu(key, event.currentTarget)}
-            type="button"
-          >
-            <span>{item.label}</span>
-            <span className="truncate text-sm font-black text-white">{item.currentLabel}</span>
-          </button>
-        );
-      })}
+      {chips.map((chip) => (
+        <button
+          aria-expanded={openKey === chip.key}
+          className="flex min-h-11 flex-1 items-center justify-between gap-2 rounded-2xl border border-white/10 bg-white/[.055] px-3 text-left text-xs font-bold text-white/42 transition hover:border-[#ffb44d]/32 hover:bg-white/[.075]"
+          key={chip.key}
+          onClick={(event) => openMenu(chip.key, event.currentTarget)}
+          type="button"
+        >
+          <span>{chip.label}</span>
+          <span className="truncate text-sm font-black text-white">{chip.value}</span>
+        </button>
+      ))}
 
-      {openKey && activeMenu ? (
+      {openKey ? (
         <div
-          className="se-subtle-scrollbar fixed z-40 max-h-[220px] overflow-y-auto rounded-2xl border border-white/10 bg-[#10141f]/98 p-1.5 shadow-2xl shadow-black/50 backdrop-blur-xl"
+          className="fixed z-40 rounded-2xl border border-white/10 bg-[#10141f]/98 p-2 shadow-2xl shadow-black/50 backdrop-blur-xl"
           ref={menuRef}
           style={{
             left: menuPosition.left,
@@ -158,24 +160,70 @@ export function VideoParamsPanel({
             width: menuPosition.width,
           }}
         >
-          {activeMenu.options.map((option) => {
-            const isSelected = String(option.value) === String(value[openKey]);
-            return (
+          {openKey === "duration" ? (
+            <div className="grid gap-3 p-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-white">Choose duration</span>
+                <span className="rounded-full bg-[#ffb44d]/18 px-2.5 py-1 text-xs font-black text-[#ffd08a]">
+                  {value.duration}s
+                </span>
+              </div>
+              <input
+                aria-label="Duration"
+                className="h-2 w-full cursor-pointer accent-[#ffb44d]"
+                max={Math.max(0, durationOptions.length - 1)}
+                min={0}
+                onChange={(event) => updateDuration(Number(event.target.value))}
+                step={1}
+                type="range"
+                value={durationIndex}
+              />
+              <div className="flex items-center justify-between gap-2 text-[11px] font-bold text-white/42">
+                {durationOptions.map((duration) => (
+                  <button
+                    className={`rounded-full px-2 py-1 transition ${
+                      duration === value.duration
+                        ? "bg-[#ffb44d]/18 text-[#ffd08a]"
+                        : "hover:bg-white/[.06] hover:text-white"
+                    }`}
+                    key={duration}
+                    onClick={() => onChange({ ...value, duration })}
+                    type="button"
+                  >
+                    {duration}s
+                  </button>
+                ))}
+              </div>
               <button
-                className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-bold transition ${
-                  isSelected
-                    ? "bg-[#ffb44d]/16 text-[#ffd08a]"
-                    : "text-white/68 hover:bg-white/[.055] hover:text-white"
-                }`}
-                key={`${openKey}-${option.value}`}
-                onClick={() => updateValue(openKey, option.value)}
+                className="justify-self-end rounded-full border border-white/10 px-3 py-1.5 text-xs font-black text-white/62 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a]"
+                onClick={() => setOpenKey(null)}
                 type="button"
               >
-                <span>{option.label}</span>
-                {isSelected ? <span className="text-[11px] uppercase tracking-[.12em] text-[#ffd08a]">set</span> : null}
+                Done
               </button>
-            );
-          })}
+            </div>
+          ) : (
+            <div className="se-subtle-scrollbar grid max-h-[220px] gap-1 overflow-y-auto">
+              {(openKey === "ratio" ? ratios : qualities).map((option) => {
+                const isSelected = option === (openKey === "ratio" ? value.ratio : value.quality);
+                return (
+                  <button
+                    className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-bold transition ${
+                      isSelected
+                        ? "bg-[#ffb44d]/16 text-[#ffd08a]"
+                        : "text-white/68 hover:bg-white/[.055] hover:text-white"
+                    }`}
+                    key={`${openKey}-${option}`}
+                    onClick={() => updateListValue(openKey, option)}
+                    type="button"
+                  >
+                    <span>{option}</span>
+                    {isSelected ? <span className="text-[11px] uppercase tracking-[.12em] text-[#ffd08a]">set</span> : null}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       ) : null}
     </section>

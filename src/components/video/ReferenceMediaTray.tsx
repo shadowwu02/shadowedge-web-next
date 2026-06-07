@@ -5,11 +5,17 @@ import { getReadyMentionableMediaItems } from "@/lib/video-mentions";
 import type { MentionableMediaItem } from "@/lib/video-mentions";
 import type { UploadMediaItem, UploadMediaRole, UploadMediaType } from "@/types/video";
 
-const roleOptions: Array<{ label: string; value: UploadMediaRole }> = [
-  { label: "Reference", value: "reference" },
-  { label: "Start Frame", value: "start_frame" },
-  { label: "End Frame", value: "end_frame" },
+const roleOptions: Array<{ label: string; shortLabel: string; value: UploadMediaRole }> = [
+  { label: "Reference", shortLabel: "", value: "reference" },
+  { label: "Start Frame", shortLabel: "Start", value: "start_frame" },
+  { label: "End Frame", shortLabel: "End", value: "end_frame" },
 ];
+
+type RoleMenuPosition = {
+  left: number;
+  top: number;
+  width: number;
+};
 
 function openMediaPicker(anchorEl: HTMLElement | null) {
   window.dispatchEvent(
@@ -37,26 +43,35 @@ function mediaFallback(type: UploadMediaType) {
   return "IMG";
 }
 
-function roleLabel(role?: UploadMediaRole) {
-  if (role === "start_frame") return "Start Frame";
-  if (role === "end_frame") return "End Frame";
-  return "Reference";
-}
-
-function statusLabel(status?: UploadMediaItem["uploadStatus"]) {
-  if (status === "failed") return "Failed";
-  if (status === "uploading") return "Uploading";
-  return "Ready";
-}
-
-function statusClassName(status?: UploadMediaItem["uploadStatus"]) {
-  if (status === "failed") return "bg-red-400/18 text-red-100";
-  if (status === "uploading") return "bg-[#ffb44d]/18 text-[#ffd08a]";
-  return "bg-emerald-400/18 text-emerald-100";
+function roleShortLabel(role?: UploadMediaRole) {
+  return roleOptions.find((option) => option.value === role)?.shortLabel || "";
 }
 
 function getPreviewUrl(item: UploadMediaItem) {
   return item.previewUrl || item.url || "";
+}
+
+function getRoleMenuPosition(trigger: HTMLElement): RoleMenuPosition {
+  const rect = trigger.getBoundingClientRect();
+  const width = 190;
+  const height = 238;
+  const gap = 8;
+  let left = rect.left;
+  let top = rect.bottom + gap;
+
+  if (left + width > window.innerWidth - 12) {
+    left = window.innerWidth - width - 12;
+  }
+
+  if (top + height > window.innerHeight - 12) {
+    top = rect.top - height - gap;
+  }
+
+  return {
+    left: Math.max(12, left),
+    top: Math.max(12, top),
+    width,
+  };
 }
 
 export function ReferenceMediaTray({
@@ -71,6 +86,7 @@ export function ReferenceMediaTray({
   const mentionItems = getReadyMentionableMediaItems(media);
   const mentionById = useMemo(() => new Map(mentionItems.map((item) => [item.id, item])), [mentionItems]);
   const [openRoleId, setOpenRoleId] = useState("");
+  const [roleMenuPosition, setRoleMenuPosition] = useState<RoleMenuPosition>({ left: 12, top: 12, width: 190 });
   const [previewItem, setPreviewItem] = useState<UploadMediaItem | null>(null);
   const rootRef = useRef<HTMLElement | null>(null);
 
@@ -109,6 +125,9 @@ export function ReferenceMediaTray({
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [previewItem]);
 
+  const openRoleItem = media.find((item) => item.id === openRoleId) || null;
+  const openRoleMention = openRoleItem ? mentionById.get(openRoleItem.id) : null;
+
   return (
     <section className="rounded-[22px] border border-white/10 bg-white/[.04] p-3" ref={rootRef}>
       <div className="mb-3">
@@ -125,20 +144,21 @@ export function ReferenceMediaTray({
       </div>
 
       {media.length ? (
-        <div className="se-subtle-scrollbar grid max-h-[284px] grid-cols-2 gap-2 overflow-y-auto pr-1">
+        <div className="se-subtle-scrollbar grid max-h-[220px] grid-cols-2 gap-2 overflow-y-auto pr-1">
           {media.map((item) => {
             const mention = mentionById.get(item.id);
             const currentRole = item.role || "reference";
             const previewUrl = getPreviewUrl(item);
-            const canInsert = Boolean(mention);
+            const shortRole = roleShortLabel(currentRole);
 
             return (
               <article
-                className="group relative overflow-visible rounded-[20px] border border-white/10 bg-black/22 p-1.5 transition hover:border-[#ffb44d]/38"
+                className="group relative h-[88px] overflow-hidden rounded-[18px] border border-white/10 bg-black/24 transition hover:border-[#ffb44d]/38"
                 key={item.id}
               >
                 <button
-                  className="relative grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-2xl bg-white/[.055] text-left"
+                  aria-label={`Preview ${item.name}`}
+                  className="absolute inset-0 grid place-items-center overflow-hidden text-left"
                   onClick={() => setPreviewItem(item)}
                   type="button"
                 >
@@ -148,81 +168,55 @@ export function ReferenceMediaTray({
                   ) : item.type === "video" && item.url ? (
                     <video className="h-full w-full object-cover" muted playsInline preload="metadata" src={item.url} />
                   ) : (
-                    <span className="grid size-12 place-items-center rounded-2xl bg-white/[.06] text-[11px] font-black uppercase tracking-[.14em] text-white/52">
+                    <span className="grid size-12 place-items-center rounded-2xl bg-white/[.08] text-[11px] font-black uppercase tracking-[.14em] text-white/52">
                       {mediaFallback(item.type)}
                     </span>
                   )}
-                  <span className="absolute bottom-1.5 left-1.5 max-w-[58%] truncate rounded-full bg-black/72 px-2 py-1 text-[9px] font-black uppercase tracking-[.08em] text-[#ffd08a]">
-                    {roleLabel(currentRole)}
-                  </span>
-                  <span
-                    className={`absolute bottom-1.5 right-1.5 max-w-[46%] truncate rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-[.08em] ${statusClassName(item.uploadStatus)}`}
-                  >
-                    {statusLabel(item.uploadStatus)}
-                  </span>
+                  <span className="absolute inset-0 bg-black/0 transition group-hover:bg-black/18" />
                 </button>
+
+                {shortRole ? (
+                  <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/72 px-2 py-0.5 text-[9px] font-black uppercase tracking-[.08em] text-[#ffd08a]">
+                    {shortRole}
+                  </span>
+                ) : null}
+
+                <span className="absolute bottom-1.5 right-1.5 rounded-full bg-black/62 px-2 py-0.5 text-[9px] font-black uppercase tracking-[.08em] text-white/58 opacity-0 transition group-hover:opacity-100">
+                  {mention?.display || mediaFallback(item.type)}
+                </span>
 
                 <button
                   aria-label={`Remove ${item.name}`}
-                  className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-black/78 text-[11px] text-white/76 opacity-0 transition hover:text-red-100 group-hover:opacity-100"
+                  className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-black/78 text-[11px] text-white/76 opacity-0 transition hover:text-red-100 group-hover:opacity-100"
                   onClick={() => onRemove(item.id)}
                   type="button"
                 >
                   x
                 </button>
 
-                <div className="absolute left-2 top-2">
+                <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 gap-2 opacity-0 transition group-hover:opacity-100">
                   <button
-                    aria-expanded={openRoleId === item.id}
                     aria-label={`Open ${item.name} role menu`}
-                    className="grid size-7 place-items-center rounded-full border border-white/10 bg-black/74 text-sm font-black leading-none text-white/70 opacity-0 transition hover:border-[#ffb44d]/38 hover:text-[#ffd08a] group-hover:opacity-100"
+                    className="grid size-8 place-items-center rounded-full border border-white/10 bg-black/78 text-sm font-black leading-none text-white/80 transition hover:border-[#ffb44d]/38 hover:text-[#ffd08a]"
                     onClick={(event) => {
                       event.stopPropagation();
+                      setRoleMenuPosition(getRoleMenuPosition(event.currentTarget));
                       setOpenRoleId((current) => (current === item.id ? "" : item.id));
                     }}
                     type="button"
                   >
                     ...
                   </button>
-
-                  {openRoleId === item.id ? (
-                    <div className="absolute left-0 top-8 z-[90] w-40 overflow-hidden rounded-2xl border border-white/10 bg-[#10141f]/98 p-1 shadow-2xl shadow-black/50">
-                      {roleOptions.map((option) => (
-                        <button
-                          className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold transition ${
-                            currentRole === option.value
-                              ? "bg-[#ffb44d]/16 text-[#ffd08a]"
-                              : "text-white/68 hover:bg-white/[.06] hover:text-white"
-                          }`}
-                          key={option.value}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onRoleChange(item.id, option.value);
-                            setOpenRoleId("");
-                          }}
-                          type="button"
-                        >
-                          <span>{option.label}</span>
-                          {currentRole === option.value ? <span>OK</span> : null}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="mt-2 flex items-center justify-between gap-2 px-1">
-                  <span className="min-w-0 truncate text-[11px] font-black text-[#ffd08a]">
-                    {mention?.display || mediaFallback(item.type)}
-                  </span>
                   <button
-                    className="shrink-0 rounded-full border border-white/10 bg-white/[.045] px-2 py-1 text-[10px] font-black text-white/62 transition hover:border-[#ffb44d]/38 hover:text-[#ffd08a] disabled:cursor-not-allowed disabled:opacity-40"
-                    disabled={!canInsert}
-                    onClick={() => {
-                      if (mention) insertMention(mention);
+                    aria-label={`Full screen ${item.name}`}
+                    className="grid size-8 place-items-center rounded-full border border-white/10 bg-black/78 text-[10px] font-black text-white/80 transition hover:border-[#ffb44d]/38 hover:text-[#ffd08a]"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setPreviewItem(item);
                     }}
                     type="button"
                   >
-                    Insert @
+                    FS
                   </button>
                 </div>
               </article>
@@ -230,16 +224,15 @@ export function ReferenceMediaTray({
           })}
 
           <button
-            className="grid min-h-[132px] place-items-center rounded-[20px] border border-dashed border-[#ffb44d]/34 bg-[#ffb44d]/8 p-3 text-center transition hover:bg-[#ffb44d]/12"
+            className="grid h-[88px] place-items-center rounded-[18px] border border-dashed border-[#ffb44d]/34 bg-[#ffb44d]/8 p-3 text-center transition hover:bg-[#ffb44d]/12"
             onClick={(event) => openMediaPicker(event.currentTarget)}
             type="button"
           >
             <span>
-              <span className="mx-auto grid size-9 place-items-center rounded-full border border-white/10 bg-black/28 text-xl font-black text-white/60">
+              <span className="mx-auto grid size-8 place-items-center rounded-full border border-white/10 bg-black/28 text-lg font-black text-white/60">
                 +
               </span>
-              <span className="mt-2 block text-sm font-black text-white">Add more</span>
-              <span className="mt-1 block text-xs text-white/42">Image, video, or audio</span>
+              <span className="mt-1.5 block text-xs font-black text-white">Add more</span>
             </span>
           </button>
         </div>
@@ -262,6 +255,59 @@ export function ReferenceMediaTray({
           </span>
         </button>
       )}
+
+      {openRoleItem ? (
+        <div
+          className="fixed z-[90] overflow-hidden rounded-[18px] border border-white/10 bg-[#10141f]/98 p-1.5 shadow-2xl shadow-black/50"
+          style={{ left: roleMenuPosition.left, top: roleMenuPosition.top, width: roleMenuPosition.width }}
+        >
+          <p className="px-3 py-2 text-[10px] font-black uppercase tracking-[.16em] text-white/38">Use as ...</p>
+          {roleOptions.map((option) => {
+            const currentRole = openRoleItem.role || "reference";
+            return (
+              <button
+                className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold transition ${
+                  currentRole === option.value
+                    ? "bg-[#ffb44d]/16 text-[#ffd08a]"
+                    : "text-white/68 hover:bg-white/[.06] hover:text-white"
+                }`}
+                key={option.value}
+                onClick={() => {
+                  onRoleChange(openRoleItem.id, option.value);
+                  setOpenRoleId("");
+                }}
+                type="button"
+              >
+                <span>{option.label}</span>
+                {currentRole === option.value ? <span>OK</span> : null}
+              </button>
+            );
+          })}
+          <div className="my-1 border-t border-white/10" />
+          <p className="px-3 py-1.5 text-[10px] font-black uppercase tracking-[.16em] text-white/32">Interactions</p>
+          <button
+            className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-white/68 transition hover:bg-white/[.06] hover:text-white"
+            onClick={() => {
+              setPreviewItem(openRoleItem);
+              setOpenRoleId("");
+            }}
+            type="button"
+          >
+            Full Screen
+          </button>
+          <button
+            className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-white/68 transition hover:bg-white/[.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={!openRoleMention}
+            onClick={() => {
+              if (openRoleMention) insertMention(openRoleMention);
+              setOpenRoleId("");
+            }}
+            type="button"
+          >
+            Insert @ reference
+          </button>
+        </div>
+      ) : null}
 
       {previewItem ? (
         <div className="fixed inset-0 z-[70] grid place-items-center bg-black/72 px-4 py-6" onClick={() => setPreviewItem(null)}>
@@ -289,6 +335,12 @@ export function ReferenceMediaTray({
                 <img alt="" className="max-h-[70vh] max-w-full rounded-2xl object-contain" src={getPreviewUrl(previewItem)} />
               ) : previewItem.type === "video" && previewItem.url ? (
                 <video className="max-h-[70vh] max-w-full rounded-2xl object-contain" controls src={previewItem.url} />
+              ) : previewItem.type === "audio" && previewItem.url ? (
+                <div className="grid w-full max-w-lg gap-5 rounded-3xl border border-white/10 bg-white/[.04] p-8 text-center">
+                  <span className="mx-auto grid size-16 place-items-center rounded-3xl bg-white/[.08] text-sm font-black text-white/50">AUD</span>
+                  <p className="text-sm font-bold text-white/62">{previewItem.name}</p>
+                  <audio className="w-full" controls src={previewItem.url} />
+                </div>
               ) : (
                 <div className="grid gap-3 text-center">
                   <span className="mx-auto grid size-16 place-items-center rounded-3xl bg-white/[.06] text-sm font-black text-white/50">
