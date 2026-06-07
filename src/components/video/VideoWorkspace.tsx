@@ -299,7 +299,7 @@ export function VideoWorkspace() {
           </div>
         </div>
 
-        <div className="se-scrollbar grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-3">
+        <div className="se-subtle-scrollbar grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-3">
           {modelLoading ? <LoadingState label="Loading live model registry..." /> : null}
           <UploadBox media={media} onChange={setMedia} />
           <ReferenceMediaTray media={media} onRemove={removeMedia} />
