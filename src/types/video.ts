@@ -133,16 +133,30 @@ export type VideoTaskRecord = {
   quality?: string;
   prompt?: string;
   videoUrl?: string;
+  outputUrl?: string;
   outputUrls?: string[];
+  thumbnail?: string;
+  thumbnailUrl?: string;
   reference_images?: string[];
   reference_videos?: string[];
   reference_audios?: string[];
   mediaList?: VideoGenerationRequest["mediaList"];
   error_message?: string;
+  errorCode?: string;
   message?: string;
   cost_credits?: number;
   createdAt: number | string;
+  updatedAt?: number | string;
   completedAt?: number | string;
+  meta?: Record<string, unknown>;
+};
+
+export type VideoHistoryItem = VideoTaskRecord & {
+  outputUrl?: string;
+  thumbnail?: string;
+  thumbnailUrl?: string;
+  retryable?: boolean;
+  source?: "server" | "local";
 };
 
 export type VideoStatusResponse = {

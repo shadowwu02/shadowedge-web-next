@@ -1,8 +1,15 @@
 import { apiRequest } from "@/lib/api";
-import type { ApiEnvelope } from "@/types/api";
-import type { UploadedMediaResponse, UploadMediaType, VideoGenerationRequest, VideoModel, VideoStatusResponse } from "@/types/video";
+import type {
+  UploadedMediaResponse,
+  UploadMediaType,
+  VideoGenerationRequest,
+  VideoHistoryItem,
+  VideoModel,
+  VideoStatusResponse,
+} from "@/types/video";
 
 type RawModel = Record<string, unknown>;
+type RawRecord = Record<string, unknown>;
 
 function buildDurationArray(config: unknown) {
   const item = (config || {}) as { values?: unknown[]; min?: number; max?: number };
@@ -55,6 +62,92 @@ function assertRemoteMediaUrl(url: string) {
   if (value.startsWith("blob:") || value.startsWith("data:")) {
     throw new Error("Local preview media cannot be sent to generation. Please wait for upload to finish.");
   }
+}
+
+function asRecord(value: unknown): RawRecord {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as RawRecord) : {};
+}
+
+function pickArray(...values: unknown[]) {
+  const array = values.find(Array.isArray);
+  return (array || []) as unknown[];
+}
+
+function normalizeMediaList(value: unknown): VideoGenerationRequest["mediaList"] {
+  return pickArray(value)
+    .map((item) => asRecord(item))
+    .map((item) => {
+      const url = pickString(item.url, item.uri, item.remoteUri, item.videoUrl, item.audioUrl, item.imageUrl) || "";
+      return {
+        id: pickString(item.id, item.mediaId, item.media_id),
+        type: inferUploadType(item.type || item.mimeType || item.mime_type),
+        url,
+        role: pickString(item.role, item.slot, item.kind) || "reference",
+        duration: Number(item.duration || 0) || undefined,
+        name: pickString(item.name, item.filename, item.originalName),
+        mimeType: pickString(item.mimeType, item.mime_type),
+        size: Number(item.size || 0) || undefined,
+      };
+    })
+    .filter((item) => item.url);
+}
+
+function extractHistoryItems(data: unknown) {
+  if (Array.isArray(data)) return data;
+  const record = asRecord(data);
+  if (Array.isArray(record.items)) return record.items;
+  if (Array.isArray(record.history)) return record.history;
+  if (Array.isArray(record.records)) return record.records;
+  if (Array.isArray(record.data)) return record.data;
+  return [];
+}
+
+export function normalizeVideoHistoryItem(item: unknown): VideoHistoryItem {
+  const record = asRecord(item);
+  const meta = asRecord(record.meta);
+  const uploadAssets = asRecord(record.upload_assets || record.uploadAssets || meta.upload_assets || meta.uploadAssets);
+  const outputUrls = pickArray(record.outputUrls, record.output_urls, meta.outputUrls, meta.output_urls)
+    .map(String)
+    .filter(Boolean);
+  const videoUrl =
+    pickString(record.videoUrl, record.video_url, record.outputUrl, record.output_url, meta.videoUrl, meta.outputUrl, outputUrls[0]) || "";
+  const mediaList = normalizeMediaList(record.mediaList || meta.mediaList || uploadAssets.media);
+  const jobId = pickString(record.jobId, record.job_id, record.providerJobId, record.provider_job_id, record.dbJobId, record.id) || "";
+
+  return {
+    jobId,
+    dbJobId: pickString(record.dbJobId, record.db_job_id, record.id) || null,
+    providerJobId: pickString(record.providerJobId, record.provider_job_id) || "",
+    status: pickString(record.status, meta.status) || (videoUrl ? "completed" : "unknown"),
+    model: pickString(record.model, record.frontendModel, record.frontend_model, meta.frontend_model, meta.model) || "-",
+    modelId: pickString(record.modelId, record.model_id, meta.model_id),
+    frontendModel: pickString(record.frontendModel, record.frontend_model, meta.frontend_model, record.model),
+    providerModel: pickString(record.providerModel, record.provider_model, meta.providerModel, meta.provider_model),
+    provider: pickString(record.provider, meta.provider),
+    duration: pickString(record.duration, meta.duration),
+    ratio: pickString(record.ratio, record.aspect_ratio, meta.ratio, meta.aspect_ratio),
+    quality: pickString(record.quality, record.resolution, meta.quality, meta.resolution),
+    prompt: pickString(record.prompt, meta.original_prompt, meta.prompt) || "",
+    videoUrl,
+    outputUrl: pickString(record.outputUrl, record.output_url, meta.outputUrl, meta.output_url),
+    outputUrls: outputUrls.length ? outputUrls : videoUrl ? [videoUrl] : [],
+    thumbnail: pickString(record.thumbnail, record.thumbnailUrl, record.thumbnail_url, meta.thumbnail, meta.thumbnailUrl),
+    thumbnailUrl: pickString(record.thumbnailUrl, record.thumbnail_url, meta.thumbnailUrl, meta.thumbnail_url),
+    reference_images: pickArray(record.reference_images, record.referenceImages, meta.reference_images, meta.referenceImages).map(String),
+    reference_videos: pickArray(record.reference_videos, record.referenceVideos, meta.reference_videos, meta.referenceVideos).map(String),
+    reference_audios: pickArray(record.reference_audios, record.referenceAudios, meta.reference_audios, meta.referenceAudios).map(String),
+    mediaList,
+    error_message: pickString(record.error_message, record.errorMessage, record.error, meta.error_message, meta.errorMessage),
+    errorCode: pickString(record.error_code, record.errorCode, meta.error_code, meta.errorCode),
+    message: pickString(record.public_message, record.publicMessage, record.message, meta.message),
+    cost_credits: Number(record.cost_credits || record.costCredits || meta.cost_credits || 0) || undefined,
+    createdAt: pickString(record.createdAt, record.created_at, meta.createdAt, meta.created_at) || Date.now(),
+    updatedAt: pickString(record.updatedAt, record.updated_at, meta.updatedAt, meta.updated_at),
+    completedAt: pickString(record.completedAt, record.completed_at, meta.completedAt, meta.completed_at),
+    meta,
+    retryable: true,
+    source: "server",
+  };
 }
 
 export function normalizeVideoGenerationRequest(request: VideoGenerationRequest): VideoGenerationRequest {
@@ -115,9 +208,18 @@ export async function getVideoStatus(jobId: string, force = false) {
   });
 }
 
-export async function getVideoHistory(limit = 50): Promise<ApiEnvelope<{ items: unknown[] }>> {
-  return apiRequest<{ items: unknown[] }>(`/api/video/history?limit=${limit}&t=${Date.now()}`, {
+export async function getVideoHistory(limit = 50) {
+  const envelope = await apiRequest<unknown>(`/api/video/history?limit=${limit}&t=${Date.now()}`, {
     method: "GET",
+  });
+
+  return extractHistoryItems(envelope.data).map(normalizeVideoHistoryItem);
+}
+
+export async function saveVideoHistory(record: VideoHistoryItem) {
+  return apiRequest<unknown>("/api/video/history", {
+    method: "POST",
+    body: JSON.stringify(record),
   });
 }
 

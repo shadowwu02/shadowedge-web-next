@@ -19,8 +19,8 @@ export function isVideoFailedStatus(status: string | undefined | null) {
   return ["failed", "error", "canceled", "cancelled", "rejected"].includes(value);
 }
 
-export function getVideoOutputUrl(record: Pick<VideoTaskRecord, "videoUrl" | "outputUrls"> | null | undefined) {
-  return record?.videoUrl || record?.outputUrls?.[0] || "";
+export function getVideoOutputUrl(record: Pick<VideoTaskRecord, "videoUrl" | "outputUrl" | "outputUrls"> | null | undefined) {
+  return record?.videoUrl || record?.outputUrl || record?.outputUrls?.[0] || "";
 }
 
 export function formatCredits(value: number | undefined | null) {

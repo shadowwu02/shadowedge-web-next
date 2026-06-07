@@ -59,7 +59,7 @@ export function VideoWorkspace() {
     generateAudio: false,
   });
 
-  const { error, history, isSubmitting, refreshTask, submit, task } = useVideoGeneration();
+  const { error, history, historyError, isHistoryLoading, isSubmitting, loadHistory, refreshTask, submit, task } = useVideoGeneration();
 
   useEffect(() => {
     let cancelled = false;
@@ -92,6 +92,10 @@ export function VideoWorkspace() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
 
   const handleModelChange = useCallback((model: VideoModel) => {
     setSelectedModel(model);
@@ -176,7 +180,7 @@ export function VideoWorkspace() {
 
       <div className="grid content-start gap-5">
         <ResultViewer task={task} />
-        <HistoryPanel history={history} />
+        <HistoryPanel error={historyError} history={history} isLoading={isHistoryLoading} />
       </div>
     </div>
   );
