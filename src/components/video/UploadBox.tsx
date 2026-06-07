@@ -3,41 +3,52 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { MediaPickerDrawer } from "@/components/video/MediaPickerDrawer";
+import { appendLocalMediaAssets, collectCurrentMediaAssets, collectLocalMediaAssets, mergeMediaAssets, removeLocalMediaAsset } from "@/lib/media-assets";
+import { getAudioDuration } from "@/lib/media-duration";
+import {
+  filterFilesByUploadTypeLimits,
+  getFileTypeFromFile,
+  getSlotAccept,
+  isRemoteMediaUrl,
+  isTransientMediaUrl,
+  validateFilesForSlot,
+  validateSelectedMediaForSlot,
+} from "@/lib/upload-rules";
 import { uploadMedia } from "@/lib/video-api";
 import type { UploadMediaItem } from "@/types/video";
 
-function inferMediaType(file: File): UploadMediaItem["type"] {
-  if (file.type.startsWith("video/")) return "video";
-  if (file.type.startsWith("audio/")) return "audio";
-  return "image";
-}
-
+const uploadSlot = "media";
 const maxFileSizeBytes = 250 * 1024 * 1024;
-const acceptedPrefixes = ["image/", "video/", "audio/"];
+const maxAudioDurationSeconds = 15.05;
 
-function createLocalMediaItem(file: File, index: number): UploadMediaItem {
+function createLocalMediaItem(file: File, index: number, duration = 0, errorMessage = ""): UploadMediaItem {
   return {
     id: `${file.name}-${file.lastModified}-${index}-${crypto.randomUUID?.() || Date.now()}`,
-    type: inferMediaType(file),
+    type: getFileTypeFromFile(file, uploadSlot),
     file,
     name: file.name,
     size: file.size,
     mimeType: file.type,
+    duration: duration || undefined,
     previewUrl: URL.createObjectURL(file),
-    uploadStatus: "uploading",
+    uploadStatus: errorMessage ? "failed" : "uploading",
+    errorMessage,
   };
 }
 
-function validateFile(file: File) {
-  if (!acceptedPrefixes.some((prefix) => file.type.startsWith(prefix))) {
-    return "Only image, video, and audio files are supported.";
-  }
-
+function validateFileSize(file: File) {
   if (file.size > maxFileSizeBytes) {
     return "File is too large. Please upload a file under 250MB.";
   }
 
   return "";
+}
+
+function sumAudioDuration(items: UploadMediaItem[]) {
+  return items.reduce((total, item) => {
+    if (item.type !== "audio") return total;
+    return total + (Number(item.duration || 0) || 0);
+  }, 0);
 }
 
 export function UploadBox({
@@ -51,87 +62,111 @@ export function UploadBox({
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const [localAssetMedia, setLocalAssetMedia] = useState<UploadMediaItem[]>([]);
+  const [currentUploadMedia, setCurrentUploadMedia] = useState<UploadMediaItem[]>([]);
+  const [localStoredMedia, setLocalStoredMedia] = useState<UploadMediaItem[]>([]);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [pickerNotice, setPickerNotice] = useState("");
 
-  const assetMedia = useMemo(() => {
-    const nextAssets = [...localAssetMedia];
-    media.forEach((item) => {
-      const exists = nextAssets.some((asset) => asset.id === item.id || (asset.url && item.url && asset.url === item.url));
-      if (!exists) nextAssets.push(item);
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setLocalStoredMedia(collectLocalMediaAssets());
     });
-    return nextAssets.slice(0, 12);
-  }, [localAssetMedia, media]);
+
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  const currentMedia = useMemo(
+    () => mergeMediaAssets(collectCurrentMediaAssets(currentUploadMedia), collectCurrentMediaAssets(media)),
+    [currentUploadMedia, media],
+  );
+  const allPickerMedia = useMemo(() => mergeMediaAssets(currentMedia, localStoredMedia), [currentMedia, localStoredMedia]);
 
   useEffect(() => {
-    onBusyChange?.(assetMedia.some((item) => item.uploadStatus === "uploading"));
-  }, [assetMedia, onBusyChange]);
+    onBusyChange?.(currentUploadMedia.some((item) => item.uploadStatus === "uploading"));
+  }, [currentUploadMedia, onBusyChange]);
+
+  async function buildUploadableItems(files: File[]) {
+    const typeError = validateFilesForSlot(uploadSlot, files);
+    if (typeError) {
+      setPickerNotice(typeError);
+      return [];
+    }
+
+    const typeLimitResult = filterFilesByUploadTypeLimits(uploadSlot, media, files);
+    if (typeLimitResult.error) {
+      setPickerNotice(typeLimitResult.error);
+    }
+
+    const currentAudioDuration = sumAudioDuration(media);
+    let nextAudioDuration = currentAudioDuration;
+
+    const items = await Promise.all(
+      typeLimitResult.files.map(async (file, index) => {
+        const sizeError = validateFileSize(file);
+        const duration = file.type.startsWith("audio/") ? await getAudioDuration(file) : 0;
+
+        if (sizeError) {
+          return createLocalMediaItem(file, index, duration, sizeError);
+        }
+
+        if (duration && nextAudioDuration + duration > maxAudioDurationSeconds) {
+          return createLocalMediaItem(file, index, duration, "Reference audio can be up to 15 seconds total.");
+        }
+
+        if (duration) nextAudioDuration += duration;
+        return createLocalMediaItem(file, index, duration);
+      }),
+    );
+
+    if (!items.length && files.length) {
+      setPickerNotice((current) => current || "No uploadable files were selected.");
+    }
+
+    return items;
+  }
 
   async function handleFiles(files: File[]) {
     setPickerNotice("");
 
-    const availableSlots = Math.max(0, 12 - assetMedia.length);
-    const localItems = files.slice(0, availableSlots).map(createLocalMediaItem);
+    const localItems = await buildUploadableItems(files);
+    if (!localItems.length) return;
 
-    if (!localItems.length) {
-      if (files.length) setPickerNotice("You can keep up to 12 media assets in this picker.");
-      return;
-    }
-
-    setLocalAssetMedia((current) => [...current, ...localItems].slice(0, 12));
+    setCurrentUploadMedia((current) => mergeMediaAssets([...localItems, ...current]).slice(0, 40));
 
     await Promise.all(
       localItems.map(async (item) => {
         const file = item.file;
-        if (!file) return;
-
-        const validationMessage = validateFile(file);
-        if (validationMessage) {
-          setLocalAssetMedia((currentItems) =>
-            currentItems.map((current) =>
-              current.id === item.id
-                ? {
-                    ...current,
-                    errorMessage: validationMessage,
-                    uploadStatus: "failed",
-                  }
-                : current,
-            ),
-          );
-          return;
-        }
+        if (!file || item.uploadStatus === "failed") return;
 
         try {
           const uploaded = await uploadMedia(file);
-          setLocalAssetMedia((currentItems) =>
-            currentItems.map((current) =>
-              current.id === item.id
-                ? {
-                    ...current,
-                    duration: uploaded.duration || current.duration,
-                    errorMessage: "",
-                    file: undefined,
-                    filename: uploaded.filename,
-                    id: uploaded.id || current.id,
-                    mimeType: uploaded.mimeType || current.mimeType,
-                    name: uploaded.name || current.name,
-                    originalName: uploaded.originalName,
-                    previewUrl:
-                      uploaded.type === "image"
-                        ? uploaded.previewUrl || uploaded.url || current.previewUrl
-                        : current.previewUrl || uploaded.previewUrl,
-                    size: uploaded.size || current.size,
-                    type: uploaded.type || current.type,
-                    uploadStatus: "ready",
-                    url: uploaded.url,
-                  }
-                : current,
-            ),
+          const uploadedItem: UploadMediaItem = {
+            ...item,
+            duration: uploaded.duration || item.duration,
+            errorMessage: "",
+            file: undefined,
+            filename: uploaded.filename,
+            id: uploaded.id || item.id,
+            mimeType: uploaded.mimeType || item.mimeType,
+            name: uploaded.name || item.name,
+            originalName: uploaded.originalName,
+            previewUrl:
+              uploaded.type === "image"
+                ? uploaded.previewUrl || uploaded.url || item.previewUrl
+                : item.previewUrl || uploaded.previewUrl,
+            size: uploaded.size || item.size,
+            type: uploaded.type || item.type,
+            uploadStatus: "ready",
+            url: uploaded.url,
+          };
+
+          setCurrentUploadMedia((currentItems) =>
+            currentItems.map((current) => (current.id === item.id ? uploadedItem : current)),
           );
+          setLocalStoredMedia(appendLocalMediaAssets([uploadedItem]));
         } catch (error) {
           const message = error instanceof Error ? error.message : "Upload failed.";
-          setLocalAssetMedia((currentItems) =>
+          setCurrentUploadMedia((currentItems) =>
             currentItems.map((current) =>
               current.id === item.id
                 ? {
@@ -147,44 +182,41 @@ export function UploadBox({
     );
   }
 
-  const readyCount = assetMedia.filter((item) => item.uploadStatus === "ready").length;
-  const uploadingCount = assetMedia.filter((item) => item.uploadStatus === "uploading").length;
-  const failedCount = assetMedia.filter((item) => item.uploadStatus === "failed").length;
+  const readyCount = allPickerMedia.filter((item) => item.uploadStatus === "ready").length;
+  const uploadingCount = currentUploadMedia.filter((item) => item.uploadStatus === "uploading").length;
+  const failedCount = currentUploadMedia.filter((item) => item.uploadStatus === "failed").length;
 
   function removeMedia(id: string) {
-    setLocalAssetMedia((currentItems) => currentItems.filter((current) => current.id !== id));
-    onChange((currentItems) => currentItems.filter((current) => current.id !== id));
+    const item = allPickerMedia.find((candidate) => candidate.id === id);
+    const url = item?.url || "";
+
+    setCurrentUploadMedia((currentItems) => currentItems.filter((current) => current.id !== id && current.url !== url));
+    setLocalStoredMedia(removeLocalMediaAsset(url || id));
+    onChange((currentItems) => currentItems.filter((current) => current.id !== id && current.url !== url));
   }
 
   function addSelectedToReferences(ids: string[]) {
     setPickerNotice("");
 
-    const selectedItems = assetMedia.filter((item) => ids.includes(item.id) && item.uploadStatus === "ready" && item.url);
+    const selectedItems = allPickerMedia.filter((item) => ids.includes(item.id) && item.uploadStatus === "ready" && item.url);
+    const selectedRemoteItems = selectedItems.filter((item) => item.url && isRemoteMediaUrl(item.url) && !isTransientMediaUrl(item.url));
 
-    if (!selectedItems.length) {
+    if (!selectedRemoteItems.length) {
       setPickerNotice("Select ready media first.");
       return false;
     }
 
-    const selectedNewItems = selectedItems.filter(
+    const selectedNewItems = selectedRemoteItems.filter(
       (item) => !media.some((current) => current.id === item.id || (current.url && current.url === item.url)),
     );
-    const availableSlots = Math.max(0, 12 - media.length);
+    const limitMessage = validateSelectedMediaForSlot(uploadSlot, media, selectedNewItems);
 
-    if (selectedNewItems.length > availableSlots) {
-      setPickerNotice("You can add up to 12 reference media items.");
+    if (limitMessage) {
+      setPickerNotice(limitMessage);
       return false;
     }
 
-    onChange((currentItems) => {
-      const nextItems = [...currentItems];
-      selectedItems.forEach((item) => {
-        if (!nextItems.some((current) => current.id === item.id || (current.url && current.url === item.url))) {
-          nextItems.push(item);
-        }
-      });
-      return nextItems.slice(0, 12);
-    });
+    onChange((currentItems) => mergeMediaAssets(currentItems, selectedRemoteItems).slice(0, 12));
 
     return true;
   }
@@ -192,7 +224,7 @@ export function UploadBox({
   return (
     <section className="rounded-[22px] border border-dashed border-white/14 bg-white/[.045] p-3">
       <input
-        accept="image/*,video/*,audio/*"
+        accept={getSlotAccept(uploadSlot)}
         className="hidden"
         multiple
         onChange={(event) => {
@@ -228,15 +260,17 @@ export function UploadBox({
 
       <MediaPickerDrawer
         anchorRef={triggerRef}
+        currentMedia={currentMedia}
         inputRef={inputRef}
         isOpen={isPickerOpen}
-        media={assetMedia}
+        localMedia={localStoredMedia}
         notice={pickerNotice}
         onAddSelected={addSelectedToReferences}
         onClearNotice={() => setPickerNotice("")}
         onClose={() => setIsPickerOpen(false)}
         onFiles={(files) => void handleFiles(files)}
         onRemove={removeMedia}
+        slot={uploadSlot}
       />
     </section>
   );

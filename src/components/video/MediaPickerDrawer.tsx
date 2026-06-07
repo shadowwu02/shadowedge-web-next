@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, DragEvent, RefObject } from "react";
+import { mergeMediaAssets } from "@/lib/media-assets";
+import { slotAllowsAssetType } from "@/lib/upload-rules";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
 
-type MediaFilter = "uploads" | UploadMediaType;
+type MediaFilter = "current" | "uploads" | UploadMediaType;
 
 type DrawerPosition = {
   left: number;
@@ -18,6 +20,7 @@ const drawerMinWidth = 560;
 const drawerMaxHeight = 560;
 
 const filters: Array<{ key: MediaFilter; label: string }> = [
+  { key: "current", label: "Current" },
   { key: "uploads", label: "Uploads" },
   { key: "image", label: "Images" },
   { key: "video", label: "Videos" },
@@ -30,7 +33,8 @@ function mediaTypeLabel(type: UploadMediaItem["type"]) {
   return "Image";
 }
 
-function statusLabel(status: UploadMediaItem["uploadStatus"]) {
+function statusLabel(status: UploadMediaItem["uploadStatus"], isAllowed: boolean) {
+  if (!isAllowed) return "Unsupported";
   if (status === "uploading") return "Uploading";
   if (status === "failed") return "Failed";
   if (status === "ready") return "Ready";
@@ -92,37 +96,43 @@ function getDrawerPosition(anchor: HTMLElement | null): DrawerPosition {
 
 export function MediaPickerDrawer({
   anchorRef,
+  currentMedia,
   inputRef,
   isOpen,
-  media,
+  localMedia,
   notice,
   onAddSelected,
   onClearNotice,
   onClose,
   onFiles,
   onRemove,
+  slot,
 }: {
   anchorRef: RefObject<HTMLElement | null>;
+  currentMedia: UploadMediaItem[];
   inputRef: RefObject<HTMLInputElement | null>;
   isOpen: boolean;
-  media: UploadMediaItem[];
+  localMedia: UploadMediaItem[];
   notice?: string;
   onAddSelected: (ids: string[]) => boolean;
   onClearNotice?: () => void;
   onClose: () => void;
   onFiles: (files: File[]) => void;
   onRemove: (id: string) => void;
+  slot: string;
 }) {
-  const [activeFilter, setActiveFilter] = useState<MediaFilter>("uploads");
+  const [activeFilter, setActiveFilter] = useState<MediaFilter>("current");
   const [position, setPosition] = useState<DrawerPosition>({ left: 16, maxHeight: 520, top: 72, width: 640 });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const previousStatusesRef = useRef<Map<string, UploadMediaItem["uploadStatus"]>>(new Map());
   const rafRef = useRef<number | null>(null);
 
+  const allMedia = useMemo(() => mergeMediaAssets(currentMedia, localMedia), [currentMedia, localMedia]);
   const visibleMedia = useMemo(() => {
-    if (activeFilter === "uploads") return media;
-    return media.filter((item) => item.type === activeFilter);
-  }, [activeFilter, media]);
+    if (activeFilter === "current") return currentMedia;
+    if (activeFilter === "uploads") return localMedia;
+    return allMedia.filter((item) => item.type === activeFilter);
+  }, [activeFilter, allMedia, currentMedia, localMedia]);
 
   const selectedCount = selectedIds.size;
 
@@ -131,7 +141,7 @@ export function MediaPickerDrawer({
 
     previousStatusesRef.current = new Map();
     const frame = window.requestAnimationFrame(() => {
-      setActiveFilter("uploads");
+      setActiveFilter("current");
       setSelectedIds(new Set());
       setPosition(getDrawerPosition(anchorRef.current));
     });
@@ -144,12 +154,12 @@ export function MediaPickerDrawer({
 
     const previousStatuses = previousStatusesRef.current;
     if (!previousStatuses.size) {
-      previousStatusesRef.current = new Map(media.map((item) => [item.id, item.uploadStatus]));
+      previousStatusesRef.current = new Map(allMedia.map((item) => [item.id, item.uploadStatus]));
       return;
     }
     const newlyReadyIds: string[] = [];
-    media.forEach((item) => {
-      if (item.uploadStatus === "ready" && previousStatuses.get(item.id) !== "ready") {
+    allMedia.forEach((item) => {
+      if (item.uploadStatus === "ready" && previousStatuses.get(item.id) !== "ready" && slotAllowsAssetType(slot, item.type)) {
         newlyReadyIds.push(item.id);
       }
     });
@@ -162,8 +172,8 @@ export function MediaPickerDrawer({
       });
     }
 
-    previousStatusesRef.current = new Map(media.map((item) => [item.id, item.uploadStatus]));
-  }, [isOpen, media]);
+    previousStatusesRef.current = new Map(allMedia.map((item) => [item.id, item.uploadStatus]));
+  }, [allMedia, isOpen, slot]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -209,7 +219,8 @@ export function MediaPickerDrawer({
   }
 
   function toggleSelected(item: UploadMediaItem) {
-    if (item.uploadStatus !== "ready" || !item.url) return;
+    const isAllowed = slotAllowsAssetType(slot, item.type);
+    if (item.uploadStatus !== "ready" || !item.url || !isAllowed) return;
     onClearNotice?.();
     setSelectedIds((current) => {
       const next = new Set(current);
@@ -312,7 +323,9 @@ export function MediaPickerDrawer({
 
           <div className="mt-4 flex items-center justify-between">
             <h3 className="text-sm font-black text-white">Assets</h3>
-            <span className="text-xs font-bold text-white/38">{media.length}/12 items</span>
+            <span className="text-xs font-bold text-white/38">
+              {visibleMedia.length} shown / {allMedia.length} total
+            </span>
           </div>
 
           {notice ? (
@@ -324,20 +337,25 @@ export function MediaPickerDrawer({
           {visibleMedia.length ? (
             <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {visibleMedia.map((item) => {
+                const isAllowed = slotAllowsAssetType(slot, item.type);
                 const isSelected = selectedIds.has(item.id);
-                const isSelectable = item.uploadStatus === "ready" && Boolean(item.url);
+                const isSelectable = item.uploadStatus === "ready" && Boolean(item.url) && isAllowed;
                 const isFailed = item.uploadStatus === "failed";
+                const isUnsupported = !isAllowed;
 
                 return (
                   <article
                     className={`group relative overflow-hidden rounded-2xl border transition ${
                       isFailed
                         ? "border-red-300/30 bg-red-400/10"
-                        : isSelected
-                          ? "border-[#ffb44d]/70 bg-[#ffb44d]/12"
-                          : "border-white/10 bg-black/24 hover:border-[#ffb44d]/35"
+                        : isUnsupported
+                          ? "border-white/10 bg-white/[.025] opacity-50"
+                          : isSelected
+                            ? "border-[#ffb44d]/70 bg-[#ffb44d]/12"
+                            : "border-white/10 bg-black/24 hover:border-[#ffb44d]/35"
                     }`}
                     key={item.id}
+                    title={isUnsupported ? "Unsupported file type for this slot" : item.name}
                   >
                     <button
                       className={`block w-full text-left ${isSelectable ? "cursor-pointer" : "cursor-default"}`}
@@ -349,6 +367,8 @@ export function MediaPickerDrawer({
                         {item.type === "image" && item.previewUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img alt="" className="h-full w-full object-cover" src={item.previewUrl} />
+                        ) : item.type === "video" && item.url ? (
+                          <video className="h-full w-full object-cover" muted playsInline preload="metadata" src={item.url} />
                         ) : (
                           <span className="grid size-11 place-items-center rounded-2xl bg-white/[.06] text-[11px] font-black uppercase tracking-[.14em] text-white/52">
                             {mediaFallback(item.type)}
@@ -359,14 +379,14 @@ export function MediaPickerDrawer({
                         </span>
                         {isSelected ? (
                           <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-[#ffb44d] text-xs font-black text-[#1f2027]">
-                            ✓
+                            OK
                           </span>
                         ) : null}
                       </span>
                       <span className="grid gap-1.5 p-2">
                         <span className="truncate text-xs font-bold text-white/72">{item.name}</span>
-                        <span className={`text-[10px] font-black uppercase tracking-[.12em] ${isFailed ? "text-red-100/75" : "text-white/38"}`}>
-                          {statusLabel(item.uploadStatus)}
+                        <span className={`text-[10px] font-black uppercase tracking-[.12em] ${isFailed || isUnsupported ? "text-red-100/75" : "text-white/38"}`}>
+                          {statusLabel(item.uploadStatus, isAllowed)}
                         </span>
                         {item.errorMessage ? <span className="line-clamp-2 text-xs leading-5 text-red-100/78">{item.errorMessage}</span> : null}
                       </span>
@@ -397,7 +417,7 @@ export function MediaPickerDrawer({
           <span className="text-xs font-bold text-white/45">{selectedCount} selected</span>
           <div className="flex gap-2">
             <button
-              className="rounded-full border border-white/10 px-4 py-2 text-xs font-black text-white/58 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a]"
+              className="rounded-full border border-white/10 px-4 py-2 text-xs font-black text-white/58 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a] disabled:cursor-not-allowed disabled:opacity-45"
               disabled={!selectedCount}
               onClick={() => {
                 onClearNotice?.();
