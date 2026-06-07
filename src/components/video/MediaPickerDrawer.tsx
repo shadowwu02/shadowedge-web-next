@@ -96,7 +96,7 @@ function getDrawerPosition(anchor: HTMLElement | null): DrawerPosition {
 }
 
 export function MediaPickerDrawer({
-  anchorRef,
+  anchorElement,
   currentMedia,
   inputRef,
   isOpen,
@@ -109,7 +109,7 @@ export function MediaPickerDrawer({
   onRemove,
   slot,
 }: {
-  anchorRef: RefObject<HTMLElement | null>;
+  anchorElement: HTMLElement | null;
   currentMedia: UploadMediaItem[];
   inputRef: RefObject<HTMLInputElement | null>;
   isOpen: boolean;
@@ -144,11 +144,11 @@ export function MediaPickerDrawer({
     const frame = window.requestAnimationFrame(() => {
       setActiveFilter("uploads");
       setSelectedIds(new Set());
-      setPosition(getDrawerPosition(anchorRef.current));
+      setPosition(getDrawerPosition(anchorElement));
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [anchorRef, isOpen]);
+  }, [anchorElement, isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -183,7 +183,7 @@ export function MediaPickerDrawer({
       if (rafRef.current) window.cancelAnimationFrame(rafRef.current);
       rafRef.current = window.requestAnimationFrame(() => {
         rafRef.current = null;
-        setPosition(getDrawerPosition(anchorRef.current));
+        setPosition(getDrawerPosition(anchorElement));
       });
     }
 
@@ -201,7 +201,7 @@ export function MediaPickerDrawer({
       window.removeEventListener("scroll", reposition, true);
       if (rafRef.current) window.cancelAnimationFrame(rafRef.current);
     };
-  }, [anchorRef, isOpen, onClose]);
+  }, [anchorElement, isOpen, onClose]);
 
   if (!isOpen) return null;
 

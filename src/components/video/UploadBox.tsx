@@ -65,6 +65,7 @@ export function UploadBox({
   const [currentUploadMedia, setCurrentUploadMedia] = useState<UploadMediaItem[]>([]);
   const [localStoredMedia, setLocalStoredMedia] = useState<UploadMediaItem[]>([]);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [drawerAnchorEl, setDrawerAnchorEl] = useState<HTMLElement | null>(null);
   const [pickerNotice, setPickerNotice] = useState("");
 
   useEffect(() => {
@@ -84,6 +85,17 @@ export function UploadBox({
   useEffect(() => {
     onBusyChange?.(currentUploadMedia.some((item) => item.uploadStatus === "uploading"));
   }, [currentUploadMedia, onBusyChange]);
+
+  useEffect(() => {
+    function openPicker(event: Event) {
+      const detail = (event as CustomEvent<{ anchorEl?: HTMLElement | null }>).detail;
+      setDrawerAnchorEl(detail?.anchorEl || triggerRef.current);
+      setIsPickerOpen(true);
+    }
+
+    window.addEventListener("shadowedge:open-video-media-picker", openPicker);
+    return () => window.removeEventListener("shadowedge:open-video-media-picker", openPicker);
+  }, []);
 
   async function buildUploadableItems(files: File[]) {
     const typeError = validateFilesForSlot(uploadSlot, files);
@@ -182,10 +194,6 @@ export function UploadBox({
     );
   }
 
-  const readyCount = allPickerMedia.filter((item) => item.uploadStatus === "ready").length;
-  const uploadingCount = currentUploadMedia.filter((item) => item.uploadStatus === "uploading").length;
-  const failedCount = currentUploadMedia.filter((item) => item.uploadStatus === "failed").length;
-
   function removeMedia(id: string) {
     const item = allPickerMedia.find((candidate) => candidate.id === id);
     const url = item?.url || "";
@@ -227,7 +235,7 @@ export function UploadBox({
   }
 
   return (
-    <section className="rounded-[22px] border border-dashed border-white/14 bg-white/[.045] p-3">
+    <>
       <input
         accept={getSlotAccept(uploadSlot)}
         className="hidden"
@@ -242,29 +250,21 @@ export function UploadBox({
       />
 
       <button
-        className="grid min-h-28 w-full place-items-center rounded-3xl border border-white/10 bg-black/18 px-4 text-center transition hover:border-[#ffb44d]/40 hover:bg-[#ffb44d]/8"
-        onClick={() => setIsPickerOpen(true)}
+        aria-hidden="true"
+        className="sr-only"
+        onClick={() => {
+          setDrawerAnchorEl(triggerRef.current);
+          setIsPickerOpen(true);
+        }}
         ref={triggerRef}
+        tabIndex={-1}
         type="button"
       >
-        <span>
-          <span className="mx-auto mb-3 flex justify-center gap-2">
-            {["IMG", "VID", "AUD"].map((item) => (
-              <span className="grid size-9 place-items-center rounded-full border border-white/10 bg-white/[.06] text-[10px] font-black text-white/48" key={item}>
-                {item}
-              </span>
-            ))}
-          </span>
-          <span className="block text-sm font-black text-white">Upload media</span>
-          <span className="mt-1 block text-xs text-white/45">Image, video, or audio</span>
-          <span className="mt-3 block text-[11px] font-bold text-white/38">
-            {readyCount} ready / {uploadingCount} uploading / {failedCount} failed
-          </span>
-        </span>
+        Upload media
       </button>
 
       <MediaPickerDrawer
-        anchorRef={triggerRef}
+        anchorElement={drawerAnchorEl}
         currentMedia={currentMedia}
         inputRef={inputRef}
         isOpen={isPickerOpen}
@@ -272,11 +272,14 @@ export function UploadBox({
         notice={pickerNotice}
         onAddSelected={addSelectedToReferences}
         onClearNotice={() => setPickerNotice("")}
-        onClose={() => setIsPickerOpen(false)}
+        onClose={() => {
+          setIsPickerOpen(false);
+          setDrawerAnchorEl(null);
+        }}
         onFiles={(files) => void handleFiles(files)}
         onRemove={removeMedia}
         slot={uploadSlot}
       />
-    </section>
+    </>
   );
 }
