@@ -242,7 +242,7 @@ export function PromptBox({ value, media, onChange }: PromptBoxProps) {
         maxLength={1200}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        placeholder="Describe the video, camera motion, scene, style, references, and final mood. Type @ to reference uploaded media..."
+        placeholder="Describe your scene in detail. Use @ to reference assets."
         ref={textareaRef}
         value={value}
       />

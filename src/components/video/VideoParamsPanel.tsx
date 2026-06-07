@@ -19,13 +19,11 @@ export function VideoParamsPanel({
   qualities: string[];
 }) {
   return (
-    <section className="rounded-[22px] border border-white/10 bg-white/[.055] p-3">
-      <h2 className="mb-2 text-sm font-black text-white">Settings</h2>
-      <div className="grid grid-cols-3 gap-2">
-        <label className="grid gap-1 text-[10px] font-bold uppercase tracking-[.12em] text-white/40">
-          Duration
+    <section className="flex flex-wrap gap-2">
+      <label className="flex min-h-11 flex-1 items-center gap-2 rounded-2xl border border-white/10 bg-white/[.055] px-3 text-xs font-bold text-white/42">
+        <span>Duration</span>
           <select
-            className="min-w-0 rounded-2xl border border-white/10 bg-[#10141f] px-2 py-2 text-sm normal-case tracking-normal text-white outline-none focus:border-[#ffb44d]/70"
+            className="min-w-0 flex-1 bg-transparent text-right text-sm font-black text-white outline-none"
             onChange={(event) => onChange({ ...value, duration: Number(event.target.value) })}
             value={value.duration}
           >
@@ -35,12 +33,12 @@ export function VideoParamsPanel({
               </option>
             ))}
           </select>
-        </label>
+      </label>
 
-        <label className="grid gap-1 text-[10px] font-bold uppercase tracking-[.12em] text-white/40">
-          Ratio
+      <label className="flex min-h-11 flex-1 items-center gap-2 rounded-2xl border border-white/10 bg-white/[.055] px-3 text-xs font-bold text-white/42">
+        <span>Ratio</span>
           <select
-            className="min-w-0 rounded-2xl border border-white/10 bg-[#10141f] px-2 py-2 text-sm normal-case tracking-normal text-white outline-none focus:border-[#ffb44d]/70"
+            className="min-w-0 flex-1 bg-transparent text-right text-sm font-black text-white outline-none"
             onChange={(event) => onChange({ ...value, ratio: event.target.value })}
             value={value.ratio}
           >
@@ -50,12 +48,12 @@ export function VideoParamsPanel({
               </option>
             ))}
           </select>
-        </label>
+      </label>
 
-        <label className="grid gap-1 text-[10px] font-bold uppercase tracking-[.12em] text-white/40">
-          Quality
+      <label className="flex min-h-11 flex-1 items-center gap-2 rounded-2xl border border-white/10 bg-white/[.055] px-3 text-xs font-bold text-white/42">
+        <span>Quality</span>
           <select
-            className="min-w-0 rounded-2xl border border-white/10 bg-[#10141f] px-2 py-2 text-sm normal-case tracking-normal text-white outline-none focus:border-[#ffb44d]/70"
+            className="min-w-0 flex-1 bg-transparent text-right text-sm font-black text-white outline-none"
             onChange={(event) => onChange({ ...value, quality: event.target.value })}
             value={value.quality}
           >
@@ -65,8 +63,7 @@ export function VideoParamsPanel({
               </option>
             ))}
           </select>
-        </label>
-      </div>
+      </label>
     </section>
   );
 }
