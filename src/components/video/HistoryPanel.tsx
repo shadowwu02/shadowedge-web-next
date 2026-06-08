@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { formatTime, getVideoOutputUrl, isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
+import { getSafeVideoHistoryView } from "@/lib/video/historyUtils";
+import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { VideoTaskRecord } from "@/types/video";
 
 type HistoryFilter = "all" | "success" | "failed" | "processing";
@@ -21,18 +22,18 @@ const filters: Array<{ id: HistoryFilter; label: string }> = [
 ];
 
 function filterHistoryItem(item: VideoTaskRecord, filter: HistoryFilter) {
-  const outputUrl = getVideoOutputUrl(item);
+  const view = getSafeVideoHistoryView(item);
 
-  if (filter === "success") return isVideoCompletedStatus(item.status) && Boolean(outputUrl);
-  if (filter === "failed") return isVideoFailedStatus(item.status);
-  if (filter === "processing") return isVideoActiveStatus(item.status);
+  if (filter === "success") return isVideoCompletedStatus(view.status) && Boolean(view.outputUrl);
+  if (filter === "failed") return isVideoFailedStatus(view.status);
+  if (filter === "processing") return isVideoActiveStatus(view.status);
   return true;
 }
 
-function statusClass(item: VideoTaskRecord) {
-  if (isVideoFailedStatus(item.status)) return "border-red-300/25 bg-red-400/10 text-red-100";
-  if (isVideoCompletedStatus(item.status) && getVideoOutputUrl(item)) return "border-emerald-300/20 bg-emerald-400/10 text-emerald-100";
-  if (isVideoActiveStatus(item.status)) return "border-[#ffb44d]/24 bg-[#ffb44d]/10 text-[#ffd08a]";
+function statusClass(status: string, hasOutput: boolean) {
+  if (isVideoFailedStatus(status)) return "border-red-300/25 bg-red-400/10 text-red-100";
+  if (isVideoCompletedStatus(status) && hasOutput) return "border-emerald-300/20 bg-emerald-400/10 text-emerald-100";
+  if (isVideoActiveStatus(status)) return "border-[#ffb44d]/24 bg-[#ffb44d]/10 text-[#ffd08a]";
   return "border-white/10 bg-white/[.045] text-white/55";
 }
 
@@ -86,20 +87,19 @@ export function HistoryPanel({ error, history, isLoading = false, onRetry }: His
         <div className="grid gap-3">
           {visibleHistory.length ? (
             visibleHistory.map((item) => {
-              const url = getVideoOutputUrl(item);
-              const thumb = item.thumbnailUrl || item.thumbnail || "";
+              const view = getSafeVideoHistoryView(item);
               return (
-                <article className="rounded-[22px] border border-white/10 bg-black/20 p-2.5" key={item.jobId || `${item.createdAt}-${item.prompt}`}>
+                <article className="rounded-[22px] border border-white/10 bg-black/20 p-2.5" key={view.key}>
                   <div className="grid grid-cols-[92px_minmax(0,1fr)] gap-3">
                     <div className="grid aspect-video place-items-center overflow-hidden rounded-2xl bg-white/[.045]">
-                      {url ? (
-                        <video className="h-full w-full object-cover" muted playsInline preload="metadata" src={url} />
-                      ) : thumb ? (
+                      {view.outputUrl ? (
+                        <video className="h-full w-full object-cover" muted playsInline preload="metadata" src={view.outputUrl} />
+                      ) : view.thumbnailUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img alt="" className="h-full w-full object-cover" src={thumb} />
-                      ) : isVideoFailedStatus(item.status) ? (
+                        <img alt="" className="h-full w-full object-cover" src={view.thumbnailUrl} />
+                      ) : isVideoFailedStatus(view.status) ? (
                         <span className="text-xs font-black text-red-100/72">Failed</span>
-                      ) : isVideoActiveStatus(item.status) ? (
+                      ) : isVideoActiveStatus(view.status) ? (
                         <span className="text-xs font-black text-[#ffd08a]">Processing</span>
                       ) : (
                         <span className="text-xs text-white/40">Task</span>
@@ -107,18 +107,22 @@ export function HistoryPanel({ error, history, isLoading = false, onRetry }: His
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${statusClass(item)}`}>
-                          {String(item.status || "unknown")}
+                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${statusClass(view.status, Boolean(view.outputUrl))}`}>
+                          {view.statusLabel}
                         </span>
-                        <span className="truncate text-[11px] text-white/34">{formatTime(item.createdAt)}</span>
+                        <span className="truncate text-[11px] text-white/34">{view.createdAtLabel}</span>
                       </div>
-                      <p className="mt-1.5 line-clamp-2 text-sm font-bold leading-5 text-white">{item.prompt || "Untitled video"}</p>
+                      <p className="mt-1.5 line-clamp-2 text-sm font-bold leading-5 text-white">{view.title}</p>
                       <div className="mt-1.5 grid gap-1 text-[11px] text-white/42">
-                        <span className="truncate">Model: {item.model || item.frontendModel || "--"}</span>
-                        <span className="truncate">Job: {item.jobId || item.providerJobId || "--"}</span>
+                        <span className="truncate">Model: {view.modelLabel}</span>
+                        <span className="truncate">Job: {view.jobLabel}</span>
                       </div>
-                      {isVideoFailedStatus(item.status) ? (
+                      {isVideoFailedStatus(view.status) ? (
                         <div className="mt-2 flex flex-wrap gap-2">
+                          <span className="line-clamp-2 w-full text-[11px] leading-4 text-red-100/62">
+                            {view.errorMessage}
+                            {view.refundNotice ? ` ${view.refundNotice}` : ""}
+                          </span>
                           <button
                             className="rounded-full border border-[#ffb44d]/35 bg-[#ffb44d]/10 px-3 py-1 text-xs font-bold text-[#ffd08a] transition hover:bg-[#ffb44d]/16 disabled:cursor-not-allowed disabled:opacity-45"
                             disabled={!onRetry}

@@ -1,4 +1,5 @@
 import { apiRequest } from "@/lib/api";
+import { getSafeHistoryOutputUrl, getSafeHistoryThumbnailUrl } from "@/lib/video/historyUtils";
 import type {
   UploadedMediaResponse,
   UploadMediaType,
@@ -118,8 +119,10 @@ export function normalizeVideoHistoryItem(item: unknown): VideoHistoryItem {
   const outputUrls = pickArray(record.outputUrls, record.output_urls, meta.outputUrls, meta.output_urls)
     .map(String)
     .filter(Boolean);
+  const normalizedOutputUrl = getSafeHistoryOutputUrl(record);
+  const normalizedThumbnailUrl = getSafeHistoryThumbnailUrl(record);
   const videoUrl =
-    pickString(record.videoUrl, record.video_url, record.outputUrl, record.output_url, meta.videoUrl, meta.outputUrl, outputUrls[0]) || "";
+    pickString(record.videoUrl, record.video_url, record.outputUrl, record.output_url, meta.videoUrl, meta.outputUrl, outputUrls[0], normalizedOutputUrl) || "";
   const mediaList = normalizeMediaList(record.mediaList || meta.mediaList || uploadAssets.media);
   const jobId = pickString(record.jobId, record.job_id, record.providerJobId, record.provider_job_id, record.dbJobId, record.id) || "";
 
@@ -140,8 +143,8 @@ export function normalizeVideoHistoryItem(item: unknown): VideoHistoryItem {
     videoUrl,
     outputUrl: pickString(record.outputUrl, record.output_url, meta.outputUrl, meta.output_url),
     outputUrls: outputUrls.length ? outputUrls : videoUrl ? [videoUrl] : [],
-    thumbnail: pickString(record.thumbnail, record.thumbnailUrl, record.thumbnail_url, meta.thumbnail, meta.thumbnailUrl),
-    thumbnailUrl: pickString(record.thumbnailUrl, record.thumbnail_url, meta.thumbnailUrl, meta.thumbnail_url),
+    thumbnail: pickString(record.thumbnail, record.thumbnailUrl, record.thumbnail_url, meta.thumbnail, meta.thumbnailUrl, normalizedThumbnailUrl),
+    thumbnailUrl: pickString(record.thumbnailUrl, record.thumbnail_url, meta.thumbnailUrl, meta.thumbnail_url, normalizedThumbnailUrl),
     reference_images: pickArray(record.reference_images, record.referenceImages, meta.reference_images, meta.referenceImages).map(String),
     reference_videos: pickArray(record.reference_videos, record.referenceVideos, meta.reference_videos, meta.referenceVideos).map(String),
     reference_audios: pickArray(record.reference_audios, record.referenceAudios, meta.reference_audios, meta.referenceAudios).map(String),

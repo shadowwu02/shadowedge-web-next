@@ -1,0 +1,322 @@
+import { formatTime } from "@/lib/utils";
+import type { VideoTaskRecord } from "@/types/video";
+
+type HistoryRecordInput = Partial<VideoTaskRecord> & Record<string, unknown>;
+
+export type SafeVideoHistoryView = {
+  key: string;
+  status: string;
+  statusLabel: string;
+  title: string;
+  modelLabel: string;
+  jobLabel: string;
+  createdAt: string | number;
+  createdAtLabel: string;
+  duration: string;
+  ratio: string;
+  quality: string;
+  outputUrl: string;
+  thumbnailUrl: string;
+  errorMessage: string;
+  refundNotice: string;
+};
+
+const inputMediaKeys = [
+  "first_frame_image",
+  "firstFrameImage",
+  "last_frame_image",
+  "lastFrameImage",
+  "reference_images",
+  "referenceImages",
+  "reference_videos",
+  "referenceVideos",
+  "reference_audios",
+  "referenceAudios",
+  "mediaList",
+  "assets",
+  "upload_assets",
+  "uploadAssets",
+];
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function pickString(...values: unknown[]) {
+  return values.find((value) => typeof value === "string" && value.trim()) as string | undefined;
+}
+
+function pickNumber(...values: unknown[]) {
+  const numberValue = values.map((value) => Number(value)).find((value) => Number.isFinite(value) && value > 0);
+  return numberValue;
+}
+
+function pickArray(...values: unknown[]) {
+  const value = values.find(Array.isArray);
+  return (value || []) as unknown[];
+}
+
+function isRenderableMediaUrl(url: string) {
+  const value = String(url || "").trim();
+  return /^https?:\/\//i.test(value) || /^blob:/i.test(value) || /^data:(video|image)\//i.test(value);
+}
+
+function firstRenderableUrl(...values: unknown[]) {
+  return (
+    values
+      .flatMap((value) => (Array.isArray(value) ? value : [value]))
+      .map((value) => {
+        if (typeof value === "string") return value;
+        const record = asRecord(value);
+        return pickString(record.url, record.videoUrl, record.video_url, record.outputUrl, record.output_url, record.thumbnailUrl);
+      })
+      .map((value) => String(value || "").trim())
+      .find(isRenderableMediaUrl) || ""
+  );
+}
+
+function getNestedOutputUrl(record: Record<string, unknown>) {
+  const output = asRecord(record.output);
+  const result = asRecord(record.result);
+  const data = asRecord(record.data);
+  const outputs = pickArray(record.outputs, output.urls, result.outputs, data.outputs);
+
+  return firstRenderableUrl(
+    record.videoUrl,
+    record.video_url,
+    record.outputUrl,
+    record.output_url,
+    record.resultUrl,
+    record.result_url,
+    record.url,
+    record.outputUrls,
+    record.output_urls,
+    output.videoUrl,
+    output.video_url,
+    output.outputUrl,
+    output.output_url,
+    output.url,
+    result.videoUrl,
+    result.video_url,
+    result.outputUrl,
+    result.output_url,
+    result.url,
+    data.videoUrl,
+    data.video_url,
+    data.outputUrl,
+    data.output_url,
+    outputs,
+  );
+}
+
+export function getSafeHistoryOutputUrl(record: unknown) {
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+
+  return getNestedOutputUrl(raw) || getNestedOutputUrl(meta);
+}
+
+export function getSafeHistoryThumbnailUrl(record: unknown) {
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+
+  return firstRenderableUrl(
+    raw.thumbnailUrl,
+    raw.thumbnail_url,
+    raw.thumbnail,
+    raw.previewUrl,
+    raw.preview_url,
+    meta.thumbnailUrl,
+    meta.thumbnail_url,
+    meta.thumbnail,
+    meta.previewUrl,
+    meta.preview_url,
+  );
+}
+
+export function getVideoHistoryStableKey(record: unknown, fallback = "") {
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+  const explicitKey = pickString(
+    raw.jobId,
+    raw.job_id,
+    raw.taskId,
+    raw.task_id,
+    raw.providerTaskId,
+    raw.provider_task_id,
+    raw.providerJobId,
+    raw.provider_job_id,
+    raw.dbJobId,
+    raw.db_job_id,
+    raw.id,
+    meta.jobId,
+    meta.job_id,
+    meta.providerJobId,
+    meta.provider_job_id,
+  );
+  if (explicitKey) return explicitKey;
+
+  const createdAt = pickString(raw.createdAt, raw.created_at, meta.createdAt, meta.created_at) || String(pickNumber(raw.createdAt, meta.createdAt) || "");
+  const outputUrl = getSafeHistoryOutputUrl(raw);
+  if (createdAt && outputUrl) return `time:${createdAt}:${outputUrl}`;
+
+  const prompt = pickString(raw.prompt, meta.original_prompt, meta.prompt);
+  if (createdAt && prompt) return `time:${createdAt}:${prompt.slice(0, 48)}`;
+
+  return fallback;
+}
+
+function hasInputMediaValue(value: unknown): boolean {
+  if (!value) return false;
+  if (typeof value === "string") return Boolean(value.trim());
+  if (Array.isArray(value)) return value.some(hasInputMediaValue);
+  const record = asRecord(value);
+  return Object.keys(record).length > 0;
+}
+
+export function hasVideoHistoryInputMedia(record: unknown) {
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+  return inputMediaKeys.some((key) => hasInputMediaValue(raw[key]) || hasInputMediaValue(meta[key]));
+}
+
+function mergeMeta(serverRecord: HistoryRecordInput, localRecord: HistoryRecordInput) {
+  const serverMeta = asRecord(serverRecord.meta);
+  const localMeta = asRecord(localRecord.meta);
+  const mergedMeta: Record<string, unknown> = {
+    ...localMeta,
+    ...serverMeta,
+  };
+
+  if (!serverMeta.mentionBindings && localMeta.mentionBindings) mergedMeta.mentionBindings = localMeta.mentionBindings;
+  if (!serverMeta.mention_bindings && localMeta.mention_bindings) mergedMeta.mention_bindings = localMeta.mention_bindings;
+
+  inputMediaKeys.forEach((key) => {
+    if (!hasInputMediaValue(mergedMeta[key]) && hasInputMediaValue(localMeta[key])) {
+      mergedMeta[key] = localMeta[key];
+    }
+  });
+
+  return mergedMeta;
+}
+
+function copyIfMissing(target: Record<string, unknown>, source: Record<string, unknown>, keys: string[]) {
+  keys.forEach((key) => {
+    if (!hasInputMediaValue(target[key]) && hasInputMediaValue(source[key])) {
+      target[key] = source[key];
+    }
+  });
+}
+
+export function mergeVideoHistoryRecord(serverRecord: VideoTaskRecord, localRecord?: VideoTaskRecord): VideoTaskRecord {
+  if (!localRecord) return serverRecord;
+
+  const serverRaw = serverRecord as HistoryRecordInput;
+  const localRaw = localRecord as HistoryRecordInput;
+  const merged: Record<string, unknown> = {
+    ...localRaw,
+    ...serverRaw,
+    meta: mergeMeta(serverRaw, localRaw),
+  };
+
+  if (!hasVideoHistoryInputMedia(serverRaw) && hasVideoHistoryInputMedia(localRaw)) {
+    copyIfMissing(merged, localRaw, inputMediaKeys);
+  }
+
+  copyIfMissing(merged, localRaw, ["prompt", "duration", "ratio", "quality", "mentionBindings", "mention_bindings"]);
+
+  return merged as VideoTaskRecord;
+}
+
+export function getVideoHistoryTime(record: unknown) {
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+  const value = raw.updatedAt || raw.updated_at || raw.createdAt || raw.created_at || meta.updatedAt || meta.updated_at || meta.createdAt || meta.created_at || 0;
+  const time = typeof value === "number" ? value : new Date(String(value || "")).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+export function mergeVideoHistory(localHistory: VideoTaskRecord[], serverHistory: VideoTaskRecord[]) {
+  const merged = new Map<string, VideoTaskRecord>();
+
+  serverHistory.forEach((record, index) => {
+    const key = getVideoHistoryStableKey(record, `server:${index}`);
+    merged.set(key, record);
+  });
+
+  localHistory.forEach((record, index) => {
+    const key = getVideoHistoryStableKey(record, `local:${index}`);
+    const serverRecord = merged.get(key);
+    merged.set(key, serverRecord ? mergeVideoHistoryRecord(serverRecord, record) : record);
+  });
+
+  return Array.from(merged.values()).sort((a, b) => getVideoHistoryTime(b) - getVideoHistoryTime(a));
+}
+
+function truncateText(value: string, maxLength = 220) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 1).trim()}...`;
+}
+
+export function getSafeVideoHistoryErrorMessage(record: unknown) {
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+  const rawMessage =
+    pickString(
+      raw.public_message,
+      raw.publicMessage,
+      meta.public_message,
+      meta.publicMessage,
+      raw.error_message,
+      raw.errorMessage,
+      meta.error_message,
+      meta.errorMessage,
+      raw.message,
+      meta.message,
+      raw.error,
+      meta.error,
+      raw.errorCode,
+      raw.error_code,
+      meta.errorCode,
+      meta.error_code,
+    ) || "Video generation failed. Please try again later or change the media.";
+
+  return truncateText(rawMessage.split(/\r?\n/)[0] || rawMessage);
+}
+
+function getRefundNotice(record: unknown) {
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+  const refunded = raw.refunded ?? meta.refunded;
+  const amount = pickNumber(raw.refund_amount, raw.refundAmount, meta.refund_amount, meta.refundAmount);
+  if (!refunded && !amount) return "";
+  return amount ? `Refunded ${amount} credits.` : "Credits were refunded for this failed task.";
+}
+
+export function getSafeVideoHistoryView(record: VideoTaskRecord, fallbackKey = ""): SafeVideoHistoryView {
+  const raw = record as HistoryRecordInput;
+  const meta = asRecord(raw.meta);
+  const outputUrl = getSafeHistoryOutputUrl(raw);
+  const status = String(pickString(raw.status, meta.status) || (outputUrl ? "completed" : "unknown")).toLowerCase();
+  const createdAt = pickString(raw.createdAt, raw.created_at, meta.createdAt, meta.created_at) || pickNumber(raw.createdAt, meta.createdAt) || "";
+  const jobLabel = pickString(raw.jobId, raw.providerJobId, raw.dbJobId, meta.jobId, meta.providerJobId) || "--";
+
+  return {
+    key: getVideoHistoryStableKey(raw, fallbackKey || `${createdAt || "unknown"}-${jobLabel}`),
+    status,
+    statusLabel: status || "unknown",
+    title: truncateText(pickString(raw.prompt, meta.original_prompt, meta.prompt) || "Untitled video", 180),
+    modelLabel: truncateText(pickString(raw.model, raw.frontendModel, meta.frontend_model, meta.model) || "--", 80),
+    jobLabel,
+    createdAt: createdAt || Date.now(),
+    createdAtLabel: formatTime(createdAt || undefined),
+    duration: pickString(raw.duration, meta.duration) || "--",
+    ratio: pickString(raw.ratio, raw.aspect_ratio, meta.ratio, meta.aspect_ratio) || "--",
+    quality: pickString(raw.quality, raw.resolution, meta.quality, meta.resolution) || "--",
+    outputUrl,
+    thumbnailUrl: getSafeHistoryThumbnailUrl(raw),
+    errorMessage: getSafeVideoHistoryErrorMessage(raw),
+    refundNotice: getRefundNotice(raw),
+  };
+}

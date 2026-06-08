@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { getCurrentUserProfile } from "@/lib/auth-api";
 import { createVideoTask, getVideoHistory, getVideoStatus, saveVideoHistory } from "@/lib/video-api";
 import { buildMediaAwarePrompt, getReadyMentionableMediaItems, toGenerationMediaList } from "@/lib/video-mentions";
+import { getVideoHistoryStableKey, mergeVideoHistory } from "@/lib/video/historyUtils";
 import { serializeMentionBindings, type VideoMentionBinding } from "@/lib/video/videoMentionBindings";
 import { getVideoOutputUrl, isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { UploadMediaItem, VideoGenerationRequest, VideoHistoryItem, VideoModel, VideoStatusResponse, VideoTaskRecord } from "@/types/video";
@@ -106,35 +107,6 @@ function buildVideoRequest(options: SubmitVideoOptions): VideoGenerationRequest 
   };
 }
 
-function historyKey(record: VideoTaskRecord) {
-  return String(record.jobId || record.providerJobId || record.dbJobId || "").trim();
-}
-
-function historyTime(record: VideoTaskRecord) {
-  const raw = record.updatedAt || record.createdAt || 0;
-  const time = typeof raw === "number" ? raw : new Date(raw).getTime();
-  return Number.isFinite(time) ? time : 0;
-}
-
-function mergeHistory(localHistory: VideoTaskRecord[], serverHistory: VideoHistoryItem[]) {
-  const merged = new Map<string, VideoTaskRecord>();
-
-  serverHistory.forEach((record, index) => {
-    const key = historyKey(record) || `server:${index}`;
-    merged.set(key, record);
-  });
-
-  localHistory.forEach((record, index) => {
-    const key = historyKey(record) || `local:${index}`;
-    merged.set(key, {
-      ...merged.get(key),
-      ...record,
-    });
-  });
-
-  return Array.from(merged.values()).sort((a, b) => historyTime(b) - historyTime(a));
-}
-
 function getActiveTaskCount(records: VideoTaskRecord[]) {
   return records.filter((record) => isVideoActiveStatus(record.status)).length;
 }
@@ -153,7 +125,7 @@ export function useVideoGeneration() {
   const [error, setError] = useState("");
 
   const visibleHistory = useMemo(
-    () => mergeHistory(localHistory, serverHistory),
+    () => mergeVideoHistory(localHistory, serverHistory),
     [localHistory, serverHistory],
   );
 
@@ -161,9 +133,9 @@ export function useVideoGeneration() {
     const activeIds = new Set<string>();
     visibleHistory.forEach((record) => {
       if (!isVideoActiveStatus(record.status)) return;
-      activeIds.add(historyKey(record) || `active:${record.createdAt}`);
+      activeIds.add(getVideoHistoryStableKey(record, `active:${record.createdAt}`));
     });
-    if (task && isVideoActiveStatus(task.status)) activeIds.add(historyKey(task) || "current");
+    if (task && isVideoActiveStatus(task.status)) activeIds.add(getVideoHistoryStableKey(task, "current"));
     return activeIds.size;
   }, [task, visibleHistory]);
 
