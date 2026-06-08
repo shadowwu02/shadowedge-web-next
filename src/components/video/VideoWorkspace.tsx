@@ -16,6 +16,7 @@ import { useTaskPolling } from "@/hooks/useTaskPolling";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useCredits } from "@/hooks/useCredits";
 import { useVideoGeneration } from "@/hooks/useVideoGeneration";
+import { useI18n } from "@/i18n/useI18n";
 import { collectGeneratedResultMediaAssets, collectHistoryInputMediaAssets, collectReusableVideoAssets, mergeMediaAssets } from "@/lib/media-assets";
 import { getVideoModels } from "@/lib/video-api";
 import { getSafeHistoryOutputUrl, getVideoHistoryStatusCounts, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
@@ -189,6 +190,7 @@ function getRecordMentionBindings(
 }
 
 export function VideoWorkspace() {
+  const { t, tf } = useI18n();
   const [models, setModels] = useState<VideoModel[]>(fallbackModels);
   const [selectedModel, setSelectedModel] = useState<VideoModel>(fallbackModels[0]);
   const [modelLoading, setModelLoading] = useState(true);
@@ -366,14 +368,34 @@ export function VideoWorkspace() {
     [history, task],
   );
   const historyStatusCounts = useMemo(() => getVideoHistoryStatusCounts(history, task), [history, task]);
+  const displayNotice = useMemo(() => {
+    const message = workspaceNotice || error || modelError;
+    if (!message) return "";
+
+    const exactMessages: Record<string, string> = {
+      "Please enter a prompt first.": t("video.errors.promptRequired"),
+      "Media is still uploading. Please wait for uploads to finish.": t("video.errors.mediaUploading"),
+      "Some media failed to upload. Remove failed items before generating.": t("video.errors.mediaFailedBeforeGenerate"),
+      "Local preview media cannot be used for generation. Please wait for upload to finish.": t("video.errors.localPreviewMedia"),
+      "Only uploaded remote media URLs can be used for generation.": t("video.errors.remoteMediaOnly"),
+      "You already have active generation tasks. Please wait until one finishes.": t("video.errors.activeGeneration"),
+      "Video generation request failed.": t("video.errors.generationRequestFailed"),
+      "No jobId returned by video API.": t("video.errors.noJobId"),
+      "Unable to check this job status. It may be expired. Please check History or retry.": t("video.result.statusExpired"),
+      "Failed to refresh video status.": t("video.errors.statusRefreshFailed"),
+      "Failed to load models. Using local fallback models.": `${t("video.errors.modelLoadFailed")} ${t("video.model.usingFallback")}`,
+    };
+
+    return exactMessages[message] || message;
+  }, [error, modelError, t, workspaceNotice]);
 
   const generateButtonLabel = useMemo(() => {
-    if (isUploadingMedia) return "Uploading media";
-    if (isProcessing) return "Processing";
-    if (!token && !isSignedIn) return "Sign in required";
-    if (!hasEnoughCredits) return "Not enough credits";
-    return `Generate · ${selectedModel.credits} credits`;
-  }, [hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, selectedModel.credits, token]);
+    if (isUploadingMedia) return t("video.actions.uploadingMedia");
+    if (isProcessing) return t("video.status.processing");
+    if (!token && !isSignedIn) return t("video.errors.signInRequired");
+    if (!hasEnoughCredits) return t("video.credits.notEnough");
+    return tf("video.actions.generateWithCredits", { credits: selectedModel.credits });
+  }, [hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, selectedModel.credits, t, tf, token]);
 
   const findRetryModel = useCallback((record: { modelId?: string; providerModel?: string; frontendModel?: string; model?: string }) => {
     return (
@@ -388,22 +410,22 @@ export function VideoWorkspace() {
     setWorkspaceNotice("");
 
     if (isUploadingMedia) {
-      setWorkspaceNotice("Media is still uploading. Please wait for uploads to finish.");
+      setWorkspaceNotice(t("video.errors.mediaUploading"));
       return;
     }
 
     if (isProcessing) {
-      setWorkspaceNotice("You already have active generation tasks. Please wait until one finishes.");
+      setWorkspaceNotice(t("video.errors.activeGeneration"));
       return;
     }
 
     if (!token && !isSignedIn) {
-      setWorkspaceNotice("Sign in required.");
+      setWorkspaceNotice(t("video.errors.signInRequired"));
       return;
     }
 
     if (!hasEnoughCredits) {
-      setWorkspaceNotice("Not enough credits.");
+      setWorkspaceNotice(t("video.credits.notEnough"));
       return;
     }
 
@@ -418,14 +440,14 @@ export function VideoWorkspace() {
       media,
       mentionBindings: reconciledMentionBindings,
     });
-  }, [hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, maxConcurrency, media, params, prompt, reconciledMentionBindings, selectedModel, submit, token]);
+  }, [hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, maxConcurrency, media, params, prompt, reconciledMentionBindings, selectedModel, submit, t, token]);
 
   const handleRetry = useCallback(
     (record: (typeof history)[number]) => {
       setWorkspaceNotice("");
       const retryModel = findRetryModel(record);
       if (!retryModel) {
-        setWorkspaceNotice("Cannot retry: original model is not available.");
+        setWorkspaceNotice(t("video.errors.retryModelUnavailable"));
         return;
       }
 
@@ -433,13 +455,13 @@ export function VideoWorkspace() {
       const retryMentionBindings = getRecordMentionBindings(record, retryMedia);
       const hasMissingMedia = retryMedia.some((item) => !item.url || item.url.startsWith("blob:") || item.url.startsWith("data:"));
       if (hasMissingMedia) {
-        setWorkspaceNotice("Cannot retry: original media URL is missing.");
+        setWorkspaceNotice(t("video.errors.retryMediaMissing"));
         return;
       }
 
       const promptText = String(record.meta?.original_prompt || record.prompt || "").trim();
       if (!promptText) {
-        setWorkspaceNotice("Cannot retry: original prompt is missing.");
+        setWorkspaceNotice(t("video.errors.retryPromptMissing"));
         return;
       }
 
@@ -462,22 +484,22 @@ export function VideoWorkspace() {
         maxConcurrency,
       });
     },
-    [findRetryModel, maxConcurrency, submit],
+    [findRetryModel, maxConcurrency, submit, t],
   );
 
   const getGeneratedResultReferenceIssue = useCallback(
     (record: (typeof history)[number]) => {
-      if (!getSafeHistoryOutputUrl(record)) return "No generated result URL is available.";
+      if (!getSafeHistoryOutputUrl(record)) return t("video.errors.generatedNoUrl");
       if (!selectedModelRule.supportsGeneratedResultAsReference) {
-        return "Generated results cannot be used as references for this model.";
+        return t("video.drawer.generatedUnsupported");
       }
 
       const generatedAsset = collectGeneratedResultMediaAssets([record])[0];
-      if (!generatedAsset) return "No reusable generated result is available.";
+      if (!generatedAsset) return t("video.errors.generatedNoReusable");
 
       return validateReferenceSelectionForRule(selectedModelRule, media, [generatedAsset]);
     },
-    [media, selectedModelRule],
+    [media, selectedModelRule, t],
   );
 
   const handleUseResultAsReference = useCallback(
@@ -490,14 +512,14 @@ export function VideoWorkspace() {
 
       const generatedAsset = collectGeneratedResultMediaAssets([record])[0];
       if (!generatedAsset) {
-        setWorkspaceNotice("No reusable generated result is available.");
+        setWorkspaceNotice(t("video.errors.generatedNoReusable"));
         return;
       }
 
       setMedia((currentItems) => mergeMediaAssets(currentItems, [generatedAsset]));
-      setWorkspaceNotice("Generated result added to References.");
+      setWorkspaceNotice(t("video.notices.generatedAdded"));
     },
-    [getGeneratedResultReferenceIssue],
+    [getGeneratedResultReferenceIssue, t],
   );
 
   const handleFillFromHistory = useCallback(
@@ -519,30 +541,30 @@ export function VideoWorkspace() {
       setMentionBindings(nextMentionBindings);
       setPrompt(promptText);
       if (!nextMedia.length) {
-        setWorkspaceNotice("History item loaded, but this record does not include reusable reference media URLs.");
+        setWorkspaceNotice(t("video.history.resultNoReusableUrl"));
       } else {
         setWorkspaceNotice(
           findRetryModel(record)
-            ? "History item loaded into the generator."
-            : "History item loaded with the current model because the original model is unavailable.",
+            ? t("video.history.loaded")
+            : t("video.history.loadedCurrentModel"),
         );
       }
     },
-    [findRetryModel, selectedModel],
+    [findRetryModel, selectedModel, t],
   );
 
   const handleHideHistoryRecord = useCallback(
     (record: (typeof history)[number]) => {
       hideHistoryRecord(record);
-      setWorkspaceNotice("History item hidden locally. It may return after a page refresh because no delete API is connected.");
+      setWorkspaceNotice(t("video.history.hiddenLocal"));
     },
-    [hideHistoryRecord],
+    [hideHistoryRecord, t],
   );
 
   const handleHistoryShortcut = useCallback((nextFilter: HistoryFilter) => {
     setHistoryFilter(nextFilter);
-    setWorkspaceNotice(nextFilter === "failed" ? "Showing failed video jobs." : "Showing processing video jobs.");
-  }, []);
+    setWorkspaceNotice(nextFilter === "failed" ? t("video.workspace.showingFailed") : t("video.workspace.showingProcessing"));
+  }, [t]);
 
   return (
     <div className="se-scrollbar h-full min-h-0 space-y-3 overflow-y-auto overflow-x-hidden xl:grid xl:grid-cols-[minmax(310px,340px)_minmax(0,1fr)_minmax(300px,340px)] xl:gap-3 xl:space-y-0 xl:overflow-hidden 2xl:grid-cols-[340px_minmax(0,1fr)_340px]">
@@ -550,19 +572,19 @@ export function VideoWorkspace() {
         <div className="shrink-0 border-b border-white/10 px-4 py-3">
           <div className="flex gap-4 text-sm font-bold text-white/52">
             <button className="border-b-2 border-[#ffb44d] pb-2 text-white" type="button">
-              Create Video
+              {t("video.workspace.createVideo")}
             </button>
             <button className="cursor-not-allowed pb-2 text-white/40" disabled type="button">
-              Edit Video
+              {t("video.workspace.editVideo")}
             </button>
             <button className="cursor-not-allowed pb-2 text-white/40" disabled type="button">
-              Motion Control
+              {t("video.workspace.motionControl")}
             </button>
           </div>
         </div>
 
         <div className="se-subtle-scrollbar grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-3">
-          {modelLoading ? <LoadingState label="Loading live model registry..." /> : null}
+          {modelLoading ? <LoadingState label={t("video.model.loading")} /> : null}
           <UploadBox
             media={media}
             modelRule={selectedModelRule}
@@ -606,19 +628,19 @@ export function VideoWorkspace() {
           />
           {!token && !isSignedIn ? (
             <div className="rounded-[22px] border border-[#ffb44d]/25 bg-[#ffb44d]/10 p-4">
-              <p className="text-sm font-black text-[#ffd08a]">Sign in required</p>
+              <p className="text-sm font-black text-[#ffd08a]">{t("video.errors.signInRequired")}</p>
               <p className="mt-2 text-sm leading-6 text-white/62">
-                Sign in to upload media, launch video jobs, refresh credits, and load generation history.
+                {t("video.workspace.signInBody")}
               </p>
               <Link
                 className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-[#ffb44d] px-5 text-sm font-black text-[#1f2027] transition hover:bg-[#ffc766]"
                 href="/sign-in?next=/workspace/video"
               >
-                Sign in
+                {t("video.actions.signIn")}
               </Link>
             </div>
           ) : null}
-          <ErrorState message={workspaceNotice || error || modelError} />
+          <ErrorState message={displayNotice} />
         </div>
 
         <div className="shrink-0 border-t border-white/10 p-3">
@@ -648,7 +670,7 @@ export function VideoWorkspace() {
             onClick={() => handleHistoryShortcut("processing")}
             type="button"
           >
-            <span>Processing</span>
+            <span>{t("video.status.processing")}</span>
             <span className="rounded-full bg-white/[.08] px-2 py-0.5 text-[11px]">{historyStatusCounts.active}</span>
           </button>
           <button
@@ -661,7 +683,7 @@ export function VideoWorkspace() {
             onClick={() => handleHistoryShortcut("failed")}
             type="button"
           >
-            <span>Failed</span>
+            <span>{t("video.status.failed")}</span>
             <span className="rounded-full bg-white/[.08] px-2 py-0.5 text-[11px]">{historyStatusCounts.failed}</span>
           </button>
         </div>
