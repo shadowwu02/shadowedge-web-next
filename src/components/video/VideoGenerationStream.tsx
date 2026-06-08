@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 import { useI18n } from "@/i18n/useI18n";
-import { collectHistoryInputMediaAssets } from "@/lib/media-assets";
 import {
   getSafeVideoHistoryView,
   getVideoHistoryStableKey,
@@ -11,22 +10,27 @@ import {
   preferLatestVideoTask,
 } from "@/lib/video/historyUtils";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
-import type { UploadMediaItem, VideoTaskRecord } from "@/types/video";
+import type { VideoTaskRecord } from "@/types/video";
+
+export type VideoHistoryFilter = "all" | "success" | "failed" | "processing";
 
 type VideoGenerationStreamProps = {
-  getAddReferenceIssue?: (asset: UploadMediaItem) => string;
+  filter: VideoHistoryFilter;
   getUseResultAsReferenceIssue?: (record: VideoTaskRecord) => string;
   history: VideoTaskRecord[];
   isLoading?: boolean;
-  onAddReference?: (asset: UploadMediaItem) => void;
   onFill?: (record: VideoTaskRecord) => void;
+  onFilterChange: (filter: VideoHistoryFilter) => void;
   onHide?: (record: VideoTaskRecord) => void;
   onRetry?: (record: VideoTaskRecord) => void;
+  onSelect?: (record: VideoTaskRecord) => void;
   onUseResultAsReference?: (record: VideoTaskRecord) => void;
+  selectedKey?: string;
   task: VideoTaskRecord | null;
 };
 
-const streamLimit = 20;
+const streamLimit = 36;
+const filters: VideoHistoryFilter[] = ["all", "success", "failed", "processing"];
 
 function safeDownloadFilename(view: ReturnType<typeof getSafeVideoHistoryView>) {
   const id = view.jobLabel && view.jobLabel !== "--" ? view.jobLabel : view.key || Date.now();
@@ -45,26 +49,16 @@ function statusClass(status: string, hasOutput: boolean, isStale = false) {
   return "border-white/10 bg-white/[.045] text-white/58";
 }
 
-function actionButtonClass(tone: "danger" | "normal" | "primary" = "normal") {
+function canvasActionClass(tone: "danger" | "normal" | "primary" = "normal") {
   if (tone === "danger") {
-    return "rounded-full border border-red-300/25 bg-red-400/10 px-2.5 py-1 text-[11px] font-bold text-red-100 transition hover:bg-red-400/16 disabled:cursor-not-allowed disabled:opacity-45";
+    return "grid size-10 place-items-center rounded-full border border-red-300/25 bg-red-400/12 text-red-100 shadow-2xl shadow-black/30 backdrop-blur transition hover:bg-red-400/18 disabled:cursor-not-allowed disabled:opacity-45";
   }
 
   if (tone === "primary") {
-    return "rounded-full border border-[#ffb44d]/35 bg-[#ffb44d]/10 px-2.5 py-1 text-[11px] font-bold text-[#ffd08a] transition hover:bg-[#ffb44d]/20 disabled:cursor-not-allowed disabled:opacity-45";
+    return "grid size-10 place-items-center rounded-full border border-[#ffb44d]/40 bg-[#ffb44d]/16 text-[#ffd08a] shadow-2xl shadow-black/30 backdrop-blur transition hover:bg-[#ffb44d]/24 disabled:cursor-not-allowed disabled:opacity-45";
   }
 
-  return "rounded-full border border-white/10 bg-white/[.045] px-2.5 py-1 text-[11px] font-bold text-white/70 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a] disabled:cursor-not-allowed disabled:opacity-45";
-}
-
-function canvasActionClass() {
-  return "grid size-10 place-items-center rounded-full border border-white/12 bg-black/66 text-sm font-black text-white/74 shadow-2xl shadow-black/30 backdrop-blur transition hover:border-[#ffb44d]/45 hover:bg-[#ffb44d]/16 hover:text-[#ffd08a] disabled:cursor-not-allowed disabled:opacity-45";
-}
-
-function mediaIcon(type: UploadMediaItem["type"]) {
-  if (type === "audio") return "AUD";
-  if (type === "video") return "VID";
-  return "IMG";
+  return "grid size-10 place-items-center rounded-full border border-white/12 bg-black/66 text-white/74 shadow-2xl shadow-black/30 backdrop-blur transition hover:border-[#ffb44d]/45 hover:bg-[#ffb44d]/16 hover:text-[#ffd08a] disabled:cursor-not-allowed disabled:opacity-45";
 }
 
 function AddReferenceIcon() {
@@ -95,7 +89,27 @@ function DownloadIcon() {
   );
 }
 
-function buildStreamRecords(task: VideoTaskRecord | null, history: VideoTaskRecord[]) {
+function RetryIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+      <path d="M21 3v6h-6" />
+    </svg>
+  );
+}
+
+function HideIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="m3 3 18 18" />
+      <path d="M10.58 10.58a2 2 0 0 0 2.83 2.83" />
+      <path d="M9.88 4.24A9.77 9.77 0 0 1 12 4c5 0 8.27 3.11 10 8a12.37 12.37 0 0 1-2.28 3.88" />
+      <path d="M6.61 6.61A12.31 12.31 0 0 0 2 12c1.73 4.89 5 8 10 8a9.77 9.77 0 0 0 4.39-1.03" />
+    </svg>
+  );
+}
+
+export function buildVideoGenerationRecords(task: VideoTaskRecord | null, history: VideoTaskRecord[]) {
   const records = new Map<string, VideoTaskRecord>();
 
   history.forEach((record, index) => {
@@ -121,22 +135,31 @@ function buildStreamRecords(task: VideoTaskRecord | null, history: VideoTaskReco
   return ordered.slice(0, streamLimit).map(([, record]) => record);
 }
 
+function filterGenerationRecord(record: VideoTaskRecord, filter: VideoHistoryFilter) {
+  const view = getSafeVideoHistoryView(record);
+
+  if (filter === "success") return isVideoCompletedStatus(view.status) && Boolean(view.outputUrl);
+  if (filter === "failed") return isVideoFailedStatus(view.status);
+  if (filter === "processing") return isVideoActiveStatus(view.status) && !isVideoStaleActiveRecord(record);
+  return true;
+}
+
 function VideoGenerationCard({
-  getAddReferenceIssue,
   getUseResultAsReferenceIssue,
-  onAddReference,
+  isSelected,
   onFill,
   onHide,
   onRetry,
+  onSelect,
   onUseResultAsReference,
   record,
 }: {
-  getAddReferenceIssue?: (asset: UploadMediaItem) => string;
   getUseResultAsReferenceIssue?: (record: VideoTaskRecord) => string;
-  onAddReference?: (asset: UploadMediaItem) => void;
+  isSelected?: boolean;
   onFill?: (record: VideoTaskRecord) => void;
   onHide?: (record: VideoTaskRecord) => void;
   onRetry?: (record: VideoTaskRecord) => void;
+  onSelect?: (record: VideoTaskRecord) => void;
   onUseResultAsReference?: (record: VideoTaskRecord) => void;
   record: VideoTaskRecord;
 }) {
@@ -148,7 +171,6 @@ function VideoGenerationCard({
   const isStaleActive = isVideoStaleActiveRecord(record);
   const isProcessing = isVideoActiveStatus(view.status) && !isStaleActive;
   const sensitiveFailure = isFailed && isSensitiveFailure(view.errorMessage);
-  const referenceAssets = useMemo(() => collectHistoryInputMediaAssets([record]).slice(0, 8), [record]);
   const useResultIssue = getUseResultAsReferenceIssue?.(record) || "";
   const statusLabel = isStaleActive
     ? t("video.generation.stale")
@@ -161,256 +183,249 @@ function VideoGenerationCard({
           : view.statusLabel;
 
   return (
-    <article className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_236px] 2xl:grid-cols-[minmax(0,1fr)_252px]">
-      <div className="group relative grid min-h-[440px] place-items-center overflow-hidden rounded-[28px] border border-white/10 bg-[#05070b] shadow-2xl shadow-black/24 xl:min-h-[520px]">
-          {view.outputUrl ? (
-            <>
-              <video className="max-h-[72vh] min-h-[440px] w-full object-contain xl:min-h-[520px]" controls playsInline src={view.outputUrl} />
-              <div className="absolute right-5 top-5 flex flex-col gap-2 opacity-0 transition group-hover:opacity-100">
-                {onUseResultAsReference ? (
-                  <button
-                    aria-label={t("video.generation.useAsReference")}
-                    className={canvasActionClass()}
-                    disabled={Boolean(useResultIssue)}
-                    onClick={() => onUseResultAsReference(record)}
-                    title={useResultIssue || t("video.generation.useAsReference")}
-                    type="button"
-                  >
-                    <AddReferenceIcon />
-                  </button>
+    <article
+      className={`group rounded-[30px] border bg-white/[.025] p-2.5 shadow-2xl shadow-black/20 outline-none transition ${
+        isSelected ? "border-[#ffb44d]/42 shadow-[#ffb44d]/10" : "border-white/10 hover:border-[#ffb44d]/24"
+      }`}
+      onClick={() => onSelect?.(record)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect?.(record);
+        }
+      }}
+      role="button"
+      tabIndex={0}
+    >
+      <div className="mb-2 flex items-center justify-between gap-3 px-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${statusClass(view.status, hasOutput, isStaleActive)}`}>
+            {statusLabel}
+          </span>
+          <span className="truncate text-xs font-bold text-white/48">{view.modelLabel}</span>
+        </div>
+        <span className="shrink-0 text-[11px] text-white/35">{view.createdAtLabel}</span>
+      </div>
+
+      <div
+        className={`relative grid min-h-[500px] place-items-center overflow-hidden rounded-[26px] border bg-[#05070b] transition xl:min-h-[560px] 2xl:min-h-[620px] ${
+          isSelected ? "border-[#ffb44d]/36" : "border-white/10"
+        }`}
+      >
+        {view.outputUrl ? (
+          <>
+            <video className="max-h-[74vh] min-h-[500px] w-full object-contain xl:min-h-[560px] 2xl:min-h-[620px]" controls playsInline src={view.outputUrl} />
+            <div className="absolute right-4 top-4 flex flex-col gap-2 opacity-0 transition group-hover:opacity-100">
+              {onUseResultAsReference ? (
+                <button
+                  aria-label={t("video.generation.useAsReference")}
+                  className={canvasActionClass()}
+                  disabled={Boolean(useResultIssue)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onUseResultAsReference(record);
+                  }}
+                  title={useResultIssue || t("video.generation.useAsReference")}
+                  type="button"
+                >
+                  <AddReferenceIcon />
+                </button>
+              ) : null}
+              {onFill ? (
+                <button
+                  aria-label={t("video.generation.fillPrompt")}
+                  className={canvasActionClass()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onFill(record);
+                  }}
+                  title={t("video.generation.fillPrompt")}
+                  type="button"
+                >
+                  <FillPromptIcon />
+                </button>
+              ) : null}
+              <a
+                aria-label={t("video.history.downloadOpen")}
+                className={canvasActionClass()}
+                download={safeDownloadFilename(view)}
+                href={view.outputUrl}
+                onClick={(event) => event.stopPropagation()}
+                rel="noreferrer"
+                target="_blank"
+                title={t("video.history.downloadOpen")}
+              >
+                <DownloadIcon />
+              </a>
+              {!isProcessing && onHide ? (
+                <button
+                  aria-label={t("video.history.hide")}
+                  className={canvasActionClass("danger")}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onHide(record);
+                  }}
+                  title={t("video.history.hideTitle")}
+                  type="button"
+                >
+                  <HideIcon />
+                </button>
+              ) : null}
+            </div>
+          </>
+        ) : view.thumbnailUrl && !isFailed && !isStaleActive ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img alt="" className="max-h-[74vh] min-h-[500px] w-full object-contain xl:min-h-[560px] 2xl:min-h-[620px]" src={view.thumbnailUrl} />
+        ) : isFailed || isStaleActive ? (
+          <div className="grid min-h-[500px] w-full place-items-center bg-black/78 px-6 text-center xl:min-h-[560px] 2xl:min-h-[620px]">
+            <div>
+              <div className="mx-auto mb-4 grid size-16 place-items-center rounded-[28px] border border-red-300/25 bg-red-400/10 text-2xl font-black text-red-100">
+                !
+              </div>
+              <div className="mb-4 flex flex-wrap justify-center gap-2">
+                <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${statusClass(view.status, false, isStaleActive)}`}>
+                  {statusLabel}
+                </span>
+                {sensitiveFailure ? (
+                  <span className="rounded-full border border-red-300/20 bg-red-400/10 px-2.5 py-1 text-[10px] font-black text-red-100">
+                    {t("video.generation.sensitive")}
+                  </span>
                 ) : null}
+                {view.refundNotice ? (
+                  <span className="rounded-full border border-[#ffb44d]/22 bg-[#ffb44d]/10 px-2.5 py-1 text-[10px] font-black text-[#ffd08a]">
+                    {t("video.generation.refunded")}
+                  </span>
+                ) : null}
+              </div>
+              <p className="text-lg font-black text-red-100">
+                {isStaleActive ? t("video.generation.stale") : sensitiveFailure ? t("video.generation.sensitive") : t("video.generation.failed")}
+              </p>
+              <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-red-100/60">{view.errorMessage}</p>
+              <div className="mt-5 flex flex-wrap justify-center gap-2">
                 {onFill ? (
                   <button
-                    aria-label={t("video.generation.fillPrompt")}
                     className={canvasActionClass()}
-                    onClick={() => onFill(record)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onFill(record);
+                    }}
                     title={t("video.generation.fillPrompt")}
                     type="button"
                   >
                     <FillPromptIcon />
                   </button>
                 ) : null}
-                <a
-                  aria-label={t("video.history.downloadOpen")}
-                  className={canvasActionClass()}
-                  download={safeDownloadFilename(view)}
-                  href={view.outputUrl}
-                  rel="noreferrer"
-                  target="_blank"
-                  title={t("video.history.downloadOpen")}
-                >
-                  <DownloadIcon />
-                </a>
-              </div>
-            </>
-          ) : view.thumbnailUrl && !isFailed && !isStaleActive ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img alt="" className="max-h-[72vh] min-h-[440px] w-full object-contain xl:min-h-[520px]" src={view.thumbnailUrl} />
-          ) : isFailed || isStaleActive ? (
-            <div className="grid min-h-[440px] w-full place-items-center bg-black/76 px-6 text-center xl:min-h-[520px]">
-              <div>
-                <div className="mx-auto mb-4 grid size-16 place-items-center rounded-[28px] border border-red-300/25 bg-red-400/10 text-2xl font-black text-red-100">
-                  !
-                </div>
-                <div className="mb-4 flex flex-wrap justify-center gap-2">
-                  <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${statusClass(view.status, false, isStaleActive)}`}>
-                    {statusLabel}
-                  </span>
-                  {sensitiveFailure ? (
-                    <span className="rounded-full border border-red-300/20 bg-red-400/10 px-2.5 py-1 text-[10px] font-black text-red-100">
-                      {t("video.generation.sensitive")}
-                    </span>
-                  ) : null}
-                  {view.refundNotice ? (
-                    <span className="rounded-full border border-[#ffb44d]/22 bg-[#ffb44d]/10 px-2.5 py-1 text-[10px] font-black text-[#ffd08a]">
-                      {t("video.generation.refunded")}
-                    </span>
-                  ) : null}
-                </div>
-                <p className="text-lg font-black text-red-100">
-                  {isStaleActive ? t("video.generation.stale") : sensitiveFailure ? t("video.generation.sensitive") : t("video.generation.failed")}
-                </p>
-                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-red-100/60">{view.errorMessage}</p>
+                {(isFailed || isStaleActive) && onRetry ? (
+                  <button
+                    className={canvasActionClass("primary")}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onRetry(record);
+                    }}
+                    title={t("video.history.retry")}
+                    type="button"
+                  >
+                    <RetryIcon />
+                  </button>
+                ) : null}
               </div>
             </div>
-          ) : isProcessing ? (
-            <div className="grid min-h-[440px] w-full place-items-center bg-[#ffb44d]/10 px-6 text-center xl:min-h-[520px]">
-              <div>
-                <span className="mx-auto mb-5 block size-12 animate-pulse rounded-3xl border border-[#ffb44d]/30 bg-[#ffb44d]/20" />
-                <p className="text-lg font-black text-white">{t("video.result.processingTitle")}</p>
-                <p className="mt-2 text-sm text-white/46">{tf("video.result.job", { jobId: record.jobId || "--" })}</p>
-              </div>
+          </div>
+        ) : isProcessing ? (
+          <div className="grid min-h-[500px] w-full place-items-center bg-[#ffb44d]/10 px-6 text-center xl:min-h-[560px] 2xl:min-h-[620px]">
+            <div>
+              <span className="mx-auto mb-5 block size-12 animate-pulse rounded-3xl border border-[#ffb44d]/30 bg-[#ffb44d]/20" />
+              <p className="text-lg font-black text-white">{t("video.result.processingTitle")}</p>
+              <p className="mt-2 text-sm text-white/46">{tf("video.result.job", { jobId: record.jobId || "--" })}</p>
             </div>
-          ) : (
-            <div className="grid min-h-[440px] w-full place-items-center text-sm text-white/42 xl:min-h-[520px]">
-              {t("video.generation.empty.title")}
-            </div>
-          )}
+          </div>
+        ) : (
+          <div className="grid min-h-[500px] w-full place-items-center text-sm text-white/42 xl:min-h-[560px] 2xl:min-h-[620px]">
+            {t("video.generation.empty.title")}
+          </div>
+        )}
+
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/72 via-black/16 to-transparent p-4 opacity-0 transition group-hover:opacity-100">
+          <p className="line-clamp-2 max-w-3xl text-sm font-bold leading-6 text-white/82">{view.title}</p>
+        </div>
       </div>
-
-      <aside className="flex min-w-0 flex-col gap-2.5 rounded-[24px] border border-white/10 bg-white/[.04] p-3 shadow-2xl shadow-black/18">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${statusClass(view.status, hasOutput, isStaleActive)}`}>
-              {statusLabel}
-            </span>
-            <span className="text-xs text-white/38">{view.createdAtLabel}</span>
-          </div>
-
-          <button
-            className="group/prompt rounded-[22px] border border-white/10 bg-white/[.035] p-3 text-left transition hover:border-[#ffb44d]/30 hover:bg-[#ffb44d]/10 disabled:cursor-default disabled:hover:border-white/10 disabled:hover:bg-white/[.035]"
-            disabled={!onFill}
-            onClick={() => onFill?.(record)}
-            title={onFill ? t("video.generation.fillPrompt") : undefined}
-            type="button"
-          >
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <span className="text-[10px] font-black uppercase tracking-[.18em] text-[#ffcf83]">{t("video.generation.prompt")}</span>
-              {onFill ? (
-                <span className="text-[10px] font-black text-white/34 opacity-0 transition group-hover/prompt:opacity-100">
-                  {t("video.generation.fillPrompt")}
-                </span>
-              ) : null}
-            </div>
-            <p className="line-clamp-4 text-xs font-bold leading-5 text-white/78">{view.title}</p>
-          </button>
-
-          <div className="grid gap-1.5 text-[11px] text-white/46">
-            <span className="truncate rounded-2xl border border-white/10 bg-white/[.035] px-3 py-2">
-              {tf("video.history.model", { model: view.modelLabel })}
-            </span>
-            <span className="truncate rounded-2xl border border-white/10 bg-white/[.035] px-3 py-2">
-              {view.duration}
-            </span>
-            <span className="truncate rounded-2xl border border-white/10 bg-white/[.035] px-3 py-2">
-              {view.ratio}
-            </span>
-            <span className="truncate rounded-2xl border border-white/10 bg-white/[.035] px-3 py-2">
-              {view.quality}
-            </span>
-          </div>
-
-          <div className="rounded-[22px] border border-white/10 bg-white/[.025] p-2.5">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-[.16em] text-[#ffcf83]">{t("video.generation.references")}</span>
-              <span className="text-[10px] text-white/32">{referenceAssets.length}</span>
-            </div>
-            {referenceAssets.length ? (
-              <div className="grid grid-cols-3 gap-1.5">
-                {referenceAssets.map((asset) => {
-                  const issue = getAddReferenceIssue?.(asset) || "";
-                  const isBlocked = Boolean(issue);
-                  return (
-                    <button
-                      className="group/ref relative aspect-square overflow-hidden rounded-2xl border border-white/10 bg-black/34 text-[10px] font-black text-white/54 transition hover:border-[#ffb44d]/35 disabled:cursor-not-allowed disabled:opacity-45"
-                      disabled={isBlocked || !onAddReference}
-                      key={`${asset.id}-${asset.url}`}
-                      onClick={() => onAddReference?.(asset)}
-                      title={issue || t("video.generation.addReference")}
-                      type="button"
-                    >
-                      {asset.type === "image" && (asset.previewUrl || asset.url) ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img alt="" className="h-full w-full object-cover" src={asset.previewUrl || asset.url} />
-                      ) : asset.type === "video" && asset.previewUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img alt="" className="h-full w-full object-cover" src={asset.previewUrl} />
-                      ) : (
-                        <span className="grid h-full w-full place-items-center">{mediaIcon(asset.type)}</span>
-                      )}
-                      <span className="absolute inset-x-1 bottom-1 rounded-full bg-black/72 py-1 text-[9px] text-[#ffd08a] opacity-0 transition group-hover/ref:opacity-100">
-                        {isBlocked ? issue : t("video.generation.addReference")}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-xs leading-5 text-white/38">{t("video.drawer.empty.history")}</p>
-            )}
-          </div>
-
-          <div className="mt-auto flex flex-wrap gap-1.5">
-            {hasOutput ? (
-              <a
-                className={actionButtonClass("normal")}
-                download={safeDownloadFilename(view)}
-                href={view.outputUrl}
-                rel="noreferrer"
-                target="_blank"
-                title={t("video.history.downloadOpen")}
-              >
-                {t("video.history.downloadOpen")}
-              </a>
-            ) : null}
-            {(hasOutput || isFailed || isStaleActive) && onFill ? (
-              <button className={actionButtonClass("normal")} onClick={() => onFill(record)} type="button">
-                {t("video.history.fill")}
-              </button>
-            ) : null}
-            {(isFailed || isStaleActive) && onRetry ? (
-              <button className={actionButtonClass("primary")} onClick={() => onRetry(record)} type="button">
-                {t("video.history.retry")}
-              </button>
-            ) : null}
-            {hasOutput && onUseResultAsReference ? (
-              <button
-                className={actionButtonClass("normal")}
-                disabled={Boolean(useResultIssue)}
-                onClick={() => onUseResultAsReference(record)}
-                title={useResultIssue || t("video.history.useResultTitle")}
-                type="button"
-              >
-                {t("video.history.useAsReference")}
-              </button>
-            ) : null}
-            {!isProcessing && onHide ? (
-              <button className={actionButtonClass("danger")} onClick={() => onHide(record)} title={t("video.history.hideTitle")} type="button">
-                {t("video.history.hide")}
-              </button>
-            ) : null}
-            {hasOutput && useResultIssue ? (
-              <span className="w-full text-[11px] leading-4 text-white/36">{useResultIssue}</span>
-            ) : null}
-          </div>
-
-          <span className="text-[11px] text-white/30">{tf("video.history.job", { job: view.jobLabel })}</span>
-      </aside>
     </article>
   );
 }
 
 export function VideoGenerationStream({
-  getAddReferenceIssue,
+  filter,
   getUseResultAsReferenceIssue,
   history,
-  onAddReference,
+  isLoading = false,
   onFill,
+  onFilterChange,
   onHide,
   onRetry,
+  onSelect,
   onUseResultAsReference,
+  selectedKey,
   task,
 }: VideoGenerationStreamProps) {
-  const { t } = useI18n();
-  const records = useMemo(() => buildStreamRecords(task, history), [history, task]);
+  const { t, tf } = useI18n();
+  const records = useMemo(() => buildVideoGenerationRecords(task, history), [history, task]);
+  const visibleRecords = useMemo(() => records.filter((record) => filterGenerationRecord(record, filter)), [filter, records]);
+  const counts = useMemo(
+    () =>
+      filters.reduce<Record<VideoHistoryFilter, number>>(
+        (result, item) => {
+          result[item] = records.filter((record) => filterGenerationRecord(record, item)).length;
+          return result;
+        },
+        { all: records.length, failed: 0, processing: 0, success: 0 },
+      ),
+    [records],
+  );
 
   return (
     <section className="flex h-full min-h-[420px] flex-col overflow-hidden">
+      <div className="mb-2.5 flex flex-none flex-wrap items-center justify-between gap-2 rounded-[24px] border border-white/10 bg-white/[.035] p-2">
+        <div className="flex flex-wrap gap-1.5">
+          {filters.map((item) => (
+            <button
+              className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${
+                item === filter
+                  ? "border-[#ffb44d]/55 bg-[#ffb44d]/16 text-[#ffd08a]"
+                  : "border-white/10 bg-black/20 text-white/58 hover:border-[#ffb44d]/35 hover:text-[#ffd08a]"
+              }`}
+              key={item}
+              onClick={() => onFilterChange(item)}
+              type="button"
+            >
+              {t(`video.history.filter.${item}` as "video.history.filter.all")}
+              <span className="ml-2 text-[10px] text-white/40">{counts[item]}</span>
+            </button>
+          ))}
+        </div>
+        <span className="text-xs font-bold text-white/38">
+          {isLoading ? t("video.history.loading") : tf("video.history.itemsCount", { total: records.length, visible: visibleRecords.length })}
+        </span>
+      </div>
+
       <div className="se-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1.5">
-        <div className="grid gap-6">
-          {records.length ? (
-            records.map((record, index) => (
-              <VideoGenerationCard
-                getAddReferenceIssue={getAddReferenceIssue}
-                getUseResultAsReferenceIssue={getUseResultAsReferenceIssue}
-                key={getVideoHistoryStableKey(record, `generation:${index}`) || `generation:${index}`}
-                onAddReference={onAddReference}
-                onFill={onFill}
-                onHide={onHide}
-                onRetry={onRetry}
-                onUseResultAsReference={onUseResultAsReference}
-                record={record}
-              />
-            ))
+        <div className="grid gap-7">
+          {visibleRecords.length ? (
+            visibleRecords.map((record, index) => {
+              const key = getVideoHistoryStableKey(record, `generation:${index}`) || `generation:${index}`;
+              return (
+                <VideoGenerationCard
+                  getUseResultAsReferenceIssue={getUseResultAsReferenceIssue}
+                  isSelected={key === selectedKey}
+                  key={key}
+                  onFill={onFill}
+                  onHide={onHide}
+                  onRetry={onRetry}
+                  onSelect={onSelect}
+                  onUseResultAsReference={onUseResultAsReference}
+                  record={record}
+                />
+              );
+            })
           ) : (
             <div className="grid min-h-[520px] place-items-center rounded-[30px] border border-dashed border-white/12 bg-black/22 p-8 text-center">
               <div className="max-w-md">
