@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useI18n } from "@/i18n/useI18n";
 import { getDefaultVideoModelRule, getVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
@@ -20,7 +20,16 @@ type MenuPosition = {
   width: number;
 };
 
-const menuMaxHeight = 260;
+type MenuPositionOptions = {
+  menuSize?: {
+    height: number;
+    width: number;
+  };
+  optionCount?: number;
+};
+
+const menuGap = 8;
+const viewportPadding = 12;
 
 function uniqueSortedDurations(durations: number[], currentDuration: number) {
   const values = durations.length ? durations : [currentDuration || 5];
@@ -43,24 +52,39 @@ function getClosestDurationIndex(durations: number[], currentDuration: number) {
   return closestIndex;
 }
 
-function getMenuPosition(trigger: HTMLElement, key: ParamKey): MenuPosition {
-  const rect = trigger.getBoundingClientRect();
-  const gap = 8;
-  const width = key === "duration" ? 318 : Math.max(150, Math.min(220, rect.width + 30));
-  let left = rect.left;
-  let top = rect.bottom + gap;
+function getEstimatedMenuHeight(key: ParamKey, optionCount = 0) {
+  if (key === "duration") return 220;
+  return Math.min(236, Math.max(52, optionCount * 42 + 16));
+}
 
-  if (left + width > window.innerWidth - 12) {
-    left = window.innerWidth - width - 12;
+function getMenuPosition(trigger: HTMLElement, key: ParamKey, options: MenuPositionOptions = {}): MenuPosition {
+  const rect = trigger.getBoundingClientRect();
+  const desiredWidth = key === "duration" ? 318 : Math.max(150, Math.min(220, rect.width + 30));
+  const width = Math.min(desiredWidth, Math.max(180, window.innerWidth - viewportPadding * 2));
+  const menuHeight = Math.max(
+    52,
+    options.menuSize?.height || getEstimatedMenuHeight(key, options.optionCount),
+  );
+  const belowTop = rect.bottom + menuGap;
+  const belowSpace = window.innerHeight - belowTop - viewportPadding;
+  const aboveTop = rect.top - menuHeight - menuGap;
+  const aboveSpace = rect.top - menuGap - viewportPadding;
+  const shouldOpenAbove = belowSpace < menuHeight && aboveSpace > belowSpace;
+  let left = rect.left;
+  let top = shouldOpenAbove ? aboveTop : belowTop;
+
+  if (left + width > window.innerWidth - viewportPadding) {
+    left = window.innerWidth - width - viewportPadding;
   }
 
-  if (top + menuMaxHeight > window.innerHeight - 12) {
-    top = rect.top - menuMaxHeight - gap;
+  const maxTop = Math.max(viewportPadding, window.innerHeight - menuHeight - viewportPadding);
+  if (top > maxTop) {
+    top = maxTop;
   }
 
   return {
-    left: Math.max(12, left),
-    top: Math.max(12, top),
+    left: Math.max(viewportPadding, left),
+    top: Math.max(viewportPadding, top),
     width,
   };
 }
@@ -79,6 +103,7 @@ export function VideoParamsPanel({
   const [menuPosition, setMenuPosition] = useState<MenuPosition>({ left: 0, top: 0, width: 180 });
   const rootRef = useRef<HTMLElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
   const defaultRule = getDefaultVideoModelRule();
   const modelRule = useMemo(() => getVideoModelRule(modelId), [modelId]);
   const ratioOptions = useMemo(
@@ -132,9 +157,37 @@ export function VideoParamsPanel({
     };
   }, [openKey]);
 
+  useLayoutEffect(() => {
+    if (!openKey || !triggerRef.current || !menuRef.current) return;
+
+    const optionCount =
+      openKey === "duration" ? durationOptions.length : openKey === "ratio" ? ratioOptions.length : qualityOptions.length;
+    const rect = menuRef.current.getBoundingClientRect();
+    const nextPosition = getMenuPosition(triggerRef.current, openKey, {
+      menuSize: {
+        height: rect.height,
+        width: rect.width,
+      },
+      optionCount,
+    });
+
+    setMenuPosition((current) =>
+      current.left === nextPosition.left && current.top === nextPosition.top && current.width === nextPosition.width
+        ? current
+        : nextPosition,
+    );
+  }, [durationOptions.length, openKey, qualityOptions.length, ratioOptions.length]);
+
   function openMenu(key: ParamKey, trigger: HTMLElement) {
-    setMenuPosition(getMenuPosition(trigger, key));
-    setOpenKey((current) => (current === key ? null : key));
+    if (openKey === key) {
+      setOpenKey(null);
+      return;
+    }
+
+    const optionCount = key === "duration" ? durationOptions.length : key === "ratio" ? ratioOptions.length : qualityOptions.length;
+    triggerRef.current = trigger;
+    setMenuPosition(getMenuPosition(trigger, key, { optionCount }));
+    setOpenKey(key);
   }
 
   function updateDuration(nextIndex: number) {
@@ -265,8 +318,12 @@ export function VideoParamsPanel({
                     onClick={() => updateListValue(openKey, option)}
                     type="button"
                   >
-                    <span>{option}</span>
-                    {isSelected ? <span className="text-[11px] uppercase tracking-[.12em] text-[#ffd08a]">{t("video.params.selected")}</span> : null}
+                    <span className="min-w-0">{option}</span>
+                    {isSelected ? (
+                      <span className="shrink-0 text-[11px] uppercase tracking-[.12em] text-[#ffd08a]">
+                        {t("video.params.selected")}
+                      </span>
+                    ) : null}
                   </button>
                 );
               })}
