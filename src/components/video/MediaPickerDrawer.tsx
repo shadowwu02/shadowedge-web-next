@@ -159,8 +159,29 @@ export function MediaPickerDrawer({
     return allMedia.filter((item) => item.type === activeFilter);
   }, [activeFilter, allMedia]);
 
-  const selectedCount = selectedIds.size;
   const allowedTypeLabel = allowedTypes.length ? allowedTypes.map((type) => mediaTypeLabel(type).toLowerCase()).join(", ") : "no reference media";
+  const validSelectedIds = useMemo(() => {
+    const next = new Set<string>();
+    const selectedItems = allMedia.filter((item) => selectedIds.has(item.id));
+
+    selectedItems.forEach((item) => {
+      if (item.uploadStatus !== "ready" || !item.url) return;
+      if (!slotAllowsAssetType(slot, item.type) || !isReferenceTypeSupported(modelRule, item.type)) return;
+
+      const candidateItems = allMedia.filter((candidate) => next.has(candidate.id) || candidate.id === item.id);
+      const newItems = candidateItems.filter(
+        (candidate) =>
+          !referenceMedia.some((currentItem) => currentItem.id === candidate.id || (currentItem.url && currentItem.url === candidate.url)),
+      );
+
+      if (!validateReferenceSelectionForRule(modelRule, referenceMedia, newItems)) {
+        next.add(item.id);
+      }
+    });
+
+    return next;
+  }, [allMedia, modelRule, referenceMedia, selectedIds, slot]);
+  const selectedCount = validSelectedIds.size;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -294,7 +315,7 @@ export function MediaPickerDrawer({
   }
 
   function addSelected() {
-    const didAdd = onAddSelected(Array.from(selectedIds));
+    const didAdd = onAddSelected(Array.from(validSelectedIds));
     if (didAdd) {
       setSelectedIds(new Set());
       onClose();
@@ -422,7 +443,7 @@ export function MediaPickerDrawer({
               {visibleMedia.map((item) => {
                 const unsupportedReason = getUnsupportedReferenceTypeReason(modelRule, item.type);
                 const isAllowed = slotAllowsAssetType(slot, item.type) && !unsupportedReason;
-                const isSelected = selectedIds.has(item.id);
+                const isSelected = validSelectedIds.has(item.id);
                 const isSelectable = item.uploadStatus === "ready" && Boolean(item.url) && isAllowed;
                 const isFailed = item.uploadStatus === "failed";
                 const isUnsupported = !isAllowed;

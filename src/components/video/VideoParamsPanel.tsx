@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { getDefaultVideoModelRule, getVideoModelRule } from "@/lib/video/videoModelRules";
+import { getDefaultVideoModelRule, getVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
 
 export type VideoParams = {
   duration: number;
@@ -155,6 +155,24 @@ export function VideoParamsPanel({
   ];
   const durationProgress =
     durationOptions.length > 1 ? Math.round((durationIndex / (durationOptions.length - 1)) * 100) : 100;
+
+  useEffect(() => {
+    const normalized = normalizeVideoParamsForModel(modelId, value);
+    const nextValue: VideoParams = {
+      duration: normalized.duration,
+      generateAudio: value.generateAudio,
+      quality: normalized.quality,
+      ratio: normalized.ratio,
+    };
+
+    if (
+      nextValue.duration !== value.duration ||
+      nextValue.ratio !== value.ratio ||
+      nextValue.quality !== value.quality
+    ) {
+      onChange(nextValue);
+    }
+  }, [modelId, onChange, value]);
 
   return (
     <section className="flex flex-wrap gap-2" ref={rootRef}>
