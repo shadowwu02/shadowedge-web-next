@@ -337,6 +337,38 @@ export function preferLatestVideoTask(current: VideoTaskRecord | null, candidate
   return candidateTime >= currentTime ? candidate : current;
 }
 
+export type VideoHistoryStatusCounts = {
+  active: number;
+  failed: number;
+};
+
+export function getVideoHistoryStatusCounts(records: VideoTaskRecord[], currentTask?: VideoTaskRecord | null): VideoHistoryStatusCounts {
+  const taskMap = new Map<string, VideoTaskRecord>();
+
+  [...records, ...(currentTask ? [currentTask] : [])].forEach((record, index) => {
+    const fallbackKey = `status:${index}`;
+    const key = getVideoHistoryStableKey(record, fallbackKey) || fallbackKey;
+    const currentRecord = taskMap.get(key) || null;
+    taskMap.set(key, preferLatestVideoTask(currentRecord, record) || record);
+  });
+
+  const counts: VideoHistoryStatusCounts = { active: 0, failed: 0 };
+
+  taskMap.forEach((record, key) => {
+    const view = getSafeVideoHistoryView(record, key);
+    if (isVideoActiveStatus(view.status)) {
+      counts.active += 1;
+      return;
+    }
+
+    if (isVideoFailedStatus(view.status)) {
+      counts.failed += 1;
+    }
+  });
+
+  return counts;
+}
+
 export function mergeVideoHistory(localHistory: VideoTaskRecord[], serverHistory: VideoTaskRecord[]) {
   const merged = new Map<string, VideoTaskRecord>();
 

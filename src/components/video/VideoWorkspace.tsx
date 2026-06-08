@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingState } from "@/components/common/LoadingState";
 import { GenerateButton } from "@/components/video/GenerateButton";
-import { HistoryPanel } from "@/components/video/HistoryPanel";
+import { HistoryPanel, type HistoryFilter } from "@/components/video/HistoryPanel";
 import { ModelSelector } from "@/components/video/ModelSelector";
 import { PromptBox } from "@/components/video/PromptBox";
 import { ReferenceMediaTray } from "@/components/video/ReferenceMediaTray";
@@ -18,7 +18,7 @@ import { useCredits } from "@/hooks/useCredits";
 import { useVideoGeneration } from "@/hooks/useVideoGeneration";
 import { collectGeneratedResultMediaAssets, collectReusableVideoAssets, mergeMediaAssets } from "@/lib/media-assets";
 import { getVideoModels } from "@/lib/video-api";
-import { getSafeHistoryOutputUrl } from "@/lib/video/historyUtils";
+import { getSafeHistoryOutputUrl, getVideoHistoryStatusCounts } from "@/lib/video/historyUtils";
 import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
 import { getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
 import {
@@ -199,6 +199,7 @@ export function VideoWorkspace() {
   const [params, setParams] = useState<VideoParams>(() => buildParamsForModel(fallbackModels[0]));
   const [isAssetPickerUploading, setIsAssetPickerUploading] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestDraftSnapshotRef = useRef<{
     media: UploadMediaItem[];
@@ -362,6 +363,7 @@ export function VideoWorkspace() {
     () => collectReusableVideoAssets(task ? [task, ...history] : history),
     [history, task],
   );
+  const historyStatusCounts = useMemo(() => getVideoHistoryStatusCounts(history, task), [history, task]);
 
   const generateButtonLabel = useMemo(() => {
     if (isUploadingMedia) return "Uploading media";
@@ -531,6 +533,11 @@ export function VideoWorkspace() {
     [hideHistoryRecord],
   );
 
+  const handleHistoryShortcut = useCallback((nextFilter: HistoryFilter) => {
+    setHistoryFilter(nextFilter);
+    setWorkspaceNotice(nextFilter === "failed" ? "Showing failed video jobs." : "Showing processing video jobs.");
+  }, []);
+
   return (
     <div className="se-scrollbar h-full min-h-0 space-y-3 overflow-y-auto overflow-x-hidden xl:grid xl:grid-cols-[minmax(310px,340px)_minmax(0,1fr)_minmax(300px,340px)] xl:gap-3 xl:space-y-0 xl:overflow-hidden 2xl:grid-cols-[340px_minmax(0,1fr)_340px]">
       <aside className="flex min-h-0 flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[.04] shadow-2xl shadow-black/20">
@@ -623,17 +630,49 @@ export function VideoWorkspace() {
         <ResultViewer task={task} />
       </main>
 
-      <aside className="min-h-[460px] min-w-0 overflow-hidden xl:min-h-0">
-        <HistoryPanel
-          error={historyError}
-          getUseResultAsReferenceIssue={getGeneratedResultReferenceIssue}
-          history={history}
-          isLoading={isHistoryLoading}
-          onFill={handleFillFromHistory}
-          onHide={handleHideHistoryRecord}
-          onRetry={handleRetry}
-          onUseResultAsReference={handleUseResultAsReference}
-        />
+      <aside className="flex min-h-[460px] min-w-0 flex-col gap-2 overflow-hidden xl:min-h-0">
+        <div className="flex flex-none gap-2 rounded-[22px] border border-white/10 bg-white/[.035] p-2">
+          <button
+            className={`flex min-h-10 flex-1 items-center justify-between rounded-2xl border px-3 text-left text-xs font-black transition ${
+              historyFilter === "processing"
+                ? "border-[#ffb44d]/55 bg-[#ffb44d]/16 text-[#ffd08a]"
+                : "border-white/10 bg-black/20 text-white/62 hover:border-[#ffb44d]/35 hover:text-[#ffd08a]"
+            } disabled:cursor-not-allowed disabled:opacity-45`}
+            disabled={!historyStatusCounts.active}
+            onClick={() => handleHistoryShortcut("processing")}
+            type="button"
+          >
+            <span>Processing</span>
+            <span className="rounded-full bg-white/[.08] px-2 py-0.5 text-[11px]">{historyStatusCounts.active}</span>
+          </button>
+          <button
+            className={`flex min-h-10 flex-1 items-center justify-between rounded-2xl border px-3 text-left text-xs font-black transition ${
+              historyFilter === "failed"
+                ? "border-[#ffb44d]/55 bg-[#ffb44d]/16 text-[#ffd08a]"
+                : "border-white/10 bg-black/20 text-white/62 hover:border-[#ffb44d]/35 hover:text-[#ffd08a]"
+            } disabled:cursor-not-allowed disabled:opacity-45`}
+            disabled={!historyStatusCounts.failed}
+            onClick={() => handleHistoryShortcut("failed")}
+            type="button"
+          >
+            <span>Failed</span>
+            <span className="rounded-full bg-white/[.08] px-2 py-0.5 text-[11px]">{historyStatusCounts.failed}</span>
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <HistoryPanel
+            error={historyError}
+            filter={historyFilter}
+            getUseResultAsReferenceIssue={getGeneratedResultReferenceIssue}
+            history={history}
+            isLoading={isHistoryLoading}
+            onFilterChange={setHistoryFilter}
+            onFill={handleFillFromHistory}
+            onHide={handleHideHistoryRecord}
+            onRetry={handleRetry}
+            onUseResultAsReference={handleUseResultAsReference}
+          />
+        </div>
       </aside>
     </div>
   );

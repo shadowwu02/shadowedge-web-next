@@ -5,13 +5,15 @@ import { getSafeVideoHistoryView } from "@/lib/video/historyUtils";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { VideoTaskRecord } from "@/types/video";
 
-type HistoryFilter = "all" | "success" | "failed" | "processing";
+export type HistoryFilter = "all" | "success" | "failed" | "processing";
 
 type HistoryPanelProps = {
+  filter?: HistoryFilter;
   history: VideoTaskRecord[];
   isLoading?: boolean;
   error?: string;
   getUseResultAsReferenceIssue?: (record: VideoTaskRecord) => string;
+  onFilterChange?: (filter: HistoryFilter) => void;
   onFill?: (record: VideoTaskRecord) => void;
   onHide?: (record: VideoTaskRecord) => void;
   onRetry?: (record: VideoTaskRecord) => void;
@@ -65,17 +67,24 @@ function actionButtonClass(tone: "danger" | "normal" | "primary" = "normal") {
 
 export function HistoryPanel({
   error,
+  filter,
   getUseResultAsReferenceIssue,
   history,
   isLoading = false,
+  onFilterChange,
   onFill,
   onHide,
   onRetry,
   onUseResultAsReference,
 }: HistoryPanelProps) {
-  const [filter, setFilter] = useState<HistoryFilter>("all");
+  const [localFilter, setLocalFilter] = useState<HistoryFilter>("all");
+  const currentFilter = filter ?? localFilter;
+  const setNextFilter = (nextFilter: HistoryFilter) => {
+    if (filter === undefined) setLocalFilter(nextFilter);
+    onFilterChange?.(nextFilter);
+  };
 
-  const visibleHistory = useMemo(() => history.filter((item) => filterHistoryItem(item, filter)), [filter, history]);
+  const visibleHistory = useMemo(() => history.filter((item) => filterHistoryItem(item, currentFilter)), [currentFilter, history]);
 
   return (
     <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[.04] p-3 shadow-2xl shadow-black/18">
@@ -91,12 +100,12 @@ export function HistoryPanel({
           {filters.map((item) => (
             <button
               className={`rounded-full border px-2.5 py-1.5 text-[11px] font-black transition ${
-                item.id === filter
+                item.id === currentFilter
                   ? "border-[#ffb44d]/55 bg-[#ffb44d]/16 text-[#ffd08a]"
                   : "border-white/10 bg-white/[.045] text-white/52 hover:border-[#ffb44d]/28 hover:text-[#ffd08a]"
               }`}
               key={item.id}
-              onClick={() => setFilter(item.id)}
+              onClick={() => setNextFilter(item.id)}
               type="button"
             >
               {item.label}
@@ -207,7 +216,7 @@ export function HistoryPanel({
             })
           ) : (
             <div className="rounded-3xl border border-dashed border-white/12 p-8 text-center text-sm text-white/42">
-              {emptyMessage(filter)}
+              {emptyMessage(currentFilter)}
             </div>
           )}
         </div>
