@@ -11,6 +11,7 @@ import { PromptBox } from "@/components/video/PromptBox";
 import { ReferenceMediaTray } from "@/components/video/ReferenceMediaTray";
 import { ResultViewer } from "@/components/video/ResultViewer";
 import { UploadBox } from "@/components/video/UploadBox";
+import { VideoHistoryCanvas } from "@/components/video/VideoHistoryCanvas";
 import { VideoHowItWorks } from "@/components/video/VideoHowItWorks";
 import { type VideoParams, VideoParamsPanel } from "@/components/video/VideoParamsPanel";
 import { useTaskPolling } from "@/hooks/useTaskPolling";
@@ -61,6 +62,8 @@ const fallbackModels: VideoModel[] = [
     uploadSlots: ["image", "last_frame_image"],
   },
 ];
+
+type MainPanel = "preview" | "history" | "guide";
 
 function getVideoModelRuleId(model: VideoModel) {
   const candidates = [model.id, model.providerModel, model.label].filter((value): value is string => Boolean(value));
@@ -206,7 +209,7 @@ export function VideoWorkspace() {
   const [isAssetPickerUploading, setIsAssetPickerUploading] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
-  const [rightPanel, setRightPanel] = useState<"guide" | "history">("history");
+  const [mainPanel, setMainPanel] = useState<MainPanel>("preview");
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestDraftSnapshotRef = useRef<{
     media: UploadMediaItem[];
@@ -457,6 +460,7 @@ export function VideoWorkspace() {
       return;
     }
 
+    setMainPanel("preview");
     void submit({
       prompt: prompt.trim(),
       model: selectedModel,
@@ -500,6 +504,7 @@ export function VideoWorkspace() {
         ratio: record.ratio,
       });
 
+      setMainPanel("preview");
       void submit({
         prompt: promptText,
         model: retryModel,
@@ -590,7 +595,7 @@ export function VideoWorkspace() {
   );
 
   const handleHistoryShortcut = useCallback((nextFilter: HistoryFilter) => {
-    setRightPanel("history");
+    setMainPanel("history");
     setHistoryFilter(nextFilter);
     setWorkspaceNotice(nextFilter === "failed" ? t("video.workspace.showingFailed") : t("video.workspace.showingProcessing"));
   }, [t]);
@@ -683,15 +688,54 @@ export function VideoWorkspace() {
         </div>
       </aside>
 
-      <main className="min-h-[520px] min-w-0 overflow-hidden xl:min-h-0">
-        <ResultViewer task={task} />
+      <main className="flex min-h-[520px] min-w-0 flex-col overflow-hidden xl:min-h-0">
+        <div className="mb-2 flex flex-none gap-2 rounded-[24px] border border-white/10 bg-white/[.035] p-1.5">
+          {([
+            { key: "preview", label: t("video.main.preview") },
+            { key: "history", label: t("video.main.history") },
+            { key: "guide", label: t("video.main.howItWorks") },
+          ] as const).map((item) => (
+            <button
+              className={`min-h-10 rounded-2xl px-4 text-xs font-black transition ${
+                mainPanel === item.key
+                  ? "bg-[#ffb44d] text-[#1f2027]"
+                  : "text-white/56 hover:bg-white/[.055] hover:text-[#ffd08a]"
+              }`}
+              key={item.key}
+              onClick={() => setMainPanel(item.key)}
+              type="button"
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <div className="min-h-0 flex-1 overflow-hidden">
+          {mainPanel === "history" ? (
+            <VideoHistoryCanvas
+              error={historyError}
+              filter={historyFilter}
+              getUseResultAsReferenceIssue={getGeneratedResultReferenceIssue}
+              history={history}
+              isLoading={isHistoryLoading}
+              onFilterChange={setHistoryFilter}
+              onFill={handleFillFromHistory}
+              onHide={handleHideHistoryRecord}
+              onRetry={handleRetry}
+              onUseResultAsReference={handleUseResultAsReference}
+            />
+          ) : mainPanel === "guide" ? (
+            <VideoHowItWorks modelName={selectedModel.label} />
+          ) : (
+            <ResultViewer task={task} />
+          )}
+        </div>
       </main>
 
       <aside className="flex min-h-[460px] min-w-0 flex-col gap-2 overflow-hidden xl:min-h-0">
         <div className="flex flex-none gap-2 rounded-[22px] border border-white/10 bg-white/[.035] p-2">
           <button
             className={`flex min-h-10 flex-1 items-center justify-between rounded-2xl border px-3 text-left text-xs font-black transition ${
-              historyFilter === "processing"
+                mainPanel === "history" && historyFilter === "processing"
                 ? "border-[#ffb44d]/55 bg-[#ffb44d]/16 text-[#ffd08a]"
                 : "border-white/10 bg-black/20 text-white/62 hover:border-[#ffb44d]/35 hover:text-[#ffd08a]"
             } disabled:cursor-not-allowed disabled:opacity-45`}
@@ -704,7 +748,7 @@ export function VideoWorkspace() {
           </button>
           <button
             className={`flex min-h-10 flex-1 items-center justify-between rounded-2xl border px-3 text-left text-xs font-black transition ${
-              historyFilter === "failed"
+                mainPanel === "history" && historyFilter === "failed"
                 ? "border-[#ffb44d]/55 bg-[#ffb44d]/16 text-[#ffd08a]"
                 : "border-white/10 bg-black/20 text-white/62 hover:border-[#ffb44d]/35 hover:text-[#ffd08a]"
             } disabled:cursor-not-allowed disabled:opacity-45`}
@@ -716,42 +760,19 @@ export function VideoWorkspace() {
             <span className="rounded-full bg-white/[.08] px-2 py-0.5 text-[11px]">{historyStatusCounts.failed}</span>
           </button>
         </div>
-        <div className="flex flex-none gap-2 rounded-[22px] border border-white/10 bg-white/[.035] p-1.5">
-          {([
-            { key: "history", label: t("video.history.saved") },
-            { key: "guide", label: t("video.guide.tab") },
-          ] as const).map((item) => (
-            <button
-              className={`min-h-9 flex-1 rounded-2xl px-3 text-xs font-black transition ${
-                rightPanel === item.key
-                  ? "bg-[#ffb44d] text-[#1f2027]"
-                  : "text-white/56 hover:bg-white/[.055] hover:text-[#ffd08a]"
-              }`}
-              key={item.key}
-              onClick={() => setRightPanel(item.key)}
-              type="button"
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
         <div className="min-h-0 flex-1 overflow-hidden">
-          {rightPanel === "guide" ? (
-            <VideoHowItWorks modelName={selectedModel.label} />
-          ) : (
-            <HistoryPanel
-              error={historyError}
-              filter={historyFilter}
-              getUseResultAsReferenceIssue={getGeneratedResultReferenceIssue}
-              history={history}
-              isLoading={isHistoryLoading}
-              onFilterChange={setHistoryFilter}
-              onFill={handleFillFromHistory}
-              onHide={handleHideHistoryRecord}
-              onRetry={handleRetry}
-              onUseResultAsReference={handleUseResultAsReference}
-            />
-          )}
+          <HistoryPanel
+            error={historyError}
+            filter={historyFilter}
+            getUseResultAsReferenceIssue={getGeneratedResultReferenceIssue}
+            history={history}
+            isLoading={isHistoryLoading}
+            onFilterChange={setHistoryFilter}
+            onFill={handleFillFromHistory}
+            onHide={handleHideHistoryRecord}
+            onRetry={handleRetry}
+            onUseResultAsReference={handleUseResultAsReference}
+          />
         </div>
       </aside>
     </div>
