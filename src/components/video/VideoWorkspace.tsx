@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingState } from "@/components/common/LoadingState";
@@ -17,6 +17,7 @@ import { useAuthSession } from "@/hooks/useAuthSession";
 import { useCredits } from "@/hooks/useCredits";
 import { useVideoGeneration } from "@/hooks/useVideoGeneration";
 import { getVideoModels } from "@/lib/video-api";
+import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
 import { getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
 import { isVideoActiveStatus } from "@/lib/utils";
 import type { UploadMediaItem, UploadMediaRole, VideoModel, VideoStatusResponse } from "@/types/video";
@@ -71,6 +72,42 @@ function buildParamsForModel(model: VideoModel, current?: Partial<VideoParams>):
   };
 }
 
+function normalizeModelLookup(value: string | undefined) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[./\s-]+/g, "_")
+    .replace(/[^\w]/g, "");
+}
+
+function findDraftModel(draft: VideoWorkspaceDraft | null, modelList: VideoModel[]) {
+  if (!draft) return null;
+  const candidates = [draft.modelId, draft.providerModel, draft.modelLabel].map(normalizeModelLookup).filter(Boolean);
+  if (!candidates.length) return null;
+
+  return (
+    modelList.find((model) =>
+      [model.id, model.providerModel, model.label].map(normalizeModelLookup).some((value) => candidates.includes(value)),
+    ) || null
+  );
+}
+
+function writeVideoDraft(snapshot: {
+  media: UploadMediaItem[];
+  params: VideoParams;
+  prompt: string;
+  selectedModel: VideoModel;
+}) {
+  return saveVideoDraft({
+    prompt: snapshot.prompt,
+    modelId: snapshot.selectedModel.id,
+    providerModel: snapshot.selectedModel.providerModel,
+    modelLabel: snapshot.selectedModel.label,
+    params: snapshot.params,
+    referenceMedia: snapshot.media,
+  });
+}
+
 function buildRetryMedia(record: { mediaList?: UploadMediaItem[] | Array<{ id?: string; type: UploadMediaItem["type"]; url: string; name?: string; mimeType?: string; size?: number; duration?: number }>; reference_images?: string[]; reference_videos?: string[]; reference_audios?: string[] }) {
   const mediaList = Array.isArray(record.mediaList) ? record.mediaList : [];
   const fromMediaList = mediaList.map((item, index) => ({
@@ -112,6 +149,14 @@ export function VideoWorkspace() {
   const [media, setMedia] = useState<UploadMediaItem[]>([]);
   const [params, setParams] = useState<VideoParams>(() => buildParamsForModel(fallbackModels[0]));
   const [isAssetPickerUploading, setIsAssetPickerUploading] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
+  const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestDraftSnapshotRef = useRef<{
+    media: UploadMediaItem[];
+    params: VideoParams;
+    prompt: string;
+    selectedModel: VideoModel;
+  } | null>(null);
 
   const { isSignedIn, token } = useAuthSession();
   const { credits, maxConcurrency } = useCredits();
@@ -132,18 +177,38 @@ export function VideoWorkspace() {
   useEffect(() => {
     let cancelled = false;
 
+    function applyModelRegistry(nextModels: VideoModel[], draft: VideoWorkspaceDraft | null) {
+      const availableModels = nextModels.length ? nextModels : fallbackModels;
+      const draftModel = findDraftModel(draft, availableModels);
+      const nextModel = draftModel || availableModels[0];
+
+      setModels(availableModels);
+      setSelectedModel(nextModel);
+      setParams(buildParamsForModel(nextModel, draft?.params));
+
+      if (draft) {
+        setPrompt(draft.prompt);
+        setMedia(draft.referenceMedia);
+      }
+
+      setDraftReady(true);
+    }
+
     async function loadModels() {
       setModelLoading(true);
       setModelError("");
+      const draft = readVideoDraft();
+
       try {
         const nextModels = await getVideoModels();
-        if (cancelled || !nextModels.length) return;
-        setModels(nextModels);
-        setSelectedModel(nextModels[0]);
-        setParams(buildParamsForModel(nextModels[0]));
+        if (cancelled) return;
+        applyModelRegistry(nextModels, draft);
       } catch (loadError) {
         const message = loadError instanceof Error ? loadError.message : "Failed to load models.";
-        if (!cancelled) setModelError(`${message} Using local fallback models.`);
+        if (!cancelled) {
+          setModelError(`${message} Using local fallback models.`);
+          applyModelRegistry(fallbackModels, draft);
+        }
       } finally {
         if (!cancelled) setModelLoading(false);
       }
@@ -153,6 +218,48 @@ export function VideoWorkspace() {
 
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!draftReady) return;
+
+    latestDraftSnapshotRef.current = {
+      media,
+      params,
+      prompt,
+      selectedModel,
+    };
+
+    if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+    draftSaveTimerRef.current = setTimeout(() => {
+      draftSaveTimerRef.current = null;
+      if (latestDraftSnapshotRef.current) writeVideoDraft(latestDraftSnapshotRef.current);
+    }, 700);
+
+    return () => {
+      if (draftSaveTimerRef.current) {
+        clearTimeout(draftSaveTimerRef.current);
+        draftSaveTimerRef.current = null;
+      }
+    };
+  }, [draftReady, media, params, prompt, selectedModel]);
+
+  useEffect(() => {
+    function flushVideoDraft() {
+      if (draftSaveTimerRef.current) {
+        clearTimeout(draftSaveTimerRef.current);
+        draftSaveTimerRef.current = null;
+      }
+
+      if (latestDraftSnapshotRef.current) writeVideoDraft(latestDraftSnapshotRef.current);
+    }
+
+    window.addEventListener("beforeunload", flushVideoDraft);
+
+    return () => {
+      window.removeEventListener("beforeunload", flushVideoDraft);
+      flushVideoDraft();
     };
   }, []);
 
