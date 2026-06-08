@@ -39,7 +39,7 @@ function ModelLogo({ model, size = 24 }: { model: VideoModel | undefined; size?:
   const label = model?.label || "Video model";
 
   return (
-    <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-2xl border border-[#33323a]/65 bg-[#111318] text-[10px] font-black text-[#b9b9b9]/70">
+    <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-[18px] border border-[rgba(244,244,244,0.08)] bg-[#111318] text-[10px] font-semibold text-[#b9b9b9]/70 shadow-inner shadow-black/20">
       {logo ? <Image alt={`${label} logo`} className="h-auto w-auto object-contain" height={size} src={logo} width={size} /> : getModelInitials(model)}
     </span>
   );
@@ -76,35 +76,35 @@ export function ModelSelector({
     <section className="relative" ref={rootRef}>
       <button
         aria-expanded={isOpen}
-        className="flex min-h-14 w-full items-center justify-between gap-3 rounded-[22px] border border-white/10 bg-white/[.055] px-3 py-2 text-left transition hover:border-[#ffb44d]/32 hover:bg-white/[.075]"
+        className="flex min-h-14 w-full items-center justify-between gap-3 rounded-[24px] border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/68 px-3 py-2 text-left transition hover:border-[#ffb44d]/32 hover:bg-[#1f2027]/76"
         onClick={() => setIsOpen((current) => !current)}
         type="button"
       >
         <span className="flex min-w-0 items-center gap-3">
           <ModelLogo model={selected} />
           <span className="min-w-0">
-            <span className="block text-[11px] font-bold text-white/48">{t("video.params.model")}</span>
-            <span className="mt-0.5 block truncate text-sm font-black text-white">{selected?.label || t("video.model.select")}</span>
+            <span className="block text-[11px] font-medium text-[#b9b9b9]/58">{t("video.params.model")}</span>
+            <span className="mt-0.5 block truncate text-sm font-semibold text-[#f4f4f4]">{selected?.label || t("video.model.select")}</span>
           </span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
-          <span className="rounded-full bg-[#ffb44d]/14 px-2.5 py-1 text-[11px] font-bold text-[#ffd08a]">
+          <span className="rounded-full border border-[#ffb44d]/18 bg-[#ffb44d]/10 px-2.5 py-1 text-[11px] font-semibold text-[#ffd08a]">
             {selected?.credits === undefined ? "--" : tf("video.model.creditsShort", { credits: selected.credits })}
           </span>
-          <span className="text-lg leading-none text-white/40">›</span>
+          <span className="text-lg leading-none text-[#b9b9b9]/45">›</span>
         </span>
       </button>
 
       {isOpen ? (
-        <div className="se-scrollbar absolute left-0 right-0 top-[calc(100%+8px)] z-40 max-h-72 overflow-y-auto rounded-[22px] border border-white/10 bg-[#10141f]/98 p-2 shadow-2xl shadow-black/45 backdrop-blur-xl">
+        <div className="se-scrollbar absolute left-0 right-0 top-[calc(100%+8px)] z-40 max-h-72 overflow-y-auto rounded-[24px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/98 p-2 shadow-2xl shadow-black/45 backdrop-blur-xl">
           {models.map((model) => {
             const isSelected = model.id === selected?.id;
             return (
               <button
                 className={`w-full rounded-2xl border px-3 py-2.5 text-left transition ${
                   isSelected
-                    ? "border-[#ffb44d]/42 bg-[#ffb44d]/12"
-                    : "border-transparent hover:border-white/10 hover:bg-white/[.055]"
+                    ? "border-[#ffb44d]/34 bg-[#ffb44d]/12"
+                    : "border-transparent hover:border-[rgba(244,244,244,0.08)] hover:bg-[#1a1c22]/72"
                 }`}
                 key={model.id}
                 onClick={() => {
@@ -116,12 +116,12 @@ export function ModelSelector({
                 <span className="grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3">
                   <ModelLogo model={model} size={22} />
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-black text-white">{model.label}</span>
-                    <span className="mt-0.5 block truncate text-xs text-white/42">
+                    <span className="block truncate text-sm font-semibold text-[#f4f4f4]">{model.label}</span>
+                    <span className="mt-0.5 block truncate text-xs text-[#b9b9b9]/52">
                       {getLocalizedModelDescription(model.desc, t) || model.providerModel}
                     </span>
                   </span>
-                  <span className="shrink-0 rounded-full bg-white/[.055] px-2 py-1 text-[10px] font-black text-white/52">
+                  <span className="shrink-0 rounded-full border border-[rgba(244,244,244,0.07)] bg-[#111318]/76 px-2 py-1 text-[10px] font-semibold text-[#b9b9b9]/58">
                     {tf("video.model.creditsShort", { credits: model.credits })}
                   </span>
                 </span>

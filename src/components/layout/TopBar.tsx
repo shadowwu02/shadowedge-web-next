@@ -39,15 +39,15 @@ export function TopBar({
   const { credits } = useCredits();
 
   return (
-    <header className="flex min-h-14 shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-[#08090d]/92 px-3 backdrop-blur-xl md:px-4">
+    <header className="flex min-h-14 shrink-0 items-center justify-between gap-4 border-b border-[rgba(244,244,244,0.08)] bg-[#05070b]/92 px-3 backdrop-blur-xl md:px-4">
       <div className="flex min-w-0 items-center gap-4">
         <Link href="/" className="flex shrink-0 items-center gap-2">
-          <span className="grid size-9 place-items-center rounded-2xl bg-[#ffb44d] text-base font-black text-[#1f2027]">
+          <span className="grid size-9 place-items-center rounded-[18px] bg-[#ffb44d] text-base font-semibold text-[#16171c] shadow-lg shadow-[#ffb44d]/18">
             S
           </span>
           <span className="hidden sm:block">
-            <span className="block text-base font-black tracking-tight text-white">ShadowEdge</span>
-            <span className="block text-[10px] font-bold uppercase tracking-[.18em] text-white/42">AI Studio</span>
+            <span className="block text-base font-semibold tracking-tight text-[#f4f4f4]">ShadowEdge</span>
+            <span className="block text-[10px] font-semibold uppercase tracking-[.18em] text-[#b9b9b9]/48">AI Studio</span>
           </span>
         </Link>
 
@@ -58,8 +58,8 @@ export function TopBar({
                 className={cn(
                   "rounded-full px-3 py-2 text-sm font-bold transition",
                   item.active
-                    ? "bg-white/[.075] text-[#ffd08a]"
-                    : "text-white/56 hover:bg-white/[.055] hover:text-white",
+                    ? "border border-[#ffb44d]/24 bg-[#ffb44d]/12 text-[#ffb44d]"
+                    : "border border-transparent text-[#b9b9b9]/66 hover:bg-[#1a1c22]/80 hover:text-[#f4f4f4]",
                 )}
                 href={item.href}
                 key={item.href}
@@ -71,7 +71,7 @@ export function TopBar({
         ) : (
           <div>
             <p className="text-xs font-bold uppercase tracking-[.2em] text-[#ffcf83]">{workspaceLabels.title}</p>
-            <h1 className="text-lg font-black text-white md:text-xl">{workspaceLabels.videoCreator}</h1>
+            <h1 className="text-lg font-semibold text-[#f4f4f4] md:text-xl">{workspaceLabels.videoCreator}</h1>
           </div>
         )}
       </div>
@@ -79,7 +79,7 @@ export function TopBar({
         <CreditBadge credits={credits} label={creditLabel} />
         <LanguageSwitch locale={locale} onChange={onLocaleChange} />
         {profile?.email ? (
-          <span className="hidden max-w-[190px] truncate rounded-full border border-white/10 bg-white/[.045] px-3 py-2 text-xs font-bold text-white/58 md:inline-block">
+          <span className="hidden max-w-[190px] truncate rounded-full border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/64 px-3 py-2 text-xs font-semibold text-[#b9b9b9]/70 md:inline-block">
             {profile.email}
           </span>
         ) : null}

@@ -46,17 +46,17 @@ function isSensitiveFailure(message: string) {
 function statusClass(status: string, hasOutput: boolean, isStale = false) {
   if (isStale) return "border-[#ffb44d]/30 bg-[#ffb44d]/10 text-[#ffb44d]";
   if (isVideoFailedStatus(status)) return "border-[#7f2d2d]/70 bg-[#2a1012] text-red-100";
-  if (isVideoCompletedStatus(status) && hasOutput) return "border-emerald-300/18 bg-emerald-400/8 text-emerald-100";
+  if (isVideoCompletedStatus(status) && hasOutput) return "border-[rgba(88,171,137,0.28)] bg-[rgba(39,94,75,0.18)] text-emerald-100";
   if (isVideoActiveStatus(status)) return "border-[#ffb44d]/30 bg-[#ffb44d]/10 text-[#ffb44d]";
   return "border-[#33323a]/65 bg-[#1a1c22] text-[#b9b9b9]";
 }
 
 function canvasActionClass(tone: "normal" | "primary" = "normal") {
   if (tone === "primary") {
-    return "grid size-9 place-items-center rounded-full border border-[#ffb44d]/45 bg-[#ffb44d]/14 text-[#ffb44d] shadow-xl shadow-black/30 backdrop-blur-md transition hover:bg-[#ffb44d]/22 disabled:cursor-not-allowed disabled:opacity-45";
+    return "grid size-9 place-items-center rounded-full border border-[#ffb44d]/42 bg-[#ffb44d]/13 text-[#ffb44d] shadow-xl shadow-black/30 backdrop-blur-md transition hover:bg-[#ffb44d]/20 disabled:cursor-not-allowed disabled:opacity-45";
   }
 
-  return "grid size-9 place-items-center rounded-full border border-[#33323a]/75 bg-[#111318]/82 text-[#f4f4f4]/72 shadow-xl shadow-black/30 backdrop-blur-md transition hover:border-[#ffb44d]/55 hover:bg-[#ffb44d]/14 hover:text-[#ffb44d] disabled:cursor-not-allowed disabled:opacity-45";
+  return "grid size-9 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/84 text-[#f4f4f4]/72 shadow-xl shadow-black/30 backdrop-blur-md transition hover:border-[#ffb44d]/42 hover:bg-[#ffb44d]/12 hover:text-[#ffb44d] disabled:cursor-not-allowed disabled:opacity-45";
 }
 
 function getRecordModelLogoLookup(record: VideoTaskRecord, modelLabel: string) {
@@ -173,14 +173,14 @@ function VideoGenerationCard({
           : view.statusLabel;
 
   return (
-    <article className="group grid gap-3 rounded-[30px] border border-[#33323a]/55 bg-[#111318]/76 p-2.5 shadow-2xl shadow-black/24 transition hover:border-[#ffb44d]/28 xl:grid-cols-[minmax(0,3.6fr)_minmax(240px,1fr)] 2xl:grid-cols-[minmax(0,3.82fr)_minmax(280px,1fr)]">
+    <article className="group grid gap-3 rounded-[34px] border border-[rgba(244,244,244,0.08)] bg-[linear-gradient(180deg,rgba(17,19,24,0.92),rgba(8,10,14,0.94))] p-2.5 shadow-[0_28px_70px_rgba(0,0,0,0.30)] transition hover:border-[#ffb44d]/26 xl:grid-cols-[minmax(0,3.7fr)_minmax(240px,1fr)] 2xl:grid-cols-[minmax(0,3.95fr)_minmax(280px,1fr)]">
       <div className="min-w-0">
         <div className="mb-2 flex items-center justify-between gap-3 px-1">
           <div className="flex min-w-0 items-center gap-2">
-            <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${statusClass(view.status, hasOutput, isStaleActive)}`}>
+            <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${statusClass(view.status, hasOutput, isStaleActive)}`}>
               {statusLabel}
             </span>
-            <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-xs font-bold text-[#b9b9b9]/72">
+            <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-xs font-semibold text-[#b9b9b9]/72">
               {modelLogo ? <Image alt={`${view.modelLabel} logo`} className="size-3.5 object-contain" height={14} src={modelLogo} width={14} /> : null}
               <span className="truncate">{view.modelLabel}</span>
             </span>
@@ -188,7 +188,7 @@ function VideoGenerationCard({
           <span className="shrink-0 text-[11px] text-[#b9b9b9]/45">{view.createdAtLabel}</span>
         </div>
 
-        <div className="relative grid min-h-[500px] place-items-center overflow-hidden rounded-[26px] border border-[#33323a]/55 bg-[#05070b] shadow-inner shadow-black/35 transition xl:min-h-[560px] 2xl:min-h-[620px]">
+        <div className="relative grid min-h-[500px] place-items-center overflow-hidden rounded-[30px] border border-[rgba(244,244,244,0.08)] bg-[#05070b] shadow-inner shadow-black/35 transition xl:min-h-[560px] 2xl:min-h-[620px]">
           {view.outputUrl ? (
             <>
               <video className="max-h-[74vh] min-h-[500px] w-full object-contain xl:min-h-[560px] 2xl:min-h-[620px]" controls playsInline src={view.outputUrl} />
@@ -242,25 +242,25 @@ function VideoGenerationCard({
           ) : isFailed || isStaleActive ? (
             <div className="grid min-h-[500px] w-full place-items-center bg-[#05070b] px-6 text-center xl:min-h-[560px] 2xl:min-h-[620px]">
               <div>
-                <div className="mx-auto mb-4 grid size-14 place-items-center rounded-[22px] border border-[#7f2d2d]/70 bg-[#2a1012] text-xl font-black text-red-100">
+                <div className="mx-auto mb-4 grid size-14 place-items-center rounded-[22px] border border-[#7f2d2d]/70 bg-[#2a1012] text-xl font-semibold text-red-100">
                   !
                 </div>
                 <div className="mb-4 flex flex-wrap justify-center gap-2">
-                  <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${statusClass(view.status, false, isStaleActive)}`}>
+                  <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${statusClass(view.status, false, isStaleActive)}`}>
                     {statusLabel}
                   </span>
                   {sensitiveFailure ? (
-                    <span className="rounded-full border border-[#7f2d2d]/70 bg-[#2a1012] px-2.5 py-1 text-[10px] font-black text-red-100">
+                    <span className="rounded-full border border-[#7f2d2d]/70 bg-[#2a1012] px-2.5 py-1 text-[10px] font-semibold text-red-100">
                       {t("video.generation.sensitive")}
                     </span>
                   ) : null}
                   {view.refundNotice ? (
-                    <span className="rounded-full border border-[#ffb44d]/30 bg-[#ffb44d]/10 px-2.5 py-1 text-[10px] font-black text-[#ffb44d]">
+                    <span className="rounded-full border border-[#ffb44d]/30 bg-[#ffb44d]/10 px-2.5 py-1 text-[10px] font-semibold text-[#ffb44d]">
                       {t("video.generation.refunded")}
                     </span>
                   ) : null}
                 </div>
-                <p className="text-lg font-black text-red-100">
+                <p className="text-lg font-semibold text-red-100">
                   {isStaleActive ? t("video.generation.stale") : sensitiveFailure ? t("video.generation.sensitive") : t("video.generation.failed")}
                 </p>
                 <p className="mx-auto mt-2 line-clamp-3 max-w-lg text-sm leading-6 text-red-100/58">{view.errorMessage}</p>
@@ -298,7 +298,7 @@ function VideoGenerationCard({
             <div className="grid min-h-[500px] w-full place-items-center bg-[#111318] px-6 text-center xl:min-h-[560px] 2xl:min-h-[620px]">
               <div>
                 <span className="mx-auto mb-5 block size-12 animate-pulse rounded-3xl border border-[#ffb44d]/32 bg-[#ffb44d]/16" />
-                <p className="text-lg font-black text-[#f4f4f4]">{t("video.result.processingTitle")}</p>
+                <p className="text-lg font-semibold text-[#f4f4f4]">{t("video.result.processingTitle")}</p>
                 <p className="mt-2 text-sm text-[#b9b9b9]/55">{tf("video.result.job", { jobId: record.jobId || "--" })}</p>
               </div>
             </div>
@@ -309,7 +309,7 @@ function VideoGenerationCard({
           )}
 
           <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#05070b]/78 via-[#05070b]/18 to-transparent p-4 opacity-0 transition group-hover:opacity-100">
-            <p className="line-clamp-2 max-w-3xl text-sm font-bold leading-6 text-[#f4f4f4]/82">{view.title}</p>
+            <p className="line-clamp-2 max-w-3xl text-sm font-medium leading-6 text-[#f4f4f4]/82">{view.title}</p>
           </div>
         </div>
       </div>
@@ -357,14 +357,14 @@ export function VideoGenerationStream({
 
   return (
     <section className="flex h-full min-h-[420px] flex-col overflow-hidden">
-      <div className="mb-2.5 flex flex-none flex-wrap items-center justify-between gap-2 rounded-[24px] border border-[#33323a]/55 bg-[#111318]/80 p-2 shadow-xl shadow-black/18">
+      <div className="mb-2.5 flex flex-none flex-wrap items-center justify-between gap-2 rounded-[26px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/82 p-2 shadow-xl shadow-black/18">
         <div className="flex flex-wrap gap-1.5">
           {filters.map((item) => (
             <button
-              className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
                 item === filter
-                  ? "border-[#ffb44d]/55 bg-[#ffb44d]/14 text-[#ffb44d]"
-                  : "border-[#33323a]/60 bg-[#1a1c22]/70 text-[#b9b9b9]/65 hover:border-[#ffb44d]/38 hover:text-[#ffb44d]"
+                  ? "border-[#ffb44d]/44 bg-[#ffb44d]/12 text-[#ffb44d]"
+                  : "border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/66 text-[#b9b9b9]/66 hover:border-[#ffb44d]/34 hover:bg-[#ffb44d]/8 hover:text-[#ffb44d]"
               }`}
               key={item}
               onClick={() => onFilterChange(item)}
@@ -399,9 +399,9 @@ export function VideoGenerationStream({
               );
             })
           ) : (
-            <div className="grid min-h-[520px] place-items-center rounded-[30px] border border-dashed border-[#33323a]/65 bg-[#111318]/65 p-8 text-center">
+            <div className="grid min-h-[520px] place-items-center rounded-[32px] border border-dashed border-[rgba(244,244,244,0.10)] bg-[#111318]/66 p-8 text-center">
               <div className="max-w-md">
-                <p className="text-lg font-black text-[#f4f4f4]">{t("video.generation.empty.title")}</p>
+                <p className="text-lg font-semibold text-[#f4f4f4]">{t("video.generation.empty.title")}</p>
                 <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/55">{t("video.generation.empty.body")}</p>
               </div>
             </div>
