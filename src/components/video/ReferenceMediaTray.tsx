@@ -12,11 +12,12 @@ import {
   getReferenceMediaIssues,
   getReferenceRoleIssue,
 } from "@/lib/video/videoReferenceRules";
+import { useI18n } from "@/i18n/useI18n";
 
-const roleOptions: Array<{ label: string; shortLabel: string; value: UploadMediaRole }> = [
-  { label: "Reference", shortLabel: "", value: "reference" },
-  { label: "Start Frame", shortLabel: "Start", value: "start_frame" },
-  { label: "End Frame", shortLabel: "End", value: "end_frame" },
+const roleOptions: Array<{ value: UploadMediaRole }> = [
+  { value: "reference" },
+  { value: "start_frame" },
+  { value: "end_frame" },
 ];
 
 type RoleMenuPosition = {
@@ -80,10 +81,6 @@ function CheckIcon() {
   );
 }
 
-function roleShortLabel(role?: UploadMediaRole) {
-  return roleOptions.find((option) => option.value === role)?.shortLabel || "";
-}
-
 function getPreviewUrl(item: UploadMediaItem) {
   return item.previewUrl || item.url || "";
 }
@@ -122,6 +119,7 @@ export function ReferenceMediaTray({
   onRemove: (id: string) => void;
   onRoleChange: (id: string, role: UploadMediaRole) => void;
 }) {
+  const { t, tf } = useI18n();
   const mentionItems = getReadyMentionableMediaItems(media);
   const mentionById = useMemo(() => new Map(mentionItems.map((item) => [item.id, item])), [mentionItems]);
   const mediaIssues = useMemo(() => getReferenceMediaIssues(modelRule, media), [media, modelRule]);
@@ -173,26 +171,61 @@ export function ReferenceMediaTray({
   const openRoleMention = openRoleItem ? mentionById.get(openRoleItem.id) : null;
   const firstIssue = Array.from(mediaIssues.values()).flat()[0] || "";
 
+  function roleLabel(role: UploadMediaRole) {
+    if (role === "start_frame") return t("video.references.role.startFrame");
+    if (role === "end_frame") return t("video.references.role.endFrame");
+    return t("video.references.role.reference");
+  }
+
+  function roleShortLabel(role?: UploadMediaRole) {
+    if (role === "start_frame") return t("video.references.role.startShort");
+    if (role === "end_frame") return t("video.references.role.endShort");
+    return "";
+  }
+
+  function allowedTypeLabel(type: UploadMediaType) {
+    if (type === "image") return t("video.media.image");
+    if (type === "video") return t("video.media.video");
+    return t("video.media.audio");
+  }
+
+  function localizeIssue(issue: string) {
+    if (!issue) return "";
+    if (issue.includes("does not support image references")) return t("video.errors.unsupportedImageReference");
+    if (issue.includes("does not support video references")) return t("video.errors.unsupportedVideoReference");
+    if (issue.includes("does not support audio references")) return t("video.errors.unsupportedAudioReference");
+    if (issue.includes("Reference limit reached")) return t("video.drawer.referenceLimitReached");
+    if (issue.includes("supports up to")) return t("video.drawer.typeLimitReached");
+    if (issue === "Start and End frame roles require an image.") return t("video.references.imageOnlyForFrame");
+    if (issue === "This model does not support Start Frame.") return t("video.references.startFrameUnsupported");
+    if (issue === "This model does not support End Frame.") return t("video.references.endFrameUnsupported");
+    return issue;
+  }
+
   return (
     <section className="rounded-[22px] border border-white/10 bg-white/[.04] p-3" ref={rootRef}>
       <div className="mb-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ffcf83]">Input Media</p>
-            <h2 className="mt-1 text-sm font-black text-white">Main media</h2>
+            <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ffcf83]">{t("video.references.inputMedia")}</p>
+            <h2 className="mt-1 text-sm font-black text-white">{t("video.references.mainMedia")}</h2>
           </div>
           <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] font-bold text-white/42">
-            {mentionItems.length} ready
+            {tf("video.references.readyCount", { count: mentionItems.length })}
           </span>
         </div>
         <p className="mt-2 text-xs leading-5 text-white/42">
           {allowedTypes.length
-            ? `Allowed for ${modelRule.label}: ${allowedTypes.join(", ")} - ${limitSummary.total} max`
-            : `${modelRule.label} does not accept reference media.`}
+            ? tf("video.references.allowedSummary", {
+                model: modelRule.label,
+                total: limitSummary.total,
+                types: allowedTypes.map((type) => allowedTypeLabel(type)).join(", "),
+              })
+            : tf("video.references.modelDoesNotAcceptNamed", { model: modelRule.label })}
         </p>
         {firstIssue ? (
           <p className="mt-2 rounded-2xl border border-[#ffb44d]/25 bg-[#ffb44d]/10 px-3 py-2 text-xs font-bold leading-5 text-[#ffd08a]">
-            {firstIssue}
+            {localizeIssue(firstIssue)}
           </p>
         ) : null}
       </div>
@@ -213,10 +246,10 @@ export function ReferenceMediaTray({
                   hasIssues ? "border-[#ffb44d]/55" : "border-white/10 hover:border-[#ffb44d]/38"
                 }`}
                 key={item.id}
-                title={issues.join(" ")}
+                title={issues.map(localizeIssue).join(" ")}
               >
                 <button
-                  aria-label={`Preview ${item.name}`}
+                  aria-label={tf("video.references.previewAsset", { name: item.name })}
                   className="absolute inset-0 grid place-items-center overflow-hidden text-left"
                   onClick={() => setPreviewItem(item)}
                   type="button"
@@ -251,7 +284,7 @@ export function ReferenceMediaTray({
                 </span>
 
                 <button
-                  aria-label={`Remove ${item.name}`}
+                  aria-label={tf("video.references.removeAsset", { name: item.name })}
                   className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-black/78 text-[11px] text-white/76 opacity-0 transition hover:text-red-100 group-hover:opacity-100"
                   onClick={() => onRemove(item.id)}
                   type="button"
@@ -260,7 +293,7 @@ export function ReferenceMediaTray({
                 </button>
 
                 <button
-                  aria-label={`Full screen ${item.name}`}
+                  aria-label={tf("video.references.fullScreenAsset", { name: item.name })}
                   className="absolute bottom-1.5 right-1.5 grid size-7 place-items-center rounded-full border border-white/10 bg-black/78 text-white/80 opacity-0 transition hover:border-[#ffb44d]/38 hover:text-[#ffd08a] group-hover:opacity-100"
                   onClick={(event) => {
                     event.stopPropagation();
@@ -273,7 +306,7 @@ export function ReferenceMediaTray({
 
                 <div className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition group-hover:opacity-100">
                   <button
-                    aria-label={`Open ${item.name} role menu`}
+                    aria-label={tf("video.references.openRoleMenu", { name: item.name })}
                     className="pointer-events-auto grid size-[30px] place-items-center rounded-full border border-white/10 bg-black/78 text-white/82 shadow-xl shadow-black/30 transition hover:border-[#ffb44d]/38 hover:text-[#ffd08a]"
                     onClick={(event) => {
                       event.stopPropagation();
@@ -298,7 +331,7 @@ export function ReferenceMediaTray({
               <span className="mx-auto grid size-8 place-items-center rounded-full border border-white/10 bg-black/28 text-lg font-black text-white/60">
                 +
               </span>
-              <span className="mt-1.5 block text-xs font-black text-white">Add more</span>
+              <span className="mt-1.5 block text-xs font-black text-white">{t("video.references.addMore")}</span>
             </span>
           </button>
         </div>
@@ -316,8 +349,8 @@ export function ReferenceMediaTray({
                 </span>
               ))}
             </span>
-            <span className="block text-sm font-black text-white">Upload media</span>
-            <span className="mt-1 block text-xs text-white/45">Image, video, or audio</span>
+            <span className="block text-sm font-black text-white">{t("video.upload.title")}</span>
+            <span className="mt-1 block text-xs text-white/45">{t("video.upload.subtitle")}</span>
           </span>
         </button>
       )}
@@ -328,7 +361,7 @@ export function ReferenceMediaTray({
           ref={roleMenuRef}
           style={{ left: roleMenuPosition.left, top: roleMenuPosition.top, width: roleMenuPosition.width }}
         >
-          <p className="px-3 py-2 text-[10px] font-black uppercase tracking-[.16em] text-white/38">Use as ...</p>
+          <p className="px-3 py-2 text-[10px] font-black uppercase tracking-[.16em] text-white/38">{t("video.references.useAs")}</p>
           {roleOptions.map((option) => {
             const currentRole = openRoleItem.role || "reference";
             const roleIssue = getReferenceRoleIssue(modelRule, openRoleItem.type, option.value);
@@ -348,16 +381,16 @@ export function ReferenceMediaTray({
                   onRoleChange(openRoleItem.id, option.value);
                   setOpenRoleId("");
                 }}
-                title={roleIssue}
+                title={localizeIssue(roleIssue)}
                 type="button"
               >
-                <span>{option.label}</span>
+                <span>{roleLabel(option.value)}</span>
                 {currentRole === option.value ? <CheckIcon /> : null}
               </button>
             );
           })}
           <div className="my-1 border-t border-white/10" />
-          <p className="px-3 py-1.5 text-[10px] font-black uppercase tracking-[.16em] text-white/32">Interactions</p>
+          <p className="px-3 py-1.5 text-[10px] font-black uppercase tracking-[.16em] text-white/32">{t("video.references.interactions")}</p>
           <button
             className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-white/68 transition hover:bg-white/[.06] hover:text-white"
             onClick={() => {
@@ -366,7 +399,7 @@ export function ReferenceMediaTray({
             }}
             type="button"
           >
-            Full Screen
+            {t("video.references.fullScreen")}
           </button>
           <button
             className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-white/68 transition hover:bg-white/[.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
@@ -377,7 +410,7 @@ export function ReferenceMediaTray({
             }}
             type="button"
           >
-            Insert @ reference
+            {t("video.references.insertAt")}
           </button>
         </div>
       ) : null}
@@ -390,11 +423,11 @@ export function ReferenceMediaTray({
           >
             <header className="flex items-center justify-between border-b border-white/10 px-4 py-3">
               <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ffcf83]">Preview</p>
+                <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ffcf83]">{t("video.references.preview")}</p>
                 <h3 className="truncate text-sm font-black text-white">{previewItem.name}</h3>
               </div>
               <button
-                aria-label="Close preview"
+                aria-label={t("video.references.closePreview")}
                 className="grid size-9 place-items-center rounded-full border border-white/10 bg-white/[.055] text-base font-black text-white/68 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a]"
                 onClick={() => setPreviewItem(null)}
                 type="button"

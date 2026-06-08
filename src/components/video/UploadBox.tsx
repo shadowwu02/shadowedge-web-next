@@ -28,6 +28,7 @@ import {
 import { uploadMedia } from "@/lib/video-api";
 import type { UploadMediaItem } from "@/types/video";
 import type { VideoModelRule } from "@/lib/video/videoModelRules";
+import { useI18n } from "@/i18n/useI18n";
 
 const uploadSlot = "media";
 const maxFileSizeBytes = 250 * 1024 * 1024;
@@ -49,9 +50,9 @@ function createLocalMediaItem(file: File, index: number, duration = 0, errorMess
   };
 }
 
-function validateFileSize(file: File) {
+function validateFileSize(file: File, message: string) {
   if (file.size > maxFileSizeBytes) {
-    return "File is too large. Please upload a file under 250MB.";
+    return message;
   }
 
   return "";
@@ -77,6 +78,7 @@ export function UploadBox({
   onChange: Dispatch<SetStateAction<UploadMediaItem[]>>;
   reusableMedia?: UploadMediaItem[];
 }) {
+  const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const [currentUploadMedia, setCurrentUploadMedia] = useState<UploadMediaItem[]>([]);
@@ -140,7 +142,7 @@ export function UploadBox({
 
     const items = await Promise.all(
       typeLimitResult.files.map(async (file, index) => {
-        const sizeError = validateFileSize(file);
+        const sizeError = validateFileSize(file, t("video.upload.fileTooLarge"));
         const duration = file.type.startsWith("audio/") ? await getAudioDuration(file) : 0;
 
         if (sizeError) {
@@ -148,7 +150,7 @@ export function UploadBox({
         }
 
         if (duration && nextAudioDuration + duration > maxAudioDurationSeconds) {
-          return createLocalMediaItem(file, index, duration, "Reference audio can be up to 15 seconds total.");
+          return createLocalMediaItem(file, index, duration, t("video.upload.maxAudioDuration"));
         }
 
         if (duration) nextAudioDuration += duration;
@@ -157,7 +159,7 @@ export function UploadBox({
     );
 
     if (!items.length && files.length) {
-      setPickerNotice((current) => current || "No uploadable files were selected.");
+      setPickerNotice((current) => current || t("video.upload.noUploadableFiles"));
     }
 
     return items;
@@ -204,7 +206,7 @@ export function UploadBox({
           );
           setLocalStoredMedia(appendLocalMediaAssets([uploadedItem]));
         } catch (error) {
-          const message = error instanceof Error ? error.message : "Upload failed.";
+          const message = error instanceof Error ? error.message : t("video.upload.failed");
           setCurrentUploadMedia((currentItems) =>
             currentItems.map((current) =>
               current.id === item.id
@@ -237,7 +239,7 @@ export function UploadBox({
     const selectedRemoteItems = selectedItems.filter((item) => item.url && isRemoteMediaUrl(item.url) && !isTransientMediaUrl(item.url));
 
     if (!selectedRemoteItems.length) {
-      setPickerNotice("Select ready media first.");
+      setPickerNotice(t("video.upload.selectReadyFirst"));
       return false;
     }
 
@@ -294,7 +296,7 @@ export function UploadBox({
         tabIndex={-1}
         type="button"
       >
-        Upload media
+        {t("video.upload.title")}
       </button>
 
       <MediaPickerDrawer

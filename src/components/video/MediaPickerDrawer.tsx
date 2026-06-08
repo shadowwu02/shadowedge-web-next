@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, DragEvent, RefObject } from "react";
-import { getMediaAssetSourceLabel, mergeMediaAssets } from "@/lib/media-assets";
+import { mergeMediaAssets } from "@/lib/media-assets";
 import { slotAllowsAssetType } from "@/lib/upload-rules";
 import {
   getAllowedReferenceTypes,
@@ -13,6 +13,7 @@ import {
 } from "@/lib/video/videoReferenceRules";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
 import type { VideoModelRule } from "@/lib/video/videoModelRules";
+import { useI18n } from "@/i18n/useI18n";
 
 type MediaFilter = "uploads" | "history" | "generated" | UploadMediaType | "elements" | "liked";
 
@@ -27,47 +28,12 @@ const drawerWidth = 600;
 const drawerMinWidth = 520;
 const drawerMaxHeight = 520;
 
-const filters: Array<{ key: MediaFilter; label: string }> = [
-  { key: "uploads", label: "Uploads" },
-  { key: "history", label: "History" },
-  { key: "generated", label: "Generated" },
-  { key: "image", label: "Images" },
-  { key: "video", label: "Videos" },
-  { key: "audio", label: "Audios" },
-  { key: "elements", label: "Elements" },
-  { key: "liked", label: "Liked" },
-];
-
-function mediaTypeLabel(type: UploadMediaItem["type"]) {
-  if (type === "audio") return "Audio";
-  if (type === "video") return "Video";
-  return "Image";
-}
-
-function statusLabel(status: UploadMediaItem["uploadStatus"], issue: string) {
-  if (status === "uploading") return "Uploading";
-  if (status === "failed") return "Failed";
-  if (issue === "Already added to references.") return "Added";
-  if (issue) return "Blocked";
-  if (status === "ready") return "Ready";
-  return "Local";
-}
+const filters: MediaFilter[] = ["uploads", "history", "generated", "image", "video", "audio", "elements", "liked"];
 
 function mediaFallback(type: UploadMediaItem["type"]) {
   if (type === "audio") return "AUD";
   if (type === "video") return "VID";
   return "IMG";
-}
-
-function emptyStateText(filter: MediaFilter) {
-  if (filter === "history") return "Reusable history inputs will appear here.";
-  if (filter === "generated") return "Generated videos will appear here when reusable.";
-  if (filter === "elements") return "No elements yet.";
-  if (filter === "liked") return "Liked assets will appear here.";
-  if (filter === "image") return "No uploaded images yet.";
-  if (filter === "video") return "No uploaded videos yet.";
-  if (filter === "audio") return "No uploaded audios yet.";
-  return "Uploaded references will appear here.";
 }
 
 function isSameMediaAsset(left: UploadMediaItem, right: UploadMediaItem) {
@@ -164,11 +130,75 @@ export function MediaPickerDrawer({
   reusableMedia?: UploadMediaItem[];
   slot: string;
 }) {
+  const { t, tf } = useI18n();
   const [activeFilter, setActiveFilter] = useState<MediaFilter>("uploads");
   const [position, setPosition] = useState<DrawerPosition>({ left: 16, maxHeight: 520, top: 72, width: 600 });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const previousStatusesRef = useRef<Map<string, UploadMediaItem["uploadStatus"]>>(new Map());
   const rafRef = useRef<number | null>(null);
+
+  function localizedMediaTypeLabel(type: UploadMediaItem["type"]) {
+    if (type === "audio") return t("video.media.audio");
+    if (type === "video") return t("video.media.video");
+    return t("video.media.image");
+  }
+
+  function filterLabel(filter: MediaFilter) {
+    if (filter === "history") return t("video.drawer.tabs.history");
+    if (filter === "generated") return t("video.drawer.tabs.generated");
+    if (filter === "image") return t("video.drawer.tabs.images");
+    if (filter === "video") return t("video.drawer.tabs.videos");
+    if (filter === "audio") return t("video.drawer.tabs.audios");
+    if (filter === "elements") return t("video.drawer.tabs.elements");
+    if (filter === "liked") return t("video.drawer.tabs.liked");
+    return t("video.drawer.tabs.uploads");
+  }
+
+  function emptyLabel(filter: MediaFilter) {
+    if (filter === "history") return t("video.drawer.empty.history");
+    if (filter === "generated") return t("video.drawer.empty.generated");
+    if (filter === "elements") return t("video.drawer.empty.elements");
+    if (filter === "liked") return t("video.drawer.empty.liked");
+    if (filter === "image") return t("video.drawer.empty.images");
+    if (filter === "video") return t("video.drawer.empty.videos");
+    if (filter === "audio") return t("video.drawer.empty.audios");
+    return t("video.drawer.empty.uploads");
+  }
+
+  function sourceLabel(source: UploadMediaItem["source"]) {
+    if (source === "current_upload") return t("video.drawer.source.current");
+    if (source === "reference_selected") return t("video.drawer.source.added");
+    if (source === "generated_result") return t("video.drawer.source.generated");
+    if (source === "history") return t("video.drawer.source.history");
+    return t("video.drawer.source.uploads");
+  }
+
+  function localizeIssue(issue: string) {
+    if (!issue) return "";
+    if (issue === "Already added to references.") return t("video.drawer.alreadyAdded");
+    if (issue === "Upload failed.") return t("video.upload.failed");
+    if (issue === "Upload still in progress.") return t("video.drawer.uploading");
+    if (issue === "Media URL is not ready yet.") return t("video.drawer.urlNotReady");
+    if (issue === "Unsupported file type for this slot.") return t("video.upload.unsupportedType");
+    if (issue === "Generated results cannot be used as references for this model.") return t("video.drawer.generatedUnsupported");
+    if (issue === "Media is not ready yet.") return t("video.drawer.urlNotReady");
+    if (issue === "This model does not accept reference media.") return t("video.references.modelDoesNotAccept");
+    if (issue.includes("does not support image references")) return t("video.errors.unsupportedImageReference");
+    if (issue.includes("does not support video references")) return t("video.errors.unsupportedVideoReference");
+    if (issue.includes("does not support audio references")) return t("video.errors.unsupportedAudioReference");
+    if (issue.includes("Reference limit reached")) return t("video.drawer.referenceLimitReached");
+    if (issue.includes("supports up to")) return t("video.drawer.typeLimitReached");
+    return issue;
+  }
+
+  function localizedStatusLabel(status: UploadMediaItem["uploadStatus"], issue: string) {
+    if (status === "uploading") return t("common.status.uploading");
+    if (status === "failed") return t("video.status.failed");
+    if (issue === "Already added to references.") return t("video.drawer.status.added");
+    if (issue) return t("video.drawer.status.blocked");
+    if (status === "ready") return t("common.status.ready");
+    return t("video.drawer.status.local");
+  }
 
   const allMedia = useMemo(() => mergeMediaAssets(currentMedia, localMedia, reusableMedia), [currentMedia, localMedia, reusableMedia]);
   const allowedTypes = useMemo(() => getAllowedReferenceTypes(modelRule), [modelRule]);
@@ -181,7 +211,7 @@ export function MediaPickerDrawer({
     return allMedia.filter((item) => item.type === activeFilter);
   }, [activeFilter, allMedia]);
 
-  const allowedTypeLabel = allowedTypes.length ? allowedTypes.map((type) => mediaTypeLabel(type).toLowerCase()).join(", ") : "no reference media";
+  const allowedTypeLabel = allowedTypes.length ? allowedTypes.map((type) => localizedMediaTypeLabel(type).toLowerCase()).join(", ") : "";
   const selectionIssueById = useMemo(() => {
     const issues = new Map<string, string>();
     const selectedItems = allMedia.filter((item) => selectedIds.has(item.id));
@@ -338,7 +368,7 @@ export function MediaPickerDrawer({
   function handleDrop(event: DragEvent) {
     event.preventDefault();
     if (!allowedTypes.length) {
-      onNotice?.("This model does not accept reference media.");
+      onNotice?.(t("video.references.modelDoesNotAccept"));
       return;
     }
     const files = Array.from(event.dataTransfer.files || []);
@@ -350,7 +380,7 @@ export function MediaPickerDrawer({
 
   function toggleSelected(item: UploadMediaItem) {
     if (!selectedIds.has(item.id) && (item.uploadStatus !== "ready" || !item.url)) {
-      onNotice?.(selectionIssueById.get(item.id) || "Media is not ready yet.");
+      onNotice?.(localizeIssue(selectionIssueById.get(item.id) || "Media is not ready yet."));
       return;
     }
 
@@ -361,7 +391,7 @@ export function MediaPickerDrawer({
       else {
         const issue = selectionIssueById.get(item.id);
         if (issue) {
-          onNotice?.(issue);
+          onNotice?.(localizeIssue(issue));
           return next;
         }
         next.add(item.id);
@@ -406,12 +436,12 @@ export function MediaPickerDrawer({
 
         <header className="flex shrink-0 items-start justify-between border-b border-white/10 px-4 py-3">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#ffcf83]">ShadowEdge Assets</p>
-            <h2 className="mt-1 text-xl font-black text-white">My Assets</h2>
-            <p className="mt-1 text-xs font-medium text-white/42">Upload or select existing media for this generation.</p>
+            <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#ffcf83]">{t("video.drawer.headerEyebrow")}</p>
+            <h2 className="mt-1 text-xl font-black text-white">{t("video.drawer.myAssets")}</h2>
+            <p className="mt-1 text-xs font-medium text-white/42">{t("video.drawer.description")}</p>
           </div>
           <button
-            aria-label="Close media picker"
+            aria-label={t("video.drawer.close")}
             className="grid size-9 place-items-center rounded-full border border-white/10 bg-white/[.055] text-base font-black text-white/68 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a]"
             onClick={onClose}
             type="button"
@@ -425,7 +455,7 @@ export function MediaPickerDrawer({
             className="grid min-h-[94px] w-full place-items-center rounded-[20px] border border-dashed border-[#ffb44d]/32 bg-[#ffb44d]/8 px-4 text-center transition hover:bg-[#ffb44d]/12"
             onClick={() => {
               if (!allowedTypes.length) {
-                onNotice?.("This model does not accept reference media.");
+                onNotice?.(t("video.references.modelDoesNotAccept"));
                 return;
               }
               onClearNotice?.();
@@ -442,13 +472,13 @@ export function MediaPickerDrawer({
               <span className="mb-2 flex justify-center gap-1.5">
                 {(allowedTypes.length ? allowedTypes : (["image", "video", "audio"] as UploadMediaType[])).map((item) => (
                   <span className="rounded-full border border-white/10 bg-black/24 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[.12em] text-white/54" key={item}>
-                    {mediaTypeLabel(item)}
+                    {localizedMediaTypeLabel(item)}
                   </span>
                 ))}
               </span>
-              <span className="block text-sm font-black text-white">Upload new media</span>
+              <span className="block text-sm font-black text-white">{t("video.upload.new")}</span>
               <span className="mt-1 block text-xs text-white/48">
-                {allowedTypes.length ? `Allowed: ${allowedTypeLabel}` : "This model does not accept reference media."}
+                {allowedTypes.length ? tf("video.drawer.allowedTypes", { types: allowedTypeLabel }) : t("video.references.modelDoesNotAccept")}
               </span>
             </span>
           </button>
@@ -457,28 +487,28 @@ export function MediaPickerDrawer({
             {filters.map((filter) => (
               <button
                 className={`rounded-full border px-3 py-1.5 text-[11px] font-black transition ${
-                  activeFilter === filter.key
+                  activeFilter === filter
                     ? "border-[#ffb44d]/60 bg-[#ffb44d]/18 text-[#ffd08a]"
                     : "border-white/10 bg-white/[.045] text-white/52 hover:border-[#ffb44d]/30 hover:text-white"
                 }`}
-                key={filter.key}
+                key={filter}
                 onClick={() => {
                   onClearNotice?.();
-                  setActiveFilter(filter.key);
+                  setActiveFilter(filter);
                 }}
                 type="button"
               >
-                {filter.label}
+                {filterLabel(filter)}
               </button>
             ))}
           </div>
 
           <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/18 px-3 py-2">
             <span className="min-w-0 truncate text-xs font-bold text-white/58">
-              Target: <span className="text-white">{modelRule.label}</span>
+              {tf("video.drawer.targetModel", { model: modelRule.label })}
             </span>
             <span className="hidden min-w-0 truncate text-xs font-bold text-white/38 sm:block">
-              {limitSummary.total} max · {limitSummary.image} img · {limitSummary.video} vid · {limitSummary.audio} aud
+              {tf("video.drawer.limitSummary", { audio: limitSummary.audio, image: limitSummary.image, total: limitSummary.total, video: limitSummary.video })}
             </span>
             <button
               className="shrink-0 rounded-full border border-white/10 px-3 py-1 text-[11px] font-black text-white/52 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a] disabled:cursor-not-allowed disabled:opacity-45"
@@ -489,18 +519,18 @@ export function MediaPickerDrawer({
               }}
               type="button"
             >
-              Clear selected
+              {t("video.drawer.clearSelected")}
             </button>
           </div>
 
           <div className="mt-3 flex items-center justify-between">
-            <h3 className="text-sm font-black text-white">Assets</h3>
-            <span className="text-xs font-bold text-white/38">{visibleMedia.length} shown</span>
+            <h3 className="text-sm font-black text-white">{t("video.drawer.assets")}</h3>
+            <span className="text-xs font-bold text-white/38">{tf("video.drawer.shownCount", { count: visibleMedia.length })}</span>
           </div>
 
           {notice ? (
             <div className="mt-3 rounded-2xl border border-[#ffb44d]/25 bg-[#ffb44d]/10 px-3 py-2 text-xs font-bold text-[#ffd08a]">
-              {notice}
+              {localizeIssue(notice)}
             </div>
           ) : null}
 
@@ -550,7 +580,7 @@ export function MediaPickerDrawer({
                           </span>
                         )}
                         <span className="absolute left-2 top-2 rounded-full border border-white/10 bg-black/55 px-2 py-1 text-[10px] font-black uppercase tracking-[.12em] text-white/72 backdrop-blur">
-                          {mediaTypeLabel(item.type)}
+                          {localizedMediaTypeLabel(item.type)}
                         </span>
                         {isSelected ? (
                           <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-[#ffb44d] text-xs font-black text-[#1f2027]">
@@ -562,18 +592,18 @@ export function MediaPickerDrawer({
                         <span className="truncate text-xs font-bold text-white/72">{item.name}</span>
                         <span className="flex min-w-0 items-center gap-1.5 text-[10px] font-black uppercase tracking-[.12em]">
                           <span className={isFailed || isUnsupported ? "text-red-100/75" : isAlreadyAdded ? "text-[#ffd08a]/72" : "text-white/38"}>
-                            {statusLabel(item.uploadStatus, selectIssue)}
+                            {localizedStatusLabel(item.uploadStatus, selectIssue)}
                           </span>
                           <span className="text-white/22">·</span>
-                          <span className="truncate text-white/34">{getMediaAssetSourceLabel(item.source)}</span>
+                          <span className="truncate text-white/34">{sourceLabel(item.source)}</span>
                         </span>
-                        {isUnsupported ? <span className="line-clamp-2 text-xs leading-5 text-red-100/78">{selectIssue}</span> : null}
-                        {item.errorMessage ? <span className="line-clamp-2 text-xs leading-5 text-red-100/78">{item.errorMessage}</span> : null}
+                        {isUnsupported ? <span className="line-clamp-2 text-xs leading-5 text-red-100/78">{localizeIssue(selectIssue)}</span> : null}
+                        {item.errorMessage ? <span className="line-clamp-2 text-xs leading-5 text-red-100/78">{localizeIssue(item.errorMessage)}</span> : null}
                       </span>
                     </button>
                     {canRemove ? (
                       <button
-                        aria-label={`Remove ${item.name}`}
+                        aria-label={tf("video.drawer.removeAsset", { name: item.name })}
                         className="absolute bottom-2 right-2 rounded-full border border-white/10 bg-black/70 px-2 py-1 text-[10px] font-bold text-white/58 opacity-0 transition hover:border-red-300/45 hover:text-red-100 group-hover:opacity-100"
                         onClick={(event) => {
                           event.stopPropagation();
@@ -581,7 +611,7 @@ export function MediaPickerDrawer({
                         }}
                         type="button"
                       >
-                        Remove
+                        {t("video.references.remove")}
                       </button>
                     ) : null}
                   </article>
@@ -590,15 +620,14 @@ export function MediaPickerDrawer({
             </div>
           ) : (
             <div className="mt-3 rounded-[20px] border border-dashed border-white/12 p-8 text-center text-sm text-white/42">
-              {emptyStateText(activeFilter)}
+              {emptyLabel(activeFilter)}
             </div>
           )}
         </div>
 
         <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-white/10 px-4 py-3">
           <span className="text-xs font-bold text-white/45">
-            {selectedCount} valid{rawSelectedCount !== selectedCount ? ` · ${rawSelectedCount} selected` : ""}
-            {invalidSelectedCount ? ` · ${invalidSelectedCount} blocked` : ""}
+            {rawSelectedCount !== selectedCount ? tf("video.drawer.validSelectedCount", { total: rawSelectedCount, valid: selectedCount }) : tf("video.drawer.validCount", { count: selectedCount })}{invalidSelectedCount ? ` · ${tf("video.drawer.blockedCount", { count: invalidSelectedCount })}` : ""}
           </span>
           <div className="flex gap-2">
             <button
@@ -607,7 +636,7 @@ export function MediaPickerDrawer({
               onClick={addSelected}
               type="button"
             >
-              Add selected
+              {t("video.drawer.addSelected")}
             </button>
           </div>
         </footer>

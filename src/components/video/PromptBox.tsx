@@ -13,6 +13,7 @@ import {
   type VideoMentionBinding,
 } from "@/lib/video/videoMentionBindings";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
+import { useI18n } from "@/i18n/useI18n";
 
 type PromptBoxProps = {
   value: string;
@@ -41,11 +42,7 @@ type InsertMentionInput = {
   url?: string;
 };
 
-const mentionGroups: Array<[UploadMediaType, string]> = [
-  ["image", "Images"],
-  ["video", "Videos"],
-  ["audio", "Audio"],
-];
+const mentionGroups: UploadMediaType[] = ["image", "video", "audio"];
 
 function clampMenuPosition(left: number, top: number) {
   const menuWidth = 300;
@@ -170,6 +167,7 @@ function getMissingMentionsWithBindings(prompt: string, media: UploadMediaItem[]
 }
 
 export function PromptBox({ value, media, mentionBindings = [], onChange, onMentionBindingsChange }: PromptBoxProps) {
+  const { t, tf } = useI18n();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -345,10 +343,16 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     top: menuPosition.top,
   };
 
+  function mentionGroupTitle(type: UploadMediaType) {
+    if (type === "image") return t("video.prompt.group.images");
+    if (type === "video") return t("video.prompt.group.videos");
+    return t("video.prompt.group.audios");
+  }
+
   return (
     <section className="rounded-[22px] border border-white/10 bg-white/[.055] p-3">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-black text-white">Prompt</h2>
+        <h2 className="text-sm font-black text-white">{t("video.prompt.title")}</h2>
         <span className="text-xs font-bold text-white/38">{value.length}/1200</span>
       </div>
       <textarea
@@ -356,17 +360,17 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
         maxLength={1200}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        placeholder="Describe your scene in detail. Use @ to reference assets."
+        placeholder={t("video.prompt.placeholder")}
         ref={textareaRef}
         value={value}
       />
 
       {missingMentions.length ? (
         <p className="mt-3 rounded-2xl border border-[#ffb44d]/25 bg-[#ffb44d]/10 px-3 py-2 text-xs font-semibold text-[#ffd08a]">
-          Prompt references missing media: {missingMentions.map((mention) => mention.display).join(", ")}
+          {tf("video.prompt.missingWarning", { items: missingMentions.map((mention) => mention.display).join(", ") })}
         </p>
       ) : (
-        <p className="mt-3 text-xs text-white/38">Type @ to insert @图1, @视频1, or @音频1 from uploaded ready media.</p>
+        <p className="mt-3 text-xs text-white/38">{t("video.prompt.helper")}</p>
       )}
 
       {isMenuOpen ? (
@@ -377,13 +381,15 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
           style={menuStyle}
         >
           {mentionItems.length ? (
-            mentionGroups.map(([type, title]) => {
+            mentionGroups.map((type) => {
               const groupItems = mentionItems.filter((item) => item.type === type);
               if (!groupItems.length) return null;
 
               return (
                 <div className="grid gap-1.5 py-1" key={type}>
-                  <div className="px-2 py-1 text-[11px] font-black uppercase tracking-[.14em] text-white/44">{title}</div>
+                  <div className="px-2 py-1 text-[11px] font-black uppercase tracking-[.14em] text-white/44">
+                    {mentionGroupTitle(type)}
+                  </div>
                   {groupItems.map((item) => (
                     <button
                       className="flex w-full items-center gap-3 rounded-xl border border-transparent p-2 text-left transition hover:border-[#ffb44d]/28 hover:bg-[#ffb44d]/10 focus:border-[#ffb44d]/34 focus:bg-[#ffb44d]/12 focus:outline-none"
@@ -410,7 +416,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
             })
           ) : (
             <div className="rounded-xl border border-white/10 bg-white/[.045] px-3 py-4 text-sm text-white/55">
-              Upload ready image, video, or audio media before using @ references.
+              {t("video.prompt.mentionEmpty")}
             </div>
           )}
         </div>
