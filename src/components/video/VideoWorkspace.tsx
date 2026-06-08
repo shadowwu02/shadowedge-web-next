@@ -16,9 +16,9 @@ import { useTaskPolling } from "@/hooks/useTaskPolling";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useCredits } from "@/hooks/useCredits";
 import { useVideoGeneration } from "@/hooks/useVideoGeneration";
-import { collectGeneratedResultMediaAssets, collectReusableVideoAssets, mergeMediaAssets } from "@/lib/media-assets";
+import { collectGeneratedResultMediaAssets, collectHistoryInputMediaAssets, collectReusableVideoAssets, mergeMediaAssets } from "@/lib/media-assets";
 import { getVideoModels } from "@/lib/video-api";
-import { getSafeHistoryOutputUrl, getVideoHistoryStatusCounts } from "@/lib/video/historyUtils";
+import { getSafeHistoryOutputUrl, getVideoHistoryStatusCounts, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
 import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
 import { getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
 import {
@@ -29,7 +29,7 @@ import {
 } from "@/lib/video/videoMentionBindings";
 import { validateReferenceSelectionForRule } from "@/lib/video/videoReferenceRules";
 import { isVideoActiveStatus } from "@/lib/utils";
-import type { UploadMediaItem, UploadMediaRole, VideoModel, VideoStatusResponse } from "@/types/video";
+import type { UploadMediaItem, UploadMediaRole, VideoModel, VideoStatusResponse, VideoTaskRecord } from "@/types/video";
 
 const fallbackModels: VideoModel[] = [
   {
@@ -131,7 +131,7 @@ function writeVideoDraft(snapshot: {
   });
 }
 
-function buildRetryMedia(record: { mediaList?: UploadMediaItem[] | Array<{ id?: string; type: UploadMediaItem["type"]; url: string; name?: string; mimeType?: string; size?: number; duration?: number }>; reference_images?: string[]; reference_videos?: string[]; reference_audios?: string[] }) {
+function buildRetryMedia(record: VideoTaskRecord) {
   const mediaList = Array.isArray(record.mediaList) ? record.mediaList : [];
   const fromMediaList = mediaList.map((item, index) => ({
     id: item.id || `retry-media-${index}`,
@@ -160,7 +160,7 @@ function buildRetryMedia(record: { mediaList?: UploadMediaItem[] | Array<{ id?: 
       uploadStatus: "ready" as const,
     }));
 
-  return [...fromMediaList, ...fromRefs];
+  return mergeMediaAssets([...fromMediaList, ...fromRefs], collectHistoryInputMediaAssets([record]));
 }
 
 function isReadyRemoteMedia(item: UploadMediaItem) {
@@ -338,6 +338,7 @@ export function VideoWorkspace() {
   }, []);
 
   useTaskPolling({
+    enabled: task ? !isVideoStaleActiveRecord(task) : true,
     taskId: task?.jobId,
     status: task?.status,
     fetchStatus: refreshTask,
@@ -354,7 +355,8 @@ export function VideoWorkspace() {
   }, []);
 
   const isUploadingMedia = isAssetPickerUploading || media.some((item) => item.uploadStatus === "uploading");
-  const isProcessing = activeTaskCount > 0 || isVideoActiveStatus(task?.status);
+  const isCurrentTaskProcessing = Boolean(task && isVideoActiveStatus(task.status) && !isVideoStaleActiveRecord(task));
+  const isProcessing = activeTaskCount > 0 || isCurrentTaskProcessing;
   const hasEnoughCredits = credits === null || selectedModel.credits <= credits;
   const canGenerate = Boolean(selectedModel) && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits;
   const selectedModelRuleId = getVideoModelRuleId(selectedModel);
@@ -516,11 +518,15 @@ export function VideoWorkspace() {
       setMedia(nextMedia);
       setMentionBindings(nextMentionBindings);
       setPrompt(promptText);
-      setWorkspaceNotice(
-        findRetryModel(record)
-          ? "History item loaded into the generator."
-          : "History item loaded with the current model because the original model is unavailable.",
-      );
+      if (!nextMedia.length) {
+        setWorkspaceNotice("History item loaded, but this record does not include reusable reference media URLs.");
+      } else {
+        setWorkspaceNotice(
+          findRetryModel(record)
+            ? "History item loaded into the generator."
+            : "History item loaded with the current model because the original model is unavailable.",
+        );
+      }
     },
     [findRetryModel, selectedModel],
   );

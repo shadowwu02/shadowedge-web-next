@@ -7,6 +7,7 @@ import { buildMediaAwarePrompt, getReadyMentionableMediaItems, toGenerationMedia
 import {
   getSafeHistoryOutputUrl,
   getVideoHistoryStableKey,
+  isVideoStaleActiveRecord,
   isVideoTerminalPollingRecord,
   mergeVideoHistory,
   normalizeVideoPollingStatus,
@@ -116,7 +117,7 @@ function buildVideoRequest(options: SubmitVideoOptions): VideoGenerationRequest 
 }
 
 function getActiveTaskCount(records: VideoTaskRecord[]) {
-  return records.filter((record) => isVideoActiveStatus(record.status)).length;
+  return records.filter((record) => isVideoActiveStatus(record.status) && !isVideoStaleActiveRecord(record)).length;
 }
 
 function activeTaskMessage() {
@@ -153,6 +154,23 @@ function mergeStatusIntoTask(base: VideoTaskRecord, result: VideoStatusResponse)
   };
 }
 
+const EXPIRED_STATUS_MESSAGE = "Unable to check this job status. It may be expired. Please check History or retry.";
+
+function markStatusCheckExpired(base: VideoTaskRecord): VideoTaskRecord {
+  return {
+    ...base,
+    status: "failed",
+    error_message: EXPIRED_STATUS_MESSAGE,
+    message: EXPIRED_STATUS_MESSAGE,
+    updatedAt: Date.now(),
+    meta: {
+      ...(base.meta || {}),
+      statusCheckExpired: true,
+      status_check_expired: true,
+    },
+  };
+}
+
 export function useVideoGeneration() {
   const [task, setTask] = useState<VideoTaskRecord | null>(null);
   const [localHistory, setLocalHistory] = useState<VideoTaskRecord[]>([]);
@@ -182,9 +200,10 @@ export function useVideoGeneration() {
     const activeIds = new Set<string>();
     visibleHistory.forEach((record) => {
       if (!isVideoActiveStatus(record.status)) return;
+      if (isVideoStaleActiveRecord(record)) return;
       activeIds.add(getVideoHistoryStableKey(record, `active:${record.createdAt}`));
     });
-    if (task && isVideoActiveStatus(task.status)) activeIds.add(getVideoHistoryStableKey(task, "current"));
+    if (task && isVideoActiveStatus(task.status) && !isVideoStaleActiveRecord(task)) activeIds.add(getVideoHistoryStableKey(task, "current"));
     return activeIds.size;
   }, [task, visibleHistory]);
 
@@ -284,20 +303,33 @@ export function useVideoGeneration() {
   }, [isSubmitting, refreshCredits, visibleHistory]);
 
   const refreshTask = useCallback(async (jobId: string) => {
-    let response;
-    try {
-      response = await getVideoStatus(jobId);
-    } catch (statusError) {
-      const message = statusError instanceof Error ? statusError.message : "Failed to refresh video status.";
-      setError(message);
-      throw statusError;
-    }
-
-    const result = response.data || {};
     const currentTask = taskRef.current;
     const baseTask =
       (currentTask && findTaskByJobId([currentTask], jobId)) ||
       findTaskByJobId(visibleHistoryRef.current, jobId);
+    let response;
+    try {
+      response = await getVideoStatus(jobId);
+    } catch (statusError) {
+      if (baseTask && isVideoStaleActiveRecord(baseTask)) {
+        const next = markStatusCheckExpired(baseTask);
+        setLocalHistory((items) => [next, ...items.filter((item) => item.jobId !== next.jobId)].slice(0, 20));
+        setTask((current) => (current && getVideoHistoryStableKey(current, "") === getVideoHistoryStableKey(next, "") ? next : current));
+        setError(EXPIRED_STATUS_MESSAGE);
+        return {
+          jobId,
+          status: "failed",
+          error_message: EXPIRED_STATUS_MESSAGE,
+          message: EXPIRED_STATUS_MESSAGE,
+        } as VideoStatusResponse;
+      }
+
+      const message = statusError instanceof Error ? statusError.message : "Failed to refresh video status.";
+      setError(message === "Unable to check generation status. Please contact support." ? EXPIRED_STATUS_MESSAGE : message);
+      throw statusError;
+    }
+
+    const result = response.data || {};
 
     if (baseTask) {
       const next = mergeStatusIntoTask(baseTask, result as VideoStatusResponse);

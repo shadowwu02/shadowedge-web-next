@@ -4,6 +4,7 @@ import type { VideoTaskRecord } from "@/types/video";
 type HistoryRecordInput = Partial<VideoTaskRecord> & Record<string, unknown>;
 
 export const VIDEO_LONG_RUNNING_THRESHOLD_MS = 8 * 60 * 1000;
+export const VIDEO_ACTIVE_RESTORE_MAX_AGE_MS = 48 * 60 * 60 * 1000;
 
 export type SafeVideoHistoryView = {
   key: string;
@@ -267,15 +268,29 @@ export function isVideoTerminalPollingRecord(record: unknown) {
 }
 
 export function isVideoRecoverablePollingRecord(record: VideoTaskRecord) {
+  if (!isVideoWithinActiveRestoreWindow(record)) return false;
   const outputUrl = getSafeHistoryOutputUrl(record);
   if (isVideoActiveStatus(record.status)) return Boolean(record.jobId || record.providerJobId || record.dbJobId);
   return isVideoCompletedStatus(record.status) && !outputUrl && Boolean(record.jobId || record.providerJobId || record.dbJobId);
+}
+
+export function isVideoWithinActiveRestoreWindow(record: unknown, maxAgeMs = VIDEO_ACTIVE_RESTORE_MAX_AGE_MS) {
+  const createdAt = getVideoTaskCreatedTime(record);
+  return Boolean(createdAt && Date.now() - createdAt <= maxAgeMs);
+}
+
+export function isVideoStaleActiveRecord(record: unknown, maxAgeMs = VIDEO_ACTIVE_RESTORE_MAX_AGE_MS) {
+  const raw = asRecord(record);
+  if (!isVideoActiveStatus(String(raw.status || ""))) return false;
+
+  return !isVideoWithinActiveRestoreWindow(raw, maxAgeMs);
 }
 
 export function getVideoLongRunningMessage(record: unknown, thresholdMs = VIDEO_LONG_RUNNING_THRESHOLD_MS) {
   const raw = asRecord(record);
   const outputUrl = getSafeHistoryOutputUrl(raw);
   if (outputUrl || !isVideoActiveStatus(String(raw.status || ""))) return "";
+  if (isVideoStaleActiveRecord(raw)) return "";
 
   const createdAt = getVideoTaskCreatedTime(raw);
   if (!createdAt || Date.now() - createdAt < thresholdMs) return "";
@@ -356,7 +371,7 @@ export function getVideoHistoryStatusCounts(records: VideoTaskRecord[], currentT
 
   taskMap.forEach((record, key) => {
     const view = getSafeVideoHistoryView(record, key);
-    if (isVideoActiveStatus(view.status)) {
+    if (isVideoActiveStatus(view.status) && !isVideoStaleActiveRecord(record)) {
       counts.active += 1;
       return;
     }

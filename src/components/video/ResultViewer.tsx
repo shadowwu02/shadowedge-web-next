@@ -1,12 +1,13 @@
 import { formatTime, getVideoOutputUrl, isVideoActiveStatus, isVideoFailedStatus } from "@/lib/utils";
-import { getSafeHistoryOutputUrl, getSafeVideoHistoryErrorMessage, getVideoLongRunningMessage } from "@/lib/video/historyUtils";
+import { getSafeHistoryOutputUrl, getSafeVideoHistoryErrorMessage, getVideoLongRunningMessage, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
 import type { VideoTaskRecord } from "@/types/video";
 
 export function ResultViewer({ task }: { task: VideoTaskRecord | null }) {
   const videoUrl = getSafeHistoryOutputUrl(task) || getVideoOutputUrl(task);
-  const isActive = isVideoActiveStatus(task?.status);
+  const isStaleActive = Boolean(task && isVideoStaleActiveRecord(task));
+  const isActive = isVideoActiveStatus(task?.status) && !isStaleActive;
   const isFailed = isVideoFailedStatus(task?.status);
-  const longRunningMessage = task ? getVideoLongRunningMessage(task) : "";
+  const longRunningMessage = task && !isStaleActive ? getVideoLongRunningMessage(task) : "";
 
   return (
     <section className="flex h-full min-h-[420px] flex-col overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_50%_0%,rgba(255,180,77,.14),transparent_35%),rgba(255,255,255,.045)] p-4 shadow-2xl shadow-black/24">
@@ -16,7 +17,7 @@ export function ResultViewer({ task }: { task: VideoTaskRecord | null }) {
           <h2 className="mt-1 text-base font-black text-white">Latest output</h2>
         </div>
         <span className="rounded-full border border-white/10 bg-black/24 px-3 py-1 text-xs font-bold text-white/56">
-          {longRunningMessage ? "long-running" : task?.status || "idle"}
+          {isStaleActive ? "stale" : longRunningMessage ? "long-running" : task?.status || "idle"}
         </span>
       </div>
 
@@ -24,13 +25,15 @@ export function ResultViewer({ task }: { task: VideoTaskRecord | null }) {
         <div className="grid h-full min-h-[320px] place-items-center overflow-hidden rounded-[22px] bg-[linear-gradient(135deg,rgba(255,255,255,.045),rgba(255,255,255,.015)),#05070b]">
           {videoUrl ? (
             <video className="h-full max-h-full w-full rounded-[18px] object-contain" controls playsInline src={videoUrl} />
-          ) : isFailed ? (
+          ) : isFailed || isStaleActive ? (
             <div className="px-6 text-center">
               <div className="mx-auto mb-4 grid size-12 place-items-center rounded-2xl border border-red-300/25 bg-red-400/10 text-lg font-black text-red-100">
                 !
               </div>
-              <p className="text-lg font-black text-red-100">Generation failed</p>
-              <p className="mt-2 text-sm text-red-100/62">{task ? getSafeVideoHistoryErrorMessage(task) : "Please try again."}</p>
+              <p className="text-lg font-black text-red-100">{isStaleActive ? "Status check stopped" : "Generation failed"}</p>
+              <p className="mt-2 text-sm text-red-100/62">
+                {isStaleActive ? "This job is too old to keep polling. Check History or retry it." : task ? getSafeVideoHistoryErrorMessage(task) : "Please try again."}
+              </p>
             </div>
           ) : isActive ? (
             <div className="px-6 text-center">

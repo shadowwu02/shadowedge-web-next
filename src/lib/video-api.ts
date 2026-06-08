@@ -76,18 +76,26 @@ function pickArray(...values: unknown[]) {
 
 function normalizeMediaList(value: unknown): VideoGenerationRequest["mediaList"] {
   return pickArray(value)
-    .map((item) => asRecord(item))
     .map((item) => {
-      const url = pickString(item.url, item.uri, item.remoteUri, item.videoUrl, item.audioUrl, item.imageUrl) || "";
+      if (typeof item === "string") {
+        const url = item.trim();
+        return {
+          type: inferUploadType(url),
+          url,
+        };
+      }
+
+      const raw = asRecord(item);
+      const url = pickString(raw.url, raw.uri, raw.remoteUri, raw.videoUrl, raw.audioUrl, raw.imageUrl) || "";
       return {
-        id: pickString(item.id, item.mediaId, item.media_id),
-        type: inferUploadType(item.type || item.mimeType || item.mime_type),
+        id: pickString(raw.id, raw.mediaId, raw.media_id),
+        type: inferUploadType(raw.type || raw.mimeType || raw.mime_type || url),
         url,
-        role: pickString(item.role, item.slot, item.kind) || "reference",
-        duration: Number(item.duration || 0) || undefined,
-        name: pickString(item.name, item.filename, item.originalName),
-        mimeType: pickString(item.mimeType, item.mime_type),
-        size: Number(item.size || 0) || undefined,
+        role: pickString(raw.role, raw.slot, raw.kind) || "reference",
+        duration: Number(raw.duration || 0) || undefined,
+        name: pickString(raw.name, raw.filename, raw.originalName),
+        mimeType: pickString(raw.mimeType, raw.mime_type),
+        size: Number(raw.size || 0) || undefined,
       };
     })
     .filter((item) => item.url);
@@ -116,6 +124,7 @@ export function normalizeVideoHistoryItem(item: unknown): VideoHistoryItem {
         }
       : rawMeta;
   const uploadAssets = asRecord(record.upload_assets || record.uploadAssets || meta.upload_assets || meta.uploadAssets);
+  const assets = asRecord(record.assets || meta.assets);
   const outputUrls = pickArray(record.outputUrls, record.output_urls, meta.outputUrls, meta.output_urls)
     .map(String)
     .filter(Boolean);
@@ -123,7 +132,44 @@ export function normalizeVideoHistoryItem(item: unknown): VideoHistoryItem {
   const normalizedThumbnailUrl = getSafeHistoryThumbnailUrl(record);
   const videoUrl =
     pickString(record.videoUrl, record.video_url, record.outputUrl, record.output_url, meta.videoUrl, meta.outputUrl, outputUrls[0], normalizedOutputUrl) || "";
-  const mediaList = normalizeMediaList(record.mediaList || meta.mediaList || uploadAssets.media);
+  const firstFrameImage = pickString(
+    record.first_frame_image,
+    record.firstFrameImage,
+    record.firstFrame,
+    meta.first_frame_image,
+    meta.firstFrameImage,
+    uploadAssets.first_frame_image,
+    uploadAssets.firstFrameImage,
+  );
+  const lastFrameImage = pickString(
+    record.last_frame_image,
+    record.lastFrameImage,
+    record.lastFrame,
+    meta.last_frame_image,
+    meta.lastFrameImage,
+    uploadAssets.last_frame_image,
+    uploadAssets.lastFrameImage,
+  );
+  const referenceImages = pickArray(record.reference_images, record.referenceImages, meta.reference_images, meta.referenceImages).map(String);
+  const referenceVideos = pickArray(record.reference_videos, record.referenceVideos, meta.reference_videos, meta.referenceVideos).map(String);
+  const referenceAudios = pickArray(record.reference_audios, record.referenceAudios, meta.reference_audios, meta.referenceAudios).map(String);
+  const mediaList = normalizeMediaList([
+    ...pickArray(record.mediaList, meta.mediaList, uploadAssets.media),
+    ...(firstFrameImage ? [{ type: "image", url: firstFrameImage, role: "start_frame" }] : []),
+    ...(lastFrameImage ? [{ type: "image", url: lastFrameImage, role: "end_frame" }] : []),
+    ...referenceImages.map((url) => ({ type: "image", url, role: "reference" })),
+    ...referenceVideos.map((url) => ({ type: "video", url, role: "reference" })),
+    ...referenceAudios.map((url) => ({ type: "audio", url, role: "reference" })),
+    ...pickArray(assets.images).map((url) => ({ type: "image", url, role: "reference" })),
+    ...pickArray(assets.videos).map((url) => ({ type: "video", url, role: "reference" })),
+    ...pickArray(assets.audios).map((url) => ({ type: "audio", url, role: "reference" })),
+    ...pickArray(uploadAssets.images).map((url) => ({ type: "image", url, role: "reference" })),
+    ...pickArray(uploadAssets.videos).map((url) => ({ type: "video", url, role: "reference" })),
+    ...pickArray(uploadAssets.audios).map((url) => ({ type: "audio", url, role: "reference" })),
+    ...pickArray(uploadAssets.reference_images).map((url) => ({ type: "image", url, role: "reference" })),
+    ...pickArray(uploadAssets.reference_videos).map((url) => ({ type: "video", url, role: "reference" })),
+    ...pickArray(uploadAssets.reference_audios).map((url) => ({ type: "audio", url, role: "reference" })),
+  ]);
   const jobId = pickString(record.jobId, record.job_id, record.providerJobId, record.provider_job_id, record.dbJobId, record.id) || "";
 
   return {
@@ -145,9 +191,9 @@ export function normalizeVideoHistoryItem(item: unknown): VideoHistoryItem {
     outputUrls: outputUrls.length ? outputUrls : videoUrl ? [videoUrl] : [],
     thumbnail: pickString(record.thumbnail, record.thumbnailUrl, record.thumbnail_url, meta.thumbnail, meta.thumbnailUrl, normalizedThumbnailUrl),
     thumbnailUrl: pickString(record.thumbnailUrl, record.thumbnail_url, meta.thumbnailUrl, meta.thumbnail_url, normalizedThumbnailUrl),
-    reference_images: pickArray(record.reference_images, record.referenceImages, meta.reference_images, meta.referenceImages).map(String),
-    reference_videos: pickArray(record.reference_videos, record.referenceVideos, meta.reference_videos, meta.referenceVideos).map(String),
-    reference_audios: pickArray(record.reference_audios, record.referenceAudios, meta.reference_audios, meta.referenceAudios).map(String),
+    reference_images: referenceImages,
+    reference_videos: referenceVideos,
+    reference_audios: referenceAudios,
     mediaList,
     error_message: pickString(record.error_message, record.errorMessage, record.error, meta.error_message, meta.errorMessage),
     errorCode: pickString(record.error_code, record.errorCode, meta.error_code, meta.errorCode),
@@ -156,7 +202,21 @@ export function normalizeVideoHistoryItem(item: unknown): VideoHistoryItem {
     createdAt: pickString(record.createdAt, record.created_at, meta.createdAt, meta.created_at) || Date.now(),
     updatedAt: pickString(record.updatedAt, record.updated_at, meta.updatedAt, meta.updated_at),
     completedAt: pickString(record.completedAt, record.completed_at, meta.completedAt, meta.completed_at),
-    meta,
+    first_frame_image: firstFrameImage,
+    last_frame_image: lastFrameImage,
+    assets,
+    upload_assets: uploadAssets,
+    meta: {
+      ...meta,
+      assets,
+      first_frame_image: firstFrameImage,
+      last_frame_image: lastFrameImage,
+      mediaList,
+      reference_images: referenceImages,
+      reference_videos: referenceVideos,
+      reference_audios: referenceAudios,
+      upload_assets: uploadAssets,
+    },
     retryable: true,
     source: "server",
   };
@@ -237,8 +297,8 @@ export async function saveVideoHistory(record: VideoHistoryItem) {
 
 function inferUploadType(value: unknown, fallbackType?: string): UploadMediaType {
   const raw = String(value || fallbackType || "").toLowerCase();
-  if (raw.startsWith("video/") || raw.includes("video")) return "video";
-  if (raw.startsWith("audio/") || raw.includes("audio")) return "audio";
+  if (raw.startsWith("video/") || raw.includes("video") || /\.(mp4|mov|webm|m4v)(?:[?#].*)?$/.test(raw)) return "video";
+  if (raw.startsWith("audio/") || raw.includes("audio") || /\.(mp3|wav|m4a|aac|ogg)(?:[?#].*)?$/.test(raw)) return "audio";
   return "image";
 }
 

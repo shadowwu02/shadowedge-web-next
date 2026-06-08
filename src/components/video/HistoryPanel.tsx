@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { getSafeVideoHistoryView } from "@/lib/video/historyUtils";
+import { getSafeVideoHistoryView, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { VideoTaskRecord } from "@/types/video";
 
@@ -32,7 +32,7 @@ function filterHistoryItem(item: VideoTaskRecord, filter: HistoryFilter) {
 
   if (filter === "success") return isVideoCompletedStatus(view.status) && Boolean(view.outputUrl);
   if (filter === "failed") return isVideoFailedStatus(view.status);
-  if (filter === "processing") return isVideoActiveStatus(view.status);
+  if (filter === "processing") return isVideoActiveStatus(view.status) && !isVideoStaleActiveRecord(item);
   return true;
 }
 
@@ -128,7 +128,8 @@ export function HistoryPanel({
               const hasOutput = Boolean(view.outputUrl);
               const isSuccess = isVideoCompletedStatus(view.status) && hasOutput;
               const isFailed = isVideoFailedStatus(view.status);
-              const isProcessing = isVideoActiveStatus(view.status);
+              const isStaleActive = isVideoStaleActiveRecord(item);
+              const isProcessing = isVideoActiveStatus(view.status) && !isStaleActive;
               const useResultIssue = getUseResultAsReferenceIssue?.(item) || "";
               return (
                 <article className="rounded-[22px] border border-white/10 bg-black/20 p-2.5" key={view.key}>
@@ -141,16 +142,18 @@ export function HistoryPanel({
                         <img alt="" className="h-full w-full object-cover" src={view.thumbnailUrl} />
                       ) : isVideoFailedStatus(view.status) ? (
                         <span className="text-xs font-black text-red-100/72">Failed</span>
-                      ) : isVideoActiveStatus(view.status) ? (
+                      ) : isProcessing ? (
                         <span className="text-xs font-black text-[#ffd08a]">Processing</span>
+                      ) : isStaleActive ? (
+                        <span className="text-center text-xs font-black text-white/45">Stale task</span>
                       ) : (
                         <span className="text-xs text-white/40">Task</span>
                       )}
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${statusClass(view.status, Boolean(view.outputUrl))}`}>
-                          {view.statusLabel}
+                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${statusClass(isStaleActive ? "unknown" : view.status, Boolean(view.outputUrl))}`}>
+                          {isStaleActive ? "stale" : view.statusLabel}
                         </span>
                         <span className="truncate text-[11px] text-white/34">{view.createdAtLabel}</span>
                       </div>
@@ -175,8 +178,9 @@ export function HistoryPanel({
                             href={view.outputUrl}
                             rel="noreferrer"
                             target="_blank"
+                            title="Opens in a new tab if direct download is blocked by the media host."
                           >
-                            Download
+                            Download / Open
                           </a>
                         ) : null}
                         {(isSuccess || isFailed) && onFill ? (

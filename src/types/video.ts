@@ -152,10 +152,17 @@ export type VideoTaskRecord = {
   outputUrls?: string[];
   thumbnail?: string;
   thumbnailUrl?: string;
+  first_frame_image?: string;
+  firstFrameImage?: string;
+  last_frame_image?: string;
+  lastFrameImage?: string;
   reference_images?: string[];
   reference_videos?: string[];
   reference_audios?: string[];
   mediaList?: VideoGenerationRequest["mediaList"];
+  assets?: Record<string, unknown>;
+  upload_assets?: Record<string, unknown>;
+  uploadAssets?: Record<string, unknown>;
   error_message?: string;
   errorCode?: string;
   message?: string;
