@@ -20,7 +20,7 @@ export function GenerateButton({
 
   return (
     <button
-      className="min-h-12 w-full rounded-2xl bg-[#ffb44d] px-5 text-sm font-black text-[#1f2027] shadow-xl shadow-[#ffb44d]/10 transition hover:bg-[#ffc766] disabled:cursor-not-allowed disabled:opacity-55"
+      className="min-h-12 w-full rounded-2xl bg-[#ffb44d] px-5 text-sm font-black text-[#05070b] shadow-xl shadow-[#ffb44d]/10 transition hover:bg-[#ffc766] disabled:cursor-not-allowed disabled:opacity-55"
       disabled={disabled || isSubmitting}
       onClick={onClick}
       type="button"

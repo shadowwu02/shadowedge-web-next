@@ -203,18 +203,18 @@ export function ReferenceMediaTray({
   }
 
   return (
-    <section className="rounded-[22px] border border-white/10 bg-white/[.04] p-3" ref={rootRef}>
+    <section className="rounded-[22px] border border-[#33323a]/60 bg-[#1a1c22]/55 p-3" ref={rootRef}>
       <div className="mb-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ffcf83]">{t("video.references.inputMedia")}</p>
+            <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ffb44d]">{t("video.references.inputMedia")}</p>
             <h2 className="mt-1 text-sm font-black text-white">{t("video.references.mainMedia")}</h2>
           </div>
-          <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] font-bold text-white/42">
+          <span className="rounded-full border border-[#33323a]/60 bg-[#111318]/70 px-2.5 py-1 text-[11px] font-bold text-[#b9b9b9]/50">
             {tf("video.references.readyCount", { count: mentionItems.length })}
           </span>
         </div>
-        <p className="mt-2 text-xs leading-5 text-white/42">
+        <p className="mt-2 text-xs leading-5 text-[#b9b9b9]/55">
           {allowedTypes.length
             ? tf("video.references.allowedSummary", {
                 model: modelRule.label,
@@ -224,7 +224,7 @@ export function ReferenceMediaTray({
             : tf("video.references.modelDoesNotAcceptNamed", { model: modelRule.label })}
         </p>
         {firstIssue ? (
-          <p className="mt-2 rounded-2xl border border-[#ffb44d]/25 bg-[#ffb44d]/10 px-3 py-2 text-xs font-bold leading-5 text-[#ffd08a]">
+          <p className="mt-2 rounded-2xl border border-[#ffb44d]/30 bg-[#ffb44d]/10 px-3 py-2 text-xs font-bold leading-5 text-[#ffb44d]">
             {localizeIssue(firstIssue)}
           </p>
         ) : null}
@@ -243,7 +243,7 @@ export function ReferenceMediaTray({
             return (
               <article
                 className={`group relative h-[82px] overflow-hidden rounded-[16px] border bg-black/24 transition ${
-                  hasIssues ? "border-[#ffb44d]/55" : "border-white/10 hover:border-[#ffb44d]/38"
+                  hasIssues ? "border-[#ffb44d]/55" : "border-[#33323a]/60 hover:border-[#ffb44d]/38"
                 }`}
                 key={item.id}
                 title={issues.map(localizeIssue).join(" ")}
@@ -260,7 +260,7 @@ export function ReferenceMediaTray({
                   ) : item.type === "video" && item.url ? (
                     <video className="h-full w-full object-cover" muted playsInline preload="metadata" src={item.url} />
                   ) : (
-                    <span className="grid size-12 place-items-center rounded-2xl bg-white/[.08] text-[11px] font-black uppercase tracking-[.14em] text-white/52">
+                    <span className="grid size-12 place-items-center rounded-2xl bg-[#33323a]/55 text-[11px] font-black uppercase tracking-[.14em] text-[#b9b9b9]/70">
                       {mediaFallback(item.type)}
                     </span>
                   )}
@@ -268,24 +268,24 @@ export function ReferenceMediaTray({
                 </button>
 
                 {shortRole ? (
-                  <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/72 px-2 py-0.5 text-[9px] font-black uppercase tracking-[.08em] text-[#ffd08a]">
+                  <span className="absolute bottom-1.5 left-1.5 rounded-full bg-[#05070b]/72 px-2 py-0.5 text-[9px] font-black uppercase tracking-[.08em] text-[#ffb44d]">
                     {shortRole}
                   </span>
                 ) : null}
 
                 {hasIssues ? (
-                  <span className="absolute right-1.5 top-8 grid size-5 place-items-center rounded-full border border-[#ffb44d]/35 bg-black/72 text-[11px] font-black text-[#ffd08a]">
+                  <span className="absolute right-1.5 top-8 grid size-5 place-items-center rounded-full border border-[#ffb44d]/35 bg-[#05070b]/72 text-[11px] font-black text-[#ffb44d]">
                     !
                   </span>
                 ) : null}
 
-                <span className="absolute left-1.5 top-1.5 rounded-full bg-black/62 px-2 py-0.5 text-[9px] font-black uppercase tracking-[.08em] text-white/58 opacity-0 transition group-hover:opacity-100">
+                <span className="absolute left-1.5 top-1.5 rounded-full bg-[#05070b]/62 px-2 py-0.5 text-[9px] font-black uppercase tracking-[.08em] text-[#b9b9b9]/65 opacity-0 transition group-hover:opacity-100">
                   {mention?.display || mediaFallback(item.type)}
                 </span>
 
                 <button
                   aria-label={tf("video.references.removeAsset", { name: item.name })}
-                  className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-black/78 text-[11px] text-white/76 opacity-0 transition hover:text-red-100 group-hover:opacity-100"
+                  className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-[#05070b]/78 text-[11px] text-[#f4f4f4]/76 opacity-0 transition hover:text-red-100 group-hover:opacity-100"
                   onClick={() => onRemove(item.id)}
                   type="button"
                 >
@@ -294,7 +294,7 @@ export function ReferenceMediaTray({
 
                 <button
                   aria-label={tf("video.references.fullScreenAsset", { name: item.name })}
-                  className="absolute bottom-1.5 right-1.5 grid size-7 place-items-center rounded-full border border-white/10 bg-black/78 text-white/80 opacity-0 transition hover:border-[#ffb44d]/38 hover:text-[#ffd08a] group-hover:opacity-100"
+                  className="absolute bottom-1.5 right-1.5 grid size-7 place-items-center rounded-full border border-[#33323a]/60 bg-[#05070b]/78 text-[#f4f4f4]/80 opacity-0 transition hover:border-[#ffb44d]/38 hover:text-[#ffb44d] group-hover:opacity-100"
                   onClick={(event) => {
                     event.stopPropagation();
                     setPreviewItem(item);
@@ -307,7 +307,7 @@ export function ReferenceMediaTray({
                 <div className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition group-hover:opacity-100">
                   <button
                     aria-label={tf("video.references.openRoleMenu", { name: item.name })}
-                    className="pointer-events-auto grid size-[30px] place-items-center rounded-full border border-white/10 bg-black/78 text-white/82 shadow-xl shadow-black/30 transition hover:border-[#ffb44d]/38 hover:text-[#ffd08a]"
+                    className="pointer-events-auto grid size-[30px] place-items-center rounded-full border border-[#33323a]/60 bg-[#05070b]/78 text-[#f4f4f4]/82 shadow-xl shadow-black/30 transition hover:border-[#ffb44d]/38 hover:text-[#ffb44d]"
                     onClick={(event) => {
                       event.stopPropagation();
                       setRoleMenuPosition(getRoleMenuPosition(event.currentTarget));
@@ -328,7 +328,7 @@ export function ReferenceMediaTray({
             type="button"
           >
             <span>
-              <span className="mx-auto grid size-8 place-items-center rounded-full border border-white/10 bg-black/28 text-lg font-black text-white/60">
+              <span className="mx-auto grid size-8 place-items-center rounded-full border border-[#33323a]/60 bg-[#111318]/70 text-lg font-black text-[#b9b9b9]/65">
                 +
               </span>
               <span className="mt-1.5 block text-xs font-black text-white">{t("video.references.addMore")}</span>
@@ -344,24 +344,24 @@ export function ReferenceMediaTray({
           <span>
             <span className="mx-auto mb-3 flex justify-center gap-2">
               {["IMG", "VID", "AUD"].map((item) => (
-                <span className="grid size-9 place-items-center rounded-full border border-white/10 bg-white/[.06] text-[10px] font-black text-white/48" key={item}>
+                <span className="grid size-9 place-items-center rounded-full border border-[#33323a]/60 bg-[#1a1c22] text-[10px] font-black text-[#b9b9b9]/60" key={item}>
                   {item}
                 </span>
               ))}
             </span>
             <span className="block text-sm font-black text-white">{t("video.upload.title")}</span>
-            <span className="mt-1 block text-xs text-white/45">{t("video.upload.subtitle")}</span>
+            <span className="mt-1 block text-xs text-[#b9b9b9]/55">{t("video.upload.subtitle")}</span>
           </span>
         </button>
       )}
 
       {openRoleItem ? (
         <div
-          className="fixed z-[90] overflow-hidden rounded-[18px] border border-white/10 bg-[#10141f]/98 p-1.5 shadow-2xl shadow-black/50"
+          className="fixed z-[90] overflow-hidden rounded-[18px] border border-[#33323a]/70 bg-[#111318]/98 p-1.5 shadow-2xl shadow-black/50"
           ref={roleMenuRef}
           style={{ left: roleMenuPosition.left, top: roleMenuPosition.top, width: roleMenuPosition.width }}
         >
-          <p className="px-3 py-2 text-[10px] font-black uppercase tracking-[.16em] text-white/38">{t("video.references.useAs")}</p>
+          <p className="px-3 py-2 text-[10px] font-black uppercase tracking-[.16em] text-[#b9b9b9]/45">{t("video.references.useAs")}</p>
           {roleOptions.map((option) => {
             const currentRole = openRoleItem.role || "reference";
             const roleIssue = getReferenceRoleIssue(modelRule, openRoleItem.type, option.value);
@@ -370,10 +370,10 @@ export function ReferenceMediaTray({
               <button
                 className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold transition ${
                   isDisabled
-                    ? "cursor-not-allowed text-white/28"
+                    ? "cursor-not-allowed text-[#b9b9b9]/28"
                     : currentRole === option.value
-                    ? "bg-[#ffb44d]/16 text-[#ffd08a]"
-                    : "text-white/68 hover:bg-white/[.06] hover:text-white"
+                    ? "bg-[#ffb44d]/16 text-[#ffb44d]"
+                    : "text-[#b9b9b9]/70 hover:bg-[#1a1c22] hover:text-[#f4f4f4]"
                 }`}
                 disabled={isDisabled}
                 key={option.value}
@@ -389,10 +389,10 @@ export function ReferenceMediaTray({
               </button>
             );
           })}
-          <div className="my-1 border-t border-white/10" />
-          <p className="px-3 py-1.5 text-[10px] font-black uppercase tracking-[.16em] text-white/32">{t("video.references.interactions")}</p>
+          <div className="my-1 border-t border-[#33323a]/60" />
+          <p className="px-3 py-1.5 text-[10px] font-black uppercase tracking-[.16em] text-[#b9b9b9]/40">{t("video.references.interactions")}</p>
           <button
-            className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-white/68 transition hover:bg-white/[.06] hover:text-white"
+            className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-[#b9b9b9]/70 transition hover:bg-[#1a1c22] hover:text-[#f4f4f4]"
             onClick={() => {
               setPreviewItem(openRoleItem);
               setOpenRoleId("");
@@ -402,7 +402,7 @@ export function ReferenceMediaTray({
             {t("video.references.fullScreen")}
           </button>
           <button
-            className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-white/68 transition hover:bg-white/[.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-[#b9b9b9]/70 transition hover:bg-[#1a1c22] hover:text-[#f4f4f4] disabled:cursor-not-allowed disabled:opacity-40"
             disabled={!openRoleMention}
             onClick={() => {
               if (openRoleMention) insertMention(openRoleMention);
@@ -418,17 +418,17 @@ export function ReferenceMediaTray({
       {previewItem ? (
         <div className="fixed inset-0 z-[70] grid place-items-center bg-black/72 px-4 py-6" onClick={() => setPreviewItem(null)}>
           <section
-            className="w-full max-w-3xl overflow-hidden rounded-[28px] border border-white/10 bg-[#10141c] shadow-2xl shadow-black/60"
+            className="w-full max-w-3xl overflow-hidden rounded-[28px] border border-[#33323a]/70 bg-[#111318] shadow-2xl shadow-black/60"
             onClick={(event) => event.stopPropagation()}
           >
-            <header className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+            <header className="flex items-center justify-between border-b border-[#33323a]/60 px-4 py-3">
               <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ffcf83]">{t("video.references.preview")}</p>
+                <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ffb44d]">{t("video.references.preview")}</p>
                 <h3 className="truncate text-sm font-black text-white">{previewItem.name}</h3>
               </div>
               <button
                 aria-label={t("video.references.closePreview")}
-                className="grid size-9 place-items-center rounded-full border border-white/10 bg-white/[.055] text-base font-black text-white/68 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a]"
+                className="grid size-9 place-items-center rounded-full border border-[#33323a]/60 bg-[#1a1c22] text-base font-black text-[#b9b9b9]/75 transition hover:border-[#ffb44d]/35 hover:text-[#ffb44d]"
                 onClick={() => setPreviewItem(null)}
                 type="button"
               >
@@ -442,17 +442,17 @@ export function ReferenceMediaTray({
               ) : previewItem.type === "video" && previewItem.url ? (
                 <video className="max-h-[70vh] max-w-full rounded-2xl object-contain" controls src={previewItem.url} />
               ) : previewItem.type === "audio" && previewItem.url ? (
-                <div className="grid w-full max-w-lg gap-5 rounded-3xl border border-white/10 bg-white/[.04] p-8 text-center">
-                  <span className="mx-auto grid size-16 place-items-center rounded-3xl bg-white/[.08] text-sm font-black text-white/50">AUD</span>
-                  <p className="text-sm font-bold text-white/62">{previewItem.name}</p>
+                <div className="grid w-full max-w-lg gap-5 rounded-3xl border border-[#33323a]/60 bg-[#1a1c22]/65 p-8 text-center">
+                  <span className="mx-auto grid size-16 place-items-center rounded-3xl bg-[#33323a]/55 text-sm font-black text-[#b9b9b9]/60">AUD</span>
+                  <p className="text-sm font-bold text-[#b9b9b9]/72">{previewItem.name}</p>
                   <audio className="w-full" controls src={previewItem.url} />
                 </div>
               ) : (
                 <div className="grid gap-3 text-center">
-                  <span className="mx-auto grid size-16 place-items-center rounded-3xl bg-white/[.06] text-sm font-black text-white/50">
+                  <span className="mx-auto grid size-16 place-items-center rounded-3xl bg-[#33323a]/55 text-sm font-black text-[#b9b9b9]/60">
                     {mediaFallback(previewItem.type)}
                   </span>
-                  <p className="text-sm font-bold text-white/62">{previewItem.name}</p>
+                  <p className="text-sm font-bold text-[#b9b9b9]/72">{previewItem.name}</p>
                 </div>
               )}
             </div>

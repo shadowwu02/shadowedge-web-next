@@ -24,10 +24,10 @@ function safeDownloadFilename(view: ReturnType<typeof getSafeVideoHistoryView>) 
 
 function actionIconClass(tone: "normal" | "primary" = "normal") {
   if (tone === "primary") {
-    return "grid size-9 place-items-center rounded-full border border-[#ffb44d]/35 bg-[#ffb44d]/10 text-[#ffd08a] transition hover:bg-[#ffb44d]/18 disabled:cursor-not-allowed disabled:opacity-45";
+    return "grid size-8 place-items-center rounded-full border border-[#ffb44d]/45 bg-[#ffb44d]/14 text-[#ffb44d] transition hover:bg-[#ffb44d]/22 disabled:cursor-not-allowed disabled:opacity-45";
   }
 
-  return "grid size-9 place-items-center rounded-full border border-white/10 bg-white/[.045] text-white/68 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a] disabled:cursor-not-allowed disabled:opacity-45";
+  return "grid size-8 place-items-center rounded-full border border-[#33323a]/70 bg-[#1a1c22] text-[#b9b9b9] transition hover:border-[#ffb44d]/50 hover:bg-[#ffb44d]/12 hover:text-[#ffb44d] disabled:cursor-not-allowed disabled:opacity-45";
 }
 
 function FillIcon() {
@@ -68,11 +68,11 @@ function RetryIcon() {
 }
 
 function statusClass(status: string, hasOutput: boolean, isStale = false) {
-  if (isStale) return "border-[#ffb44d]/22 bg-[#ffb44d]/10 text-[#ffd08a]";
-  if (isVideoFailedStatus(status)) return "border-red-300/25 bg-red-400/10 text-red-100";
-  if (isVideoCompletedStatus(status) && hasOutput) return "border-emerald-300/20 bg-emerald-400/10 text-emerald-100";
-  if (isVideoActiveStatus(status)) return "border-[#ffb44d]/24 bg-[#ffb44d]/10 text-[#ffd08a]";
-  return "border-white/10 bg-white/[.045] text-white/58";
+  if (isStale) return "border-[#ffb44d]/30 bg-[#ffb44d]/10 text-[#ffb44d]";
+  if (isVideoFailedStatus(status)) return "border-[#7f2d2d]/70 bg-[#2a1012] text-red-100";
+  if (isVideoCompletedStatus(status) && hasOutput) return "border-emerald-300/18 bg-emerald-400/8 text-emerald-100";
+  if (isVideoActiveStatus(status)) return "border-[#ffb44d]/30 bg-[#ffb44d]/10 text-[#ffb44d]";
+  return "border-[#33323a]/65 bg-[#1a1c22] text-[#b9b9b9]";
 }
 
 function mediaTokenLabel(asset: UploadMediaItem, counts: Record<UploadMediaItem["type"], number>) {
@@ -120,12 +120,12 @@ export function VideoOutputDetailPanel({
 
   if (!record || !view) {
     return (
-      <aside className="flex h-full min-h-0 flex-col overflow-hidden rounded-[26px] border border-white/10 bg-white/[.035] p-4 shadow-2xl shadow-black/18">
-        <p className="text-[11px] font-black uppercase tracking-[.18em] text-[#ffcf83]">{t("video.history.selectedDetail")}</p>
+      <aside className="flex h-full min-h-0 flex-col overflow-hidden rounded-[26px] border border-[#33323a]/60 bg-[#111318] p-4 shadow-2xl shadow-black/20">
+        <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#ffb44d]">{t("video.history.selectedDetail")}</p>
         <div className="grid min-h-0 flex-1 place-items-center text-center">
           <div>
-            <p className="text-sm font-black text-white">{t("video.generation.empty.title")}</p>
-            <p className="mt-2 text-xs leading-5 text-white/42">{t("video.generation.empty.body")}</p>
+            <p className="text-sm font-black text-[#f4f4f4]">{t("video.generation.empty.title")}</p>
+            <p className="mt-2 text-xs leading-5 text-[#b9b9b9]/55">{t("video.generation.empty.body")}</p>
           </div>
         </div>
       </aside>
@@ -149,41 +149,41 @@ export function VideoOutputDetailPanel({
           : view.statusLabel;
 
   return (
-    <aside className="flex h-full min-h-0 flex-col overflow-hidden rounded-[26px] border border-white/10 bg-white/[.035] shadow-2xl shadow-black/18">
-      <div className="flex flex-none items-start justify-between gap-3 border-b border-white/10 p-4">
+    <aside className="flex h-full min-h-0 flex-col overflow-hidden rounded-[26px] border border-[#33323a]/60 bg-[#111318] shadow-2xl shadow-black/20">
+      <div className="flex flex-none items-start justify-between gap-3 border-b border-[#33323a]/55 p-3.5">
         <div className="min-w-0">
-          <p className="text-[11px] font-black uppercase tracking-[.18em] text-[#ffcf83]">{t("video.history.selectedDetail")}</p>
+          <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#ffb44d]">{t("video.history.selectedDetail")}</p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${statusClass(view.status, hasOutput, isStaleActive)}`}>
               {statusLabel}
             </span>
-            <span className="truncate rounded-full border border-white/10 bg-black/24 px-2.5 py-1 text-[10px] font-black text-white/76">
+            <span className="truncate rounded-full border border-[#33323a]/65 bg-[#1a1c22] px-2.5 py-1 text-[10px] font-black text-[#f4f4f4]/78">
               {view.modelLabel}
             </span>
           </div>
         </div>
-        <span className="shrink-0 text-[11px] text-white/36">{view.createdAtLabel}</span>
+        <span className="shrink-0 text-[11px] text-[#b9b9b9]/45">{view.createdAtLabel}</span>
       </div>
 
-      <div className="se-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+      <div className="se-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto p-3.5">
         <button
-          className="group/prompt w-full rounded-[22px] border border-white/10 bg-black/20 p-3 text-left transition hover:border-[#ffb44d]/35 hover:bg-[#ffb44d]/10 disabled:cursor-default disabled:hover:border-white/10 disabled:hover:bg-black/20"
+          className="group/prompt w-full rounded-[20px] border border-[#33323a]/65 bg-[#1a1c22]/70 p-3 text-left transition hover:border-[#ffb44d]/38 hover:bg-[#ffb44d]/10 disabled:cursor-default disabled:hover:border-[#33323a]/65 disabled:hover:bg-[#1a1c22]/70"
           disabled={!onFill}
           onClick={() => onFill?.(record)}
           title={onFill ? t("video.generation.fillPrompt") : undefined}
           type="button"
         >
           <div className="mb-2 flex items-center justify-between gap-3">
-            <span className="text-[10px] font-black uppercase tracking-[.18em] text-[#ffcf83]">{t("video.generation.prompt")}</span>
-            {onFill ? <span className="text-[10px] font-black text-white/32 opacity-0 transition group-hover/prompt:opacity-100">{t("video.generation.fillPrompt")}</span> : null}
+            <span className="text-[10px] font-black uppercase tracking-[.18em] text-[#ffb44d]">{t("video.generation.prompt")}</span>
+            {onFill ? <span className="text-[10px] font-black text-[#b9b9b9]/45 opacity-0 transition group-hover/prompt:opacity-100">{t("video.generation.fillPrompt")}</span> : null}
           </div>
-          <p className="text-sm font-bold leading-6 text-white/78">{view.title}</p>
+          <p className="line-clamp-6 text-[13px] font-bold leading-5 text-[#f4f4f4]/82">{view.title}</p>
         </button>
 
-        <div className="rounded-[22px] border border-white/10 bg-black/18 p-3">
+        <div className="rounded-[20px] border border-[#33323a]/60 bg-[#1a1c22]/55 p-3">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-[.16em] text-[#ffcf83]">{t("video.generation.references")}</span>
-            <span className="text-[10px] text-white/32">{referenceAssets.length}</span>
+            <span className="text-[10px] font-black uppercase tracking-[.16em] text-[#ffb44d]">{t("video.generation.references")}</span>
+            <span className="text-[10px] text-[#b9b9b9]/45">{referenceAssets.length}</span>
           </div>
           {mappedReferences.length ? (
             <div className="space-y-2">
@@ -192,14 +192,14 @@ export function VideoOutputDetailPanel({
                 const isBlocked = Boolean(issue);
                 return (
                   <button
-                    className="group/ref grid w-full grid-cols-[44px_minmax(0,1fr)] items-center gap-2 rounded-2xl border border-white/10 bg-white/[.035] p-1.5 text-left transition hover:border-[#ffb44d]/35 hover:bg-[#ffb44d]/10 disabled:cursor-not-allowed disabled:opacity-45"
+                    className="group/ref grid w-full grid-cols-[42px_minmax(0,1fr)] items-center gap-2 rounded-2xl border border-[#33323a]/60 bg-[#111318]/65 p-1.5 text-left transition hover:border-[#ffb44d]/38 hover:bg-[#ffb44d]/10 disabled:cursor-not-allowed disabled:opacity-45"
                     disabled={isBlocked || !onAddReference}
                     key={`${asset.id}-${asset.url}-${label}`}
                     onClick={() => onAddReference?.(asset)}
                     title={issue || t("video.generation.addReference")}
                     type="button"
                   >
-                    <span className="grid aspect-square place-items-center overflow-hidden rounded-xl bg-black/36 text-[10px] font-black text-white/54">
+                    <span className="grid aspect-square place-items-center overflow-hidden rounded-xl bg-[#05070b] text-[10px] font-black text-[#b9b9b9]/65">
                       {asset.type === "image" && (asset.previewUrl || asset.url) ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img alt="" className="h-full w-full object-cover" src={asset.previewUrl || asset.url} />
@@ -211,8 +211,8 @@ export function VideoOutputDetailPanel({
                       )}
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-[11px] font-black text-white/78">{readable}</span>
-                      <span className="block truncate text-[10px] text-white/34">
+                      <span className="block truncate text-[11px] font-black text-[#f4f4f4]/80">{readable}</span>
+                      <span className="block truncate text-[10px] text-[#b9b9b9]/45">
                         {isBlocked ? issue : t("video.generation.addReference")}
                       </span>
                     </span>
@@ -221,26 +221,26 @@ export function VideoOutputDetailPanel({
               })}
             </div>
           ) : (
-            <p className="text-xs leading-5 text-white/38">{t("video.drawer.empty.history")}</p>
+            <p className="text-xs leading-5 text-[#b9b9b9]/48">{t("video.drawer.empty.history")}</p>
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-2 text-[11px] text-white/54">
-          <span className="truncate rounded-2xl border border-white/10 bg-black/18 px-3 py-2">{view.quality}</span>
-          <span className="truncate rounded-2xl border border-white/10 bg-black/18 px-3 py-2">{view.duration}</span>
-          <span className="truncate rounded-2xl border border-white/10 bg-black/18 px-3 py-2">{view.ratio}</span>
-          <span className="truncate rounded-2xl border border-white/10 bg-black/18 px-3 py-2">{tf("video.history.job", { job: view.jobLabel })}</span>
+        <div className="grid grid-cols-2 gap-2 text-[11px] font-bold text-[#b9b9b9]/70">
+          <span className="truncate rounded-xl border border-[#33323a]/60 bg-[#1a1c22]/60 px-2.5 py-1.5">{view.quality}</span>
+          <span className="truncate rounded-xl border border-[#33323a]/60 bg-[#1a1c22]/60 px-2.5 py-1.5">{view.duration}</span>
+          <span className="truncate rounded-xl border border-[#33323a]/60 bg-[#1a1c22]/60 px-2.5 py-1.5">{view.ratio}</span>
+          <span className="truncate rounded-xl border border-[#33323a]/60 bg-[#1a1c22]/60 px-2.5 py-1.5">{tf("video.history.job", { job: view.jobLabel })}</span>
         </div>
 
         {isFailed || isStaleActive ? (
-          <div className="rounded-[22px] border border-red-300/20 bg-red-400/10 p-3 text-xs leading-5 text-red-100/70">
+          <div className="line-clamp-6 rounded-[20px] border border-[#7f2d2d]/70 bg-[#2a1012] p-3 text-xs leading-5 text-red-100/70">
             {view.errorMessage}
             {view.refundNotice ? ` ${view.refundNotice}` : ""}
           </div>
         ) : null}
       </div>
 
-      <div className="flex flex-none flex-wrap gap-2 border-t border-white/10 p-4">
+      <div className="flex flex-none flex-wrap gap-1.5 border-t border-[#33323a]/55 p-3.5">
         {onFill ? (
           <button aria-label={t("video.history.fill")} className={actionIconClass("normal")} onClick={() => onFill(record)} title={t("video.history.fill")} type="button">
             <FillIcon />
@@ -276,7 +276,7 @@ export function VideoOutputDetailPanel({
             <RetryIcon />
           </button>
         ) : null}
-        {hasOutput && useResultIssue ? <span className="w-full text-[11px] leading-4 text-white/36">{useResultIssue}</span> : null}
+        {hasOutput && useResultIssue ? <span className="w-full text-[11px] leading-4 text-[#b9b9b9]/45">{useResultIssue}</span> : null}
       </div>
     </aside>
   );
