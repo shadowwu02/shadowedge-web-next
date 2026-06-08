@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, DragEvent, RefObject } from "react";
-import { mergeMediaAssets } from "@/lib/media-assets";
+import { getMediaAssetSourceLabel, mergeMediaAssets } from "@/lib/media-assets";
 import { slotAllowsAssetType } from "@/lib/upload-rules";
 import {
   getAllowedReferenceTypes,
@@ -42,10 +42,11 @@ function mediaTypeLabel(type: UploadMediaItem["type"]) {
   return "Image";
 }
 
-function statusLabel(status: UploadMediaItem["uploadStatus"], isAllowed: boolean) {
-  if (!isAllowed) return "Unsupported";
+function statusLabel(status: UploadMediaItem["uploadStatus"], issue: string) {
   if (status === "uploading") return "Uploading";
   if (status === "failed") return "Failed";
+  if (issue === "Already added to references.") return "Added";
+  if (issue) return "Blocked";
   if (status === "ready") return "Ready";
   return "Local";
 }
@@ -54,6 +55,19 @@ function mediaFallback(type: UploadMediaItem["type"]) {
   if (type === "audio") return "AUD";
   if (type === "video") return "VID";
   return "IMG";
+}
+
+function emptyStateText(filter: MediaFilter) {
+  if (filter === "elements") return "No elements yet.";
+  if (filter === "liked") return "Liked assets will appear here.";
+  if (filter === "image") return "No uploaded images yet.";
+  if (filter === "video") return "No uploaded videos yet.";
+  if (filter === "audio") return "No uploaded audios yet.";
+  return "Uploaded references will appear here.";
+}
+
+function isSameMediaAsset(left: UploadMediaItem, right: UploadMediaItem) {
+  return left.id === right.id || Boolean(left.url && right.url && left.url === right.url);
 }
 
 function CheckIcon() {
@@ -160,28 +174,70 @@ export function MediaPickerDrawer({
   }, [activeFilter, allMedia]);
 
   const allowedTypeLabel = allowedTypes.length ? allowedTypes.map((type) => mediaTypeLabel(type).toLowerCase()).join(", ") : "no reference media";
-  const validSelectedIds = useMemo(() => {
-    const next = new Set<string>();
+  const selectionIssueById = useMemo(() => {
+    const issues = new Map<string, string>();
     const selectedItems = allMedia.filter((item) => selectedIds.has(item.id));
 
-    selectedItems.forEach((item) => {
-      if (item.uploadStatus !== "ready" || !item.url) return;
-      if (!slotAllowsAssetType(slot, item.type) || !isReferenceTypeSupported(modelRule, item.type)) return;
+    allMedia.forEach((item) => {
+      if (item.uploadStatus === "failed") {
+        issues.set(item.id, item.errorMessage || "Upload failed.");
+        return;
+      }
 
-      const candidateItems = allMedia.filter((candidate) => next.has(candidate.id) || candidate.id === item.id);
+      if (item.uploadStatus === "uploading") {
+        issues.set(item.id, "Upload still in progress.");
+        return;
+      }
+
+      if (!item.url) {
+        issues.set(item.id, "Media URL is not ready yet.");
+        return;
+      }
+
+      if (!slotAllowsAssetType(slot, item.type)) {
+        issues.set(item.id, "Unsupported file type for this slot.");
+        return;
+      }
+
+      const unsupportedReason = getUnsupportedReferenceTypeReason(modelRule, item.type);
+      if (unsupportedReason) {
+        issues.set(item.id, unsupportedReason);
+        return;
+      }
+
+      if (referenceMedia.some((currentItem) => isSameMediaAsset(currentItem, item))) {
+        issues.set(item.id, "Already added to references.");
+        return;
+      }
+
+      const candidateItems = [
+        ...selectedItems.filter((selectedItem) => selectedItem.id !== item.id),
+        item,
+      ];
       const newItems = candidateItems.filter(
         (candidate) =>
           !referenceMedia.some((currentItem) => currentItem.id === candidate.id || (currentItem.url && currentItem.url === candidate.url)),
       );
 
-      if (!validateReferenceSelectionForRule(modelRule, referenceMedia, newItems)) {
-        next.add(item.id);
-      }
+      const limitMessage = validateReferenceSelectionForRule(modelRule, referenceMedia, newItems);
+      if (limitMessage) issues.set(item.id, limitMessage);
+    });
+
+    return issues;
+  }, [allMedia, modelRule, referenceMedia, selectedIds, slot]);
+  const validSelectedIds = useMemo(() => {
+    const next = new Set<string>();
+    const selectedItems = allMedia.filter((item) => selectedIds.has(item.id));
+
+    selectedItems.forEach((item) => {
+      if (!selectionIssueById.has(item.id)) next.add(item.id);
     });
 
     return next;
-  }, [allMedia, modelRule, referenceMedia, selectedIds, slot]);
+  }, [allMedia, selectedIds, selectionIssueById]);
   const selectedCount = validSelectedIds.size;
+  const rawSelectedCount = selectedIds.size;
+  const invalidSelectedCount = Math.max(0, rawSelectedCount - selectedCount);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -280,22 +336,19 @@ export function MediaPickerDrawer({
   }
 
   function toggleSelected(item: UploadMediaItem) {
-    const unsupportedReason = getUnsupportedReferenceTypeReason(modelRule, item.type);
-    const isAllowed = slotAllowsAssetType(slot, item.type) && !unsupportedReason;
-    if (item.uploadStatus !== "ready" || !item.url || !isAllowed) return;
+    if (!selectedIds.has(item.id) && (item.uploadStatus !== "ready" || !item.url)) {
+      onNotice?.(selectionIssueById.get(item.id) || "Media is not ready yet.");
+      return;
+    }
+
     onClearNotice?.();
     setSelectedIds((current) => {
       const next = new Set(current);
       if (next.has(item.id)) next.delete(item.id);
       else {
-        const selectedItems = allMedia.filter((candidate) => next.has(candidate.id) || candidate.id === item.id);
-        const newItems = selectedItems.filter(
-          (candidate) =>
-            !referenceMedia.some((currentItem) => currentItem.id === candidate.id || (currentItem.url && currentItem.url === candidate.url)),
-        );
-        const limitMessage = validateReferenceSelectionForRule(modelRule, referenceMedia, newItems);
-        if (limitMessage) {
-          onNotice?.(limitMessage);
+        const issue = selectionIssueById.get(item.id);
+        if (issue) {
+          onNotice?.(issue);
           return next;
         }
         next.add(item.id);
@@ -416,7 +469,7 @@ export function MediaPickerDrawer({
             </span>
             <button
               className="shrink-0 rounded-full border border-white/10 px-3 py-1 text-[11px] font-black text-white/52 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a] disabled:cursor-not-allowed disabled:opacity-45"
-              disabled={!selectedCount}
+              disabled={!rawSelectedCount}
               onClick={() => {
                 onClearNotice?.();
                 setSelectedIds(new Set());
@@ -441,18 +494,21 @@ export function MediaPickerDrawer({
           {visibleMedia.length ? (
             <div className="mt-3 grid grid-cols-3 gap-2.5">
               {visibleMedia.map((item) => {
-                const unsupportedReason = getUnsupportedReferenceTypeReason(modelRule, item.type);
-                const isAllowed = slotAllowsAssetType(slot, item.type) && !unsupportedReason;
+                const selectIssue = selectionIssueById.get(item.id) || "";
+                const isRawSelected = selectedIds.has(item.id);
                 const isSelected = validSelectedIds.has(item.id);
-                const isSelectable = item.uploadStatus === "ready" && Boolean(item.url) && isAllowed;
+                const isSelectable = item.uploadStatus === "ready" && Boolean(item.url) && !selectIssue;
                 const isFailed = item.uploadStatus === "failed";
-                const isUnsupported = !isAllowed;
+                const isAlreadyAdded = selectIssue === "Already added to references.";
+                const isUnsupported = Boolean(selectIssue) && !isAlreadyAdded && !isFailed && item.uploadStatus !== "uploading";
 
                 return (
                   <article
                     className={`group relative overflow-hidden rounded-[18px] border transition ${
                       isFailed
                         ? "border-red-300/30 bg-red-400/10"
+                        : isAlreadyAdded
+                          ? "border-[#ffb44d]/28 bg-[#ffb44d]/8"
                         : isUnsupported
                           ? "border-white/10 bg-white/[.025] opacity-50"
                           : isSelected
@@ -460,11 +516,11 @@ export function MediaPickerDrawer({
                             : "border-white/10 bg-black/24 hover:border-[#ffb44d]/35"
                     }`}
                     key={item.id}
-                    title={isUnsupported ? unsupportedReason || "This item is not supported by the selected model." : item.name}
+                    title={selectIssue || item.name}
                   >
                     <button
                       className={`block w-full text-left ${isSelectable ? "cursor-pointer" : "cursor-default"}`}
-                      disabled={!isSelectable}
+                      disabled={!isSelectable && !isRawSelected}
                       onClick={() => toggleSelected(item)}
                       type="button"
                     >
@@ -490,10 +546,14 @@ export function MediaPickerDrawer({
                       </span>
                       <span className="grid gap-1.5 p-2">
                         <span className="truncate text-xs font-bold text-white/72">{item.name}</span>
-                        <span className={`text-[10px] font-black uppercase tracking-[.12em] ${isFailed || isUnsupported ? "text-red-100/75" : "text-white/38"}`}>
-                          {statusLabel(item.uploadStatus, isAllowed)}
+                        <span className="flex min-w-0 items-center gap-1.5 text-[10px] font-black uppercase tracking-[.12em]">
+                          <span className={isFailed || isUnsupported ? "text-red-100/75" : isAlreadyAdded ? "text-[#ffd08a]/72" : "text-white/38"}>
+                            {statusLabel(item.uploadStatus, selectIssue)}
+                          </span>
+                          <span className="text-white/22">·</span>
+                          <span className="truncate text-white/34">{getMediaAssetSourceLabel(item.source)}</span>
                         </span>
-                        {isUnsupported ? <span className="line-clamp-2 text-xs leading-5 text-red-100/78">{unsupportedReason}</span> : null}
+                        {isUnsupported ? <span className="line-clamp-2 text-xs leading-5 text-red-100/78">{selectIssue}</span> : null}
                         {item.errorMessage ? <span className="line-clamp-2 text-xs leading-5 text-red-100/78">{item.errorMessage}</span> : null}
                       </span>
                     </button>
@@ -514,16 +574,15 @@ export function MediaPickerDrawer({
             </div>
           ) : (
             <div className="mt-3 rounded-[20px] border border-dashed border-white/12 p-8 text-center text-sm text-white/42">
-              {activeFilter === "elements" || activeFilter === "liked"
-                ? "No assets in this section yet."
-                : "Uploaded references will appear here."}
+              {emptyStateText(activeFilter)}
             </div>
           )}
         </div>
 
         <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-white/10 px-4 py-3">
           <span className="text-xs font-bold text-white/45">
-            {selectedCount} {selectedCount === 1 ? "selected" : "selected"}
+            {selectedCount} valid{rawSelectedCount !== selectedCount ? ` · ${rawSelectedCount} selected` : ""}
+            {invalidSelectedCount ? ` · ${invalidSelectedCount} blocked` : ""}
           </span>
           <div className="flex gap-2">
             <button

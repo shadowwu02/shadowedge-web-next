@@ -3,7 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { MediaPickerDrawer } from "@/components/video/MediaPickerDrawer";
-import { appendLocalMediaAssets, collectCurrentMediaAssets, collectLocalMediaAssets, mergeMediaAssets, removeLocalMediaAsset } from "@/lib/media-assets";
+import {
+  appendLocalMediaAssets,
+  collectCurrentMediaAssets,
+  collectLocalMediaAssets,
+  collectReferenceMediaAssets,
+  mergeMediaAssets,
+  removeLocalMediaAsset,
+} from "@/lib/media-assets";
 import { getAudioDuration } from "@/lib/media-duration";
 import {
   filterFilesByUploadTypeLimits,
@@ -36,6 +43,7 @@ function createLocalMediaItem(file: File, index: number, duration = 0, errorMess
     mimeType: file.type,
     duration: duration || undefined,
     previewUrl: URL.createObjectURL(file),
+    source: "current_upload",
     uploadStatus: errorMessage ? "failed" : "uploading",
     errorMessage,
   };
@@ -84,7 +92,7 @@ export function UploadBox({
   }, []);
 
   const currentMedia = useMemo(
-    () => mergeMediaAssets(collectCurrentMediaAssets(currentUploadMedia), collectCurrentMediaAssets(media)),
+    () => mergeMediaAssets(collectCurrentMediaAssets(currentUploadMedia), collectReferenceMediaAssets(media)),
     [currentUploadMedia, media],
   );
   const allPickerMedia = useMemo(() => mergeMediaAssets(currentMedia, localStoredMedia), [currentMedia, localStoredMedia]);
@@ -180,6 +188,7 @@ export function UploadBox({
                 ? uploaded.previewUrl || uploaded.url || item.previewUrl
                 : item.previewUrl || uploaded.previewUrl,
             size: uploaded.size || item.size,
+            source: "current_upload",
             type: uploaded.type || item.type,
             uploadStatus: "ready",
             url: uploaded.url,
@@ -247,7 +256,7 @@ export function UploadBox({
     onChange((currentItems) =>
       mergeMediaAssets(
         currentItems,
-        selectedRemoteItems.map((item) => ({ ...item, role: item.role || "reference" })),
+        selectedRemoteItems.map((item) => ({ ...item, role: item.role || "reference", source: "reference_selected" })),
       ).slice(0, 12),
     );
 

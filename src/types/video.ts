@@ -19,11 +19,19 @@ export type VideoTaskStatus =
 
 export type UploadMediaType = "image" | "video" | "audio";
 export type UploadMediaRole = "reference" | "start_frame" | "end_frame";
+export type UploadMediaSource =
+  | "current_upload"
+  | "local_upload_cache"
+  | "reference_selected"
+  | "generated_result"
+  | "history"
+  | "unknown";
 
 export type UploadMediaItem = {
   id: string;
   type: UploadMediaType;
   role?: UploadMediaRole;
+  source?: UploadMediaSource;
   file?: File;
   name: string;
   previewUrl?: string;
