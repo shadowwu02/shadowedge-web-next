@@ -21,6 +21,7 @@ import { getVideoModels } from "@/lib/video-api";
 import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
 import { getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
 import {
+  parseMentionBindings,
   reconcileMentionBindings,
   serializeMentionBindings,
   type VideoMentionBinding,
@@ -112,6 +113,7 @@ function findDraftModel(draft: VideoWorkspaceDraft | null, modelList: VideoModel
 
 function writeVideoDraft(snapshot: {
   media: UploadMediaItem[];
+  mentionBindings: VideoMentionBinding[];
   params: VideoParams;
   prompt: string;
   selectedModel: VideoModel;
@@ -123,6 +125,7 @@ function writeVideoDraft(snapshot: {
     modelLabel: snapshot.selectedModel.label,
     params: snapshot.params,
     referenceMedia: snapshot.media,
+    mentionBindings: snapshot.mentionBindings,
   });
 }
 
@@ -158,6 +161,17 @@ function buildRetryMedia(record: { mediaList?: UploadMediaItem[] | Array<{ id?: 
   return [...fromMediaList, ...fromRefs];
 }
 
+function getRecordMentionBindings(
+  record: { meta?: Record<string, unknown>; mentionBindings?: unknown; mention_bindings?: unknown },
+  referenceMedia: UploadMediaItem[],
+) {
+  const rawBindings = record.meta?.mentionBindings ?? record.meta?.mention_bindings ?? record.mentionBindings ?? record.mention_bindings;
+
+  return serializeMentionBindings(
+    stripReconciledMentionBindings(reconcileMentionBindings(parseMentionBindings(rawBindings), referenceMedia)),
+  );
+}
+
 export function VideoWorkspace() {
   const [models, setModels] = useState<VideoModel[]>(fallbackModels);
   const [selectedModel, setSelectedModel] = useState<VideoModel>(fallbackModels[0]);
@@ -172,6 +186,7 @@ export function VideoWorkspace() {
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestDraftSnapshotRef = useRef<{
     media: UploadMediaItem[];
+    mentionBindings: VideoMentionBinding[];
     params: VideoParams;
     prompt: string;
     selectedModel: VideoModel;
@@ -192,6 +207,10 @@ export function VideoWorkspace() {
     task,
   } = useVideoGeneration();
   const [workspaceNotice, setWorkspaceNotice] = useState("");
+  const reconciledMentionBindings = useMemo(
+    () => serializeMentionBindings(stripReconciledMentionBindings(reconcileMentionBindings(mentionBindings, media))),
+    [media, mentionBindings],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -208,6 +227,7 @@ export function VideoWorkspace() {
       if (draft) {
         setPrompt(draft.prompt);
         setMedia(draft.referenceMedia);
+        setMentionBindings(draft.mentionBindings);
       }
 
       setDraftReady(true);
@@ -245,6 +265,7 @@ export function VideoWorkspace() {
 
     latestDraftSnapshotRef.current = {
       media,
+      mentionBindings: reconciledMentionBindings,
       params,
       prompt,
       selectedModel,
@@ -262,7 +283,7 @@ export function VideoWorkspace() {
         draftSaveTimerRef.current = null;
       }
     };
-  }, [draftReady, media, params, prompt, selectedModel]);
+  }, [draftReady, media, params, prompt, reconciledMentionBindings, selectedModel]);
 
   useEffect(() => {
     function flushVideoDraft() {
@@ -320,10 +341,6 @@ export function VideoWorkspace() {
   const canGenerate = Boolean(selectedModel) && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits;
   const selectedModelRuleId = getVideoModelRuleId(selectedModel);
   const selectedModelRule = useMemo(() => getVideoModelRule(selectedModelRuleId), [selectedModelRuleId]);
-  const reconciledMentionBindings = useMemo(
-    () => serializeMentionBindings(stripReconciledMentionBindings(reconcileMentionBindings(mentionBindings, media))),
-    [media, mentionBindings],
-  );
   const reusableMedia = useMemo(
     () => collectReusableVideoAssets(task ? [task, ...history] : history),
     [history, task],
@@ -378,8 +395,9 @@ export function VideoWorkspace() {
       generateAudio: params.generateAudio,
       maxConcurrency,
       media,
+      mentionBindings: reconciledMentionBindings,
     });
-  }, [hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, maxConcurrency, media, params, prompt, selectedModel, submit, token]);
+  }, [hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, maxConcurrency, media, params, prompt, reconciledMentionBindings, selectedModel, submit, token]);
 
   const handleRetry = useCallback(
     (record: (typeof history)[number]) => {
@@ -391,6 +409,7 @@ export function VideoWorkspace() {
       }
 
       const retryMedia = buildRetryMedia(record);
+      const retryMentionBindings = getRecordMentionBindings(record, retryMedia);
       const hasMissingMedia = retryMedia.some((item) => !item.url || item.url.startsWith("blob:") || item.url.startsWith("data:"));
       if (hasMissingMedia) {
         setWorkspaceNotice("Cannot retry: original media URL is missing.");
@@ -415,6 +434,7 @@ export function VideoWorkspace() {
         quality,
         generateAudio: Boolean(record.meta?.generate_audio),
         media: retryMedia,
+        mentionBindings: retryMentionBindings,
         maxConcurrency,
       });
     },

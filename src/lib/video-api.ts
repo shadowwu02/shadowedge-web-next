@@ -104,7 +104,16 @@ function extractHistoryItems(data: unknown) {
 
 export function normalizeVideoHistoryItem(item: unknown): VideoHistoryItem {
   const record = asRecord(item);
-  const meta = asRecord(record.meta);
+  const rawMeta = asRecord(record.meta);
+  const rawMentionBindings =
+    record.mentionBindings || record.mention_bindings || rawMeta.mentionBindings || rawMeta.mention_bindings;
+  const meta =
+    rawMentionBindings && !rawMeta.mentionBindings
+      ? {
+          ...rawMeta,
+          mentionBindings: rawMentionBindings,
+        }
+      : rawMeta;
   const uploadAssets = asRecord(record.upload_assets || record.uploadAssets || meta.upload_assets || meta.uploadAssets);
   const outputUrls = pickArray(record.outputUrls, record.output_urls, meta.outputUrls, meta.output_urls)
     .map(String)

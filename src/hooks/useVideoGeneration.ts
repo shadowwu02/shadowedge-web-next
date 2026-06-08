@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { getCurrentUserProfile } from "@/lib/auth-api";
 import { createVideoTask, getVideoHistory, getVideoStatus, saveVideoHistory } from "@/lib/video-api";
 import { buildMediaAwarePrompt, getReadyMentionableMediaItems, toGenerationMediaList } from "@/lib/video-mentions";
+import { serializeMentionBindings, type VideoMentionBinding } from "@/lib/video/videoMentionBindings";
 import { getVideoOutputUrl, isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { UploadMediaItem, VideoGenerationRequest, VideoHistoryItem, VideoModel, VideoStatusResponse, VideoTaskRecord } from "@/types/video";
 
@@ -15,6 +16,7 @@ type SubmitVideoOptions = {
   quality: string;
   generateAudio: boolean;
   media: UploadMediaItem[];
+  mentionBindings?: VideoMentionBinding[];
   maxConcurrency?: number | null;
 };
 
@@ -52,7 +54,8 @@ function buildVideoRequest(options: SubmitVideoOptions): VideoGenerationRequest 
   const images = mediaList.filter((item) => item.type === "image").map((item) => item.url);
   const videos = mediaList.filter((item) => item.type === "video").map((item) => item.url);
   const audios = mediaList.filter((item) => item.type === "audio").map((item) => item.url);
-  const enhancedPrompt = buildMediaAwarePrompt(options.prompt, mentionMediaItems);
+  const mentionBindings = serializeMentionBindings(options.mentionBindings || []);
+  const enhancedPrompt = buildMediaAwarePrompt(options.prompt, mentionMediaItems, mentionBindings);
   const primaryImageUrl = images[0] || "";
   const primaryVideoUrl = videos[0] || "";
 
@@ -98,6 +101,7 @@ function buildVideoRequest(options: SubmitVideoOptions): VideoGenerationRequest 
       reference_videos: videos,
       reference_audios: audios,
       mediaList,
+      mentionBindings,
     },
   };
 }
@@ -233,6 +237,7 @@ export function useVideoGeneration() {
         reference_videos: request.reference_videos,
         reference_audios: request.reference_audios,
         mediaList: request.mediaList,
+        meta: request.meta,
         outputUrls: [],
         videoUrl: "",
         createdAt: Date.now(),

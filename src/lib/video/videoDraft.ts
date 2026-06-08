@@ -1,5 +1,11 @@
 import { mergeMediaAssets, normalizeMediaAsset } from "@/lib/media-assets";
 import { isRemoteMediaUrl, isTransientMediaUrl } from "@/lib/upload-rules";
+import {
+  parseMentionBindings,
+  reconcileMentionBindings,
+  serializeMentionBindings,
+  type VideoMentionBinding,
+} from "@/lib/video/videoMentionBindings";
 import type { UploadMediaItem, UploadMediaRole, UploadMediaSource, UploadMediaType } from "@/types/video";
 
 export const VIDEO_WORKSPACE_DRAFT_KEY = "shadowedge_video_create_draft_v1";
@@ -20,6 +26,7 @@ export type VideoWorkspaceDraft = {
   modelLabel?: string;
   params: VideoDraftParams;
   referenceMedia: UploadMediaItem[];
+  mentionBindings: VideoMentionBinding[];
   updatedAt: number;
 };
 
@@ -39,6 +46,7 @@ type DraftWriteInput = {
   modelLabel?: string;
   params: VideoDraftParams;
   referenceMedia: UploadMediaItem[];
+  mentionBindings?: VideoMentionBinding[];
 };
 
 function safeLocalStorage() {
@@ -148,6 +156,7 @@ function normalizeDraft(raw: RawDraft): VideoWorkspaceDraft | null {
   const referenceMedia = Array.isArray(raw.referenceMedia)
     ? sanitizeVideoDraftMedia(raw.referenceMedia)
     : sanitizeVideoDraftMedia(flattenLegacyAssets(raw.assets));
+  const mentionBindings = serializeMentionBindings(reconcileMentionBindings(parseMentionBindings(raw.mentionBindings), referenceMedia));
 
   return {
     version: VIDEO_WORKSPACE_DRAFT_VERSION,
@@ -167,6 +176,7 @@ function normalizeDraft(raw: RawDraft): VideoWorkspaceDraft | null {
             : undefined,
     },
     referenceMedia,
+    mentionBindings,
     updatedAt: Number(raw.updatedAt || 0) || 0,
   };
 }
@@ -195,6 +205,7 @@ export function saveVideoDraft(input: DraftWriteInput) {
     modelLabel: input.modelLabel,
     params: input.params,
     referenceMedia: sanitizeVideoDraftMedia(input.referenceMedia),
+    mentionBindings: serializeMentionBindings(input.mentionBindings || []),
     updatedAt: Date.now(),
   };
 

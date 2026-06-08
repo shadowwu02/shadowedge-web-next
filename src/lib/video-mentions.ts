@@ -1,4 +1,5 @@
 import type { UploadMediaItem, UploadMediaType, VideoGenerationRequest } from "@/types/video";
+import type { VideoMentionBinding } from "@/lib/video/videoMentionBindings";
 
 export type MentionableMediaItem = {
   id: string;
@@ -132,13 +133,60 @@ export function getMissingPromptMentions(prompt: string, media: UploadMediaItem[
   });
 }
 
-export function buildMediaAwarePrompt(promptText: string, mediaItems: MentionableMediaItem[]) {
+function mentionMatchesBinding(mention: PromptMention, binding: VideoMentionBinding) {
+  const candidates = new Set(
+    [binding.displayLabel, binding.sourceTokenText, convertVisibleMentionsToTokens(binding.displayLabel), convertVisibleMentionsToTokens(binding.sourceTokenText)]
+      .map((value) => String(value || "").trim())
+      .filter(Boolean),
+  );
+
+  return candidates.has(mention.display) || candidates.has(mention.token);
+}
+
+function getMediaAwarePromptItemsFromPrompt(
+  promptText: string,
+  mediaItems: MentionableMediaItem[],
+  mentionBindings: VideoMentionBinding[],
+) {
+  const validItems = mediaItems.filter((item) => item.url && isRemoteUrl(item.url));
+  const mentions = findPromptMentions(promptText);
+  const mappedItems: MentionableMediaItem[] = [];
+  const seen = new Set<string>();
+
+  mentions.forEach((mention) => {
+    const binding = mentionBindings.find((item) => mentionMatchesBinding(mention, item));
+    const mediaItem = binding
+      ? validItems.find((item) => item.id === binding.mediaId || item.url === binding.mediaId)
+      : validItems.find((item) => item.type === mention.type && item.index === mention.index);
+    if (!mediaItem) return;
+
+    const key = `${mention.token}:${mediaItem.id}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    mappedItems.push({
+      ...mediaItem,
+      display: mention.display,
+      token: mention.token,
+    });
+  });
+
+  return mappedItems;
+}
+
+export function buildMediaAwarePrompt(
+  promptText: string,
+  mediaItems: MentionableMediaItem[],
+  mentionBindings: VideoMentionBinding[] = [],
+) {
   const cleanPrompt = convertVisibleMentionsToTokens(String(promptText || "").trim());
   const validItems = mediaItems.filter((item) => item.url && isRemoteUrl(item.url));
+  const promptMentions = findPromptMentions(promptText);
+  const promptMappedItems = mentionBindings.length ? getMediaAwarePromptItemsFromPrompt(promptText, mediaItems, mentionBindings) : [];
+  const mappingItems = mentionBindings.length && promptMentions.length ? promptMappedItems : validItems;
 
-  if (!validItems.length) return cleanPrompt;
+  if (!mappingItems.length) return cleanPrompt;
 
-  const mapping = validItems
+  const mapping = mappingItems
     .map((item) => {
       if (item.type === "video") return `${item.token} = reference video ${item.index}`;
       if (item.type === "audio") return `${item.token} = reference audio ${item.index}`;
