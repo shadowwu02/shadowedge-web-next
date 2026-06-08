@@ -181,13 +181,13 @@ export function VideoParamsPanel({
       {chips.map((chip) => (
         <button
           aria-expanded={openKey === chip.key}
-          className="flex min-h-11 flex-1 items-center justify-between gap-2 rounded-2xl border border-white/10 bg-white/[.055] px-3 text-left text-xs font-bold text-white/42 transition hover:border-[#ffb44d]/32 hover:bg-white/[.075]"
+          className="flex min-h-12 min-w-[96px] flex-1 basis-[calc(33.333%-0.5rem)] flex-col items-start justify-center gap-0.5 rounded-2xl border border-white/10 bg-white/[.055] px-3 text-left text-xs font-bold text-white/42 transition hover:border-[#ffb44d]/32 hover:bg-white/[.075]"
           key={chip.key}
           onClick={(event) => openMenu(chip.key, event.currentTarget)}
           type="button"
         >
-          <span>{chip.label}</span>
-          <span className="truncate text-sm font-black text-white">{chip.value}</span>
+          <span className="w-full truncate whitespace-nowrap leading-4">{chip.label}</span>
+          <span className="w-full truncate whitespace-nowrap text-sm font-black leading-5 text-white">{chip.value}</span>
         </button>
       ))}
 
