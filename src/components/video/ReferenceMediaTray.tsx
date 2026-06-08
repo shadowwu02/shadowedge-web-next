@@ -38,8 +38,11 @@ function insertMention(item: MentionableMediaItem) {
     new CustomEvent("shadowedge:insert-video-mention", {
       detail: {
         display: item.display,
+        mediaId: item.id,
+        token: item.token,
         type: item.type,
         index: item.index,
+        url: item.url,
       },
     }),
   );

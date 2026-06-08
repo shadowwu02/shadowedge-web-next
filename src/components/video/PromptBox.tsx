@@ -4,16 +4,22 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ChangeEvent, KeyboardEvent, MouseEvent as ReactMouseEvent } from "react";
 import {
   findPromptMentions,
-  getMissingPromptMentions,
   getReadyMentionableMediaItems,
   type MentionableMediaItem,
 } from "@/lib/video-mentions";
+import {
+  createMentionBinding,
+  findMentionBindingForToken,
+  type VideoMentionBinding,
+} from "@/lib/video/videoMentionBindings";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
 
 type PromptBoxProps = {
   value: string;
   media: UploadMediaItem[];
+  mentionBindings?: VideoMentionBinding[];
   onChange: (value: string) => void;
+  onMentionBindingsChange?: (next: VideoMentionBinding[] | ((current: VideoMentionBinding[]) => VideoMentionBinding[])) => void;
 };
 
 type ReplaceRange = {
@@ -24,6 +30,15 @@ type ReplaceRange = {
 type MenuPosition = {
   left: number;
   top: number;
+};
+
+type InsertMentionInput = {
+  display: string;
+  index?: number;
+  mediaId?: string;
+  token?: string;
+  type?: UploadMediaType;
+  url?: string;
 };
 
 const mentionGroups: Array<[UploadMediaType, string]> = [
@@ -120,7 +135,41 @@ function mediaIcon(type: UploadMediaType) {
   return "IMG";
 }
 
-export function PromptBox({ value, media, onChange }: PromptBoxProps) {
+function getMediaIdentity(media: Pick<UploadMediaItem, "id" | "url">) {
+  return String(media.id || media.url || "").trim();
+}
+
+function sameMentionBinding(left: VideoMentionBinding, right: VideoMentionBinding) {
+  return (
+    left.tokenId === right.tokenId &&
+    left.mediaId === right.mediaId &&
+    left.mediaType === right.mediaType &&
+    left.displayLabel === right.displayLabel &&
+    left.sourceTokenText === right.sourceTokenText &&
+    left.createdAt === right.createdAt &&
+    left.updatedAt === right.updatedAt
+  );
+}
+
+function getMissingMentionsWithBindings(prompt: string, media: UploadMediaItem[], bindings: VideoMentionBinding[]) {
+  const readyItems = getReadyMentionableMediaItems(media);
+  const seen = new Set<string>();
+
+  return findPromptMentions(prompt).filter((mention) => {
+    const binding = findMentionBindingForToken(bindings, mention.display, media) || findMentionBindingForToken(bindings, mention.token, media);
+    const key = binding ? `binding:${binding.tokenId}:${mention.start}` : `legacy:${mention.type}:${mention.index}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+
+    if (binding) {
+      return !media.some((item) => item.id === binding.mediaId || item.url === binding.mediaId);
+    }
+
+    return !readyItems.some((item) => item.type === mention.type && item.index === mention.index);
+  });
+}
+
+export function PromptBox({ value, media, mentionBindings = [], onChange, onMentionBindingsChange }: PromptBoxProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -128,7 +177,10 @@ export function PromptBox({ value, media, onChange }: PromptBoxProps) {
   const [replaceRange, setReplaceRange] = useState<ReplaceRange | null>(null);
 
   const mentionItems = useMemo(() => getReadyMentionableMediaItems(media), [media]);
-  const missingMentions = useMemo(() => getMissingPromptMentions(value, media), [media, value]);
+  const missingMentions = useMemo(
+    () => getMissingMentionsWithBindings(value, media, mentionBindings),
+    [media, mentionBindings, value],
+  );
 
   function openMentionMenu(textarea: HTMLTextAreaElement, caretIndex: number) {
     setReplaceRange(findMentionReplaceRange(textarea.value, textarea.selectionStart || caretIndex, textarea.selectionEnd || caretIndex));
@@ -165,7 +217,61 @@ export function PromptBox({ value, media, onChange }: PromptBoxProps) {
     }
   }
 
-  function insertMentionText(display: string) {
+  function findMediaForMention(input: InsertMentionInput) {
+    const mediaId = String(input.mediaId || "").trim();
+    if (mediaId) {
+      const mediaItem = media.find((item) => item.id === mediaId || item.url === mediaId);
+      if (mediaItem) return mediaItem;
+    }
+
+    if (input.type && input.index) {
+      const mentionItem = mentionItems.find((item) => item.type === input.type && item.index === input.index);
+      if (mentionItem) {
+        return media.find((item) => item.id === mentionItem.id || item.url === mentionItem.url) || null;
+      }
+    }
+
+    return null;
+  }
+
+  function syncMentionBinding(input: InsertMentionInput, range: ReplaceRange) {
+    if (!onMentionBindingsChange) return;
+
+    const mediaItem = findMediaForMention(input);
+    if (!mediaItem) return;
+
+    const replacedTokenText = value.slice(range.start, range.end).trim();
+    const existingBinding = replacedTokenText ? findMentionBindingForToken(mentionBindings, replacedTokenText, media) : undefined;
+
+    onMentionBindingsChange((current) => {
+      const currentExistingBinding = replacedTokenText ? findMentionBindingForToken(current, replacedTokenText, media) : existingBinding;
+      const currentExplicitBinding = currentExistingBinding
+        ? current.find((binding) => binding.tokenId === currentExistingBinding.tokenId)
+        : undefined;
+      const existingMediaBinding = current.find((binding) => binding.mediaId === getMediaIdentity(mediaItem));
+      const bindingToUpdate = currentExplicitBinding || existingMediaBinding;
+      const nextBinding = createMentionBinding(
+        { id: mediaItem.id, type: mediaItem.type, url: mediaItem.url },
+        input.display,
+        {
+          createdAt: bindingToUpdate?.createdAt,
+          sourceTokenText: input.token || input.display,
+          tokenId: bindingToUpdate?.tokenId,
+          updatedAt: Date.now(),
+        },
+      );
+
+      if (bindingToUpdate) {
+        const next = current.map((binding) => (binding.tokenId === bindingToUpdate.tokenId ? nextBinding : binding));
+        return next.every((binding, index) => sameMentionBinding(binding, current[index])) ? current : next;
+      }
+
+      return [...current, nextBinding];
+    });
+  }
+
+  function insertMentionText(input: InsertMentionInput | string) {
+    const mentionInput = typeof input === "string" ? { display: input } : input;
     const textarea = textareaRef.current;
     const currentStart = textarea?.selectionStart ?? value.length;
     const currentEnd = textarea?.selectionEnd ?? value.length;
@@ -173,10 +279,11 @@ export function PromptBox({ value, media, onChange }: PromptBoxProps) {
     const before = value.slice(0, range.start);
     const after = value.slice(range.end);
     const trailingSpace = after.length && !/^\s/.test(after) ? " " : "";
-    const nextValue = `${before}${display}${trailingSpace}${after}`.slice(0, 1200);
-    const nextCaret = Math.min(before.length + display.length + trailingSpace.length, nextValue.length);
+    const nextValue = `${before}${mentionInput.display}${trailingSpace}${after}`.slice(0, 1200);
+    const nextCaret = Math.min(before.length + mentionInput.display.length + trailingSpace.length, nextValue.length);
 
     onChange(nextValue);
+    syncMentionBinding(mentionInput, range);
     closeMentionMenu();
 
     window.requestAnimationFrame(() => {
@@ -187,7 +294,14 @@ export function PromptBox({ value, media, onChange }: PromptBoxProps) {
   }
 
   function insertMention(item: MentionableMediaItem) {
-    insertMentionText(item.display);
+    insertMentionText({
+      display: item.display,
+      index: item.index,
+      mediaId: item.id,
+      token: item.token,
+      type: item.type,
+      url: item.url,
+    });
   }
 
   function handleMenuMouseDown(event: ReactMouseEvent) {
@@ -196,9 +310,9 @@ export function PromptBox({ value, media, onChange }: PromptBoxProps) {
 
   useEffect(() => {
     function handleExternalMention(event: Event) {
-      const detail = (event as CustomEvent<{ display?: string }>).detail;
+      const detail = (event as CustomEvent<InsertMentionInput>).detail;
       if (!detail?.display) return;
-      insertMentionText(detail.display);
+      insertMentionText(detail);
     }
 
     window.addEventListener("shadowedge:insert-video-mention", handleExternalMention);

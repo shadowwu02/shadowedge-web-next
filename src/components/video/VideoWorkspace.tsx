@@ -20,6 +20,11 @@ import { collectReusableVideoAssets } from "@/lib/media-assets";
 import { getVideoModels } from "@/lib/video-api";
 import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
 import { getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
+import {
+  reconcileMentionBindings,
+  serializeMentionBindings,
+  type VideoMentionBinding,
+} from "@/lib/video/videoMentionBindings";
 import { isVideoActiveStatus } from "@/lib/utils";
 import type { UploadMediaItem, UploadMediaRole, VideoModel, VideoStatusResponse } from "@/types/video";
 
@@ -79,6 +84,18 @@ function normalizeModelLookup(value: string | undefined) {
     .toLowerCase()
     .replace(/[./\s-]+/g, "_")
     .replace(/[^\w]/g, "");
+}
+
+function stripReconciledMentionBindings(bindings: ReturnType<typeof reconcileMentionBindings>): VideoMentionBinding[] {
+  return bindings.map((binding) => ({
+    tokenId: binding.tokenId,
+    mediaId: binding.mediaId,
+    mediaType: binding.mediaType,
+    displayLabel: binding.displayLabel,
+    sourceTokenText: binding.sourceTokenText,
+    createdAt: binding.createdAt,
+    updatedAt: binding.updatedAt,
+  }));
 }
 
 function findDraftModel(draft: VideoWorkspaceDraft | null, modelList: VideoModel[]) {
@@ -148,6 +165,7 @@ export function VideoWorkspace() {
   const [modelError, setModelError] = useState("");
   const [prompt, setPrompt] = useState("");
   const [media, setMedia] = useState<UploadMediaItem[]>([]);
+  const [mentionBindings, setMentionBindings] = useState<VideoMentionBinding[]>([]);
   const [params, setParams] = useState<VideoParams>(() => buildParamsForModel(fallbackModels[0]));
   const [isAssetPickerUploading, setIsAssetPickerUploading] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
@@ -302,6 +320,10 @@ export function VideoWorkspace() {
   const canGenerate = Boolean(selectedModel) && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits;
   const selectedModelRuleId = getVideoModelRuleId(selectedModel);
   const selectedModelRule = useMemo(() => getVideoModelRule(selectedModelRuleId), [selectedModelRuleId]);
+  const reconciledMentionBindings = useMemo(
+    () => serializeMentionBindings(stripReconciledMentionBindings(reconcileMentionBindings(mentionBindings, media))),
+    [media, mentionBindings],
+  );
   const reusableMedia = useMemo(
     () => collectReusableVideoAssets(task ? [task, ...history] : history),
     [history, task],
@@ -426,7 +448,13 @@ export function VideoWorkspace() {
             reusableMedia={reusableMedia}
           />
           <ReferenceMediaTray media={media} modelRule={selectedModelRule} onRemove={removeMedia} onRoleChange={updateMediaRole} />
-          <PromptBox media={media} onChange={setPrompt} value={prompt} />
+          <PromptBox
+            media={media}
+            mentionBindings={reconciledMentionBindings}
+            onChange={setPrompt}
+            onMentionBindingsChange={setMentionBindings}
+            value={prompt}
+          />
           <div className="grid grid-cols-2 gap-2">
             <button
               className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-black text-white/70 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a]"
