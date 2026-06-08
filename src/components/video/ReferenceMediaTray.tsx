@@ -43,6 +43,22 @@ function mediaFallback(type: UploadMediaType) {
   return "IMG";
 }
 
+function FullscreenIcon() {
+  return (
+    <svg aria-hidden="true" className="size-3.5" fill="none" viewBox="0 0 24 24">
+      <path d="M8 4H4v4M16 4h4v4M8 20H4v-4M20 16v4h-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg aria-hidden="true" className="size-3.5" fill="none" viewBox="0 0 24 24">
+      <path d="m5 12 4.2 4.2L19 6.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" />
+    </svg>
+  );
+}
+
 function roleShortLabel(role?: UploadMediaRole) {
   return roleOptions.find((option) => option.value === role)?.shortLabel || "";
 }
@@ -144,7 +160,7 @@ export function ReferenceMediaTray({
       </div>
 
       {media.length ? (
-        <div className="se-subtle-scrollbar grid max-h-[220px] grid-cols-2 gap-2 overflow-y-auto pr-1">
+        <div className="se-subtle-scrollbar grid max-h-[210px] grid-cols-2 gap-2 overflow-y-auto pr-1">
           {media.map((item) => {
             const mention = mentionById.get(item.id);
             const currentRole = item.role || "reference";
@@ -153,7 +169,7 @@ export function ReferenceMediaTray({
 
             return (
               <article
-                className="group relative h-[88px] overflow-hidden rounded-[18px] border border-white/10 bg-black/24 transition hover:border-[#ffb44d]/38"
+                className="group relative h-[82px] overflow-hidden rounded-[16px] border border-white/10 bg-black/24 transition hover:border-[#ffb44d]/38"
                 key={item.id}
               >
                 <button
@@ -181,7 +197,7 @@ export function ReferenceMediaTray({
                   </span>
                 ) : null}
 
-                <span className="absolute bottom-1.5 right-1.5 rounded-full bg-black/62 px-2 py-0.5 text-[9px] font-black uppercase tracking-[.08em] text-white/58 opacity-0 transition group-hover:opacity-100">
+                <span className="absolute left-1.5 top-1.5 rounded-full bg-black/62 px-2 py-0.5 text-[9px] font-black uppercase tracking-[.08em] text-white/58 opacity-0 transition group-hover:opacity-100">
                   {mention?.display || mediaFallback(item.type)}
                 </span>
 
@@ -194,10 +210,22 @@ export function ReferenceMediaTray({
                   x
                 </button>
 
-                <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 gap-2 opacity-0 transition group-hover:opacity-100">
+                <button
+                  aria-label={`Full screen ${item.name}`}
+                  className="absolute bottom-1.5 right-1.5 grid size-7 place-items-center rounded-full border border-white/10 bg-black/78 text-white/80 opacity-0 transition hover:border-[#ffb44d]/38 hover:text-[#ffd08a] group-hover:opacity-100"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setPreviewItem(item);
+                  }}
+                  type="button"
+                >
+                  <FullscreenIcon />
+                </button>
+
+                <div className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition group-hover:opacity-100">
                   <button
                     aria-label={`Open ${item.name} role menu`}
-                    className="grid size-8 place-items-center rounded-full border border-white/10 bg-black/78 text-sm font-black leading-none text-white/80 transition hover:border-[#ffb44d]/38 hover:text-[#ffd08a]"
+                    className="pointer-events-auto grid size-9 place-items-center rounded-full border border-white/10 bg-black/78 text-base font-black leading-none text-white/82 shadow-xl shadow-black/30 transition hover:border-[#ffb44d]/38 hover:text-[#ffd08a]"
                     onClick={(event) => {
                       event.stopPropagation();
                       setRoleMenuPosition(getRoleMenuPosition(event.currentTarget));
@@ -207,24 +235,13 @@ export function ReferenceMediaTray({
                   >
                     ...
                   </button>
-                  <button
-                    aria-label={`Full screen ${item.name}`}
-                    className="grid size-8 place-items-center rounded-full border border-white/10 bg-black/78 text-[10px] font-black text-white/80 transition hover:border-[#ffb44d]/38 hover:text-[#ffd08a]"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setPreviewItem(item);
-                    }}
-                    type="button"
-                  >
-                    FS
-                  </button>
                 </div>
               </article>
             );
           })}
 
           <button
-            className="grid h-[88px] place-items-center rounded-[18px] border border-dashed border-[#ffb44d]/34 bg-[#ffb44d]/8 p-3 text-center transition hover:bg-[#ffb44d]/12"
+            className="grid h-[82px] place-items-center rounded-[16px] border border-dashed border-[#ffb44d]/34 bg-[#ffb44d]/8 p-3 text-center transition hover:bg-[#ffb44d]/12"
             onClick={(event) => openMediaPicker(event.currentTarget)}
             type="button"
           >
@@ -279,7 +296,7 @@ export function ReferenceMediaTray({
                 type="button"
               >
                 <span>{option.label}</span>
-                {currentRole === option.value ? <span>OK</span> : null}
+                {currentRole === option.value ? <CheckIcon /> : null}
               </button>
             );
           })}

@@ -103,11 +103,13 @@ export function VideoParamsPanel({
     window.addEventListener("pointerdown", handlePointerDown);
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("resize", closeMenu);
+    window.addEventListener("scroll", closeMenu, true);
 
     return () => {
       window.removeEventListener("pointerdown", handlePointerDown);
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("scroll", closeMenu, true);
     };
   }, [openKey]);
 
@@ -159,6 +161,7 @@ export function VideoParamsPanel({
             top: menuPosition.top,
             width: menuPosition.width,
           }}
+          onPointerDown={(event) => event.stopPropagation()}
         >
           {openKey === "duration" ? (
             <div className="grid gap-3 p-2">
@@ -170,7 +173,7 @@ export function VideoParamsPanel({
               </div>
               <input
                 aria-label="Duration"
-                className="h-2 w-full cursor-pointer accent-[#ffb44d]"
+                className="se-duration-slider w-full cursor-pointer"
                 max={Math.max(0, durationOptions.length - 1)}
                 min={0}
                 onChange={(event) => updateDuration(Number(event.target.value))}

@@ -48,6 +48,14 @@ function mediaFallback(type: UploadMediaItem["type"]) {
   return "IMG";
 }
 
+function CheckIcon() {
+  return (
+    <svg aria-hidden="true" className="size-3.5" fill="none" viewBox="0 0 24 24">
+      <path d="m5 12 4.2 4.2L19 6.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" />
+    </svg>
+  );
+}
+
 function getDrawerPosition(anchor: HTMLElement | null): DrawerPosition {
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
@@ -401,7 +409,7 @@ export function MediaPickerDrawer({
                         </span>
                         {isSelected ? (
                           <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-[#ffb44d] text-xs font-black text-[#1f2027]">
-                            OK
+                            <CheckIcon />
                           </span>
                         ) : null}
                       </span>
