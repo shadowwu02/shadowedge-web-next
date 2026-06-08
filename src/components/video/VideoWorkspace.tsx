@@ -9,8 +9,8 @@ import { HistoryPanel, type HistoryFilter } from "@/components/video/HistoryPane
 import { ModelSelector } from "@/components/video/ModelSelector";
 import { PromptBox } from "@/components/video/PromptBox";
 import { ReferenceMediaTray } from "@/components/video/ReferenceMediaTray";
-import { ResultViewer } from "@/components/video/ResultViewer";
 import { UploadBox } from "@/components/video/UploadBox";
+import { VideoGenerationStream } from "@/components/video/VideoGenerationStream";
 import { VideoHistoryCanvas } from "@/components/video/VideoHistoryCanvas";
 import { VideoHowItWorks } from "@/components/video/VideoHowItWorks";
 import { type VideoParams, VideoParamsPanel } from "@/components/video/VideoParamsPanel";
@@ -30,7 +30,7 @@ import {
   serializeMentionBindings,
   type VideoMentionBinding,
 } from "@/lib/video/videoMentionBindings";
-import { validateReferenceSelectionForRule } from "@/lib/video/videoReferenceRules";
+import { getReferenceRoleIssue, validateReferenceSelectionForRule } from "@/lib/video/videoReferenceRules";
 import { isVideoActiveStatus } from "@/lib/utils";
 import type { UploadMediaItem, UploadMediaRole, VideoModel, VideoStatusResponse, VideoTaskRecord } from "@/types/video";
 
@@ -63,7 +63,7 @@ const fallbackModels: VideoModel[] = [
   },
 ];
 
-type MainPanel = "preview" | "history" | "guide";
+type MainPanel = "generation" | "history" | "guide";
 
 function getVideoModelRuleId(model: VideoModel) {
   const candidates = [model.id, model.providerModel, model.label].filter((value): value is string => Boolean(value));
@@ -209,7 +209,7 @@ export function VideoWorkspace() {
   const [isAssetPickerUploading, setIsAssetPickerUploading] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
-  const [mainPanel, setMainPanel] = useState<MainPanel>("preview");
+  const [mainPanel, setMainPanel] = useState<MainPanel>("generation");
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestDraftSnapshotRef = useRef<{
     media: UploadMediaItem[];
@@ -460,7 +460,7 @@ export function VideoWorkspace() {
       return;
     }
 
-    setMainPanel("preview");
+    setMainPanel("generation");
     void submit({
       prompt: prompt.trim(),
       model: selectedModel,
@@ -504,7 +504,7 @@ export function VideoWorkspace() {
         ratio: record.ratio,
       });
 
-      setMainPanel("preview");
+      setMainPanel("generation");
       void submit({
         prompt: promptText,
         model: retryModel,
@@ -533,6 +533,62 @@ export function VideoWorkspace() {
       return validateReferenceSelectionForRule(selectedModelRule, media, [generatedAsset]);
     },
     [media, selectedModelRule, t],
+  );
+
+  const localizeReferenceIssue = useCallback(
+    (issue: string) => {
+      if (!issue) return "";
+      if (issue.includes("does not support image references")) return t("video.errors.unsupportedImageReference");
+      if (issue.includes("does not support video references")) return t("video.errors.unsupportedVideoReference");
+      if (issue.includes("does not support audio references")) return t("video.errors.unsupportedAudioReference");
+      if (issue.includes("Reference limit reached")) return t("video.drawer.referenceLimitReached");
+      if (issue.includes("Type limit reached")) return t("video.drawer.typeLimitReached");
+      if (issue.includes("Start and End frame roles require an image")) return t("video.references.imageOnlyForFrame");
+      if (issue.includes("does not support Start Frame")) return t("video.references.startFrameUnsupported");
+      if (issue.includes("does not support End Frame")) return t("video.references.endFrameUnsupported");
+      return issue;
+    },
+    [t],
+  );
+
+  const getHistoryReferenceAssetIssue = useCallback(
+    (asset: UploadMediaItem) => {
+      const nextAsset: UploadMediaItem = {
+        ...asset,
+        role: asset.role || "reference",
+        uploadStatus: "ready",
+      };
+
+      if (!isReadyRemoteMedia(nextAsset)) return t("video.drawer.urlNotReady");
+
+      const roleIssue = getReferenceRoleIssue(selectedModelRule, nextAsset.type, nextAsset.role || "reference");
+      if (roleIssue) return localizeReferenceIssue(roleIssue);
+
+      const selectionIssue = validateReferenceSelectionForRule(selectedModelRule, media, [nextAsset]);
+      return localizeReferenceIssue(selectionIssue);
+    },
+    [localizeReferenceIssue, media, selectedModelRule, t],
+  );
+
+  const handleAddHistoryReferenceAsset = useCallback(
+    (asset: UploadMediaItem) => {
+      const issue = getHistoryReferenceAssetIssue(asset);
+      if (issue) {
+        setWorkspaceNotice(issue);
+        return;
+      }
+
+      const nextAsset: UploadMediaItem = {
+        ...asset,
+        role: asset.role || "reference",
+        source: asset.source || "history",
+        uploadStatus: "ready",
+      };
+
+      setMedia((currentItems) => mergeMediaAssets(currentItems, [nextAsset]));
+      setWorkspaceNotice(t("video.generation.referenceAdded"));
+    },
+    [getHistoryReferenceAssetIssue, t],
   );
 
   const handleUseResultAsReference = useCallback(
@@ -691,7 +747,7 @@ export function VideoWorkspace() {
       <main className="flex min-h-[520px] min-w-0 flex-col overflow-hidden xl:min-h-0">
         <div className="mb-2 flex flex-none gap-2 rounded-[24px] border border-white/10 bg-white/[.035] p-1.5">
           {([
-            { key: "preview", label: t("video.main.preview") },
+            { key: "generation", label: t("video.main.generation") },
             { key: "history", label: t("video.main.history") },
             { key: "guide", label: t("video.main.howItWorks") },
           ] as const).map((item) => (
@@ -726,7 +782,18 @@ export function VideoWorkspace() {
           ) : mainPanel === "guide" ? (
             <VideoHowItWorks modelName={selectedModel.label} />
           ) : (
-            <ResultViewer task={task} />
+            <VideoGenerationStream
+              getAddReferenceIssue={getHistoryReferenceAssetIssue}
+              getUseResultAsReferenceIssue={getGeneratedResultReferenceIssue}
+              history={history}
+              isLoading={isHistoryLoading}
+              onAddReference={handleAddHistoryReferenceAsset}
+              onFill={handleFillFromHistory}
+              onHide={handleHideHistoryRecord}
+              onRetry={handleRetry}
+              onUseResultAsReference={handleUseResultAsReference}
+              task={task}
+            />
           )}
         </div>
       </main>
