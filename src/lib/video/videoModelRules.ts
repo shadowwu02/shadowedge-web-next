@@ -86,6 +86,10 @@ const defaultReferenceLimits: VideoReferenceLimits = {
   audio: 3,
 };
 
+const seedanceDurations = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+const seedanceRatios: VideoRatio[] = ["16:9", "9:16", "4:3", "3:4", "1:1"];
+const seedanceQualities: VideoQuality[] = ["720p", "1080p"];
+
 const defaultRule: VideoModelRule = {
   modelId: "generic",
   label: "Generic video model",
@@ -127,10 +131,10 @@ const concreteRules: VideoModelRule[] = [
     provider: "seedance",
     supportedMediaTypes: ["image", "video", "audio"],
     uploadSlots: ["media"],
-    ratios: ["16:9", "9:16", "1:1"],
-    durations: [5, 8, 10],
-    qualities: ["720p", "1080p"],
-    resolutions: ["720p", "1080p"],
+    ratios: seedanceRatios,
+    durations: seedanceDurations,
+    qualities: seedanceQualities,
+    resolutions: seedanceQualities,
     defaultRatio: "16:9",
     defaultDuration: 5,
     defaultQuality: "720p",
@@ -138,7 +142,7 @@ const concreteRules: VideoModelRule[] = [
     supportsVideoReference: true,
     supportsImageReference: true,
     constraints: ["Flexible media input. Keep prompt-only generation available."],
-    notes: ["Matches the current Next fallback model and old workspace Seedance 2.0 media slot behavior."],
+    notes: ["Calibrated to the current product controls and old workspace Seedance 2.0 media slot behavior."],
   },
   {
     ...defaultRule,
@@ -147,18 +151,18 @@ const concreteRules: VideoModelRule[] = [
     provider: "seedance",
     supportedMediaTypes: ["image", "video", "audio"],
     uploadSlots: ["media"],
-    ratios: ["16:9", "9:16", "1:1"],
-    durations: [5, 8, 10],
-    qualities: ["480p", "720p"],
-    resolutions: ["480p", "720p"],
+    ratios: seedanceRatios,
+    durations: seedanceDurations,
+    qualities: seedanceQualities,
+    resolutions: seedanceQualities,
     defaultRatio: "16:9",
     defaultDuration: 5,
     defaultQuality: "720p",
     supportsAudioReference: true,
     supportsVideoReference: true,
     supportsImageReference: true,
-    constraints: ["Fast Seedance variants should not expose 1080p until backend metadata confirms support."],
-    notes: ["Conservative version of the old Seedance Fast quality guard."],
+    constraints: ["Keep backend metadata authoritative before adding provider-specific narrowing."],
+    notes: ["Uses the same visible product controls as Seedance 2.0 until backend model metadata narrows it."],
   },
   {
     ...defaultRule,
@@ -276,11 +280,22 @@ const concreteRules: VideoModelRule[] = [
 
 const modelRuleAliases: Record<string, string> = {
   "seedance 2.0": "seedance_2_0",
+  seedance_20: "seedance_2_0",
+  seedance20: "seedance_2_0",
   seedance2_0: "seedance_2_0",
   seedance_2: "seedance_2_0",
+  seedance_v2: "seedance_2_0",
+  seedance_v2_0: "seedance_2_0",
+  seedance_2_0_lite: "seedance_2_0",
+  text2video_seedance_2_0: "seedance_2_0",
   "seedance 2.0 fast": "seedance_2_0_fast",
+  seedance_20_fast: "seedance_2_0_fast",
+  seedance20_fast: "seedance_2_0_fast",
   seedance_fast: "seedance_2_0_fast",
+  seedance_2_0_lite_fast: "seedance_2_0_fast",
+  seedance_fast_2_0: "seedance_2_0_fast",
   seedance2_0_fast: "seedance_2_0_fast",
+  text2video_seedance_2_0_fast: "seedance_2_0_fast",
   veo3: "veo3_1",
   veo_3: "veo3_1",
   veo3_1: "veo3_1",
