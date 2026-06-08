@@ -11,6 +11,7 @@ import { PromptBox } from "@/components/video/PromptBox";
 import { ReferenceMediaTray } from "@/components/video/ReferenceMediaTray";
 import { ResultViewer } from "@/components/video/ResultViewer";
 import { UploadBox } from "@/components/video/UploadBox";
+import { VideoHowItWorks } from "@/components/video/VideoHowItWorks";
 import { type VideoParams, VideoParamsPanel } from "@/components/video/VideoParamsPanel";
 import { useTaskPolling } from "@/hooks/useTaskPolling";
 import { useAuthSession } from "@/hooks/useAuthSession";
@@ -205,6 +206,7 @@ export function VideoWorkspace() {
   const [isAssetPickerUploading, setIsAssetPickerUploading] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
+  const [rightPanel, setRightPanel] = useState<"guide" | "history">("history");
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestDraftSnapshotRef = useRef<{
     media: UploadMediaItem[];
@@ -588,6 +590,7 @@ export function VideoWorkspace() {
   );
 
   const handleHistoryShortcut = useCallback((nextFilter: HistoryFilter) => {
+    setRightPanel("history");
     setHistoryFilter(nextFilter);
     setWorkspaceNotice(nextFilter === "failed" ? t("video.workspace.showingFailed") : t("video.workspace.showingProcessing"));
   }, [t]);
@@ -713,19 +716,42 @@ export function VideoWorkspace() {
             <span className="rounded-full bg-white/[.08] px-2 py-0.5 text-[11px]">{historyStatusCounts.failed}</span>
           </button>
         </div>
+        <div className="flex flex-none gap-2 rounded-[22px] border border-white/10 bg-white/[.035] p-1.5">
+          {([
+            { key: "history", label: t("video.history.saved") },
+            { key: "guide", label: t("video.guide.tab") },
+          ] as const).map((item) => (
+            <button
+              className={`min-h-9 flex-1 rounded-2xl px-3 text-xs font-black transition ${
+                rightPanel === item.key
+                  ? "bg-[#ffb44d] text-[#1f2027]"
+                  : "text-white/56 hover:bg-white/[.055] hover:text-[#ffd08a]"
+              }`}
+              key={item.key}
+              onClick={() => setRightPanel(item.key)}
+              type="button"
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
         <div className="min-h-0 flex-1 overflow-hidden">
-          <HistoryPanel
-            error={historyError}
-            filter={historyFilter}
-            getUseResultAsReferenceIssue={getGeneratedResultReferenceIssue}
-            history={history}
-            isLoading={isHistoryLoading}
-            onFilterChange={setHistoryFilter}
-            onFill={handleFillFromHistory}
-            onHide={handleHideHistoryRecord}
-            onRetry={handleRetry}
-            onUseResultAsReference={handleUseResultAsReference}
-          />
+          {rightPanel === "guide" ? (
+            <VideoHowItWorks modelName={selectedModel.label} />
+          ) : (
+            <HistoryPanel
+              error={historyError}
+              filter={historyFilter}
+              getUseResultAsReferenceIssue={getGeneratedResultReferenceIssue}
+              history={history}
+              isLoading={isHistoryLoading}
+              onFilterChange={setHistoryFilter}
+              onFill={handleFillFromHistory}
+              onHide={handleHideHistoryRecord}
+              onRetry={handleRetry}
+              onUseResultAsReference={handleUseResultAsReference}
+            />
+          )}
         </div>
       </aside>
     </div>
