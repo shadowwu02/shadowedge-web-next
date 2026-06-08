@@ -263,9 +263,9 @@ export function VideoWorkspace() {
         if (cancelled) return;
         applyModelRegistry(nextModels, draft);
       } catch (loadError) {
-        const message = loadError instanceof Error ? loadError.message : "Failed to load models.";
+        const message = loadError instanceof Error ? loadError.message : t("video.errors.modelLoadFailed");
         if (!cancelled) {
-          setModelError(`${message} Using local fallback models.`);
+          setModelError(`${message} ${t("video.model.usingFallback")}`);
           applyModelRegistry(fallbackModels, draft);
         }
       } finally {
@@ -278,7 +278,7 @@ export function VideoWorkspace() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!draftReady) return;
@@ -386,7 +386,15 @@ export function VideoWorkspace() {
       "Failed to load models. Using local fallback models.": `${t("video.errors.modelLoadFailed")} ${t("video.model.usingFallback")}`,
     };
 
-    return exactMessages[message] || message;
+    if (exactMessages[message]) return exactMessages[message];
+    if (message.includes("does not support image references")) return t("video.errors.unsupportedImageReference");
+    if (message.includes("does not support video references")) return t("video.errors.unsupportedVideoReference");
+    if (message.includes("does not support audio references")) return t("video.errors.unsupportedAudioReference");
+    if (message.includes("Reference limit reached")) return t("video.drawer.referenceLimitReached");
+    if (message.includes("Type limit reached")) return t("video.drawer.typeLimitReached");
+    if (message.includes("Generated results cannot be used as references")) return t("video.drawer.generatedUnsupported");
+
+    return message;
   }, [error, modelError, t, workspaceNotice]);
 
   const generateButtonLabel = useMemo(() => {
@@ -606,7 +614,7 @@ export function VideoWorkspace() {
               onClick={() => setPrompt((current) => `${current}${current && !current.endsWith(" ") ? " " : ""}@`)}
               type="button"
             >
-              @ Elements
+              {t("video.prompt.elements")}
             </button>
             <button
               className={`rounded-2xl border px-3 py-2 text-xs font-black transition ${
@@ -617,7 +625,7 @@ export function VideoWorkspace() {
               onClick={() => setParams((current) => ({ ...current, generateAudio: !current.generateAudio }))}
               type="button"
             >
-              Audio {params.generateAudio ? "On" : "Off"}
+              {params.generateAudio ? t("video.params.audioOn") : t("video.params.audioOff")}
             </button>
           </div>
           <ModelSelector models={models} onChange={handleModelChange} selectedModelId={selectedModel.id} />

@@ -5,6 +5,17 @@ import { getSafeHistoryOutputUrl, getSafeVideoHistoryErrorMessage, getVideoLongR
 import { useI18n } from "@/i18n/useI18n";
 import type { VideoTaskRecord } from "@/types/video";
 
+function localizeResultError(message: string, t: ReturnType<typeof useI18n>["t"]) {
+  const exactMessages: Record<string, string> = {
+    "Failed to refresh video status.": t("video.errors.statusRefreshFailed"),
+    "Unable to check this job status. It may be expired. Please check History or retry.": t("video.result.statusExpired"),
+    "Video generation failed.": t("video.errors.generationFailed"),
+    "Video generation failed. Please try again later or change the media.": t("video.errors.generationFailed"),
+  };
+
+  return exactMessages[message] || message;
+}
+
 export function ResultViewer({ task }: { task: VideoTaskRecord | null }) {
   const { t, tf } = useI18n();
   const videoUrl = getSafeHistoryOutputUrl(task) || getVideoOutputUrl(task);
@@ -45,7 +56,11 @@ export function ResultViewer({ task }: { task: VideoTaskRecord | null }) {
               </div>
               <p className="text-lg font-black text-red-100">{isStaleActive ? t("video.result.statusCheckStopped") : t("video.result.failedTitle")}</p>
               <p className="mt-2 text-sm text-red-100/62">
-                {isStaleActive ? t("video.result.staleBody") : task ? getSafeVideoHistoryErrorMessage(task) : t("video.result.tryAgain")}
+                {isStaleActive
+                  ? t("video.result.staleBody")
+                  : task
+                    ? localizeResultError(getSafeVideoHistoryErrorMessage(task), t)
+                    : t("video.result.tryAgain")}
               </p>
             </div>
           ) : isActive ? (

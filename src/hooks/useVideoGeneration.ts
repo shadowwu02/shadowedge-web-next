@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useI18n } from "@/i18n/useI18n";
 import { getCurrentUserProfile } from "@/lib/auth-api";
 import { createVideoTask, getVideoHistory, getVideoStatus, saveVideoHistory } from "@/lib/video-api";
 import { buildMediaAwarePrompt, getReadyMentionableMediaItems, toGenerationMediaList } from "@/lib/video-mentions";
@@ -30,29 +31,38 @@ type SubmitVideoOptions = {
   maxConcurrency?: number | null;
 };
 
+type SubmitValidationCopy = {
+  activeGeneration: string;
+  localPreviewMedia: string;
+  mediaFailedBeforeGenerate: string;
+  mediaUploading: string;
+  promptRequired: string;
+  remoteMediaOnly: string;
+};
+
 function isRemoteUrl(url: string) {
   return /^https?:\/\//i.test(url);
 }
 
-function validateSubmitOptions(options: SubmitVideoOptions) {
+function validateSubmitOptions(options: SubmitVideoOptions, copy: SubmitValidationCopy) {
   if (!options.prompt.trim()) {
-    return "Please enter a prompt first.";
+    return copy.promptRequired;
   }
 
   if (options.media.some((item) => item.uploadStatus === "uploading")) {
-    return "Media is still uploading. Please wait for uploads to finish.";
+    return copy.mediaUploading;
   }
 
   if (options.media.some((item) => item.uploadStatus === "failed")) {
-    return "Some media failed to upload. Remove failed items before generating.";
+    return copy.mediaFailedBeforeGenerate;
   }
 
   if (options.media.some((item) => item.previewUrl?.startsWith("blob:") && !item.url)) {
-    return "Local preview media cannot be used for generation. Please wait for upload to finish.";
+    return copy.localPreviewMedia;
   }
 
   if (options.media.some((item) => item.url && !isRemoteUrl(item.url))) {
-    return "Only uploaded remote media URLs can be used for generation.";
+    return copy.remoteMediaOnly;
   }
 
   return "";
@@ -120,10 +130,6 @@ function getActiveTaskCount(records: VideoTaskRecord[]) {
   return records.filter((record) => isVideoActiveStatus(record.status) && !isVideoStaleActiveRecord(record)).length;
 }
 
-function activeTaskMessage() {
-  return "You already have active generation tasks. Please wait until one finishes.";
-}
-
 function findTaskByJobId(records: VideoTaskRecord[], jobId: string) {
   return records.find((record) =>
     [record.jobId, record.providerJobId, record.dbJobId].filter(Boolean).some((value) => String(value) === String(jobId)),
@@ -154,14 +160,12 @@ function mergeStatusIntoTask(base: VideoTaskRecord, result: VideoStatusResponse)
   };
 }
 
-const EXPIRED_STATUS_MESSAGE = "Unable to check this job status. It may be expired. Please check History or retry.";
-
-function markStatusCheckExpired(base: VideoTaskRecord): VideoTaskRecord {
+function markStatusCheckExpired(base: VideoTaskRecord, message: string): VideoTaskRecord {
   return {
     ...base,
     status: "failed",
-    error_message: EXPIRED_STATUS_MESSAGE,
-    message: EXPIRED_STATUS_MESSAGE,
+    error_message: message,
+    message,
     updatedAt: Date.now(),
     meta: {
       ...(base.meta || {}),
@@ -172,6 +176,7 @@ function markStatusCheckExpired(base: VideoTaskRecord): VideoTaskRecord {
 }
 
 export function useVideoGeneration() {
+  const { t } = useI18n();
   const [task, setTask] = useState<VideoTaskRecord | null>(null);
   const [localHistory, setLocalHistory] = useState<VideoTaskRecord[]>([]);
   const [serverHistory, setServerHistory] = useState<VideoHistoryItem[]>([]);
@@ -215,6 +220,15 @@ export function useVideoGeneration() {
     }
   }, []);
 
+  const submitValidationCopy = useMemo<SubmitValidationCopy>(() => ({
+    activeGeneration: t("video.errors.activeGeneration"),
+    localPreviewMedia: t("video.errors.localPreviewMedia"),
+    mediaFailedBeforeGenerate: t("video.errors.mediaFailedBeforeGenerate"),
+    mediaUploading: t("video.errors.mediaUploading"),
+    promptRequired: t("video.errors.promptRequired"),
+    remoteMediaOnly: t("video.errors.remoteMediaOnly"),
+  }), [t]);
+
   const loadHistory = useCallback(async () => {
     setIsHistoryLoading(true);
     setHistoryError("");
@@ -227,16 +241,16 @@ export function useVideoGeneration() {
         return preferLatestVideoTask(current, recoverableTask);
       });
     } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : "Server history failed to load.";
+      const message = loadError instanceof Error ? loadError.message : t("video.errors.serverHistoryLoadFailed");
       setHistoryError(message);
     } finally {
       setIsHistoryLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const submit = useCallback(async (options: SubmitVideoOptions) => {
     if (isSubmitting) {
-      setError(activeTaskMessage());
+      setError(submitValidationCopy.activeGeneration);
       return;
     }
 
@@ -247,10 +261,10 @@ export function useVideoGeneration() {
       const currentActiveCount = getActiveTaskCount(visibleHistory);
 
       if (currentActiveCount > 0) {
-        throw new Error(activeTaskMessage());
+        throw new Error(submitValidationCopy.activeGeneration);
       }
 
-      const validationMessage = validateSubmitOptions(options);
+      const validationMessage = validateSubmitOptions(options, submitValidationCopy);
       if (validationMessage) {
         throw new Error(validationMessage);
       }
@@ -260,7 +274,7 @@ export function useVideoGeneration() {
       const result = response.data;
 
       if (!result?.jobId) {
-        throw new Error("No jobId returned by video API.");
+        throw new Error(t("video.errors.noJobId"));
       }
 
       const nextTask: VideoTaskRecord = {
@@ -295,12 +309,12 @@ export function useVideoGeneration() {
       });
       void refreshCredits();
     } catch (submitError) {
-      const message = submitError instanceof Error ? submitError.message : "Video generation request failed.";
+      const message = submitError instanceof Error ? submitError.message : t("video.errors.generationRequestFailed");
       setError(message);
     } finally {
       setIsSubmitting(false);
     }
-  }, [isSubmitting, refreshCredits, visibleHistory]);
+  }, [isSubmitting, refreshCredits, submitValidationCopy, t, visibleHistory]);
 
   const refreshTask = useCallback(async (jobId: string) => {
     const currentTask = taskRef.current;
@@ -308,24 +322,25 @@ export function useVideoGeneration() {
       (currentTask && findTaskByJobId([currentTask], jobId)) ||
       findTaskByJobId(visibleHistoryRef.current, jobId);
     let response;
+    const expiredStatusMessage = t("video.result.statusExpired");
     try {
       response = await getVideoStatus(jobId);
     } catch (statusError) {
       if (baseTask && isVideoStaleActiveRecord(baseTask)) {
-        const next = markStatusCheckExpired(baseTask);
+        const next = markStatusCheckExpired(baseTask, expiredStatusMessage);
         setLocalHistory((items) => [next, ...items.filter((item) => item.jobId !== next.jobId)].slice(0, 20));
         setTask((current) => (current && getVideoHistoryStableKey(current, "") === getVideoHistoryStableKey(next, "") ? next : current));
-        setError(EXPIRED_STATUS_MESSAGE);
+        setError(expiredStatusMessage);
         return {
           jobId,
           status: "failed",
-          error_message: EXPIRED_STATUS_MESSAGE,
-          message: EXPIRED_STATUS_MESSAGE,
+          error_message: expiredStatusMessage,
+          message: expiredStatusMessage,
         } as VideoStatusResponse;
       }
 
-      const message = statusError instanceof Error ? statusError.message : "Failed to refresh video status.";
-      setError(message === "Unable to check generation status. Please contact support." ? EXPIRED_STATUS_MESSAGE : message);
+      const message = statusError instanceof Error ? statusError.message : t("video.errors.statusRefreshFailed");
+      setError(message === "Unable to check generation status. Please contact support." ? expiredStatusMessage : message);
       throw statusError;
     }
 
@@ -345,7 +360,7 @@ export function useVideoGeneration() {
     }
 
     return result as VideoStatusResponse;
-  }, [refreshCredits]);
+  }, [refreshCredits, t]);
 
   const hideHistoryRecord = useCallback((record: VideoTaskRecord) => {
     const key = getVideoHistoryStableKey(record, record.jobId || record.providerJobId || record.dbJobId || String(record.createdAt || ""));

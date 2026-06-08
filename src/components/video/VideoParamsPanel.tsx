@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { useI18n } from "@/i18n/useI18n";
 import { getDefaultVideoModelRule, getVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
 
 export type VideoParams = {
@@ -73,6 +74,7 @@ export function VideoParamsPanel({
   onChange: (value: VideoParams) => void;
   modelId: string;
 }) {
+  const { t, tf } = useI18n();
   const [openKey, setOpenKey] = useState<ParamKey | null>(null);
   const [menuPosition, setMenuPosition] = useState<MenuPosition>({ left: 0, top: 0, width: 180 });
   const rootRef = useRef<HTMLElement | null>(null);
@@ -149,9 +151,9 @@ export function VideoParamsPanel({
   }
 
   const chips: Array<{ key: ParamKey; label: string; value: string }> = [
-    { key: "duration", label: "Duration", value: `${value.duration}s` },
-    { key: "ratio", label: "Ratio", value: value.ratio },
-    { key: "quality", label: "Quality", value: value.quality },
+    { key: "duration", label: t("video.params.duration"), value: tf("video.params.secondsValue", { seconds: value.duration }) },
+    { key: "ratio", label: t("video.params.ratio"), value: value.ratio },
+    { key: "quality", label: t("video.params.quality"), value: value.quality },
   ];
   const durationProgress =
     durationOptions.length > 1 ? Math.round((durationIndex / (durationOptions.length - 1)) * 100) : 100;
@@ -203,14 +205,14 @@ export function VideoParamsPanel({
           {openKey === "duration" ? (
             <div className="grid gap-4 p-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-white">Choose duration</span>
+                <span className="text-xs font-black text-white">{t("video.params.chooseDuration")}</span>
                 <span className="rounded-full bg-[#ffb44d]/18 px-2.5 py-1 text-xs font-black text-[#ffd08a]">
-                  {value.duration}s
+                  {tf("video.params.secondsValue", { seconds: value.duration })}
                 </span>
               </div>
               <div className="px-1.5 pt-1">
                 <input
-                  aria-label="Duration"
+                  aria-label={t("video.params.duration")}
                   className="se-duration-slider w-full cursor-pointer"
                   max={Math.max(0, durationOptions.length - 1)}
                   min={0}
@@ -236,7 +238,7 @@ export function VideoParamsPanel({
                     onClick={() => onChange({ ...value, duration })}
                     type="button"
                   >
-                    {duration}s
+                    {tf("video.params.secondsValue", { seconds: duration })}
                   </button>
                 ))}
               </div>
@@ -245,7 +247,7 @@ export function VideoParamsPanel({
                 onClick={() => setOpenKey(null)}
                 type="button"
               >
-                Done
+                {t("common.actions.done")}
               </button>
             </div>
           ) : (
@@ -264,7 +266,7 @@ export function VideoParamsPanel({
                     type="button"
                   >
                     <span>{option}</span>
-                    {isSelected ? <span className="text-[11px] uppercase tracking-[.12em] text-[#ffd08a]">set</span> : null}
+                    {isSelected ? <span className="text-[11px] uppercase tracking-[.12em] text-[#ffd08a]">{t("video.params.selected")}</span> : null}
                   </button>
                 );
               })}

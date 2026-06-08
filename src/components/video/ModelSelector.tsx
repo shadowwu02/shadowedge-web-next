@@ -1,7 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useI18n } from "@/i18n/useI18n";
 import type { VideoModel } from "@/types/video";
+
+function getLocalizedModelDescription(description: string | undefined, t: ReturnType<typeof useI18n>["t"]) {
+  if (description === "General video generation model. Replace with live model registry when available.") {
+    return t("video.model.fallbackSeedanceDescription");
+  }
+
+  if (description === "Cinematic video model placeholder.") {
+    return t("video.model.fallbackVeoDescription");
+  }
+
+  return description || "";
+}
 
 export function ModelSelector({
   models,
@@ -12,6 +25,7 @@ export function ModelSelector({
   selectedModelId?: string;
   onChange: (model: VideoModel) => void;
 }) {
+  const { t, tf } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLElement | null>(null);
   const selected = models.find((model) => model.id === selectedModelId) || models[0];
@@ -38,12 +52,12 @@ export function ModelSelector({
         type="button"
       >
         <span className="min-w-0">
-          <span className="block text-[11px] font-bold text-white/48">Model</span>
-          <span className="mt-0.5 block truncate text-sm font-black text-white">{selected?.label || "Select model"}</span>
+          <span className="block text-[11px] font-bold text-white/48">{t("video.params.model")}</span>
+          <span className="mt-0.5 block truncate text-sm font-black text-white">{selected?.label || t("video.model.select")}</span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
           <span className="rounded-full bg-[#ffb44d]/14 px-2.5 py-1 text-[11px] font-bold text-[#ffd08a]">
-            {selected?.credits ?? "--"} credits
+            {selected?.credits === undefined ? "--" : tf("video.model.creditsShort", { credits: selected.credits })}
           </span>
           <span className="text-lg leading-none text-white/40">›</span>
         </span>
@@ -70,10 +84,12 @@ export function ModelSelector({
                 <span className="flex items-center justify-between gap-3">
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-black text-white">{model.label}</span>
-                    <span className="mt-0.5 block truncate text-xs text-white/42">{model.desc || model.providerModel}</span>
+                    <span className="mt-0.5 block truncate text-xs text-white/42">
+                      {getLocalizedModelDescription(model.desc, t) || model.providerModel}
+                    </span>
                   </span>
                   <span className="shrink-0 rounded-full bg-white/[.055] px-2 py-1 text-[10px] font-black text-white/52">
-                    {model.credits} cr
+                    {tf("video.model.creditsShort", { credits: model.credits })}
                   </span>
                 </span>
               </button>
