@@ -186,7 +186,7 @@ export function HistoryPanel({
                           </span>
                         </div>
                       ) : null}
-                      <div className="mt-2 flex flex-wrap gap-1.5 opacity-85 transition group-hover:opacity-100">
+                      <div className="mt-2 flex max-h-0 flex-wrap gap-1.5 overflow-hidden opacity-0 transition-all duration-150 group-hover:max-h-24 group-hover:opacity-100">
                         {isSuccess ? (
                           <a
                             className={actionButtonClass("normal")}

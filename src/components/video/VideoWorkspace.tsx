@@ -11,7 +11,6 @@ import { PromptBox } from "@/components/video/PromptBox";
 import { ReferenceMediaTray } from "@/components/video/ReferenceMediaTray";
 import { UploadBox } from "@/components/video/UploadBox";
 import { VideoGenerationStream } from "@/components/video/VideoGenerationStream";
-import { VideoHistoryCanvas } from "@/components/video/VideoHistoryCanvas";
 import { VideoHowItWorks } from "@/components/video/VideoHowItWorks";
 import { type VideoParams, VideoParamsPanel } from "@/components/video/VideoParamsPanel";
 import { useTaskPolling } from "@/hooks/useTaskPolling";
@@ -63,7 +62,7 @@ const fallbackModels: VideoModel[] = [
   },
 ];
 
-type MainPanel = "generation" | "history" | "guide";
+type MainPanel = "history" | "guide";
 
 function getVideoModelRuleId(model: VideoModel) {
   const candidates = [model.id, model.providerModel, model.label].filter((value): value is string => Boolean(value));
@@ -209,7 +208,7 @@ export function VideoWorkspace() {
   const [isAssetPickerUploading, setIsAssetPickerUploading] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
-  const [mainPanel, setMainPanel] = useState<MainPanel>("generation");
+  const [mainPanel, setMainPanel] = useState<MainPanel>("history");
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestDraftSnapshotRef = useRef<{
     media: UploadMediaItem[];
@@ -460,7 +459,7 @@ export function VideoWorkspace() {
       return;
     }
 
-    setMainPanel("generation");
+    setMainPanel("history");
     void submit({
       prompt: prompt.trim(),
       model: selectedModel,
@@ -504,7 +503,7 @@ export function VideoWorkspace() {
         ratio: record.ratio,
       });
 
-      setMainPanel("generation");
+      setMainPanel("history");
       void submit({
         prompt: promptText,
         model: retryModel,
@@ -747,15 +746,14 @@ export function VideoWorkspace() {
       <main className="flex min-h-[520px] min-w-0 flex-col overflow-hidden xl:min-h-0">
         <div className="mb-2 flex flex-none gap-2 rounded-[24px] border border-white/10 bg-white/[.035] p-1.5">
           {([
-            { key: "generation", label: t("video.main.generation") },
             { key: "history", label: t("video.main.history") },
             { key: "guide", label: t("video.main.howItWorks") },
           ] as const).map((item) => (
             <button
               className={`min-h-10 rounded-2xl px-4 text-xs font-black transition ${
                 mainPanel === item.key
-                  ? "bg-[#ffb44d] text-[#1f2027]"
-                  : "text-white/56 hover:bg-white/[.055] hover:text-[#ffd08a]"
+                  ? "border border-white/10 bg-white/[.08] text-white shadow-lg shadow-black/18"
+                  : "border border-transparent text-white/56 hover:bg-white/[.055] hover:text-[#ffd08a]"
               }`}
               key={item.key}
               onClick={() => setMainPanel(item.key)}
@@ -766,20 +764,7 @@ export function VideoWorkspace() {
           ))}
         </div>
         <div className="min-h-0 flex-1 overflow-hidden">
-          {mainPanel === "history" ? (
-            <VideoHistoryCanvas
-              error={historyError}
-              filter={historyFilter}
-              getUseResultAsReferenceIssue={getGeneratedResultReferenceIssue}
-              history={history}
-              isLoading={isHistoryLoading}
-              onFilterChange={setHistoryFilter}
-              onFill={handleFillFromHistory}
-              onHide={handleHideHistoryRecord}
-              onRetry={handleRetry}
-              onUseResultAsReference={handleUseResultAsReference}
-            />
-          ) : mainPanel === "guide" ? (
+          {mainPanel === "guide" ? (
             <VideoHowItWorks modelName={selectedModel.label} />
           ) : (
             <VideoGenerationStream

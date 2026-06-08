@@ -161,12 +161,11 @@ function VideoGenerationCard({
           : view.statusLabel;
 
   return (
-    <article className="overflow-hidden rounded-[30px] border border-white/10 bg-black/24 shadow-2xl shadow-black/18">
-      <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_240px] 2xl:grid-cols-[minmax(0,1fr)_260px]">
-        <div className="group relative grid min-h-[420px] place-items-center bg-[#05070b] p-3">
+    <article className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_236px] 2xl:grid-cols-[minmax(0,1fr)_252px]">
+      <div className="group relative grid min-h-[440px] place-items-center overflow-hidden rounded-[28px] border border-white/10 bg-[#05070b] shadow-2xl shadow-black/24 xl:min-h-[520px]">
           {view.outputUrl ? (
             <>
-              <video className="max-h-[70vh] min-h-[410px] w-full rounded-[24px] object-contain" controls playsInline src={view.outputUrl} />
+              <video className="max-h-[72vh] min-h-[440px] w-full object-contain xl:min-h-[520px]" controls playsInline src={view.outputUrl} />
               <div className="absolute right-5 top-5 flex flex-col gap-2 opacity-0 transition group-hover:opacity-100">
                 {onUseResultAsReference ? (
                   <button
@@ -206,9 +205,9 @@ function VideoGenerationCard({
             </>
           ) : view.thumbnailUrl && !isFailed && !isStaleActive ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img alt="" className="max-h-[70vh] min-h-[410px] w-full rounded-[24px] object-contain" src={view.thumbnailUrl} />
+            <img alt="" className="max-h-[72vh] min-h-[440px] w-full object-contain xl:min-h-[520px]" src={view.thumbnailUrl} />
           ) : isFailed || isStaleActive ? (
-            <div className="grid min-h-[410px] w-full place-items-center rounded-[24px] border border-white/10 bg-black/76 px-6 text-center">
+            <div className="grid min-h-[440px] w-full place-items-center bg-black/76 px-6 text-center xl:min-h-[520px]">
               <div>
                 <div className="mx-auto mb-4 grid size-16 place-items-center rounded-[28px] border border-red-300/25 bg-red-400/10 text-2xl font-black text-red-100">
                   !
@@ -235,7 +234,7 @@ function VideoGenerationCard({
               </div>
             </div>
           ) : isProcessing ? (
-            <div className="grid min-h-[410px] w-full place-items-center rounded-[24px] border border-[#ffb44d]/20 bg-[#ffb44d]/10 px-6 text-center">
+            <div className="grid min-h-[440px] w-full place-items-center bg-[#ffb44d]/10 px-6 text-center xl:min-h-[520px]">
               <div>
                 <span className="mx-auto mb-5 block size-12 animate-pulse rounded-3xl border border-[#ffb44d]/30 bg-[#ffb44d]/20" />
                 <p className="text-lg font-black text-white">{t("video.result.processingTitle")}</p>
@@ -243,13 +242,13 @@ function VideoGenerationCard({
               </div>
             </div>
           ) : (
-            <div className="grid min-h-[410px] w-full place-items-center rounded-[24px] border border-dashed border-white/12 text-sm text-white/42">
+            <div className="grid min-h-[440px] w-full place-items-center text-sm text-white/42 xl:min-h-[520px]">
               {t("video.generation.empty.title")}
             </div>
           )}
-        </div>
+      </div>
 
-        <div className="flex min-w-0 flex-col gap-2.5 border-t border-white/10 p-3 xl:border-l xl:border-t-0">
+      <aside className="flex min-w-0 flex-col gap-2.5 rounded-[24px] border border-white/10 bg-white/[.04] p-3 shadow-2xl shadow-black/18">
           <div className="flex flex-wrap items-center gap-2">
             <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${statusClass(view.status, hasOutput, isStaleActive)}`}>
               {statusLabel}
@@ -375,8 +374,7 @@ function VideoGenerationCard({
           </div>
 
           <span className="text-[11px] text-white/30">{tf("video.history.job", { job: view.jobLabel })}</span>
-        </div>
-      </div>
+      </aside>
     </article>
   );
 }
@@ -385,7 +383,6 @@ export function VideoGenerationStream({
   getAddReferenceIssue,
   getUseResultAsReferenceIssue,
   history,
-  isLoading = false,
   onAddReference,
   onFill,
   onHide,
@@ -393,23 +390,13 @@ export function VideoGenerationStream({
   onUseResultAsReference,
   task,
 }: VideoGenerationStreamProps) {
-  const { t, tf } = useI18n();
+  const { t } = useI18n();
   const records = useMemo(() => buildStreamRecords(task, history), [history, task]);
 
   return (
-    <section className="flex h-full min-h-[420px] flex-col overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_50%_0%,rgba(255,180,77,.12),transparent_35%),rgba(255,255,255,.04)] p-4 shadow-2xl shadow-black/24">
-      <div className="mb-3 flex flex-none flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-black uppercase tracking-[.2em] text-[#ffcf83]">{t("video.history.outputs")}</p>
-          <h2 className="mt-1 text-base font-black text-white">{t("video.main.generation")}</h2>
-          <span className="text-xs text-white/42">
-            {isLoading ? t("video.history.loading") : tf("video.history.itemsCount", { visible: records.length, total: Math.max(records.length, history.length) })}
-          </span>
-        </div>
-      </div>
-
-      <div className="se-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1">
-        <div className="grid gap-3">
+    <section className="flex h-full min-h-[420px] flex-col overflow-hidden">
+      <div className="se-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1.5">
+        <div className="grid gap-6">
           {records.length ? (
             records.map((record, index) => (
               <VideoGenerationCard
@@ -425,7 +412,7 @@ export function VideoGenerationStream({
               />
             ))
           ) : (
-            <div className="grid min-h-[460px] place-items-center rounded-[30px] border border-dashed border-white/12 bg-black/22 p-8 text-center">
+            <div className="grid min-h-[520px] place-items-center rounded-[30px] border border-dashed border-white/12 bg-black/22 p-8 text-center">
               <div className="max-w-md">
                 <p className="text-lg font-black text-white">{t("video.generation.empty.title")}</p>
                 <p className="mt-2 text-sm leading-6 text-white/42">{t("video.generation.empty.body")}</p>
