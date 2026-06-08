@@ -8,14 +8,19 @@ import { getAudioDuration } from "@/lib/media-duration";
 import {
   filterFilesByUploadTypeLimits,
   getFileTypeFromFile,
-  getSlotAccept,
   isRemoteMediaUrl,
   isTransientMediaUrl,
   validateFilesForSlot,
   validateSelectedMediaForSlot,
 } from "@/lib/upload-rules";
+import {
+  getReferenceAccept,
+  validateFilesForReferenceRule,
+  validateReferenceSelectionForRule,
+} from "@/lib/video/videoReferenceRules";
 import { uploadMedia } from "@/lib/video-api";
 import type { UploadMediaItem } from "@/types/video";
+import type { VideoModelRule } from "@/lib/video/videoModelRules";
 
 const uploadSlot = "media";
 const maxFileSizeBytes = 250 * 1024 * 1024;
@@ -53,10 +58,12 @@ function sumAudioDuration(items: UploadMediaItem[]) {
 
 export function UploadBox({
   media,
+  modelRule,
   onBusyChange,
   onChange,
 }: {
   media: UploadMediaItem[];
+  modelRule: VideoModelRule;
   onBusyChange?: (isBusy: boolean) => void;
   onChange: Dispatch<SetStateAction<UploadMediaItem[]>>;
 }) {
@@ -98,6 +105,12 @@ export function UploadBox({
   }, []);
 
   async function buildUploadableItems(files: File[]) {
+    const ruleError = validateFilesForReferenceRule(modelRule, files);
+    if (ruleError) {
+      setPickerNotice(ruleError);
+      return [];
+    }
+
     const typeError = validateFilesForSlot(uploadSlot, files);
     if (typeError) {
       setPickerNotice(typeError);
@@ -217,6 +230,13 @@ export function UploadBox({
     const selectedNewItems = selectedRemoteItems.filter(
       (item) => !media.some((current) => current.id === item.id || (current.url && current.url === item.url)),
     );
+    const modelLimitMessage = validateReferenceSelectionForRule(modelRule, media, selectedNewItems);
+
+    if (modelLimitMessage) {
+      setPickerNotice(modelLimitMessage);
+      return false;
+    }
+
     const limitMessage = validateSelectedMediaForSlot(uploadSlot, media, selectedNewItems);
 
     if (limitMessage) {
@@ -237,7 +257,7 @@ export function UploadBox({
   return (
     <>
       <input
-        accept={getSlotAccept(uploadSlot)}
+        accept={getReferenceAccept(modelRule)}
         className="hidden"
         multiple
         onChange={(event) => {
@@ -269,6 +289,7 @@ export function UploadBox({
         inputRef={inputRef}
         isOpen={isPickerOpen}
         localMedia={localStoredMedia}
+        modelRule={modelRule}
         notice={pickerNotice}
         onAddSelected={addSelectedToReferences}
         onClearNotice={() => setPickerNotice("")}
@@ -277,7 +298,9 @@ export function UploadBox({
           setDrawerAnchorEl(null);
         }}
         onFiles={(files) => void handleFiles(files)}
+        onNotice={setPickerNotice}
         onRemove={removeMedia}
+        referenceMedia={media}
         slot={uploadSlot}
       />
     </>

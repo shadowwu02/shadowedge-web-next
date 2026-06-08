@@ -4,7 +4,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, DragEvent, RefObject } from "react";
 import { mergeMediaAssets } from "@/lib/media-assets";
 import { slotAllowsAssetType } from "@/lib/upload-rules";
+import {
+  getAllowedReferenceTypes,
+  getReferenceLimitSummary,
+  getUnsupportedReferenceTypeReason,
+  isReferenceTypeSupported,
+  validateReferenceSelectionForRule,
+} from "@/lib/video/videoReferenceRules";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
+import type { VideoModelRule } from "@/lib/video/videoModelRules";
 
 type MediaFilter = "uploads" | UploadMediaType | "elements" | "liked";
 
@@ -109,12 +117,15 @@ export function MediaPickerDrawer({
   inputRef,
   isOpen,
   localMedia,
+  modelRule,
   notice,
   onAddSelected,
   onClearNotice,
   onClose,
   onFiles,
+  onNotice,
   onRemove,
+  referenceMedia,
   slot,
 }: {
   anchorElement: HTMLElement | null;
@@ -122,12 +133,15 @@ export function MediaPickerDrawer({
   inputRef: RefObject<HTMLInputElement | null>;
   isOpen: boolean;
   localMedia: UploadMediaItem[];
+  modelRule: VideoModelRule;
   notice?: string;
   onAddSelected: (ids: string[]) => boolean;
   onClearNotice?: () => void;
   onClose: () => void;
   onFiles: (files: File[]) => void;
+  onNotice?: (notice: string) => void;
   onRemove: (id: string) => void;
+  referenceMedia: UploadMediaItem[];
   slot: string;
 }) {
   const [activeFilter, setActiveFilter] = useState<MediaFilter>("uploads");
@@ -137,6 +151,8 @@ export function MediaPickerDrawer({
   const rafRef = useRef<number | null>(null);
 
   const allMedia = useMemo(() => mergeMediaAssets(currentMedia, localMedia), [currentMedia, localMedia]);
+  const allowedTypes = useMemo(() => getAllowedReferenceTypes(modelRule), [modelRule]);
+  const limitSummary = useMemo(() => getReferenceLimitSummary(modelRule), [modelRule]);
   const visibleMedia = useMemo(() => {
     if (activeFilter === "uploads") return allMedia;
     if (activeFilter === "elements" || activeFilter === "liked") return [];
@@ -144,6 +160,7 @@ export function MediaPickerDrawer({
   }, [activeFilter, allMedia]);
 
   const selectedCount = selectedIds.size;
+  const allowedTypeLabel = allowedTypes.length ? allowedTypes.map((type) => mediaTypeLabel(type).toLowerCase()).join(", ") : "no reference media";
 
   useEffect(() => {
     if (!isOpen) return;
@@ -168,21 +185,31 @@ export function MediaPickerDrawer({
     }
     const newlyReadyIds: string[] = [];
     allMedia.forEach((item) => {
-      if (item.uploadStatus === "ready" && previousStatuses.get(item.id) !== "ready" && slotAllowsAssetType(slot, item.type)) {
-        newlyReadyIds.push(item.id);
-      }
+      if (item.uploadStatus !== "ready" || previousStatuses.get(item.id) === "ready") return;
+      if (!slotAllowsAssetType(slot, item.type) || !isReferenceTypeSupported(modelRule, item.type)) return;
+      newlyReadyIds.push(item.id);
     });
 
     if (newlyReadyIds.length) {
       setSelectedIds((current) => {
         const next = new Set(current);
-        newlyReadyIds.forEach((id) => next.add(id));
+        newlyReadyIds.forEach((id) => {
+          const item = allMedia.find((candidate) => candidate.id === id);
+          if (!item) return;
+          const selectedItems = allMedia.filter((candidate) => next.has(candidate.id) || candidate.id === id);
+          const newItems = selectedItems.filter(
+            (candidate) =>
+              !referenceMedia.some((currentItem) => currentItem.id === candidate.id || (currentItem.url && currentItem.url === candidate.url)),
+          );
+          if (validateReferenceSelectionForRule(modelRule, referenceMedia, newItems)) return;
+          next.add(id);
+        });
         return next;
       });
     }
 
     previousStatusesRef.current = new Map(allMedia.map((item) => [item.id, item.uploadStatus]));
-  }, [allMedia, isOpen, slot]);
+  }, [allMedia, isOpen, modelRule, referenceMedia, slot]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -220,6 +247,10 @@ export function MediaPickerDrawer({
 
   function handleDrop(event: DragEvent) {
     event.preventDefault();
+    if (!allowedTypes.length) {
+      onNotice?.("This model does not accept reference media.");
+      return;
+    }
     const files = Array.from(event.dataTransfer.files || []);
     if (files.length) {
       onClearNotice?.();
@@ -228,13 +259,26 @@ export function MediaPickerDrawer({
   }
 
   function toggleSelected(item: UploadMediaItem) {
-    const isAllowed = slotAllowsAssetType(slot, item.type);
+    const unsupportedReason = getUnsupportedReferenceTypeReason(modelRule, item.type);
+    const isAllowed = slotAllowsAssetType(slot, item.type) && !unsupportedReason;
     if (item.uploadStatus !== "ready" || !item.url || !isAllowed) return;
     onClearNotice?.();
     setSelectedIds((current) => {
       const next = new Set(current);
       if (next.has(item.id)) next.delete(item.id);
-      else next.add(item.id);
+      else {
+        const selectedItems = allMedia.filter((candidate) => next.has(candidate.id) || candidate.id === item.id);
+        const newItems = selectedItems.filter(
+          (candidate) =>
+            !referenceMedia.some((currentItem) => currentItem.id === candidate.id || (currentItem.url && currentItem.url === candidate.url)),
+        );
+        const limitMessage = validateReferenceSelectionForRule(modelRule, referenceMedia, newItems);
+        if (limitMessage) {
+          onNotice?.(limitMessage);
+          return next;
+        }
+        next.add(item.id);
+      }
       return next;
     });
   }
@@ -293,6 +337,10 @@ export function MediaPickerDrawer({
           <button
             className="grid min-h-[94px] w-full place-items-center rounded-[20px] border border-dashed border-[#ffb44d]/32 bg-[#ffb44d]/8 px-4 text-center transition hover:bg-[#ffb44d]/12"
             onClick={() => {
+              if (!allowedTypes.length) {
+                onNotice?.("This model does not accept reference media.");
+                return;
+              }
               onClearNotice?.();
               inputRef.current?.click();
             }}
@@ -305,14 +353,16 @@ export function MediaPickerDrawer({
                 +
               </span>
               <span className="mb-2 flex justify-center gap-1.5">
-                {["Image", "Video", "Audio"].map((item) => (
+                {(allowedTypes.length ? allowedTypes : (["image", "video", "audio"] as UploadMediaType[])).map((item) => (
                   <span className="rounded-full border border-white/10 bg-black/24 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[.12em] text-white/54" key={item}>
-                    {item}
+                    {mediaTypeLabel(item)}
                   </span>
                 ))}
               </span>
               <span className="block text-sm font-black text-white">Upload new media</span>
-              <span className="mt-1 block text-xs text-white/48">Image, Video or Audio</span>
+              <span className="mt-1 block text-xs text-white/48">
+                {allowedTypes.length ? `Allowed: ${allowedTypeLabel}` : "This model does not accept reference media."}
+              </span>
             </span>
           </button>
 
@@ -338,7 +388,10 @@ export function MediaPickerDrawer({
 
           <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/18 px-3 py-2">
             <span className="min-w-0 truncate text-xs font-bold text-white/58">
-              Target: <span className="text-white">Upload media</span>
+              Target: <span className="text-white">{modelRule.label}</span>
+            </span>
+            <span className="hidden min-w-0 truncate text-xs font-bold text-white/38 sm:block">
+              {limitSummary.total} max · {limitSummary.image} img · {limitSummary.video} vid · {limitSummary.audio} aud
             </span>
             <button
               className="shrink-0 rounded-full border border-white/10 px-3 py-1 text-[11px] font-black text-white/52 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a] disabled:cursor-not-allowed disabled:opacity-45"
@@ -367,7 +420,8 @@ export function MediaPickerDrawer({
           {visibleMedia.length ? (
             <div className="mt-3 grid grid-cols-3 gap-2.5">
               {visibleMedia.map((item) => {
-                const isAllowed = slotAllowsAssetType(slot, item.type);
+                const unsupportedReason = getUnsupportedReferenceTypeReason(modelRule, item.type);
+                const isAllowed = slotAllowsAssetType(slot, item.type) && !unsupportedReason;
                 const isSelected = selectedIds.has(item.id);
                 const isSelectable = item.uploadStatus === "ready" && Boolean(item.url) && isAllowed;
                 const isFailed = item.uploadStatus === "failed";
@@ -385,7 +439,7 @@ export function MediaPickerDrawer({
                             : "border-white/10 bg-black/24 hover:border-[#ffb44d]/35"
                     }`}
                     key={item.id}
-                    title={isUnsupported ? "Unsupported file type for this slot" : item.name}
+                    title={isUnsupported ? unsupportedReason || "This item is not supported by the selected model." : item.name}
                   >
                     <button
                       className={`block w-full text-left ${isSelectable ? "cursor-pointer" : "cursor-default"}`}
@@ -418,6 +472,7 @@ export function MediaPickerDrawer({
                         <span className={`text-[10px] font-black uppercase tracking-[.12em] ${isFailed || isUnsupported ? "text-red-100/75" : "text-white/38"}`}>
                           {statusLabel(item.uploadStatus, isAllowed)}
                         </span>
+                        {isUnsupported ? <span className="line-clamp-2 text-xs leading-5 text-red-100/78">{unsupportedReason}</span> : null}
                         {item.errorMessage ? <span className="line-clamp-2 text-xs leading-5 text-red-100/78">{item.errorMessage}</span> : null}
                       </span>
                     </button>

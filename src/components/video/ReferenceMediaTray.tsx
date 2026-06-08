@@ -4,6 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getReadyMentionableMediaItems } from "@/lib/video-mentions";
 import type { MentionableMediaItem } from "@/lib/video-mentions";
 import type { UploadMediaItem, UploadMediaRole, UploadMediaType } from "@/types/video";
+import type { VideoModelRule } from "@/lib/video/videoModelRules";
+import {
+  canUseReferenceRole,
+  getAllowedReferenceTypes,
+  getReferenceLimitSummary,
+  getReferenceMediaIssues,
+  getReferenceRoleIssue,
+} from "@/lib/video/videoReferenceRules";
 
 const roleOptions: Array<{ label: string; shortLabel: string; value: UploadMediaRole }> = [
   { label: "Reference", shortLabel: "", value: "reference" },
@@ -102,19 +110,25 @@ function getRoleMenuPosition(trigger: HTMLElement): RoleMenuPosition {
 
 export function ReferenceMediaTray({
   media,
+  modelRule,
   onRemove,
   onRoleChange,
 }: {
   media: UploadMediaItem[];
+  modelRule: VideoModelRule;
   onRemove: (id: string) => void;
   onRoleChange: (id: string, role: UploadMediaRole) => void;
 }) {
   const mentionItems = getReadyMentionableMediaItems(media);
   const mentionById = useMemo(() => new Map(mentionItems.map((item) => [item.id, item])), [mentionItems]);
+  const mediaIssues = useMemo(() => getReferenceMediaIssues(modelRule, media), [media, modelRule]);
+  const limitSummary = useMemo(() => getReferenceLimitSummary(modelRule), [modelRule]);
+  const allowedTypes = useMemo(() => getAllowedReferenceTypes(modelRule), [modelRule]);
   const [openRoleId, setOpenRoleId] = useState("");
   const [roleMenuPosition, setRoleMenuPosition] = useState<RoleMenuPosition>({ left: 12, top: 12, width: 190 });
   const [previewItem, setPreviewItem] = useState<UploadMediaItem | null>(null);
   const rootRef = useRef<HTMLElement | null>(null);
+  const roleMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!openRoleId) return;
@@ -122,6 +136,7 @@ export function ReferenceMediaTray({
     function closeRoleMenu(event: PointerEvent) {
       const target = event.target as Node | null;
       if (target && rootRef.current?.contains(target)) return;
+      if (target && roleMenuRef.current?.contains(target)) return;
       setOpenRoleId("");
     }
 
@@ -153,6 +168,7 @@ export function ReferenceMediaTray({
 
   const openRoleItem = media.find((item) => item.id === openRoleId) || null;
   const openRoleMention = openRoleItem ? mentionById.get(openRoleItem.id) : null;
+  const firstIssue = Array.from(mediaIssues.values()).flat()[0] || "";
 
   return (
     <section className="rounded-[22px] border border-white/10 bg-white/[.04] p-3" ref={rootRef}>
@@ -166,7 +182,16 @@ export function ReferenceMediaTray({
             {mentionItems.length} ready
           </span>
         </div>
-        <p className="mt-2 text-xs leading-5 text-white/42">Add the images, videos, or audio this model should follow.</p>
+        <p className="mt-2 text-xs leading-5 text-white/42">
+          {allowedTypes.length
+            ? `Allowed for ${modelRule.label}: ${allowedTypes.join(", ")} - ${limitSummary.total} max`
+            : `${modelRule.label} does not accept reference media.`}
+        </p>
+        {firstIssue ? (
+          <p className="mt-2 rounded-2xl border border-[#ffb44d]/25 bg-[#ffb44d]/10 px-3 py-2 text-xs font-bold leading-5 text-[#ffd08a]">
+            {firstIssue}
+          </p>
+        ) : null}
       </div>
 
       {media.length ? (
@@ -176,11 +201,16 @@ export function ReferenceMediaTray({
             const currentRole = item.role || "reference";
             const previewUrl = getPreviewUrl(item);
             const shortRole = roleShortLabel(currentRole);
+            const issues = mediaIssues.get(item.id) || [];
+            const hasIssues = issues.length > 0;
 
             return (
               <article
-                className="group relative h-[82px] overflow-hidden rounded-[16px] border border-white/10 bg-black/24 transition hover:border-[#ffb44d]/38"
+                className={`group relative h-[82px] overflow-hidden rounded-[16px] border bg-black/24 transition ${
+                  hasIssues ? "border-[#ffb44d]/55" : "border-white/10 hover:border-[#ffb44d]/38"
+                }`}
                 key={item.id}
+                title={issues.join(" ")}
               >
                 <button
                   aria-label={`Preview ${item.name}`}
@@ -204,6 +234,12 @@ export function ReferenceMediaTray({
                 {shortRole ? (
                   <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/72 px-2 py-0.5 text-[9px] font-black uppercase tracking-[.08em] text-[#ffd08a]">
                     {shortRole}
+                  </span>
+                ) : null}
+
+                {hasIssues ? (
+                  <span className="absolute right-1.5 top-8 grid size-5 place-items-center rounded-full border border-[#ffb44d]/35 bg-black/72 text-[11px] font-black text-[#ffd08a]">
+                    !
                   </span>
                 ) : null}
 
@@ -286,23 +322,30 @@ export function ReferenceMediaTray({
       {openRoleItem ? (
         <div
           className="fixed z-[90] overflow-hidden rounded-[18px] border border-white/10 bg-[#10141f]/98 p-1.5 shadow-2xl shadow-black/50"
+          ref={roleMenuRef}
           style={{ left: roleMenuPosition.left, top: roleMenuPosition.top, width: roleMenuPosition.width }}
         >
           <p className="px-3 py-2 text-[10px] font-black uppercase tracking-[.16em] text-white/38">Use as ...</p>
           {roleOptions.map((option) => {
             const currentRole = openRoleItem.role || "reference";
+            const roleIssue = getReferenceRoleIssue(modelRule, openRoleItem.type, option.value);
+            const isDisabled = !canUseReferenceRole(modelRule, openRoleItem.type, option.value);
             return (
               <button
                 className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold transition ${
-                  currentRole === option.value
+                  isDisabled
+                    ? "cursor-not-allowed text-white/28"
+                    : currentRole === option.value
                     ? "bg-[#ffb44d]/16 text-[#ffd08a]"
                     : "text-white/68 hover:bg-white/[.06] hover:text-white"
                 }`}
+                disabled={isDisabled}
                 key={option.value}
                 onClick={() => {
                   onRoleChange(openRoleItem.id, option.value);
                   setOpenRoleId("");
                 }}
+                title={roleIssue}
                 type="button"
               >
                 <span>{option.label}</span>

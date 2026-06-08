@@ -17,7 +17,7 @@ import { useAuthSession } from "@/hooks/useAuthSession";
 import { useCredits } from "@/hooks/useCredits";
 import { useVideoGeneration } from "@/hooks/useVideoGeneration";
 import { getVideoModels } from "@/lib/video-api";
-import { hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
+import { getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
 import { isVideoActiveStatus } from "@/lib/utils";
 import type { UploadMediaItem, UploadMediaRole, VideoModel, VideoStatusResponse } from "@/types/video";
 
@@ -192,6 +192,8 @@ export function VideoWorkspace() {
   const isProcessing = activeTaskCount > 0 || isVideoActiveStatus(task?.status);
   const hasEnoughCredits = credits === null || selectedModel.credits <= credits;
   const canGenerate = Boolean(selectedModel) && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits;
+  const selectedModelRuleId = getVideoModelRuleId(selectedModel);
+  const selectedModelRule = useMemo(() => getVideoModelRule(selectedModelRuleId), [selectedModelRuleId]);
 
   const generateButtonLabel = useMemo(() => {
     if (isUploadingMedia) return "Uploading media";
@@ -304,8 +306,8 @@ export function VideoWorkspace() {
 
         <div className="se-subtle-scrollbar grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-3">
           {modelLoading ? <LoadingState label="Loading live model registry..." /> : null}
-          <UploadBox media={media} onBusyChange={setIsAssetPickerUploading} onChange={setMedia} />
-          <ReferenceMediaTray media={media} onRemove={removeMedia} onRoleChange={updateMediaRole} />
+          <UploadBox media={media} modelRule={selectedModelRule} onBusyChange={setIsAssetPickerUploading} onChange={setMedia} />
+          <ReferenceMediaTray media={media} modelRule={selectedModelRule} onRemove={removeMedia} onRoleChange={updateMediaRole} />
           <PromptBox media={media} onChange={setPrompt} value={prompt} />
           <div className="grid grid-cols-2 gap-2">
             <button
@@ -329,7 +331,7 @@ export function VideoWorkspace() {
           </div>
           <ModelSelector models={models} onChange={handleModelChange} selectedModelId={selectedModel.id} />
           <VideoParamsPanel
-            modelId={getVideoModelRuleId(selectedModel)}
+            modelId={selectedModelRuleId}
             onChange={setParams}
             value={params}
           />
