@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 
 export type VideoParams = {
   duration: number;
@@ -17,7 +18,7 @@ type MenuPosition = {
   width: number;
 };
 
-const menuMaxHeight = 240;
+const menuMaxHeight = 260;
 
 function uniqueSortedDurations(durations: number[], currentDuration: number) {
   const values = durations.length ? durations : [currentDuration || 5];
@@ -43,7 +44,7 @@ function getClosestDurationIndex(durations: number[], currentDuration: number) {
 function getMenuPosition(trigger: HTMLElement, key: ParamKey): MenuPosition {
   const rect = trigger.getBoundingClientRect();
   const gap = 8;
-  const width = key === "duration" ? 260 : Math.max(150, Math.min(220, rect.width + 30));
+  const width = key === "duration" ? 318 : Math.max(150, Math.min(220, rect.width + 30));
   let left = rect.left;
   let top = rect.bottom + gap;
 
@@ -100,16 +101,22 @@ export function VideoParamsPanel({
       if (event.key === "Escape") closeMenu();
     }
 
+    function handleScroll(event: Event) {
+      const target = event.target as Node | null;
+      if (target && menuRef.current?.contains(target)) return;
+      closeMenu();
+    }
+
     window.addEventListener("pointerdown", handlePointerDown);
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("resize", closeMenu);
-    window.addEventListener("scroll", closeMenu, true);
+    window.addEventListener("scroll", handleScroll, true);
 
     return () => {
       window.removeEventListener("pointerdown", handlePointerDown);
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("resize", closeMenu);
-      window.removeEventListener("scroll", closeMenu, true);
+      window.removeEventListener("scroll", handleScroll, true);
     };
   }, [openKey]);
 
@@ -136,6 +143,8 @@ export function VideoParamsPanel({
     { key: "ratio", label: "Ratio", value: value.ratio },
     { key: "quality", label: "Quality", value: value.quality },
   ];
+  const durationProgress =
+    durationOptions.length > 1 ? Math.round((durationIndex / (durationOptions.length - 1)) * 100) : 100;
 
   return (
     <section className="flex flex-wrap gap-2" ref={rootRef}>
@@ -164,27 +173,33 @@ export function VideoParamsPanel({
           onPointerDown={(event) => event.stopPropagation()}
         >
           {openKey === "duration" ? (
-            <div className="grid gap-3 p-2">
+            <div className="grid gap-4 p-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-black text-white">Choose duration</span>
                 <span className="rounded-full bg-[#ffb44d]/18 px-2.5 py-1 text-xs font-black text-[#ffd08a]">
                   {value.duration}s
                 </span>
               </div>
-              <input
-                aria-label="Duration"
-                className="se-duration-slider w-full cursor-pointer"
-                max={Math.max(0, durationOptions.length - 1)}
-                min={0}
-                onChange={(event) => updateDuration(Number(event.target.value))}
-                step={1}
-                type="range"
-                value={durationIndex}
-              />
-              <div className="flex items-center justify-between gap-2 text-[11px] font-bold text-white/42">
+              <div className="px-1.5 pt-1">
+                <input
+                  aria-label="Duration"
+                  className="se-duration-slider w-full cursor-pointer"
+                  max={Math.max(0, durationOptions.length - 1)}
+                  min={0}
+                  onChange={(event) => updateDuration(Number(event.target.value))}
+                  step={1}
+                  style={{ "--se-duration-progress": `${durationProgress}%` } as CSSProperties}
+                  type="range"
+                  value={durationIndex}
+                />
+              </div>
+              <div
+                className="grid gap-1 text-center text-[10px] font-black text-white/38"
+                style={{ gridTemplateColumns: `repeat(${durationOptions.length}, minmax(0, 1fr))` }}
+              >
                 {durationOptions.map((duration) => (
                   <button
-                    className={`rounded-full px-2 py-1 transition ${
+                    className={`min-w-0 rounded-full px-0.5 py-1 transition ${
                       duration === value.duration
                         ? "bg-[#ffb44d]/18 text-[#ffd08a]"
                         : "hover:bg-white/[.06] hover:text-white"

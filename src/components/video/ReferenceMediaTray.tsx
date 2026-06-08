@@ -51,6 +51,16 @@ function FullscreenIcon() {
   );
 }
 
+function MoreIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4" fill="none" viewBox="0 0 24 24">
+      <circle cx="6.5" cy="12" fill="currentColor" r="1.7" />
+      <circle cx="12" cy="12" fill="currentColor" r="1.7" />
+      <circle cx="17.5" cy="12" fill="currentColor" r="1.7" />
+    </svg>
+  );
+}
+
 function CheckIcon() {
   return (
     <svg aria-hidden="true" className="size-3.5" fill="none" viewBox="0 0 24 24">
@@ -225,7 +235,7 @@ export function ReferenceMediaTray({
                 <div className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition group-hover:opacity-100">
                   <button
                     aria-label={`Open ${item.name} role menu`}
-                    className="pointer-events-auto grid size-9 place-items-center rounded-full border border-white/10 bg-black/78 text-base font-black leading-none text-white/82 shadow-xl shadow-black/30 transition hover:border-[#ffb44d]/38 hover:text-[#ffd08a]"
+                    className="pointer-events-auto grid size-[30px] place-items-center rounded-full border border-white/10 bg-black/78 text-white/82 shadow-xl shadow-black/30 transition hover:border-[#ffb44d]/38 hover:text-[#ffd08a]"
                     onClick={(event) => {
                       event.stopPropagation();
                       setRoleMenuPosition(getRoleMenuPosition(event.currentTarget));
@@ -233,7 +243,7 @@ export function ReferenceMediaTray({
                     }}
                     type="button"
                   >
-                    ...
+                    <MoreIcon />
                   </button>
                 </div>
               </article>
