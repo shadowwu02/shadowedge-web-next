@@ -17,6 +17,7 @@ import { useAuthSession } from "@/hooks/useAuthSession";
 import { useCredits } from "@/hooks/useCredits";
 import { useVideoGeneration } from "@/hooks/useVideoGeneration";
 import { getVideoModels } from "@/lib/video-api";
+import { hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
 import { isVideoActiveStatus } from "@/lib/utils";
 import type { UploadMediaItem, UploadMediaRole, VideoModel, VideoStatusResponse } from "@/types/video";
 
@@ -48,6 +49,27 @@ const fallbackModels: VideoModel[] = [
     uploadSlots: ["image", "last_frame_image"],
   },
 ];
+
+function getVideoModelRuleId(model: VideoModel) {
+  const candidates = [model.id, model.providerModel, model.label].filter((value): value is string => Boolean(value));
+  return candidates.find((candidate) => hasVideoModelRule(candidate)) || candidates[0] || "generic";
+}
+
+function buildParamsForModel(model: VideoModel, current?: Partial<VideoParams>): VideoParams {
+  const normalized = normalizeVideoParamsForModel(getVideoModelRuleId(model), {
+    duration: current?.duration ?? model.durationDefault,
+    ratio: current?.ratio ?? model.ratios[0],
+    quality: current?.quality ?? model.qualities[0],
+    generateAudio: current?.generateAudio ?? false,
+  });
+
+  return {
+    duration: normalized.duration,
+    ratio: normalized.ratio,
+    quality: normalized.quality,
+    generateAudio: Boolean(normalized.generateAudio),
+  };
+}
 
 function buildRetryMedia(record: { mediaList?: UploadMediaItem[] | Array<{ id?: string; type: UploadMediaItem["type"]; url: string; name?: string; mimeType?: string; size?: number; duration?: number }>; reference_images?: string[]; reference_videos?: string[]; reference_audios?: string[] }) {
   const mediaList = Array.isArray(record.mediaList) ? record.mediaList : [];
@@ -88,12 +110,7 @@ export function VideoWorkspace() {
   const [modelError, setModelError] = useState("");
   const [prompt, setPrompt] = useState("");
   const [media, setMedia] = useState<UploadMediaItem[]>([]);
-  const [params, setParams] = useState<VideoParams>({
-    duration: fallbackModels[0].durationDefault,
-    ratio: fallbackModels[0].ratios[0],
-    quality: fallbackModels[0].qualities[0],
-    generateAudio: false,
-  });
+  const [params, setParams] = useState<VideoParams>(() => buildParamsForModel(fallbackModels[0]));
   const [isAssetPickerUploading, setIsAssetPickerUploading] = useState(false);
 
   const { isSignedIn, token } = useAuthSession();
@@ -123,12 +140,7 @@ export function VideoWorkspace() {
         if (cancelled || !nextModels.length) return;
         setModels(nextModels);
         setSelectedModel(nextModels[0]);
-        setParams({
-          duration: nextModels[0].durationDefault,
-          ratio: nextModels[0].ratios[0] || "16:9",
-          quality: nextModels[0].qualities[0] || "720p",
-          generateAudio: false,
-        });
+        setParams(buildParamsForModel(nextModels[0]));
       } catch (loadError) {
         const message = loadError instanceof Error ? loadError.message : "Failed to load models.";
         if (!cancelled) setModelError(`${message} Using local fallback models.`);
@@ -150,12 +162,7 @@ export function VideoWorkspace() {
 
   const handleModelChange = useCallback((model: VideoModel) => {
     setSelectedModel(model);
-    setParams((current) => ({
-      ...current,
-      duration: model.durations.includes(current.duration) ? current.duration : model.durationDefault,
-      ratio: model.ratios.includes(current.ratio) ? current.ratio : model.ratios[0] || "16:9",
-      quality: model.qualities.includes(current.quality) ? current.quality : model.qualities[0] || "720p",
-    }));
+    setParams((current) => buildParamsForModel(model, current));
   }, []);
 
   const handleStatus = useCallback((_result: VideoStatusResponse) => {
@@ -172,15 +179,6 @@ export function VideoWorkspace() {
     onStatus: handleStatus,
     onError: handlePollError,
   });
-
-  const modelSummary = useMemo(
-    () => ({
-      durations: selectedModel.durations.length ? selectedModel.durations : [5],
-      ratios: selectedModel.ratios.length ? selectedModel.ratios : ["16:9"],
-      qualities: selectedModel.qualities.length ? selectedModel.qualities : ["720p"],
-    }),
-    [selectedModel],
-  );
 
   const removeMedia = useCallback((id: string) => {
     setMedia((currentItems) => currentItems.filter((item) => item.id !== id));
@@ -331,10 +329,8 @@ export function VideoWorkspace() {
           </div>
           <ModelSelector models={models} onChange={handleModelChange} selectedModelId={selectedModel.id} />
           <VideoParamsPanel
-            durations={modelSummary.durations}
+            modelId={getVideoModelRuleId(selectedModel)}
             onChange={setParams}
-            qualities={modelSummary.qualities}
-            ratios={modelSummary.ratios}
             value={params}
           />
           {!token && !isSignedIn ? (

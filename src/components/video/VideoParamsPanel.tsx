@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { getDefaultVideoModelRule, getVideoModelRule } from "@/lib/video/videoModelRules";
 
 export type VideoParams = {
   duration: number;
@@ -66,21 +67,30 @@ function getMenuPosition(trigger: HTMLElement, key: ParamKey): MenuPosition {
 export function VideoParamsPanel({
   value,
   onChange,
-  durations,
-  ratios,
-  qualities,
+  modelId,
 }: {
   value: VideoParams;
   onChange: (value: VideoParams) => void;
-  durations: number[];
-  ratios: string[];
-  qualities: string[];
+  modelId: string;
 }) {
   const [openKey, setOpenKey] = useState<ParamKey | null>(null);
   const [menuPosition, setMenuPosition] = useState<MenuPosition>({ left: 0, top: 0, width: 180 });
   const rootRef = useRef<HTMLElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const durationOptions = useMemo(() => uniqueSortedDurations(durations, value.duration), [durations, value.duration]);
+  const defaultRule = getDefaultVideoModelRule();
+  const modelRule = useMemo(() => getVideoModelRule(modelId), [modelId]);
+  const ratioOptions = useMemo(
+    () => (modelRule.ratios.length ? modelRule.ratios : defaultRule.ratios).map(String),
+    [defaultRule.ratios, modelRule.ratios],
+  );
+  const qualityOptions = useMemo(() => {
+    const values = modelRule.qualities.length ? modelRule.qualities : modelRule.resolutions;
+    return (values.length ? values : defaultRule.qualities).map(String);
+  }, [defaultRule.qualities, modelRule.qualities, modelRule.resolutions]);
+  const durationOptions = useMemo(
+    () => uniqueSortedDurations(modelRule.durations.length ? modelRule.durations : defaultRule.durations, value.duration),
+    [defaultRule.durations, modelRule.durations, value.duration],
+  );
   const durationIndex = getClosestDurationIndex(durationOptions, value.duration);
 
   useEffect(() => {
@@ -222,7 +232,7 @@ export function VideoParamsPanel({
             </div>
           ) : (
             <div className="se-subtle-scrollbar grid max-h-[220px] gap-1 overflow-y-auto">
-              {(openKey === "ratio" ? ratios : qualities).map((option) => {
+              {(openKey === "ratio" ? ratioOptions : qualityOptions).map((option) => {
                 const isSelected = option === (openKey === "ratio" ? value.ratio : value.quality);
                 return (
                   <button
