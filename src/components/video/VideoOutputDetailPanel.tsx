@@ -1,9 +1,11 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo } from "react";
 import { useI18n } from "@/i18n/useI18n";
 import { collectHistoryInputMediaAssets } from "@/lib/media-assets";
 import { getSafeVideoHistoryView, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
+import { getVideoModelLogo } from "@/lib/video/modelLogoMap";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { UploadMediaItem, VideoTaskRecord } from "@/types/video";
 
@@ -94,6 +96,10 @@ function mediaFallback(type: UploadMediaItem["type"]) {
   return "IMG";
 }
 
+function getRecordModelLogoLookup(record: VideoTaskRecord, modelLabel: string) {
+  return [record.modelId, record.model, record.frontendModel, record.providerModel, record.provider, modelLabel].filter(Boolean).join(" ");
+}
+
 export function VideoOutputDetailPanel({
   getAddReferenceIssue,
   getUseResultAsReferenceIssue,
@@ -138,6 +144,7 @@ export function VideoOutputDetailPanel({
   const isStaleActive = isVideoStaleActiveRecord(record);
   const isProcessing = isVideoActiveStatus(view.status) && !isStaleActive;
   const useResultIssue = getUseResultAsReferenceIssue?.(record) || "";
+  const modelLogo = getVideoModelLogo(getRecordModelLogoLookup(record, view.modelLabel));
   const statusLabel = isStaleActive
     ? t("video.generation.stale")
     : isFailed
@@ -157,7 +164,8 @@ export function VideoOutputDetailPanel({
             <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${statusClass(view.status, hasOutput, isStaleActive)}`}>
               {statusLabel}
             </span>
-            <span className="truncate rounded-full border border-[#33323a]/65 bg-[#1a1c22] px-2.5 py-1 text-[10px] font-black text-[#f4f4f4]/78">
+            <span className="inline-flex min-w-0 items-center gap-1.5 truncate rounded-full border border-[#33323a]/65 bg-[#1a1c22] px-2.5 py-1 text-[10px] font-black text-[#f4f4f4]/78">
+              {modelLogo ? <Image alt={`${view.modelLabel} logo`} className="size-3.5 object-contain" height={14} src={modelLogo} width={14} /> : null}
               {view.modelLabel}
             </span>
           </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo } from "react";
 import { VideoOutputDetailPanel } from "@/components/video/VideoOutputDetailPanel";
 import { useI18n } from "@/i18n/useI18n";
@@ -10,6 +11,7 @@ import {
   isVideoStaleActiveRecord,
   preferLatestVideoTask,
 } from "@/lib/video/historyUtils";
+import { getVideoModelLogo } from "@/lib/video/modelLogoMap";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { UploadMediaItem, VideoTaskRecord } from "@/types/video";
 
@@ -55,6 +57,10 @@ function canvasActionClass(tone: "normal" | "primary" = "normal") {
   }
 
   return "grid size-9 place-items-center rounded-full border border-[#33323a]/75 bg-[#111318]/82 text-[#f4f4f4]/72 shadow-xl shadow-black/30 backdrop-blur-md transition hover:border-[#ffb44d]/55 hover:bg-[#ffb44d]/14 hover:text-[#ffb44d] disabled:cursor-not-allowed disabled:opacity-45";
+}
+
+function getRecordModelLogoLookup(record: VideoTaskRecord, modelLabel: string) {
+  return [record.modelId, record.model, record.frontendModel, record.providerModel, record.provider, modelLabel].filter(Boolean).join(" ");
 }
 
 function AddReferenceIcon() {
@@ -155,6 +161,7 @@ function VideoGenerationCard({
   const isProcessing = isVideoActiveStatus(view.status) && !isStaleActive;
   const sensitiveFailure = isFailed && isSensitiveFailure(view.errorMessage);
   const useResultIssue = getUseResultAsReferenceIssue?.(record) || "";
+  const modelLogo = getVideoModelLogo(getRecordModelLogoLookup(record, view.modelLabel));
   const statusLabel = isStaleActive
     ? t("video.generation.stale")
     : isFailed
@@ -173,7 +180,10 @@ function VideoGenerationCard({
             <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${statusClass(view.status, hasOutput, isStaleActive)}`}>
               {statusLabel}
             </span>
-            <span className="truncate text-xs font-bold text-[#b9b9b9]/72">{view.modelLabel}</span>
+            <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-xs font-bold text-[#b9b9b9]/72">
+              {modelLogo ? <Image alt={`${view.modelLabel} logo`} className="size-3.5 object-contain" height={14} src={modelLogo} width={14} /> : null}
+              <span className="truncate">{view.modelLabel}</span>
+            </span>
           </div>
           <span className="shrink-0 text-[11px] text-[#b9b9b9]/45">{view.createdAtLabel}</span>
         </div>
