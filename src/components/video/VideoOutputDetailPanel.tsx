@@ -12,7 +12,6 @@ type VideoOutputDetailPanelProps = {
   getUseResultAsReferenceIssue?: (record: VideoTaskRecord) => string;
   onAddReference?: (asset: UploadMediaItem) => void;
   onFill?: (record: VideoTaskRecord) => void;
-  onHide?: (record: VideoTaskRecord) => void;
   onRetry?: (record: VideoTaskRecord) => void;
   onUseResultAsReference?: (record: VideoTaskRecord) => void;
   record: VideoTaskRecord | null;
@@ -23,11 +22,7 @@ function safeDownloadFilename(view: ReturnType<typeof getSafeVideoHistoryView>) 
   return `shadowedge-video-${String(id).replace(/[^\w.-]+/g, "-")}.mp4`;
 }
 
-function actionIconClass(tone: "danger" | "normal" | "primary" = "normal") {
-  if (tone === "danger") {
-    return "grid size-9 place-items-center rounded-full border border-red-300/25 bg-red-400/10 text-red-100 transition hover:bg-red-400/16 disabled:cursor-not-allowed disabled:opacity-45";
-  }
-
+function actionIconClass(tone: "normal" | "primary" = "normal") {
   if (tone === "primary") {
     return "grid size-9 place-items-center rounded-full border border-[#ffb44d]/35 bg-[#ffb44d]/10 text-[#ffd08a] transition hover:bg-[#ffb44d]/18 disabled:cursor-not-allowed disabled:opacity-45";
   }
@@ -72,17 +67,6 @@ function RetryIcon() {
   );
 }
 
-function HideIcon() {
-  return (
-    <svg aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="m3 3 18 18" />
-      <path d="M10.58 10.58a2 2 0 0 0 2.83 2.83" />
-      <path d="M9.88 4.24A9.77 9.77 0 0 1 12 4c5 0 8.27 3.11 10 8a12.37 12.37 0 0 1-2.28 3.88" />
-      <path d="M6.61 6.61A12.31 12.31 0 0 0 2 12c1.73 4.89 5 8 10 8a9.77 9.77 0 0 0 4.39-1.03" />
-    </svg>
-  );
-}
-
 function statusClass(status: string, hasOutput: boolean, isStale = false) {
   if (isStale) return "border-[#ffb44d]/22 bg-[#ffb44d]/10 text-[#ffd08a]";
   if (isVideoFailedStatus(status)) return "border-red-300/25 bg-red-400/10 text-red-100";
@@ -115,7 +99,6 @@ export function VideoOutputDetailPanel({
   getUseResultAsReferenceIssue,
   onAddReference,
   onFill,
-  onHide,
   onRetry,
   onUseResultAsReference,
   record,
@@ -291,11 +274,6 @@ export function VideoOutputDetailPanel({
         {(isFailed || isStaleActive) && onRetry ? (
           <button aria-label={t("video.history.retry")} className={actionIconClass("primary")} onClick={() => onRetry(record)} title={t("video.history.retry")} type="button">
             <RetryIcon />
-          </button>
-        ) : null}
-        {!isProcessing && onHide ? (
-          <button aria-label={t("video.history.hide")} className={actionIconClass("danger")} onClick={() => onHide(record)} title={t("video.history.hideTitle")} type="button">
-            <HideIcon />
           </button>
         ) : null}
         {hasOutput && useResultIssue ? <span className="w-full text-[11px] leading-4 text-white/36">{useResultIssue}</span> : null}
