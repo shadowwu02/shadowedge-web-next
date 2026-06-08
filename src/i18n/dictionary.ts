@@ -1,5 +1,7 @@
 export type Locale = "en" | "zh";
 
+// Keep this file encoded as UTF-8. Video-specific keys use dotted namespaces
+// until the UI is migrated to a nested i18n dictionary in F6.
 export const dictionary = {
   en: {
     videoWorkspace: "Video Workspace",
@@ -25,6 +27,17 @@ export const dictionary = {
     referenceMedia: "Reference media",
     waitingForPrompt: "Waiting for a prompt",
     noHistory: "No saved videos yet.",
+    "video.workspace.title": "Video Creator",
+    "video.upload.title": "Upload media",
+    "video.params.title": "Parameters",
+    "video.prompt.placeholder": "Describe your scene in detail. Use @ to reference assets.",
+    "video.references.title": "Reference media",
+    "video.drawer.title": "Reference media",
+    "video.result.latest": "Latest output",
+    "video.history.saved": "Saved history",
+    "video.status.processing": "Processing",
+    "video.status.failed": "Failed",
+    "video.errors.signInRequired": "Sign in required.",
   },
   zh: {
     videoWorkspace: "视频工作区",
@@ -50,5 +63,16 @@ export const dictionary = {
     referenceMedia: "参考素材",
     waitingForPrompt: "等待输入提示词",
     noHistory: "暂无保存的视频。",
+    "video.workspace.title": "视频创作",
+    "video.upload.title": "上传素材",
+    "video.params.title": "参数",
+    "video.prompt.placeholder": "详细描述你的场景。输入 @ 引用素材。",
+    "video.references.title": "参考素材",
+    "video.drawer.title": "参考素材",
+    "video.result.latest": "最新输出",
+    "video.history.saved": "保存历史",
+    "video.status.processing": "处理中",
+    "video.status.failed": "失败",
+    "video.errors.signInRequired": "请先登录。",
   },
 } satisfies Record<Locale, Record<string, string>>;
