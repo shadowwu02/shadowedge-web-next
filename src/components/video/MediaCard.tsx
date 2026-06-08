@@ -1,17 +1,7 @@
+"use client";
+
+import { useI18n } from "@/i18n/useI18n";
 import type { UploadMediaItem } from "@/types/video";
-
-function statusLabel(status: UploadMediaItem["uploadStatus"]) {
-  if (status === "uploading") return "Uploading";
-  if (status === "failed") return "Failed";
-  if (status === "ready") return "Ready";
-  return "Local";
-}
-
-function mediaTypeLabel(type: UploadMediaItem["type"]) {
-  if (type === "audio") return "Audio";
-  if (type === "video") return "Video";
-  return "Image";
-}
 
 export function MediaCard({
   item,
@@ -24,6 +14,20 @@ export function MediaCard({
 }) {
   const isImage = item.type === "image" && item.previewUrl;
   const isFailed = item.uploadStatus === "failed";
+  const { t } = useI18n();
+
+  function statusLabel(status: UploadMediaItem["uploadStatus"]) {
+    if (status === "uploading") return t("common.status.uploading");
+    if (status === "failed") return t("video.status.failed");
+    if (status === "ready") return t("common.status.ready");
+    return t("video.drawer.status.local");
+  }
+
+  function mediaTypeLabel(type: UploadMediaItem["type"]) {
+    if (type === "audio") return t("video.media.audio");
+    if (type === "video") return t("video.media.video");
+    return t("video.media.image");
+  }
 
   return (
     <article
@@ -63,7 +67,7 @@ export function MediaCard({
               rel="noreferrer"
               target="_blank"
             >
-              Preview
+              {t("video.references.preview")}
             </a>
           ) : null}
           <button
@@ -71,7 +75,7 @@ export function MediaCard({
             onClick={() => onRemove?.(item.id)}
             type="button"
           >
-            Remove
+            {t("common.actions.remove")}
           </button>
         </div>
       </div>

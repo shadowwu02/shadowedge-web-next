@@ -1,3 +1,7 @@
+"use client";
+
+import { useI18n } from "@/i18n/useI18n";
+
 export function GenerateButton({
   disabled,
   isSubmitting,
@@ -11,7 +15,8 @@ export function GenerateButton({
   label?: string;
   onClick: () => void;
 }) {
-  const buttonLabel = label || (isSubmitting ? "Submitting..." : `Generate${credits ? ` · ${credits} credits` : ""}`);
+  const { t, tf } = useI18n();
+  const buttonLabel = label || (isSubmitting ? t("video.actions.submitting") : credits ? tf("video.actions.generateWithCredits", { credits }) : t("generate"));
 
   return (
     <button

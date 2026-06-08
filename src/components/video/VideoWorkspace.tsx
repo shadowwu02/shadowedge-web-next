@@ -132,12 +132,15 @@ function writeVideoDraft(snapshot: {
   });
 }
 
-function buildRetryMedia(record: VideoTaskRecord) {
+function buildRetryMedia(
+  record: VideoTaskRecord,
+  getFallbackName: (type: UploadMediaItem["type"], index: number) => string = (type, index) => `Retry ${type} ${index + 1}`,
+) {
   const mediaList = Array.isArray(record.mediaList) ? record.mediaList : [];
   const fromMediaList = mediaList.map((item, index) => ({
     id: item.id || `retry-media-${index}`,
     type: item.type,
-    name: item.name || `Retry ${item.type} ${index + 1}`,
+    name: item.name || getFallbackName(item.type, index),
     url: item.url,
     previewUrl: item.type === "image" ? item.url : "",
     size: item.size,
@@ -155,7 +158,7 @@ function buildRetryMedia(record: VideoTaskRecord) {
     .map((item) => ({
       id: `retry-${item.type}-${item.index}-${item.url}`,
       type: item.type,
-      name: `Retry ${item.type} ${item.index + 1}`,
+      name: getFallbackName(item.type, item.index),
       url: item.url,
       previewUrl: item.type === "image" ? item.url : "",
       uploadStatus: "ready" as const,
@@ -332,6 +335,21 @@ export function VideoWorkspace() {
     setParams((current) => buildParamsForModel(model, current));
   }, []);
 
+  const localizedMediaTypeLabel = useCallback(
+    (type: UploadMediaItem["type"]) => {
+      if (type === "audio") return t("video.media.audio");
+      if (type === "video") return t("video.media.video");
+      return t("video.media.image");
+    },
+    [t],
+  );
+
+  const getRetryMediaName = useCallback(
+    (type: UploadMediaItem["type"], index: number) =>
+      tf("video.history.retryMediaName", { index: index + 1, type: localizedMediaTypeLabel(type) }),
+    [localizedMediaTypeLabel, tf],
+  );
+
   const handleStatus = useCallback((_result: VideoStatusResponse) => {
     void _result;
   }, []);
@@ -459,7 +477,7 @@ export function VideoWorkspace() {
         return;
       }
 
-      const retryMedia = buildRetryMedia(record);
+      const retryMedia = buildRetryMedia(record, getRetryMediaName);
       const retryMentionBindings = getRecordMentionBindings(record, retryMedia);
       const hasMissingMedia = retryMedia.some((item) => !item.url || item.url.startsWith("blob:") || item.url.startsWith("data:"));
       if (hasMissingMedia) {
@@ -492,7 +510,7 @@ export function VideoWorkspace() {
         maxConcurrency,
       });
     },
-    [findRetryModel, maxConcurrency, submit, t],
+    [findRetryModel, getRetryMediaName, maxConcurrency, submit, t],
   );
 
   const getGeneratedResultReferenceIssue = useCallback(
@@ -533,7 +551,7 @@ export function VideoWorkspace() {
   const handleFillFromHistory = useCallback(
     (record: (typeof history)[number]) => {
       const fillModel = findRetryModel(record) || selectedModel;
-      const nextMedia = buildRetryMedia(record).filter(isReadyRemoteMedia);
+      const nextMedia = buildRetryMedia(record, getRetryMediaName).filter(isReadyRemoteMedia);
       const nextMentionBindings = getRecordMentionBindings(record, nextMedia);
       const nextParams = buildParamsForModel(fillModel, {
         duration: getRecordDuration(record, fillModel.durationDefault),
@@ -558,7 +576,7 @@ export function VideoWorkspace() {
         );
       }
     },
-    [findRetryModel, selectedModel, t],
+    [findRetryModel, getRetryMediaName, selectedModel, t],
   );
 
   const handleHideHistoryRecord = useCallback(
