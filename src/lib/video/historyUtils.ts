@@ -1,7 +1,9 @@
-import { formatTime } from "@/lib/utils";
+import { formatTime, isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { VideoTaskRecord } from "@/types/video";
 
 type HistoryRecordInput = Partial<VideoTaskRecord> & Record<string, unknown>;
+
+export const VIDEO_LONG_RUNNING_THRESHOLD_MS = 8 * 60 * 1000;
 
 export type SafeVideoHistoryView = {
   key: string;
@@ -234,6 +236,105 @@ export function getVideoHistoryTime(record: unknown) {
   const value = raw.updatedAt || raw.updated_at || raw.createdAt || raw.created_at || meta.updatedAt || meta.updated_at || meta.createdAt || meta.created_at || 0;
   const time = typeof value === "number" ? value : new Date(String(value || "")).getTime();
   return Number.isFinite(time) ? time : 0;
+}
+
+export function getVideoTaskCreatedTime(record: unknown) {
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+  const value = raw.createdAt || raw.created_at || meta.createdAt || meta.created_at || raw.updatedAt || raw.updated_at || meta.updatedAt || meta.updated_at || 0;
+  const time = typeof value === "number" ? value : new Date(String(value || "")).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+export function isVideoCompletedWithOutput(record: unknown) {
+  const raw = asRecord(record);
+  return isVideoCompletedStatus(String(raw.status || "")) && Boolean(getSafeHistoryOutputUrl(raw));
+}
+
+export function normalizeVideoPollingStatus(status: string | undefined | null, outputUrl = "") {
+  const value = String(status || "").toLowerCase();
+  if (outputUrl && (isVideoActiveStatus(value) || !value)) return "completed";
+  if (isVideoCompletedStatus(value) && !outputUrl) return "finalizing";
+  return value || "processing";
+}
+
+export function isVideoTerminalPollingRecord(record: unknown) {
+  const raw = asRecord(record);
+  const status = String(raw.status || "").toLowerCase();
+  if (isVideoFailedStatus(status)) return true;
+  if (getSafeHistoryOutputUrl(raw) && !isVideoActiveStatus(status)) return true;
+  return isVideoCompletedStatus(status) && Boolean(getSafeHistoryOutputUrl(raw));
+}
+
+export function isVideoRecoverablePollingRecord(record: VideoTaskRecord) {
+  const outputUrl = getSafeHistoryOutputUrl(record);
+  if (isVideoActiveStatus(record.status)) return Boolean(record.jobId || record.providerJobId || record.dbJobId);
+  return isVideoCompletedStatus(record.status) && !outputUrl && Boolean(record.jobId || record.providerJobId || record.dbJobId);
+}
+
+export function getVideoLongRunningMessage(record: unknown, thresholdMs = VIDEO_LONG_RUNNING_THRESHOLD_MS) {
+  const raw = asRecord(record);
+  const outputUrl = getSafeHistoryOutputUrl(raw);
+  if (outputUrl || !isVideoActiveStatus(String(raw.status || ""))) return "";
+
+  const createdAt = getVideoTaskCreatedTime(raw);
+  if (!createdAt || Date.now() - createdAt < thresholdMs) return "";
+
+  return "This is taking longer than usual. You can keep this page open or check History later.";
+}
+
+export function selectRecoverableVideoPollingTask(records: VideoTaskRecord[]) {
+  const record = records
+    .filter(isVideoRecoverablePollingRecord)
+    .sort((a, b) => getVideoHistoryTime(b) - getVideoHistoryTime(a))[0];
+
+  if (!record) return null;
+
+  const outputUrl = getSafeHistoryOutputUrl(record);
+  return {
+    ...record,
+    status: normalizeVideoPollingStatus(record.status, outputUrl),
+    videoUrl: outputUrl || record.videoUrl,
+    outputUrl: outputUrl || record.outputUrl,
+    outputUrls: outputUrl ? [outputUrl] : record.outputUrls,
+  } satisfies VideoTaskRecord;
+}
+
+export function preferLatestVideoTask(current: VideoTaskRecord | null, candidate: VideoTaskRecord | null) {
+  if (!candidate) return current;
+  if (!current) return candidate;
+
+  const currentKey = getVideoHistoryStableKey(current, "");
+  const candidateKey = getVideoHistoryStableKey(candidate, "");
+  const currentOutput = getSafeHistoryOutputUrl(current);
+  const candidateOutput = getSafeHistoryOutputUrl(candidate);
+
+  if (currentKey && currentKey === candidateKey) {
+    const next = {
+      ...current,
+      ...candidate,
+      videoUrl: candidateOutput || currentOutput || candidate.videoUrl || current.videoUrl,
+      outputUrl: candidateOutput || currentOutput || candidate.outputUrl || current.outputUrl,
+      outputUrls: candidateOutput ? [candidateOutput] : currentOutput ? [currentOutput] : candidate.outputUrls || current.outputUrls,
+    };
+
+    if (currentOutput && !candidateOutput && isVideoCompletedStatus(current.status)) {
+      next.status = current.status;
+      next.completedAt = current.completedAt || candidate.completedAt;
+    }
+
+    return next;
+  }
+
+  const currentActive = isVideoActiveStatus(current.status);
+  const candidateActive = isVideoActiveStatus(candidate.status);
+  const currentTime = getVideoHistoryTime(current);
+  const candidateTime = getVideoHistoryTime(candidate);
+
+  if (currentActive && (!candidateActive || candidateTime <= currentTime)) return current;
+  if (currentOutput && isVideoCompletedStatus(current.status) && candidateTime <= currentTime) return current;
+
+  return candidateTime >= currentTime ? candidate : current;
 }
 
 export function mergeVideoHistory(localHistory: VideoTaskRecord[], serverHistory: VideoTaskRecord[]) {

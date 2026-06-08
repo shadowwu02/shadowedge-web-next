@@ -6,7 +6,20 @@ export function cn(...values: Array<string | false | null | undefined>) {
 
 export function isVideoActiveStatus(status: string | undefined | null) {
   const value = String(status || "").toLowerCase();
-  return ["queued", "pending", "starting", "processing", "running", "generating", "finalizing"].includes(value);
+  return [
+    "created",
+    "queued",
+    "pending",
+    "submitted",
+    "submitting",
+    "starting",
+    "waiting",
+    "processing",
+    "running",
+    "generating",
+    "finalizing",
+    "long_running",
+  ].includes(value);
 }
 
 export function isVideoCompletedStatus(status: string | undefined | null) {

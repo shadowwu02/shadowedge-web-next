@@ -1,12 +1,20 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentUserProfile } from "@/lib/auth-api";
 import { createVideoTask, getVideoHistory, getVideoStatus, saveVideoHistory } from "@/lib/video-api";
 import { buildMediaAwarePrompt, getReadyMentionableMediaItems, toGenerationMediaList } from "@/lib/video-mentions";
-import { getVideoHistoryStableKey, mergeVideoHistory } from "@/lib/video/historyUtils";
+import {
+  getSafeHistoryOutputUrl,
+  getVideoHistoryStableKey,
+  isVideoTerminalPollingRecord,
+  mergeVideoHistory,
+  normalizeVideoPollingStatus,
+  preferLatestVideoTask,
+  selectRecoverableVideoPollingTask,
+} from "@/lib/video/historyUtils";
 import { serializeMentionBindings, type VideoMentionBinding } from "@/lib/video/videoMentionBindings";
-import { getVideoOutputUrl, isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
+import { isVideoActiveStatus } from "@/lib/utils";
 import type { UploadMediaItem, VideoGenerationRequest, VideoHistoryItem, VideoModel, VideoStatusResponse, VideoTaskRecord } from "@/types/video";
 
 type SubmitVideoOptions = {
@@ -115,6 +123,36 @@ function activeTaskMessage() {
   return "You already have active generation tasks. Please wait until one finishes.";
 }
 
+function findTaskByJobId(records: VideoTaskRecord[], jobId: string) {
+  return records.find((record) =>
+    [record.jobId, record.providerJobId, record.dbJobId].filter(Boolean).some((value) => String(value) === String(jobId)),
+  );
+}
+
+function mergeStatusIntoTask(base: VideoTaskRecord, result: VideoStatusResponse): VideoTaskRecord {
+  const candidate = {
+    ...base,
+    ...result,
+  };
+  const outputUrl = getSafeHistoryOutputUrl(candidate) || base.videoUrl || base.outputUrl || base.outputUrls?.[0] || "";
+  const status = normalizeVideoPollingStatus(result.status || base.status, outputUrl);
+
+  return {
+    ...base,
+    status,
+    videoUrl: outputUrl || base.videoUrl,
+    outputUrl: outputUrl || base.outputUrl,
+    outputUrls: outputUrl ? [outputUrl] : base.outputUrls,
+    provider: result.provider || base.provider,
+    providerModel: result.providerModel || result.model || base.providerModel,
+    completedAt: result.completedAt || result.completed_at || base.completedAt,
+    updatedAt: Date.now(),
+    error_message: result.error_message || result.errorMessage || result.error || base.error_message,
+    message: result.message || base.message,
+    cost_credits: result.cost_credits ?? base.cost_credits,
+  };
+}
+
 export function useVideoGeneration() {
   const [task, setTask] = useState<VideoTaskRecord | null>(null);
   const [localHistory, setLocalHistory] = useState<VideoTaskRecord[]>([]);
@@ -123,11 +161,21 @@ export function useVideoGeneration() {
   const [historyError, setHistoryError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const taskRef = useRef<VideoTaskRecord | null>(null);
+  const visibleHistoryRef = useRef<VideoTaskRecord[]>([]);
 
   const visibleHistory = useMemo(
     () => mergeVideoHistory(localHistory, serverHistory),
     [localHistory, serverHistory],
   );
+
+  useEffect(() => {
+    taskRef.current = task;
+  }, [task]);
+
+  useEffect(() => {
+    visibleHistoryRef.current = visibleHistory;
+  }, [visibleHistory]);
 
   const activeTaskCount = useMemo(() => {
     const activeIds = new Set<string>();
@@ -154,6 +202,10 @@ export function useVideoGeneration() {
     try {
       const items = await getVideoHistory(80);
       setServerHistory(items);
+      setTask((current) => {
+        const recoverableTask = selectRecoverableVideoPollingTask(mergeVideoHistory(visibleHistoryRef.current, items));
+        return preferLatestVideoTask(current, recoverableTask);
+      });
     } catch (loadError) {
       const message = loadError instanceof Error ? loadError.message : "Server history failed to load.";
       setHistoryError(message);
@@ -213,9 +265,10 @@ export function useVideoGeneration() {
         outputUrls: [],
         videoUrl: "",
         createdAt: Date.now(),
+        updatedAt: Date.now(),
       };
 
-      setTask(nextTask);
+      setTask((current) => preferLatestVideoTask(current, nextTask));
       setLocalHistory((current) => [nextTask, ...current.filter((item) => item.jobId !== nextTask.jobId)].slice(0, 20));
       void saveVideoHistory({ ...nextTask, source: "local" }).catch((saveError) => {
         console.warn("[ShadowEdge Next] save video history failed:", saveError);
@@ -240,32 +293,23 @@ export function useVideoGeneration() {
     }
 
     const result = response.data || {};
+    const currentTask = taskRef.current;
+    const baseTask =
+      (currentTask && findTaskByJobId([currentTask], jobId)) ||
+      findTaskByJobId(visibleHistoryRef.current, jobId);
 
-    setTask((current) => {
-      if (!current || current.jobId !== jobId) return current;
-      const outputUrl = result.videoUrl || result.outputUrl || result.outputUrls?.[0] || result.output_urls?.[0] || "";
-      const next: VideoTaskRecord = {
-        ...current,
-        status: result.status || current.status,
-        videoUrl: outputUrl || current.videoUrl,
-        outputUrls: outputUrl ? [outputUrl] : current.outputUrls,
-        provider: result.provider || current.provider,
-        providerModel: result.providerModel || result.model || current.providerModel,
-        completedAt: result.completedAt || result.completed_at || current.completedAt,
-        error_message: result.error_message || result.errorMessage || result.error || current.error_message,
-        message: result.message || current.message,
-        cost_credits: result.cost_credits ?? current.cost_credits,
-      };
-
+    if (baseTask) {
+      const next = mergeStatusIntoTask(baseTask, result as VideoStatusResponse);
       setLocalHistory((items) => [next, ...items.filter((item) => item.jobId !== next.jobId)].slice(0, 20));
-      if (isVideoCompletedStatus(next.status) || isVideoFailedStatus(next.status) || getVideoOutputUrl(next)) {
+      setTask((current) => preferLatestVideoTask(current, next));
+
+      if (isVideoTerminalPollingRecord(next)) {
         void saveVideoHistory({ ...next, source: "local" }).catch((saveError) => {
           console.warn("[ShadowEdge Next] save completed video history failed:", saveError);
         });
         void refreshCredits();
       }
-      return next;
-    });
+    }
 
     return result as VideoStatusResponse;
   }, [refreshCredits]);
