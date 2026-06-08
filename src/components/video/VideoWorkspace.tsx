@@ -657,7 +657,7 @@ export function VideoWorkspace() {
   }, [t]);
 
   return (
-    <div className="se-scrollbar h-full min-h-0 space-y-3 overflow-y-auto overflow-x-hidden xl:grid xl:grid-cols-[minmax(310px,340px)_minmax(0,1fr)_minmax(300px,340px)] xl:gap-3 xl:space-y-0 xl:overflow-hidden 2xl:grid-cols-[340px_minmax(0,1fr)_340px]">
+    <div className="se-scrollbar h-full min-h-0 space-y-3 overflow-y-auto overflow-x-hidden xl:grid xl:grid-cols-[minmax(310px,340px)_minmax(0,1fr)_minmax(260px,300px)] xl:gap-3 xl:space-y-0 xl:overflow-hidden 2xl:grid-cols-[340px_minmax(0,1fr)_300px]">
       <aside className="flex min-h-0 flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[.04] shadow-2xl shadow-black/20">
         <div className="shrink-0 border-b border-white/10 px-4 py-3">
           <div className="flex gap-4 text-sm font-bold text-white/52">

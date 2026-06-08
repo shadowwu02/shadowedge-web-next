@@ -47,20 +47,52 @@ function statusClass(status: string, hasOutput: boolean, isStale = false) {
 
 function actionButtonClass(tone: "danger" | "normal" | "primary" = "normal") {
   if (tone === "danger") {
-    return "rounded-full border border-red-300/25 bg-red-400/10 px-3 py-1.5 text-xs font-bold text-red-100 transition hover:bg-red-400/16 disabled:cursor-not-allowed disabled:opacity-45";
+    return "rounded-full border border-red-300/25 bg-red-400/10 px-2.5 py-1 text-[11px] font-bold text-red-100 transition hover:bg-red-400/16 disabled:cursor-not-allowed disabled:opacity-45";
   }
 
   if (tone === "primary") {
-    return "rounded-full border border-[#ffb44d]/35 bg-[#ffb44d]/10 px-3 py-1.5 text-xs font-bold text-[#ffd08a] transition hover:bg-[#ffb44d]/20 disabled:cursor-not-allowed disabled:opacity-45";
+    return "rounded-full border border-[#ffb44d]/35 bg-[#ffb44d]/10 px-2.5 py-1 text-[11px] font-bold text-[#ffd08a] transition hover:bg-[#ffb44d]/20 disabled:cursor-not-allowed disabled:opacity-45";
   }
 
-  return "rounded-full border border-white/10 bg-white/[.045] px-3 py-1.5 text-xs font-bold text-white/70 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a] disabled:cursor-not-allowed disabled:opacity-45";
+  return "rounded-full border border-white/10 bg-white/[.045] px-2.5 py-1 text-[11px] font-bold text-white/70 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a] disabled:cursor-not-allowed disabled:opacity-45";
+}
+
+function canvasActionClass() {
+  return "grid size-10 place-items-center rounded-full border border-white/12 bg-black/66 text-sm font-black text-white/74 shadow-2xl shadow-black/30 backdrop-blur transition hover:border-[#ffb44d]/45 hover:bg-[#ffb44d]/16 hover:text-[#ffd08a] disabled:cursor-not-allowed disabled:opacity-45";
 }
 
 function mediaIcon(type: UploadMediaItem["type"]) {
   if (type === "audio") return "AUD";
   if (type === "video") return "VID";
   return "IMG";
+}
+
+function AddReferenceIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+
+function FillPromptIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h10a6 6 0 0 1 6 6v4" />
+    </svg>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M12 3v12" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M5 21h14" />
+    </svg>
+  );
 }
 
 function buildStreamRecords(task: VideoTaskRecord | null, history: VideoTaskRecord[]) {
@@ -130,28 +162,53 @@ function VideoGenerationCard({
 
   return (
     <article className="overflow-hidden rounded-[30px] border border-white/10 bg-black/24 shadow-2xl shadow-black/18">
-      <div className="grid gap-0 2xl:grid-cols-[minmax(0,1.36fr)_minmax(280px,0.64fr)]">
-        <div className="group relative grid min-h-[330px] place-items-center bg-[#05070b] p-3">
+      <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_240px] 2xl:grid-cols-[minmax(0,1fr)_260px]">
+        <div className="group relative grid min-h-[420px] place-items-center bg-[#05070b] p-3">
           {view.outputUrl ? (
             <>
-              <video className="max-h-[62vh] min-h-[320px] w-full rounded-[24px] object-contain" controls playsInline src={view.outputUrl} />
-              {onUseResultAsReference ? (
-                <button
-                  className="absolute right-6 top-6 rounded-full border border-[#ffb44d]/45 bg-black/72 px-3 py-2 text-xs font-black text-[#ffd08a] opacity-0 shadow-2xl shadow-black/30 backdrop-blur transition group-hover:opacity-100 disabled:cursor-not-allowed disabled:border-white/10 disabled:text-white/34"
-                  disabled={Boolean(useResultIssue)}
-                  onClick={() => onUseResultAsReference(record)}
-                  title={useResultIssue || t("video.generation.useAsReference")}
-                  type="button"
+              <video className="max-h-[70vh] min-h-[410px] w-full rounded-[24px] object-contain" controls playsInline src={view.outputUrl} />
+              <div className="absolute right-5 top-5 flex flex-col gap-2 opacity-0 transition group-hover:opacity-100">
+                {onUseResultAsReference ? (
+                  <button
+                    aria-label={t("video.generation.useAsReference")}
+                    className={canvasActionClass()}
+                    disabled={Boolean(useResultIssue)}
+                    onClick={() => onUseResultAsReference(record)}
+                    title={useResultIssue || t("video.generation.useAsReference")}
+                    type="button"
+                  >
+                    <AddReferenceIcon />
+                  </button>
+                ) : null}
+                {onFill ? (
+                  <button
+                    aria-label={t("video.generation.fillPrompt")}
+                    className={canvasActionClass()}
+                    onClick={() => onFill(record)}
+                    title={t("video.generation.fillPrompt")}
+                    type="button"
+                  >
+                    <FillPromptIcon />
+                  </button>
+                ) : null}
+                <a
+                  aria-label={t("video.history.downloadOpen")}
+                  className={canvasActionClass()}
+                  download={safeDownloadFilename(view)}
+                  href={view.outputUrl}
+                  rel="noreferrer"
+                  target="_blank"
+                  title={t("video.history.downloadOpen")}
                 >
-                  {t("video.generation.useAsReference")}
-                </button>
-              ) : null}
+                  <DownloadIcon />
+                </a>
+              </div>
             </>
           ) : view.thumbnailUrl && !isFailed && !isStaleActive ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img alt="" className="max-h-[62vh] min-h-[320px] w-full rounded-[24px] object-contain" src={view.thumbnailUrl} />
+            <img alt="" className="max-h-[70vh] min-h-[410px] w-full rounded-[24px] object-contain" src={view.thumbnailUrl} />
           ) : isFailed || isStaleActive ? (
-            <div className="grid min-h-[320px] w-full place-items-center rounded-[24px] border border-white/10 bg-black/76 px-6 text-center">
+            <div className="grid min-h-[410px] w-full place-items-center rounded-[24px] border border-white/10 bg-black/76 px-6 text-center">
               <div>
                 <div className="mx-auto mb-4 grid size-16 place-items-center rounded-[28px] border border-red-300/25 bg-red-400/10 text-2xl font-black text-red-100">
                   !
@@ -178,7 +235,7 @@ function VideoGenerationCard({
               </div>
             </div>
           ) : isProcessing ? (
-            <div className="grid min-h-[320px] w-full place-items-center rounded-[24px] border border-[#ffb44d]/20 bg-[#ffb44d]/10 px-6 text-center">
+            <div className="grid min-h-[410px] w-full place-items-center rounded-[24px] border border-[#ffb44d]/20 bg-[#ffb44d]/10 px-6 text-center">
               <div>
                 <span className="mx-auto mb-5 block size-12 animate-pulse rounded-3xl border border-[#ffb44d]/30 bg-[#ffb44d]/20" />
                 <p className="text-lg font-black text-white">{t("video.result.processingTitle")}</p>
@@ -186,13 +243,13 @@ function VideoGenerationCard({
               </div>
             </div>
           ) : (
-            <div className="grid min-h-[320px] w-full place-items-center rounded-[24px] border border-dashed border-white/12 text-sm text-white/42">
+            <div className="grid min-h-[410px] w-full place-items-center rounded-[24px] border border-dashed border-white/12 text-sm text-white/42">
               {t("video.generation.empty.title")}
             </div>
           )}
         </div>
 
-        <div className="flex min-w-0 flex-col gap-3 border-t border-white/10 p-4 2xl:border-l 2xl:border-t-0">
+        <div className="flex min-w-0 flex-col gap-2.5 border-t border-white/10 p-3 xl:border-l xl:border-t-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${statusClass(view.status, hasOutput, isStaleActive)}`}>
               {statusLabel}
@@ -215,10 +272,10 @@ function VideoGenerationCard({
                 </span>
               ) : null}
             </div>
-            <p className="line-clamp-4 text-sm font-bold leading-6 text-white/78">{view.title}</p>
+            <p className="line-clamp-4 text-xs font-bold leading-5 text-white/78">{view.title}</p>
           </button>
 
-          <div className="grid grid-cols-2 gap-2 text-xs text-white/46">
+          <div className="grid gap-1.5 text-[11px] text-white/46">
             <span className="truncate rounded-2xl border border-white/10 bg-white/[.035] px-3 py-2">
               {tf("video.history.model", { model: view.modelLabel })}
             </span>
@@ -233,13 +290,13 @@ function VideoGenerationCard({
             </span>
           </div>
 
-          <div className="rounded-[22px] border border-white/10 bg-white/[.025] p-3">
+          <div className="rounded-[22px] border border-white/10 bg-white/[.025] p-2.5">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-[10px] font-black uppercase tracking-[.16em] text-[#ffcf83]">{t("video.generation.references")}</span>
               <span className="text-[10px] text-white/32">{referenceAssets.length}</span>
             </div>
             {referenceAssets.length ? (
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-3 gap-1.5">
                 {referenceAssets.map((asset) => {
                   const issue = getAddReferenceIssue?.(asset) || "";
                   const isBlocked = Boolean(issue);
@@ -273,7 +330,7 @@ function VideoGenerationCard({
             )}
           </div>
 
-          <div className="mt-auto flex flex-wrap gap-2">
+          <div className="mt-auto flex flex-wrap gap-1.5">
             {hasOutput ? (
               <a
                 className={actionButtonClass("normal")}
