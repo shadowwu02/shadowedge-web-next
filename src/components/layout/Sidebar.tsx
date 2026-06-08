@@ -1,16 +1,8 @@
 import Link from "next/link";
+import type { WorkspaceNavItem } from "@/components/layout/TopBar";
 import { cn } from "@/lib/utils";
 
-const items = [
-  { label: "Video", href: "/workspace/video", active: true },
-  { label: "Image", href: "/workspace/image" },
-  { label: "AI Canvas", href: "/workspace/canvas" },
-  { label: "History", href: "/history" },
-  { label: "Models", href: "/models" },
-  { label: "Pricing", href: "/pricing" },
-];
-
-export function Sidebar() {
+export function Sidebar({ items }: { items: WorkspaceNavItem[] }) {
   return (
     <aside className="hidden min-h-0 w-[248px] shrink-0 border-r border-white/10 bg-black/20 p-4 lg:flex lg:flex-col">
       <Link href="/" className="mb-8 flex items-center gap-3 px-2">

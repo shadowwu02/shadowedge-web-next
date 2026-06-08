@@ -3,23 +3,38 @@
 import Link from "next/link";
 import { CreditBadge } from "@/components/common/CreditBadge";
 import { LanguageSwitch } from "@/components/common/LanguageSwitch";
-import { UserAvatar } from "@/components/common/UserAvatar";
+import { UserAvatar, type UserAvatarLabels } from "@/components/common/UserAvatar";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useCredits } from "@/hooks/useCredits";
-import { useI18n } from "@/i18n/useI18n";
+import type { Locale } from "@/i18n/dictionary";
 import { cn } from "@/lib/utils";
 
-const workspaceLinks = [
-  { label: "Video", href: "/workspace/video", active: true },
-  { label: "Image", href: "/workspace/image" },
-  { label: "Canvas", href: "/workspace/canvas" },
-  { label: "History", href: "/history" },
-  { label: "Models", href: "/models" },
-  { label: "Pricing", href: "/pricing" },
-];
+export type WorkspaceNavItem = {
+  active?: boolean;
+  href: string;
+  label: string;
+};
 
-export function TopBar({ workspaceNav = false }: { workspaceNav?: boolean }) {
-  const { locale, setLocale } = useI18n();
+export function TopBar({
+  creditLabel,
+  locale,
+  onLocaleChange,
+  userLabels,
+  workspaceLabels,
+  workspaceLinks,
+  workspaceNav = false,
+}: {
+  creditLabel: string;
+  locale: Locale;
+  onLocaleChange: (locale: Locale) => void;
+  userLabels: UserAvatarLabels;
+  workspaceLabels: {
+    title: string;
+    videoCreator: string;
+  };
+  workspaceLinks: WorkspaceNavItem[];
+  workspaceNav?: boolean;
+}) {
   const { profile } = useAuthSession();
   const { credits } = useCredits();
 
@@ -55,20 +70,20 @@ export function TopBar({ workspaceNav = false }: { workspaceNav?: boolean }) {
           </nav>
         ) : (
           <div>
-            <p className="text-xs font-bold uppercase tracking-[.2em] text-[#ffcf83]">Workspace</p>
-            <h1 className="text-lg font-black text-white md:text-xl">Video Creator</h1>
+            <p className="text-xs font-bold uppercase tracking-[.2em] text-[#ffcf83]">{workspaceLabels.title}</p>
+            <h1 className="text-lg font-black text-white md:text-xl">{workspaceLabels.videoCreator}</h1>
           </div>
         )}
       </div>
       <div className="flex shrink-0 items-center gap-2 md:gap-3">
-        <CreditBadge credits={credits} />
-        <LanguageSwitch locale={locale} onChange={setLocale} />
+        <CreditBadge credits={credits} label={creditLabel} />
+        <LanguageSwitch locale={locale} onChange={onLocaleChange} />
         {profile?.email ? (
           <span className="hidden max-w-[190px] truncate rounded-full border border-white/10 bg-white/[.045] px-3 py-2 text-xs font-bold text-white/58 md:inline-block">
             {profile.email}
           </span>
         ) : null}
-        <UserAvatar email={profile?.email} name={profile?.name} />
+        <UserAvatar email={profile?.email} labels={userLabels} name={profile?.name} />
       </div>
     </header>
   );

@@ -5,7 +5,29 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { clearAuthSession } from "@/lib/auth";
 
-export function UserAvatar({ email, name }: { email?: string; name?: string }) {
+export type UserAvatarLabels = {
+  logout: string;
+  signIn: string;
+  signedIn: string;
+  videoWorkspace: string;
+};
+
+const defaultLabels: UserAvatarLabels = {
+  logout: "Logout",
+  signIn: "Sign in",
+  signedIn: "Signed in",
+  videoWorkspace: "Video workspace",
+};
+
+export function UserAvatar({
+  email,
+  labels = defaultLabels,
+  name,
+}: {
+  email?: string;
+  labels?: UserAvatarLabels;
+  name?: string;
+}) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const label = name || email || "Guest";
@@ -17,7 +39,7 @@ export function UserAvatar({ email, name }: { email?: string; name?: string }) {
         className="inline-flex h-10 items-center justify-center rounded-full border border-[#ffb44d]/45 bg-[#ffb44d]/14 px-4 text-sm font-black text-[#ffd08a] transition hover:border-[#ffb44d]/70 hover:bg-[#ffb44d]/20"
         href="/sign-in?next=/workspace/video"
       >
-        Sign in
+        {labels.signIn}
       </Link>
     );
   }
@@ -44,7 +66,7 @@ export function UserAvatar({ email, name }: { email?: string; name?: string }) {
       {isOpen ? (
         <div className="absolute right-0 top-12 z-50 w-64 rounded-3xl border border-white/10 bg-[#11141d] p-3 shadow-2xl shadow-black/45">
           <div className="rounded-2xl bg-white/[.055] px-3 py-2">
-            <p className="truncate text-xs font-bold uppercase tracking-[.14em] text-white/38">Signed in</p>
+            <p className="truncate text-xs font-bold uppercase tracking-[.14em] text-white/38">{labels.signedIn}</p>
             <p className="mt-1 truncate text-sm font-bold text-white">{email}</p>
           </div>
           <Link
@@ -52,14 +74,14 @@ export function UserAvatar({ email, name }: { email?: string; name?: string }) {
             href="/workspace/video"
             onClick={() => setIsOpen(false)}
           >
-            Video workspace
+            {labels.videoWorkspace}
           </Link>
           <button
             className="mt-1 w-full rounded-2xl px-3 py-2 text-left text-sm font-bold text-red-100 transition hover:bg-red-400/10"
             onClick={handleLogout}
             type="button"
           >
-            Logout
+            {labels.logout}
           </button>
         </div>
       ) : null}

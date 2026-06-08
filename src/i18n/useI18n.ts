@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { dictionary, type Locale } from "@/i18n/dictionary";
 
 const languageStorageKey = "se_lang";
+const languageChangeEvent = "shadowedge:language-change";
 type DictionaryKey = keyof (typeof dictionary)["en"];
 
 export function formatI18nText(template: string, values?: Record<string, string | number | null | undefined>) {
@@ -18,16 +19,36 @@ export function useI18n() {
   const [locale, setLocaleState] = useState<Locale>("en");
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
+    const applyStoredLocale = () => {
       try {
         const stored = window.localStorage.getItem(languageStorageKey);
         if (stored === "zh" || stored === "en") setLocaleState(stored);
       } catch {
         // Keep the English default if local storage is unavailable.
       }
+    };
+
+    const timer = window.setTimeout(() => {
+      applyStoredLocale();
     }, 0);
 
-    return () => window.clearTimeout(timer);
+    const handleLanguageChange = (event: Event) => {
+      const next = event instanceof CustomEvent ? event.detail : null;
+      if (next === "zh" || next === "en") setLocaleState(next);
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === languageStorageKey) applyStoredLocale();
+    };
+
+    window.addEventListener(languageChangeEvent, handleLanguageChange);
+    window.addEventListener("storage", handleStorage);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener(languageChangeEvent, handleLanguageChange);
+      window.removeEventListener("storage", handleStorage);
+    };
   }, []);
 
   const setLocale = useCallback((next: Locale) => {
@@ -37,6 +58,7 @@ export function useI18n() {
     } catch {
       // Non-fatal in private browsing contexts.
     }
+    window.dispatchEvent(new CustomEvent(languageChangeEvent, { detail: next }));
   }, []);
 
   const t = useCallback(
