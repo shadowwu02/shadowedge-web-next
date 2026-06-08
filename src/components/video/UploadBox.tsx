@@ -69,11 +69,13 @@ export function UploadBox({
   modelRule,
   onBusyChange,
   onChange,
+  reusableMedia = [],
 }: {
   media: UploadMediaItem[];
   modelRule: VideoModelRule;
   onBusyChange?: (isBusy: boolean) => void;
   onChange: Dispatch<SetStateAction<UploadMediaItem[]>>;
+  reusableMedia?: UploadMediaItem[];
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -95,7 +97,10 @@ export function UploadBox({
     () => mergeMediaAssets(collectCurrentMediaAssets(currentUploadMedia), collectReferenceMediaAssets(media)),
     [currentUploadMedia, media],
   );
-  const allPickerMedia = useMemo(() => mergeMediaAssets(currentMedia, localStoredMedia), [currentMedia, localStoredMedia]);
+  const allPickerMedia = useMemo(
+    () => mergeMediaAssets(currentMedia, localStoredMedia, reusableMedia),
+    [currentMedia, localStoredMedia, reusableMedia],
+  );
 
   useEffect(() => {
     onBusyChange?.(currentUploadMedia.some((item) => item.uploadStatus === "uploading"));
@@ -310,6 +315,7 @@ export function UploadBox({
         onNotice={setPickerNotice}
         onRemove={removeMedia}
         referenceMedia={media}
+        reusableMedia={reusableMedia}
         slot={uploadSlot}
       />
     </>

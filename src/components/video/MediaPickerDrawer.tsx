@@ -14,7 +14,7 @@ import {
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
 import type { VideoModelRule } from "@/lib/video/videoModelRules";
 
-type MediaFilter = "uploads" | UploadMediaType | "elements" | "liked";
+type MediaFilter = "uploads" | "history" | "generated" | UploadMediaType | "elements" | "liked";
 
 type DrawerPosition = {
   left: number;
@@ -29,6 +29,8 @@ const drawerMaxHeight = 520;
 
 const filters: Array<{ key: MediaFilter; label: string }> = [
   { key: "uploads", label: "Uploads" },
+  { key: "history", label: "History" },
+  { key: "generated", label: "Generated" },
   { key: "image", label: "Images" },
   { key: "video", label: "Videos" },
   { key: "audio", label: "Audios" },
@@ -58,6 +60,8 @@ function mediaFallback(type: UploadMediaItem["type"]) {
 }
 
 function emptyStateText(filter: MediaFilter) {
+  if (filter === "history") return "Reusable history inputs will appear here.";
+  if (filter === "generated") return "Generated videos will appear here when reusable.";
   if (filter === "elements") return "No elements yet.";
   if (filter === "liked") return "Liked assets will appear here.";
   if (filter === "image") return "No uploaded images yet.";
@@ -140,6 +144,7 @@ export function MediaPickerDrawer({
   onNotice,
   onRemove,
   referenceMedia,
+  reusableMedia = [],
   slot,
 }: {
   anchorElement: HTMLElement | null;
@@ -156,6 +161,7 @@ export function MediaPickerDrawer({
   onNotice?: (notice: string) => void;
   onRemove: (id: string) => void;
   referenceMedia: UploadMediaItem[];
+  reusableMedia?: UploadMediaItem[];
   slot: string;
 }) {
   const [activeFilter, setActiveFilter] = useState<MediaFilter>("uploads");
@@ -164,11 +170,13 @@ export function MediaPickerDrawer({
   const previousStatusesRef = useRef<Map<string, UploadMediaItem["uploadStatus"]>>(new Map());
   const rafRef = useRef<number | null>(null);
 
-  const allMedia = useMemo(() => mergeMediaAssets(currentMedia, localMedia), [currentMedia, localMedia]);
+  const allMedia = useMemo(() => mergeMediaAssets(currentMedia, localMedia, reusableMedia), [currentMedia, localMedia, reusableMedia]);
   const allowedTypes = useMemo(() => getAllowedReferenceTypes(modelRule), [modelRule]);
   const limitSummary = useMemo(() => getReferenceLimitSummary(modelRule), [modelRule]);
   const visibleMedia = useMemo(() => {
     if (activeFilter === "uploads") return allMedia;
+    if (activeFilter === "history") return allMedia.filter((item) => item.source === "history");
+    if (activeFilter === "generated") return allMedia.filter((item) => item.source === "generated_result");
     if (activeFilter === "elements" || activeFilter === "liked") return [];
     return allMedia.filter((item) => item.type === activeFilter);
   }, [activeFilter, allMedia]);
@@ -196,6 +204,11 @@ export function MediaPickerDrawer({
 
       if (!slotAllowsAssetType(slot, item.type)) {
         issues.set(item.id, "Unsupported file type for this slot.");
+        return;
+      }
+
+      if (item.source === "generated_result" && !modelRule.supportsGeneratedResultAsReference) {
+        issues.set(item.id, "Generated results cannot be used as references for this model.");
         return;
       }
 
@@ -501,6 +514,7 @@ export function MediaPickerDrawer({
                 const isFailed = item.uploadStatus === "failed";
                 const isAlreadyAdded = selectIssue === "Already added to references.";
                 const isUnsupported = Boolean(selectIssue) && !isAlreadyAdded && !isFailed && item.uploadStatus !== "uploading";
+                const canRemove = item.source !== "history" && item.source !== "generated_result";
 
                 return (
                   <article
@@ -557,17 +571,19 @@ export function MediaPickerDrawer({
                         {item.errorMessage ? <span className="line-clamp-2 text-xs leading-5 text-red-100/78">{item.errorMessage}</span> : null}
                       </span>
                     </button>
-                    <button
-                      aria-label={`Remove ${item.name}`}
-                      className="absolute bottom-2 right-2 rounded-full border border-white/10 bg-black/70 px-2 py-1 text-[10px] font-bold text-white/58 opacity-0 transition hover:border-red-300/45 hover:text-red-100 group-hover:opacity-100"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        removeAsset(item.id);
-                      }}
-                      type="button"
-                    >
-                      Remove
-                    </button>
+                    {canRemove ? (
+                      <button
+                        aria-label={`Remove ${item.name}`}
+                        className="absolute bottom-2 right-2 rounded-full border border-white/10 bg-black/70 px-2 py-1 text-[10px] font-bold text-white/58 opacity-0 transition hover:border-red-300/45 hover:text-red-100 group-hover:opacity-100"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          removeAsset(item.id);
+                        }}
+                        type="button"
+                      >
+                        Remove
+                      </button>
+                    ) : null}
                   </article>
                 );
               })}

@@ -16,6 +16,7 @@ import { useTaskPolling } from "@/hooks/useTaskPolling";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useCredits } from "@/hooks/useCredits";
 import { useVideoGeneration } from "@/hooks/useVideoGeneration";
+import { collectReusableVideoAssets } from "@/lib/media-assets";
 import { getVideoModels } from "@/lib/video-api";
 import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
 import { getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
@@ -301,6 +302,10 @@ export function VideoWorkspace() {
   const canGenerate = Boolean(selectedModel) && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits;
   const selectedModelRuleId = getVideoModelRuleId(selectedModel);
   const selectedModelRule = useMemo(() => getVideoModelRule(selectedModelRuleId), [selectedModelRuleId]);
+  const reusableMedia = useMemo(
+    () => collectReusableVideoAssets(task ? [task, ...history] : history),
+    [history, task],
+  );
 
   const generateButtonLabel = useMemo(() => {
     if (isUploadingMedia) return "Uploading media";
@@ -413,7 +418,13 @@ export function VideoWorkspace() {
 
         <div className="se-subtle-scrollbar grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-3">
           {modelLoading ? <LoadingState label="Loading live model registry..." /> : null}
-          <UploadBox media={media} modelRule={selectedModelRule} onBusyChange={setIsAssetPickerUploading} onChange={setMedia} />
+          <UploadBox
+            media={media}
+            modelRule={selectedModelRule}
+            onBusyChange={setIsAssetPickerUploading}
+            onChange={setMedia}
+            reusableMedia={reusableMedia}
+          />
           <ReferenceMediaTray media={media} modelRule={selectedModelRule} onRemove={removeMedia} onRoleChange={updateMediaRole} />
           <PromptBox media={media} onChange={setPrompt} value={prompt} />
           <div className="grid grid-cols-2 gap-2">
