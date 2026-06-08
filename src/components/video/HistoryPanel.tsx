@@ -11,7 +11,11 @@ type HistoryPanelProps = {
   history: VideoTaskRecord[];
   isLoading?: boolean;
   error?: string;
+  getUseResultAsReferenceIssue?: (record: VideoTaskRecord) => string;
+  onFill?: (record: VideoTaskRecord) => void;
+  onHide?: (record: VideoTaskRecord) => void;
   onRetry?: (record: VideoTaskRecord) => void;
+  onUseResultAsReference?: (record: VideoTaskRecord) => void;
 };
 
 const filters: Array<{ id: HistoryFilter; label: string }> = [
@@ -44,7 +48,31 @@ function emptyMessage(filter: HistoryFilter) {
   return "No saved videos yet.";
 }
 
-export function HistoryPanel({ error, history, isLoading = false, onRetry }: HistoryPanelProps) {
+function safeDownloadFilename(view: ReturnType<typeof getSafeVideoHistoryView>) {
+  const id = view.jobLabel && view.jobLabel !== "--" ? view.jobLabel : view.key || Date.now();
+  return `shadowedge-video-${String(id).replace(/[^\w.-]+/g, "-")}.mp4`;
+}
+
+function actionButtonClass(tone: "danger" | "normal" | "primary" = "normal") {
+  if (tone === "danger") {
+    return "rounded-full border border-red-300/25 bg-red-400/10 px-3 py-1 text-xs font-bold text-red-100 transition hover:bg-red-400/16 disabled:cursor-not-allowed disabled:opacity-45";
+  }
+  if (tone === "primary") {
+    return "rounded-full border border-[#ffb44d]/35 bg-[#ffb44d]/10 px-3 py-1 text-xs font-bold text-[#ffd08a] transition hover:bg-[#ffb44d]/16 disabled:cursor-not-allowed disabled:opacity-45";
+  }
+  return "rounded-full border border-white/10 bg-white/[.045] px-3 py-1 text-xs font-bold text-white/68 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a] disabled:cursor-not-allowed disabled:opacity-45";
+}
+
+export function HistoryPanel({
+  error,
+  getUseResultAsReferenceIssue,
+  history,
+  isLoading = false,
+  onFill,
+  onHide,
+  onRetry,
+  onUseResultAsReference,
+}: HistoryPanelProps) {
   const [filter, setFilter] = useState<HistoryFilter>("all");
 
   const visibleHistory = useMemo(() => history.filter((item) => filterHistoryItem(item, filter)), [filter, history]);
@@ -88,6 +116,11 @@ export function HistoryPanel({ error, history, isLoading = false, onRetry }: His
           {visibleHistory.length ? (
             visibleHistory.map((item) => {
               const view = getSafeVideoHistoryView(item);
+              const hasOutput = Boolean(view.outputUrl);
+              const isSuccess = isVideoCompletedStatus(view.status) && hasOutput;
+              const isFailed = isVideoFailedStatus(view.status);
+              const isProcessing = isVideoActiveStatus(view.status);
+              const useResultIssue = getUseResultAsReferenceIssue?.(item) || "";
               return (
                 <article className="rounded-[22px] border border-white/10 bg-black/20 p-2.5" key={view.key}>
                   <div className="grid grid-cols-[92px_minmax(0,1fr)] gap-3">
@@ -117,22 +150,56 @@ export function HistoryPanel({ error, history, isLoading = false, onRetry }: His
                         <span className="truncate">Model: {view.modelLabel}</span>
                         <span className="truncate">Job: {view.jobLabel}</span>
                       </div>
-                      {isVideoFailedStatus(view.status) ? (
-                        <div className="mt-2 flex flex-wrap gap-2">
+                      {isFailed ? (
+                        <div className="mt-2">
                           <span className="line-clamp-2 w-full text-[11px] leading-4 text-red-100/62">
                             {view.errorMessage}
                             {view.refundNotice ? ` ${view.refundNotice}` : ""}
                           </span>
-                          <button
-                            className="rounded-full border border-[#ffb44d]/35 bg-[#ffb44d]/10 px-3 py-1 text-xs font-bold text-[#ffd08a] transition hover:bg-[#ffb44d]/16 disabled:cursor-not-allowed disabled:opacity-45"
-                            disabled={!onRetry}
-                            onClick={() => onRetry?.(item)}
-                            type="button"
-                          >
-                            Retry
-                          </button>
                         </div>
                       ) : null}
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {isSuccess ? (
+                          <a
+                            className={actionButtonClass("normal")}
+                            download={safeDownloadFilename(view)}
+                            href={view.outputUrl}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            Download
+                          </a>
+                        ) : null}
+                        {(isSuccess || isFailed) && onFill ? (
+                          <button className={actionButtonClass("normal")} onClick={() => onFill(item)} type="button">
+                            Fill
+                          </button>
+                        ) : null}
+                        {isFailed ? (
+                          <button className={actionButtonClass("primary")} disabled={!onRetry} onClick={() => onRetry?.(item)} type="button">
+                            Retry
+                          </button>
+                        ) : null}
+                        {isSuccess && onUseResultAsReference ? (
+                          <button
+                            className={actionButtonClass("normal")}
+                            disabled={Boolean(useResultIssue)}
+                            onClick={() => onUseResultAsReference(item)}
+                            title={useResultIssue || "Use generated result as reference"}
+                            type="button"
+                          >
+                            Use as reference
+                          </button>
+                        ) : null}
+                        {!isProcessing && onHide ? (
+                          <button className={actionButtonClass("danger")} onClick={() => onHide(item)} title="Hide locally. This does not delete server history." type="button">
+                            Hide
+                          </button>
+                        ) : null}
+                        {isSuccess && useResultIssue ? (
+                          <span className="w-full text-[11px] leading-4 text-white/36">{useResultIssue}</span>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 </article>

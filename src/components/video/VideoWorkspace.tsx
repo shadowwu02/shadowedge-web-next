@@ -16,8 +16,9 @@ import { useTaskPolling } from "@/hooks/useTaskPolling";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useCredits } from "@/hooks/useCredits";
 import { useVideoGeneration } from "@/hooks/useVideoGeneration";
-import { collectReusableVideoAssets } from "@/lib/media-assets";
+import { collectGeneratedResultMediaAssets, collectReusableVideoAssets, mergeMediaAssets } from "@/lib/media-assets";
 import { getVideoModels } from "@/lib/video-api";
+import { getSafeHistoryOutputUrl } from "@/lib/video/historyUtils";
 import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
 import { getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
 import {
@@ -26,6 +27,7 @@ import {
   serializeMentionBindings,
   type VideoMentionBinding,
 } from "@/lib/video/videoMentionBindings";
+import { validateReferenceSelectionForRule } from "@/lib/video/videoReferenceRules";
 import { isVideoActiveStatus } from "@/lib/utils";
 import type { UploadMediaItem, UploadMediaRole, VideoModel, VideoStatusResponse } from "@/types/video";
 
@@ -161,6 +163,20 @@ function buildRetryMedia(record: { mediaList?: UploadMediaItem[] | Array<{ id?: 
   return [...fromMediaList, ...fromRefs];
 }
 
+function isReadyRemoteMedia(item: UploadMediaItem) {
+  return Boolean(item.url && /^https?:\/\//i.test(item.url) && !item.url.startsWith("blob:") && !item.url.startsWith("data:"));
+}
+
+function getRecordGenerateAudio(record: { meta?: Record<string, unknown>; generate_audio?: unknown; generateAudio?: unknown }) {
+  return Boolean(record.meta?.generate_audio ?? record.meta?.generateAudio ?? record.generate_audio ?? record.generateAudio);
+}
+
+function getRecordDuration(record: { duration?: string | number; meta?: Record<string, unknown> }, fallback: number) {
+  const value = record.duration ?? record.meta?.duration;
+  const duration = Number.parseInt(String(value || "").replace("s", ""), 10);
+  return Number.isFinite(duration) && duration > 0 ? duration : fallback;
+}
+
 function getRecordMentionBindings(
   record: { meta?: Record<string, unknown>; mentionBindings?: unknown; mention_bindings?: unknown },
   referenceMedia: UploadMediaItem[],
@@ -202,6 +218,7 @@ export function VideoWorkspace() {
     isHistoryLoading,
     isSubmitting,
     loadHistory,
+    hideHistoryRecord,
     refreshTask,
     submit,
     task,
@@ -422,23 +439,96 @@ export function VideoWorkspace() {
         return;
       }
 
-      const duration = Number.parseInt(String(record.duration || retryModel.durationDefault), 10) || retryModel.durationDefault;
-      const ratio = record.ratio && retryModel.ratios.includes(record.ratio) ? record.ratio : retryModel.ratios[0] || "16:9";
-      const quality = record.quality && retryModel.qualities.includes(record.quality) ? record.quality : retryModel.qualities[0] || "720p";
+      const retryParams = buildParamsForModel(retryModel, {
+        duration: getRecordDuration(record, retryModel.durationDefault),
+        generateAudio: getRecordGenerateAudio(record),
+        quality: record.quality,
+        ratio: record.ratio,
+      });
 
       void submit({
         prompt: promptText,
         model: retryModel,
-        duration,
-        ratio,
-        quality,
-        generateAudio: Boolean(record.meta?.generate_audio),
+        duration: retryParams.duration,
+        ratio: retryParams.ratio,
+        quality: retryParams.quality,
+        generateAudio: retryParams.generateAudio,
         media: retryMedia,
         mentionBindings: retryMentionBindings,
         maxConcurrency,
       });
     },
     [findRetryModel, maxConcurrency, submit],
+  );
+
+  const getGeneratedResultReferenceIssue = useCallback(
+    (record: (typeof history)[number]) => {
+      if (!getSafeHistoryOutputUrl(record)) return "No generated result URL is available.";
+      if (!selectedModelRule.supportsGeneratedResultAsReference) {
+        return "Generated results cannot be used as references for this model.";
+      }
+
+      const generatedAsset = collectGeneratedResultMediaAssets([record])[0];
+      if (!generatedAsset) return "No reusable generated result is available.";
+
+      return validateReferenceSelectionForRule(selectedModelRule, media, [generatedAsset]);
+    },
+    [media, selectedModelRule],
+  );
+
+  const handleUseResultAsReference = useCallback(
+    (record: (typeof history)[number]) => {
+      const issue = getGeneratedResultReferenceIssue(record);
+      if (issue) {
+        setWorkspaceNotice(issue);
+        return;
+      }
+
+      const generatedAsset = collectGeneratedResultMediaAssets([record])[0];
+      if (!generatedAsset) {
+        setWorkspaceNotice("No reusable generated result is available.");
+        return;
+      }
+
+      setMedia((currentItems) => mergeMediaAssets(currentItems, [generatedAsset]));
+      setWorkspaceNotice("Generated result added to References.");
+    },
+    [getGeneratedResultReferenceIssue],
+  );
+
+  const handleFillFromHistory = useCallback(
+    (record: (typeof history)[number]) => {
+      const fillModel = findRetryModel(record) || selectedModel;
+      const nextMedia = buildRetryMedia(record).filter(isReadyRemoteMedia);
+      const nextMentionBindings = getRecordMentionBindings(record, nextMedia);
+      const nextParams = buildParamsForModel(fillModel, {
+        duration: getRecordDuration(record, fillModel.durationDefault),
+        generateAudio: getRecordGenerateAudio(record),
+        quality: record.quality,
+        ratio: record.ratio,
+      });
+      const promptText = String(record.meta?.original_prompt || record.prompt || "").trim();
+
+      setSelectedModel(fillModel);
+      setParams(nextParams);
+      setMedia(nextMedia);
+      setMentionBindings(nextMentionBindings);
+      setPrompt(promptText);
+      setWorkspaceNotice(
+        findRetryModel(record)
+          ? "History item loaded into the generator."
+          : "History item loaded with the current model because the original model is unavailable.",
+      );
+    },
+    [findRetryModel, selectedModel],
+  );
+
+  const handleHideHistoryRecord = useCallback(
+    (record: (typeof history)[number]) => {
+      hideHistoryRecord(record);
+      setWorkspaceNotice("History item hidden locally. It may return after a page refresh because no delete API is connected.");
+    },
+    [hideHistoryRecord],
   );
 
   return (
@@ -534,7 +624,16 @@ export function VideoWorkspace() {
       </main>
 
       <aside className="min-h-[460px] min-w-0 overflow-hidden xl:min-h-0">
-        <HistoryPanel error={historyError} history={history} isLoading={isHistoryLoading} onRetry={handleRetry} />
+        <HistoryPanel
+          error={historyError}
+          getUseResultAsReferenceIssue={getGeneratedResultReferenceIssue}
+          history={history}
+          isLoading={isHistoryLoading}
+          onFill={handleFillFromHistory}
+          onHide={handleHideHistoryRecord}
+          onRetry={handleRetry}
+          onUseResultAsReference={handleUseResultAsReference}
+        />
       </aside>
     </div>
   );

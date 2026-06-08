@@ -161,12 +161,13 @@ export function useVideoGeneration() {
   const [historyError, setHistoryError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [hiddenHistoryKeys, setHiddenHistoryKeys] = useState<Set<string>>(() => new Set());
   const taskRef = useRef<VideoTaskRecord | null>(null);
   const visibleHistoryRef = useRef<VideoTaskRecord[]>([]);
 
   const visibleHistory = useMemo(
-    () => mergeVideoHistory(localHistory, serverHistory),
-    [localHistory, serverHistory],
+    () => mergeVideoHistory(localHistory, serverHistory).filter((record, index) => !hiddenHistoryKeys.has(getVideoHistoryStableKey(record, `history:${index}`))),
+    [hiddenHistoryKeys, localHistory, serverHistory],
   );
 
   useEffect(() => {
@@ -314,6 +315,16 @@ export function useVideoGeneration() {
     return result as VideoStatusResponse;
   }, [refreshCredits]);
 
+  const hideHistoryRecord = useCallback((record: VideoTaskRecord) => {
+    const key = getVideoHistoryStableKey(record, record.jobId || record.providerJobId || record.dbJobId || String(record.createdAt || ""));
+    if (!key) return;
+    setHiddenHistoryKeys((current) => {
+      const next = new Set(current);
+      next.add(key);
+      return next;
+    });
+  }, []);
+
   return {
     activeTaskCount,
     task,
@@ -323,6 +334,7 @@ export function useVideoGeneration() {
     error,
     isSubmitting,
     loadHistory,
+    hideHistoryRecord,
     refreshCredits,
     submit,
     refreshTask,
