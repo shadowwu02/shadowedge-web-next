@@ -1,11 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import { useMemo } from "react";
+import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { useI18n } from "@/i18n/useI18n";
 import { collectHistoryInputMediaAssets } from "@/lib/media-assets";
 import { getSafeVideoHistoryView, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
-import { getVideoModelLogo } from "@/lib/video/modelLogoMap";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { UploadMediaItem, VideoTaskRecord } from "@/types/video";
 
@@ -144,7 +143,7 @@ export function VideoOutputDetailPanel({
   const isStaleActive = isVideoStaleActiveRecord(record);
   const isProcessing = isVideoActiveStatus(view.status) && !isStaleActive;
   const useResultIssue = getUseResultAsReferenceIssue?.(record) || "";
-  const modelLogo = getVideoModelLogo(getRecordModelLogoLookup(record, view.modelLabel));
+  const modelLogoLookup = getRecordModelLogoLookup(record, view.modelLabel);
   const statusLabel = isStaleActive
     ? t("video.generation.stale")
     : isFailed
@@ -165,7 +164,7 @@ export function VideoOutputDetailPanel({
               {statusLabel}
             </span>
             <span className="inline-flex min-w-0 items-center gap-1.5 truncate rounded-full border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/74 px-2.5 py-1 text-[10px] font-semibold text-[#f4f4f4]/78">
-              {modelLogo ? <Image alt={`${view.modelLabel} logo`} className="size-3.5 object-contain" height={14} src={modelLogo} width={14} /> : null}
+              <VideoModelLogo label={view.modelLabel} lookup={modelLogoLookup} size="sm" />
               {view.modelLabel}
             </span>
           </div>

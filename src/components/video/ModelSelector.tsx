@@ -1,9 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { useI18n } from "@/i18n/useI18n";
-import { getVideoModelLogo } from "@/lib/video/modelLogoMap";
 import type { VideoModel } from "@/types/video";
 
 function getLocalizedModelDescription(description: string | undefined, t: ReturnType<typeof useI18n>["t"]) {
@@ -21,28 +20,6 @@ function getLocalizedModelDescription(description: string | undefined, t: Return
 function getModelLogoLookup(model: VideoModel | undefined) {
   if (!model) return "";
   return [model.id, model.providerModel, model.provider, model.label].filter(Boolean).join(" ");
-}
-
-function getModelInitials(model: VideoModel | undefined) {
-  const label = model?.label || "AI";
-  return label
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-}
-
-function ModelLogo({ model, size = 24 }: { model: VideoModel | undefined; size?: number }) {
-  const logo = getVideoModelLogo(getModelLogoLookup(model));
-  const label = model?.label || "Video model";
-
-  return (
-    <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-[18px] border border-[rgba(244,244,244,0.08)] bg-[#111318] text-[10px] font-semibold text-[#b9b9b9]/70 shadow-inner shadow-black/20">
-      {logo ? <Image alt={`${label} logo`} className="h-auto w-auto object-contain" height={size} src={logo} width={size} /> : getModelInitials(model)}
-    </span>
-  );
 }
 
 export function ModelSelector({
@@ -81,7 +58,7 @@ export function ModelSelector({
         type="button"
       >
         <span className="flex min-w-0 items-center gap-3">
-          <ModelLogo model={selected} />
+          <VideoModelLogo label={selected?.label} lookup={getModelLogoLookup(selected)} size="lg" />
           <span className="min-w-0">
             <span className="block text-[11px] font-medium text-[#b9b9b9]/58">{t("video.params.model")}</span>
             <span className="mt-0.5 block truncate text-sm font-semibold text-[#f4f4f4]">{selected?.label || t("video.model.select")}</span>
@@ -114,7 +91,7 @@ export function ModelSelector({
                 type="button"
               >
                 <span className="grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3">
-                  <ModelLogo model={model} size={22} />
+                  <VideoModelLogo label={model.label} lookup={getModelLogoLookup(model)} size="lg" />
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold text-[#f4f4f4]">{model.label}</span>
                     <span className="mt-0.5 block truncate text-xs text-[#b9b9b9]/52">

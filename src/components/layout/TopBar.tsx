@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { CreditBadge } from "@/components/common/CreditBadge";
 import { LanguageSwitch } from "@/components/common/LanguageSwitch";
@@ -41,13 +42,17 @@ export function TopBar({
   return (
     <header className="flex min-h-14 shrink-0 items-center justify-between gap-4 border-b border-[rgba(244,244,244,0.08)] bg-[#05070b]/92 px-3 backdrop-blur-xl md:px-4">
       <div className="flex min-w-0 items-center gap-4">
-        <Link href="/" className="flex shrink-0 items-center gap-2">
-          <span className="grid size-9 place-items-center rounded-[18px] bg-[#ffb44d] text-base font-semibold text-[#16171c] shadow-lg shadow-[#ffb44d]/18">
-            S
-          </span>
-          <span className="hidden sm:block">
-            <span className="block text-base font-semibold tracking-tight text-[#f4f4f4]">ShadowEdge</span>
-            <span className="block text-[10px] font-semibold uppercase tracking-[.18em] text-[#b9b9b9]/48">AI Studio</span>
+        <Link href="/" className="flex shrink-0 items-center gap-2.5">
+          <Image
+            alt="ShadowEdge"
+            className="h-8 w-auto max-w-[150px] object-contain"
+            height={40}
+            priority
+            src="/brand/shadowedge-logo.png"
+            width={136}
+          />
+          <span className="hidden text-[10px] font-semibold uppercase tracking-[.18em] text-[#b9b9b9]/48 sm:block">
+            AI Studio
           </span>
         </Link>
 
