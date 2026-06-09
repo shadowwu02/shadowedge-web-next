@@ -412,6 +412,14 @@ export function VideoWorkspace() {
       translateDialogue: remakeTranslateDialogue,
     };
 
+    if (!remakeSourceVideo?.file && !remakeSourceVideo?.url) {
+      setRemakeAnalysisError(t("video.remake.sourceRequired"));
+      setRemakeAnalysisNotice("");
+      setRemakeAnalysisMeta(null);
+      setRemakeStoryboard(null);
+      return;
+    }
+
     setIsRemakeAnalyzing(true);
     setRemakeAnalysisError("");
     setRemakeAnalysisNotice("");
