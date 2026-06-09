@@ -40,6 +40,11 @@ export type VideoRemakeReverseAnalyzeResponse = {
     nextStep?: string;
     segments?: RemakeSegment[];
     sourceVideo?: RemakeSourceVideoMetadata;
+    fallbackReason?: string;
+    vlmFailed?: boolean;
+    vlmModel?: string;
+    vlmProvider?: string;
+    vlmUnavailable?: boolean;
   };
   storyboard: RemakeStoryboard;
 };

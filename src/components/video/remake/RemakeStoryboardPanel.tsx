@@ -120,7 +120,7 @@ export function RemakeStoryboardPanel({
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4 rounded-[26px] border border-[rgba(244,244,244,0.08)] bg-[#05070b]/42 p-5">
         <div className="max-w-3xl">
           <p className="se-eyebrow">{t("video.remake.storyboard")}</p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-[#f4f4f4]">{t("video.remake.storyboardTitle")}</h1>
+          <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-[#f4f4f4]">{t("video.remake.aiStoryboard")}</h1>
           <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/66">{t("video.remake.storyboardSubtitle")}</p>
         </div>
         <div className="grid gap-2 text-right text-xs text-[#b9b9b9]/58">

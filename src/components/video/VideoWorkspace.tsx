@@ -460,7 +460,7 @@ export function VideoWorkspace() {
         }
       }
 
-      setRemakeAnalysisNotice(t("video.remake.analyzingStoryboard"));
+      setRemakeAnalysisNotice(t("video.remake.vlmAnalyzing"));
       const result = await reverseAnalyzeVideoRemake({
         ...settings,
         sourceFileName: sourceVideoForAnalyze?.name || "",
@@ -474,7 +474,15 @@ export function VideoWorkspace() {
         segments: result.meta?.segments,
         sourceVideo: result.meta?.sourceVideo,
       });
-      setRemakeAnalysisNotice(result.meta?.mock ? t("video.remake.backendMockNotice") : "");
+      if (result.meta?.vlmFailed || result.meta?.vlmUnavailable) {
+        setRemakeAnalysisNotice(t("video.remake.vlmFallback"));
+      } else if (result.meta?.mock) {
+        setRemakeAnalysisNotice(t("video.remake.analysisDraft"));
+      } else if (result.meta?.vlmProvider) {
+        setRemakeAnalysisNotice(tf("video.remake.vlmProvider", { provider: result.meta.vlmProvider }));
+      } else {
+        setRemakeAnalysisNotice("");
+      }
     } catch (error) {
       setRemakeStoryboard(buildMockRemakeStoryboard(settings, remakeSourceVideo));
       setRemakeAnalysisMeta(null);
@@ -486,7 +494,7 @@ export function VideoWorkspace() {
       setIsRemakeAnalyzing(false);
       setIsRemakeSourceUploading(false);
     }
-  }, [remakeCharacterRules, remakeMode, remakeSceneStyle, remakeSourceVideo, remakeTargetRegion, remakeTranslateDialogue, t]);
+  }, [remakeCharacterRules, remakeMode, remakeSceneStyle, remakeSourceVideo, remakeTargetRegion, remakeTranslateDialogue, t, tf]);
 
   const handleRemakeSourceVideoChange = useCallback((source: RemakeSourceVideo | null) => {
     setRemakeSourceVideo((current) => {
@@ -793,7 +801,7 @@ export function VideoWorkspace() {
   const remakeAnalyzeLabel = isRemakeSourceUploading
     ? t("video.remake.uploadingSource")
     : isRemakeAnalyzing
-      ? t("video.remake.analyzingStoryboard")
+      ? t("video.remake.vlmAnalyzing")
       : t("video.remake.analyze");
 
   return (
