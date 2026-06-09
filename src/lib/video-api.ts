@@ -33,6 +33,7 @@ export type VideoRemakeReverseAnalyzeInput = {
 
 export type VideoRemakeReverseAnalyzeResponse = {
   meta?: {
+    analysisId?: string;
     estimatedCredits?: number;
     metadataOnly?: boolean;
     mock?: boolean;

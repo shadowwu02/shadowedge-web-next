@@ -20,10 +20,18 @@ export type RemakeSourceVideoMetadata = {
   width?: number;
 };
 
+export type RemakeKeyframe = {
+  height?: number;
+  time: number;
+  url: string;
+  width?: number;
+};
+
 export type RemakeSegment = {
   duration: number;
   end: number;
   id: string;
+  keyframes?: RemakeKeyframe[];
   start: number;
 };
 
@@ -35,6 +43,7 @@ export type RemakeShot = {
     end: number;
   };
   duration: number;
+  keyframes?: RemakeKeyframe[];
   camera: string;
   motion: string;
   position: string;

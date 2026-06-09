@@ -2,6 +2,7 @@
 
 import { useI18n } from "@/i18n/useI18n";
 import type {
+  RemakeKeyframe,
   RemakeSegment,
   RemakeSettings,
   RemakeShot,
@@ -26,6 +27,11 @@ function formatTime(seconds: number) {
 
 function formatTimeRange(shot: RemakeShot) {
   return `${formatTime(shot.sourceTimeRange.start)} - ${formatTime(shot.sourceTimeRange.end)}`;
+}
+
+function getShotKeyframes(shot: RemakeShot, segments: RemakeSegment[]) {
+  if (shot.keyframes?.length) return shot.keyframes;
+  return segments.find((segment) => segment.id === shot.shotGroupId)?.keyframes || [];
 }
 
 function ShotMeta({
@@ -53,6 +59,49 @@ function formatSourceMetadata(metadata?: RemakeSourceVideoMetadata) {
   ]
     .filter(Boolean)
     .join(" · ");
+}
+
+function RemakeKeyframes({ keyframes }: { keyframes: RemakeKeyframe[] }) {
+  const { t } = useI18n();
+
+  if (!keyframes.length) return null;
+
+  return (
+    <div className="mt-3 rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#05070b]/42 p-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="se-eyebrow">{t("video.remake.keyframes")}</p>
+        <span className="rounded-full border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/66 px-2.5 py-1 text-[11px] font-semibold text-[#b9b9b9]/62">
+          {keyframes.length}
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {keyframes.map((frame, index) => (
+          <a
+            aria-label={`${t("video.remake.keyframe")} ${index + 1}`}
+            className="group overflow-hidden rounded-[16px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/70 transition-colors hover:border-[#ffb44d]/42"
+            href={frame.url}
+            key={`${frame.url}-${frame.time}`}
+            rel="noreferrer"
+            target="_blank"
+          >
+            <div className="aspect-video bg-[#05070b]">
+              {/* eslint-disable-next-line @next/next/no-img-element -- backend-generated frame URLs are dynamic uploads */}
+              <img
+                alt={`${t("video.remake.keyframe")} ${index + 1}`}
+                className="size-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+                loading="lazy"
+                src={frame.url}
+              />
+            </div>
+            <div className="flex items-center justify-between px-2 py-1.5 text-[11px] font-semibold text-[#b9b9b9]/70">
+              <span>{t("video.remake.keyframe")}</span>
+              <span>{formatTime(frame.time)}</span>
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function RemakeStoryboardPanel({
@@ -101,7 +150,10 @@ export function RemakeStoryboardPanel({
 
       {shots.length ? (
         <div className="grid gap-4">
-          {shots.map((shot) => (
+          {shots.map((shot) => {
+            const keyframes = getShotKeyframes(shot, segments);
+
+            return (
             <article
               className="grid gap-4 rounded-[28px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/78 p-4 shadow-inner shadow-black/12 xl:grid-cols-[minmax(0,1fr)_280px]"
               key={`${shot.shotGroupId}-${shot.shot}`}
@@ -118,6 +170,8 @@ export function RemakeStoryboardPanel({
                     {formatTimeRange(shot)}
                   </span>
                 </div>
+
+                <RemakeKeyframes keyframes={keyframes} />
 
                 <div className="grid gap-3 md:grid-cols-2">
                   <ShotMeta label={t("video.remake.camera")} value={shot.camera} />
@@ -174,7 +228,8 @@ export function RemakeStoryboardPanel({
                 </div>
               </aside>
             </article>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="grid min-h-[480px] place-items-center rounded-[28px] border border-dashed border-[rgba(244,244,244,0.11)] bg-[#111318]/52 p-8 text-center">
