@@ -1,11 +1,13 @@
 "use client";
 
 import { useI18n } from "@/i18n/useI18n";
+import { getRemakeShotGenerationKey } from "@/components/video/remake/remakeTypes";
 import type {
   RemakeKeyframe,
   RemakeSegment,
   RemakeSettings,
   RemakeShot,
+  RemakeShotGenerationState,
   RemakeSourceVideoMetadata,
   RemakeStoryboard,
 } from "@/components/video/remake/remakeTypes";
@@ -16,8 +18,10 @@ type RemakeStoryboardPanelProps = {
     segments?: RemakeSegment[];
     sourceVideo?: RemakeSourceVideoMetadata;
   };
+  onGenerateShot: (shot: RemakeShot) => void;
   onUsePrompt: (prompt: string) => void;
   settings: RemakeSettings;
+  shotGenerations?: Record<string, RemakeShotGenerationState>;
   storyboard: RemakeStoryboard | null;
 };
 
@@ -107,8 +111,10 @@ function RemakeKeyframes({ keyframes }: { keyframes: RemakeKeyframe[] }) {
 export function RemakeStoryboardPanel({
   analysisNotice = "",
   metadata,
+  onGenerateShot,
   onUsePrompt,
   settings,
+  shotGenerations = {},
   storyboard,
 }: RemakeStoryboardPanelProps) {
   const { t } = useI18n();
@@ -152,6 +158,9 @@ export function RemakeStoryboardPanel({
         <div className="grid gap-4">
           {shots.map((shot) => {
             const keyframes = getShotKeyframes(shot, segments);
+            const generation = shotGenerations[getRemakeShotGenerationKey(storyboard?.id, shot)];
+            const isGenerating = generation?.status === "generating";
+            const hasGeneratedOutput = generation?.status === "success" && Boolean(generation.outputUrl);
 
             return (
             <article
@@ -218,13 +227,42 @@ export function RemakeStoryboardPanel({
                   >
                     {t("video.remake.usePrompt")}
                   </button>
+                  {hasGeneratedOutput ? (
+                    <a
+                      className="inline-flex min-h-10 items-center justify-center rounded-[16px] border border-[rgba(244,244,244,0.1)] bg-[#1a1c22]/64 px-3 text-sm font-semibold text-[#f4f4f4]/82 transition-colors hover:border-[#ffb44d]/34 hover:text-[#ffb44d]"
+                      href={generation.outputUrl}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      {t("video.remake.openResult")}
+                    </a>
+                  ) : null}
                   <button
-                    className="min-h-10 cursor-not-allowed rounded-[16px] border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/56 px-3 text-sm font-semibold text-[#b9b9b9]/46"
-                    disabled
+                    className={`min-h-10 rounded-[16px] border px-3 text-sm font-semibold transition-colors ${
+                      isGenerating
+                        ? "cursor-wait border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/56 text-[#b9b9b9]/54"
+                        : "border-[#ffb44d]/34 bg-[#ffb44d] text-[#05070b] hover:bg-[#ffc766]"
+                    }`}
+                    disabled={isGenerating}
+                    onClick={() => onGenerateShot(shot)}
                     type="button"
                   >
-                    {t("video.remake.generateShot")} · {t("video.remake.comingSoon")}
+                    {isGenerating
+                      ? t("video.remake.generatingShot")
+                      : generation?.status === "success" || generation?.status === "failed"
+                        ? t("video.remake.retryShot")
+                        : t("video.remake.generateShot")}
                   </button>
+                  {generation?.status === "success" ? (
+                    <p className="rounded-[16px] border border-emerald-400/18 bg-emerald-400/8 p-2 text-xs leading-5 text-emerald-100/76">
+                      {t("video.remake.shotGenerated")}
+                    </p>
+                  ) : null}
+                  {generation?.status === "failed" ? (
+                    <p className="rounded-[16px] border border-red-400/18 bg-red-500/8 p-2 text-xs leading-5 text-red-100/76">
+                      {generation.error || t("video.remake.shotGenerationFailed")}
+                    </p>
+                  ) : null}
                 </div>
               </aside>
             </article>

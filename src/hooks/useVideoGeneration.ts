@@ -28,6 +28,7 @@ type SubmitVideoOptions = {
   generateAudio: boolean;
   media: UploadMediaItem[];
   mentionBindings?: VideoMentionBinding[];
+  meta?: Record<string, unknown>;
   maxConcurrency?: number | null;
 };
 
@@ -122,6 +123,7 @@ function buildVideoRequest(options: SubmitVideoOptions): VideoGenerationRequest 
       reference_audios: audios,
       mediaList,
       mentionBindings,
+      ...(options.meta || {}),
     },
   };
 }
@@ -248,10 +250,10 @@ export function useVideoGeneration() {
     }
   }, [t]);
 
-  const submit = useCallback(async (options: SubmitVideoOptions) => {
+  const submit = useCallback(async (options: SubmitVideoOptions): Promise<VideoTaskRecord | null> => {
     if (isSubmitting) {
       setError(submitValidationCopy.activeGeneration);
-      return;
+      return null;
     }
 
     setIsSubmitting(true);
@@ -308,9 +310,11 @@ export function useVideoGeneration() {
         console.warn("[ShadowEdge Next] save video history failed:", saveError);
       });
       void refreshCredits();
+      return nextTask;
     } catch (submitError) {
       const message = submitError instanceof Error ? submitError.message : t("video.errors.generationRequestFailed");
       setError(message);
+      return null;
     } finally {
       setIsSubmitting(false);
     }

@@ -15,9 +15,12 @@ import { type VideoParams, VideoParamsPanel } from "@/components/video/VideoPara
 import { RemakeStoryboardPanel } from "@/components/video/remake/RemakeStoryboardPanel";
 import { VideoRemakeWorkspace } from "@/components/video/remake/VideoRemakeWorkspace";
 import { buildMockRemakeStoryboard } from "@/components/video/remake/remakeMockData";
+import { getRemakeShotGenerationKey } from "@/components/video/remake/remakeTypes";
 import type {
   RemakeMode,
   RemakeSegment,
+  RemakeShot,
+  RemakeShotGenerationState,
   RemakeSourceVideo,
   RemakeSourceVideoMetadata,
   RemakeStoryboard,
@@ -40,7 +43,7 @@ import {
   type VideoMentionBinding,
 } from "@/lib/video/videoMentionBindings";
 import { getReferenceRoleIssue, validateReferenceSelectionForRule } from "@/lib/video/videoReferenceRules";
-import { isVideoActiveStatus } from "@/lib/utils";
+import { isVideoActiveStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { UploadMediaItem, UploadMediaRole, VideoModel, VideoStatusResponse, VideoTaskRecord } from "@/types/video";
 
 const fallbackModels: VideoModel[] = [
@@ -206,6 +209,12 @@ function getRecordMentionBindings(
   );
 }
 
+function isSameVideoTaskId(record: VideoTaskRecord, taskId: string) {
+  return [record.jobId, record.providerJobId, record.dbJobId]
+    .filter(Boolean)
+    .some((value) => String(value) === String(taskId));
+}
+
 export function VideoWorkspace() {
   const { t, tf } = useI18n();
   const [models, setModels] = useState<VideoModel[]>(fallbackModels);
@@ -236,6 +245,7 @@ export function VideoWorkspace() {
   } | null>(null);
   const [remakeAnalysisError, setRemakeAnalysisError] = useState("");
   const [remakeAnalysisNotice, setRemakeAnalysisNotice] = useState("");
+  const [remakeShotGenerations, setRemakeShotGenerations] = useState<Record<string, RemakeShotGenerationState>>({});
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestDraftSnapshotRef = useRef<{
     media: UploadMediaItem[];
@@ -589,6 +599,196 @@ export function VideoWorkspace() {
     if (!hasEnoughCredits) return t("video.credits.notEnough");
     return tf("video.actions.generateWithCredits", { credits: selectedModel.credits });
   }, [hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, selectedModel.credits, t, tf, token]);
+
+  const handleGenerateRemakeShot = useCallback(
+    async (shot: RemakeShot) => {
+      const shotKey = getRemakeShotGenerationKey(remakeStoryboard?.id, shot);
+      setWorkspaceNotice("");
+
+      const failShot = (message: string) => {
+        setRemakeShotGenerations((current) => ({
+          ...current,
+          [shotKey]: {
+            ...(current[shotKey] || { status: "idle" }),
+            error: message,
+            status: "failed",
+            updatedAt: Date.now(),
+          },
+        }));
+      };
+
+      if (!shot.prompt.trim()) {
+        failShot(t("video.errors.promptRequired"));
+        return;
+      }
+
+      if (isUploadingMedia) {
+        setWorkspaceNotice(t("video.errors.mediaUploading"));
+        failShot(t("video.errors.mediaUploading"));
+        return;
+      }
+
+      if (isProcessing) {
+        setWorkspaceNotice(t("video.errors.activeGeneration"));
+        failShot(t("video.errors.activeGeneration"));
+        return;
+      }
+
+      if (!token && !isSignedIn) {
+        setWorkspaceNotice(t("video.errors.signInRequired"));
+        failShot(t("video.errors.signInRequired"));
+        return;
+      }
+
+      if (!hasEnoughCredits) {
+        setWorkspaceNotice(t("video.credits.notEnough"));
+        failShot(t("video.credits.notEnough"));
+        return;
+      }
+
+      const startedAt = Date.now();
+      const shotParams = buildParamsForModel(selectedModel, {
+        duration: shot.generationParams.duration,
+        generateAudio: params.generateAudio,
+        quality: shot.generationParams.quality,
+        ratio: shot.generationParams.ratio,
+      });
+
+      setRemakeShotGenerations((current) => ({
+        ...current,
+        [shotKey]: {
+          error: "",
+          outputUrl: "",
+          startedAt,
+          status: "generating",
+          updatedAt: startedAt,
+        },
+      }));
+
+      const nextTask = await submit({
+        prompt: shot.prompt.trim(),
+        model: selectedModel,
+        duration: shotParams.duration,
+        ratio: shotParams.ratio,
+        quality: shotParams.quality,
+        generateAudio: shotParams.generateAudio,
+        media: [],
+        mentionBindings: [],
+        maxConcurrency,
+        meta: {
+          source: "remake",
+          remake: true,
+          remake_source: "storyboard_shot",
+          analysisId: remakeStoryboard?.id || "",
+          shotGroupId: shot.shotGroupId,
+          shotNumber: shot.shot,
+          sourceTimeRange: shot.sourceTimeRange,
+          remakeDialogue: shot.dialogue,
+          audio: shot.audio,
+          referenceHints: shot.referenceHints,
+          generationParams: shot.generationParams,
+          remakeTargetRegion,
+          remakeCharacterRules,
+          remakeSceneStyle,
+          remakeTranslateDialogue,
+          sourceVideoName: remakeSourceVideo?.name || remakeStoryboard?.sourceTitle || "",
+        },
+      });
+
+      if (!nextTask) {
+        failShot(t("video.errors.generationRequestFailed"));
+        return;
+      }
+
+      setRemakeShotGenerations((current) => ({
+        ...current,
+        [shotKey]: {
+          ...(current[shotKey] || {}),
+          error: "",
+          outputUrl: "",
+          startedAt,
+          status: "generating",
+          taskId: nextTask.jobId,
+          updatedAt: Date.now(),
+        },
+      }));
+      setWorkspaceNotice(t("video.remake.shotGenerationStarted"));
+    },
+    [
+      hasEnoughCredits,
+      isProcessing,
+      isSignedIn,
+      isUploadingMedia,
+      maxConcurrency,
+      params.generateAudio,
+      remakeCharacterRules,
+      remakeSceneStyle,
+      remakeSourceVideo,
+      remakeStoryboard,
+      remakeTargetRegion,
+      remakeTranslateDialogue,
+      selectedModel,
+      submit,
+      t,
+      token,
+    ],
+  );
+
+  const displayedRemakeShotGenerations = useMemo(() => {
+    const entries = Object.entries(remakeShotGenerations).filter(([, generation]) => generation.taskId);
+    if (!entries.length) return remakeShotGenerations;
+
+    const records = task ? [task, ...history] : history;
+    let next = remakeShotGenerations;
+
+    entries.forEach(([key, generation]) => {
+      if (!generation.taskId) return;
+
+      const record = records.find((item) => isSameVideoTaskId(item, generation.taskId || ""));
+      if (!record) return;
+
+      const outputUrl = getSafeHistoryOutputUrl(record);
+      const status = String(record.status || "");
+      let derived: RemakeShotGenerationState | null = null;
+
+      if (outputUrl) {
+        derived = {
+          ...generation,
+          error: "",
+          outputUrl,
+          status: "success",
+          updatedAt: generation.updatedAt,
+        };
+      } else if (isVideoFailedStatus(status)) {
+        derived = {
+          ...generation,
+          error: String(record.error_message || record.message || t("video.remake.shotGenerationFailed")),
+          status: "failed",
+          updatedAt: generation.updatedAt,
+        };
+      } else if (isVideoActiveStatus(status)) {
+        derived = {
+          ...generation,
+          status: "generating",
+          updatedAt: generation.updatedAt,
+        };
+      }
+
+      if (!derived) return;
+      if (
+        derived.status === generation.status &&
+        derived.outputUrl === generation.outputUrl &&
+        derived.error === generation.error
+      ) {
+        return;
+      }
+
+      if (next === remakeShotGenerations) next = { ...remakeShotGenerations };
+      next[key] = derived;
+    });
+
+    return next;
+  }, [history, remakeShotGenerations, t, task]);
 
   const findRetryModel = useCallback((record: { modelId?: string; providerModel?: string; frontendModel?: string; model?: string }) => {
     return (
@@ -953,6 +1153,7 @@ export function VideoWorkspace() {
           <RemakeStoryboardPanel
             analysisNotice={remakeAnalysisNotice}
             metadata={remakeAnalysisMeta || undefined}
+            onGenerateShot={handleGenerateRemakeShot}
             onUsePrompt={handleUseRemakePrompt}
             settings={{
               characterRules: remakeCharacterRules,
@@ -961,6 +1162,7 @@ export function VideoWorkspace() {
               targetRegion: remakeTargetRegion,
               translateDialogue: remakeTranslateDialogue,
             }}
+            shotGenerations={displayedRemakeShotGenerations}
             storyboard={remakeStoryboard}
           />
         ) : (

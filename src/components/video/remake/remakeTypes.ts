@@ -66,6 +66,17 @@ export type RemakeShot = {
   };
 };
 
+export type RemakeShotGenerationStatus = "idle" | "generating" | "success" | "failed";
+
+export type RemakeShotGenerationState = {
+  error?: string;
+  outputUrl?: string;
+  startedAt?: number;
+  status: RemakeShotGenerationStatus;
+  taskId?: string;
+  updatedAt?: number;
+};
+
 export type RemakeStoryboard = {
   id: string;
   mode: RemakeMode;
@@ -84,3 +95,10 @@ export type RemakeSettings = {
   targetRegion: RemakeTargetRegion;
   translateDialogue: boolean;
 };
+
+export function getRemakeShotGenerationKey(
+  storyboardId: string | undefined,
+  shot: Pick<RemakeShot, "shot" | "shotGroupId">,
+) {
+  return `${storyboardId || "remake"}:${shot.shotGroupId}:${shot.shot}`;
+}
