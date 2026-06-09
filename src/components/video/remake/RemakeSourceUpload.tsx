@@ -5,6 +5,7 @@ import { useI18n } from "@/i18n/useI18n";
 import type { RemakeSourceVideo } from "@/components/video/remake/remakeTypes";
 
 type RemakeSourceUploadProps = {
+  durationWarning?: boolean;
   onChange: (source: RemakeSourceVideo | null) => void;
   sourceVideo: RemakeSourceVideo | null;
 };
@@ -23,7 +24,37 @@ function formatBytes(size: number) {
   return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
-export function RemakeSourceUpload({ onChange, sourceVideo }: RemakeSourceUploadProps) {
+function formatDuration(seconds?: number) {
+  if (!Number.isFinite(seconds || 0) || !seconds) return "";
+  return `${seconds.toFixed(seconds % 1 === 0 ? 0 : 1)}s`;
+}
+
+function readVideoDuration(file: File) {
+  return new Promise<number>((resolve) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement("video");
+
+    function cleanup() {
+      URL.revokeObjectURL(url);
+      video.removeAttribute("src");
+      video.load();
+    }
+
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      const duration = Number(video.duration || 0);
+      cleanup();
+      resolve(Number.isFinite(duration) && duration > 0 ? duration : 0);
+    };
+    video.onerror = () => {
+      cleanup();
+      resolve(0);
+    };
+    video.src = url;
+  });
+}
+
+export function RemakeSourceUpload({ durationWarning = false, onChange, sourceVideo }: RemakeSourceUploadProps) {
   const { t } = useI18n();
   const inputId = useId();
 
@@ -54,11 +85,17 @@ export function RemakeSourceUpload({ onChange, sourceVideo }: RemakeSourceUpload
               return;
             }
 
-            onChange({
+            const nextSource = {
+              file,
               lastModified: file.lastModified,
               name: file.name,
               size: file.size,
               type: file.type || "video/*",
+            };
+
+            onChange(nextSource);
+            void readVideoDuration(file).then((duration) => {
+              if (duration > 0) onChange({ ...nextSource, duration });
             });
           }}
           type="file"
@@ -73,11 +110,20 @@ export function RemakeSourceUpload({ onChange, sourceVideo }: RemakeSourceUpload
           {sourceVideo ? sourceVideo.name : t("video.remake.chooseSource")}
         </span>
         <span className="mt-1 block text-xs leading-5 text-[#b9b9b9]/58">
-          {sourceVideo ? `${formatBytes(sourceVideo.size)} · ${sourceVideo.type || "video"}` : t("video.remake.sourceHint")}
+          {sourceVideo
+            ? [formatBytes(sourceVideo.size), sourceVideo.type || "video", formatDuration(sourceVideo.duration), sourceVideo.url ? t("common.status.ready") : ""]
+                .filter(Boolean)
+                .join(" · ")
+            : t("video.remake.sourceHint")}
         </span>
       </label>
 
       <div className="mt-3 grid gap-2 text-xs leading-5 text-[#b9b9b9]/62">
+        {durationWarning ? (
+          <p className="rounded-[14px] border border-[#ffb44d]/24 bg-[#ffb44d]/10 p-2 text-[#ffd08a]/86">
+            {t("video.remake.durationWarning")}
+          </p>
+        ) : null}
         <p>{t("video.remake.singleClipDuration")}</p>
         <p>{t("video.remake.fullFilmDuration")}</p>
         <p>{t("video.remake.batchDuration")}</p>

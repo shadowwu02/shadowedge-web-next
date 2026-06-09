@@ -1,10 +1,20 @@
 "use client";
 
 import { useI18n } from "@/i18n/useI18n";
-import type { RemakeSettings, RemakeShot, RemakeStoryboard } from "@/components/video/remake/remakeTypes";
+import type {
+  RemakeSegment,
+  RemakeSettings,
+  RemakeShot,
+  RemakeSourceVideoMetadata,
+  RemakeStoryboard,
+} from "@/components/video/remake/remakeTypes";
 
 type RemakeStoryboardPanelProps = {
   analysisNotice?: string;
+  metadata?: {
+    segments?: RemakeSegment[];
+    sourceVideo?: RemakeSourceVideoMetadata;
+  };
   onUsePrompt: (prompt: string) => void;
   settings: RemakeSettings;
   storyboard: RemakeStoryboard | null;
@@ -33,9 +43,28 @@ function ShotMeta({
   );
 }
 
-export function RemakeStoryboardPanel({ analysisNotice = "", onUsePrompt, settings, storyboard }: RemakeStoryboardPanelProps) {
+function formatSourceMetadata(metadata?: RemakeSourceVideoMetadata) {
+  if (!metadata) return "--";
+  return [
+    formatTime(metadata.duration),
+    metadata.width && metadata.height ? `${metadata.width}x${metadata.height}` : "",
+    metadata.fps ? `${metadata.fps}fps` : "",
+    metadata.codec || "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+export function RemakeStoryboardPanel({
+  analysisNotice = "",
+  metadata,
+  onUsePrompt,
+  settings,
+  storyboard,
+}: RemakeStoryboardPanelProps) {
   const { t } = useI18n();
   const shots = storyboard?.shots || [];
+  const segments = metadata?.segments || [];
 
   return (
     <section className="se-scrollbar h-full min-h-[520px] overflow-y-auto overflow-x-hidden rounded-[30px] border border-[rgba(244,244,244,0.08)] bg-[linear-gradient(180deg,rgba(17,19,24,0.88),rgba(5,7,11,0.95))] p-4 shadow-[0_28px_80px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(244,244,244,0.035)]">
@@ -56,6 +85,8 @@ export function RemakeStoryboardPanel({ analysisNotice = "", onUsePrompt, settin
       {storyboard ? (
         <div className="mb-5 grid gap-3 lg:grid-cols-4">
           <ShotMeta label={t("video.remake.sourceVideo")} value={storyboard.sourceTitle || "--"} />
+          <ShotMeta label={t("video.remake.metadata")} value={formatSourceMetadata(metadata?.sourceVideo)} />
+          <ShotMeta label={t("video.remake.segments")} value={segments.length || "--"} />
           <ShotMeta label={t("video.remake.targetRegion")} value={storyboard.targetRegion} />
           <ShotMeta label={t("video.remake.characterRules")} value={storyboard.characterRules || "--"} />
           <ShotMeta label={t("video.remake.sceneStyle")} value={storyboard.sceneStyle || "--"} />

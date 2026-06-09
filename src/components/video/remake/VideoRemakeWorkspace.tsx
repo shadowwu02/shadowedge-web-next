@@ -6,6 +6,7 @@ import { useI18n } from "@/i18n/useI18n";
 import type { RemakeMode, RemakeSourceVideo, RemakeTargetRegion } from "@/components/video/remake/remakeTypes";
 
 type VideoRemakeWorkspaceProps = {
+  analyzeLabel?: string;
   analysisError?: string;
   analysisNotice?: string;
   characterRules: string;
@@ -25,6 +26,7 @@ type VideoRemakeWorkspaceProps = {
 };
 
 export function VideoRemakeWorkspace({
+  analyzeLabel,
   analysisError = "",
   analysisNotice = "",
   characterRules,
@@ -52,8 +54,18 @@ export function VideoRemakeWorkspace({
         <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/68">{t("video.remake.workflowDescription")}</p>
       </section>
 
-      <RemakeSourceUpload onChange={onSourceVideoChange} sourceVideo={sourceVideo} />
+      <RemakeSourceUpload
+        durationWarning={Boolean(
+          sourceVideo?.duration &&
+            (sourceVideo.duration < 3 ||
+              (mode === "single_clip" && sourceVideo.duration > 60) ||
+              (mode === "full_film" && sourceVideo.duration > 120)),
+        )}
+        onChange={onSourceVideoChange}
+        sourceVideo={sourceVideo}
+      />
       <RemakeSettingsPanel
+        analyzeLabel={analyzeLabel}
         analysisError={analysisError}
         analysisNotice={analysisNotice}
         characterRules={characterRules}

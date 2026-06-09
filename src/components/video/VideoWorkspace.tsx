@@ -15,14 +15,21 @@ import { type VideoParams, VideoParamsPanel } from "@/components/video/VideoPara
 import { RemakeStoryboardPanel } from "@/components/video/remake/RemakeStoryboardPanel";
 import { VideoRemakeWorkspace } from "@/components/video/remake/VideoRemakeWorkspace";
 import { buildMockRemakeStoryboard } from "@/components/video/remake/remakeMockData";
-import type { RemakeMode, RemakeSourceVideo, RemakeStoryboard, RemakeTargetRegion } from "@/components/video/remake/remakeTypes";
+import type {
+  RemakeMode,
+  RemakeSegment,
+  RemakeSourceVideo,
+  RemakeSourceVideoMetadata,
+  RemakeStoryboard,
+  RemakeTargetRegion,
+} from "@/components/video/remake/remakeTypes";
 import { useTaskPolling } from "@/hooks/useTaskPolling";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useCredits } from "@/hooks/useCredits";
 import { useVideoGeneration } from "@/hooks/useVideoGeneration";
 import { useI18n } from "@/i18n/useI18n";
 import { collectGeneratedResultMediaAssets, collectHistoryInputMediaAssets, collectReusableVideoAssets, mergeMediaAssets } from "@/lib/media-assets";
-import { getVideoModels, reverseAnalyzeVideoRemake } from "@/lib/video-api";
+import { getVideoModels, reverseAnalyzeVideoRemake, uploadMedia } from "@/lib/video-api";
 import { getSafeHistoryOutputUrl, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
 import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
 import { getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
@@ -222,6 +229,11 @@ export function VideoWorkspace() {
   const [remakeTranslateDialogue, setRemakeTranslateDialogue] = useState(true);
   const [remakeStoryboard, setRemakeStoryboard] = useState<RemakeStoryboard | null>(null);
   const [isRemakeAnalyzing, setIsRemakeAnalyzing] = useState(false);
+  const [isRemakeSourceUploading, setIsRemakeSourceUploading] = useState(false);
+  const [remakeAnalysisMeta, setRemakeAnalysisMeta] = useState<{
+    segments?: RemakeSegment[];
+    sourceVideo?: RemakeSourceVideoMetadata;
+  } | null>(null);
   const [remakeAnalysisError, setRemakeAnalysisError] = useState("");
   const [remakeAnalysisNotice, setRemakeAnalysisNotice] = useState("");
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -403,28 +415,90 @@ export function VideoWorkspace() {
     setIsRemakeAnalyzing(true);
     setRemakeAnalysisError("");
     setRemakeAnalysisNotice("");
+    setRemakeAnalysisMeta(null);
 
     try {
+      let sourceVideoForAnalyze = remakeSourceVideo;
+      let sourceVideoUrl = remakeSourceVideo?.url || "";
+
+      if (!sourceVideoUrl && remakeSourceVideo?.file) {
+        setIsRemakeSourceUploading(true);
+        setRemakeAnalysisNotice(t("video.remake.uploadingSource"));
+
+        try {
+          const uploaded = await uploadMedia(remakeSourceVideo.file);
+          sourceVideoUrl = uploaded.url;
+          sourceVideoForAnalyze = {
+            ...remakeSourceVideo,
+            url: uploaded.url,
+          };
+          setRemakeSourceVideo((current) =>
+            current?.lastModified === remakeSourceVideo.lastModified && current.name === remakeSourceVideo.name
+              ? {
+                  ...current,
+                  url: uploaded.url,
+                }
+              : current,
+          );
+        } catch (uploadError) {
+          setRemakeAnalysisError(
+            `${t("video.remake.sourceUploadFailed")} ${
+              uploadError instanceof Error ? uploadError.message : t("video.errors.uploadFailed")
+            }`,
+          );
+          return;
+        } finally {
+          setIsRemakeSourceUploading(false);
+        }
+      }
+
+      setRemakeAnalysisNotice(t("video.remake.analyzingStoryboard"));
       const result = await reverseAnalyzeVideoRemake({
         ...settings,
-        sourceFileName: remakeSourceVideo?.name || "",
+        sourceFileName: sourceVideoForAnalyze?.name || "",
         sourceLanguage: "zh",
-        sourceVideoUrl: "",
+        sourceVideoUrl,
         targetLanguage: "en",
       });
 
       setRemakeStoryboard(result.storyboard);
+      setRemakeAnalysisMeta({
+        segments: result.meta?.segments,
+        sourceVideo: result.meta?.sourceVideo,
+      });
       setRemakeAnalysisNotice(result.meta?.mock ? t("video.remake.backendMockNotice") : "");
     } catch (error) {
       setRemakeStoryboard(buildMockRemakeStoryboard(settings, remakeSourceVideo));
+      setRemakeAnalysisMeta(null);
       setRemakeAnalysisError(
         `${t("video.remake.analysisFailed")} ${error instanceof Error ? error.message : t("video.remake.apiUnavailable")}`,
       );
       setRemakeAnalysisNotice(t("video.remake.mockFallback"));
     } finally {
       setIsRemakeAnalyzing(false);
+      setIsRemakeSourceUploading(false);
     }
   }, [remakeCharacterRules, remakeMode, remakeSceneStyle, remakeSourceVideo, remakeTargetRegion, remakeTranslateDialogue, t]);
+
+  const handleRemakeSourceVideoChange = useCallback((source: RemakeSourceVideo | null) => {
+    setRemakeSourceVideo((current) => {
+      if (
+        source &&
+        current?.url &&
+        !source.url &&
+        current.lastModified === source.lastModified &&
+        current.name === source.name &&
+        current.size === source.size
+      ) {
+        return {
+          ...source,
+          url: current.url,
+        };
+      }
+
+      return source;
+    });
+  }, []);
 
   const handleUseRemakePrompt = useCallback(
     (nextPrompt: string) => {
@@ -708,6 +782,12 @@ export function VideoWorkspace() {
     { key: "remake", label: t("video.remake.tab") },
   ];
 
+  const remakeAnalyzeLabel = isRemakeSourceUploading
+    ? t("video.remake.uploadingSource")
+    : isRemakeAnalyzing
+      ? t("video.remake.analyzingStoryboard")
+      : t("video.remake.analyze");
+
   return (
     <div className="se-scrollbar h-full min-h-0 space-y-3 overflow-y-auto overflow-x-hidden xl:grid xl:grid-cols-[minmax(310px,340px)_minmax(0,1fr)] xl:gap-3 xl:space-y-0 xl:overflow-hidden 2xl:grid-cols-[340px_minmax(0,1fr)]">
       <aside className="se-panel flex min-h-0 flex-col overflow-hidden rounded-[28px]">
@@ -743,14 +823,15 @@ export function VideoWorkspace() {
             <VideoRemakeWorkspace
               analysisError={remakeAnalysisError}
               analysisNotice={remakeAnalysisNotice}
+              analyzeLabel={remakeAnalyzeLabel}
               characterRules={remakeCharacterRules}
-              isAnalyzing={isRemakeAnalyzing}
+              isAnalyzing={isRemakeAnalyzing || isRemakeSourceUploading}
               mode={remakeMode}
               onAnalyze={handleAnalyzeRemakeStoryboard}
               onCharacterRulesChange={setRemakeCharacterRules}
               onModeChange={setRemakeMode}
               onSceneStyleChange={setRemakeSceneStyle}
-              onSourceVideoChange={setRemakeSourceVideo}
+              onSourceVideoChange={handleRemakeSourceVideoChange}
               onTargetRegionChange={setRemakeTargetRegion}
               onTranslateDialogueChange={setRemakeTranslateDialogue}
               sceneStyle={remakeSceneStyle}
@@ -838,6 +919,7 @@ export function VideoWorkspace() {
         {workspaceMode === "remake" ? (
           <RemakeStoryboardPanel
             analysisNotice={remakeAnalysisNotice}
+            metadata={remakeAnalysisMeta || undefined}
             onUsePrompt={handleUseRemakePrompt}
             settings={{
               characterRules: remakeCharacterRules,

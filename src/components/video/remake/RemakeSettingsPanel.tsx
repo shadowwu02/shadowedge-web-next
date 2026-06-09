@@ -4,6 +4,7 @@ import { useI18n } from "@/i18n/useI18n";
 import type { RemakeMode, RemakeTargetRegion } from "@/components/video/remake/remakeTypes";
 
 type RemakeSettingsPanelProps = {
+  analyzeLabel?: string;
   analysisError?: string;
   analysisNotice?: string;
   characterRules: string;
@@ -32,6 +33,7 @@ function modeHintKey(mode: RemakeMode) {
 }
 
 export function RemakeSettingsPanel({
+  analyzeLabel,
   analysisError = "",
   analysisNotice = "",
   characterRules,
@@ -151,7 +153,7 @@ export function RemakeSettingsPanel({
         onClick={onAnalyze}
         type="button"
       >
-        {isAnalyzing ? t("video.remake.analyzing") : t("video.remake.analyze")}
+        {analyzeLabel || (isAnalyzing ? t("video.remake.analyzingStoryboard") : t("video.remake.analyze"))}
       </button>
     </section>
   );

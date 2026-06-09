@@ -1,5 +1,11 @@
 import { apiRequest } from "@/lib/api";
-import type { RemakeMode, RemakeStoryboard, RemakeTargetRegion } from "@/components/video/remake/remakeTypes";
+import type {
+  RemakeMode,
+  RemakeSegment,
+  RemakeSourceVideoMetadata,
+  RemakeStoryboard,
+  RemakeTargetRegion,
+} from "@/components/video/remake/remakeTypes";
 import { getSafeHistoryOutputUrl, getSafeHistoryThumbnailUrl } from "@/lib/video/historyUtils";
 import type {
   UploadedMediaResponse,
@@ -28,8 +34,11 @@ export type VideoRemakeReverseAnalyzeInput = {
 export type VideoRemakeReverseAnalyzeResponse = {
   meta?: {
     estimatedCredits?: number;
+    metadataOnly?: boolean;
     mock?: boolean;
     nextStep?: string;
+    segments?: RemakeSegment[];
+    sourceVideo?: RemakeSourceVideoMetadata;
   };
   storyboard: RemakeStoryboard;
 };

@@ -3,10 +3,28 @@ export type RemakeMode = "single_clip" | "full_film";
 export type RemakeTargetRegion = "US" | "Middle East" | "Japan" | "Southeast Asia";
 
 export type RemakeSourceVideo = {
+  duration?: number;
+  file?: File;
   lastModified: number;
   name: string;
   size: number;
   type: string;
+  url?: string;
+};
+
+export type RemakeSourceVideoMetadata = {
+  codec?: string;
+  duration: number;
+  fps?: number;
+  height?: number;
+  width?: number;
+};
+
+export type RemakeSegment = {
+  duration: number;
+  end: number;
+  id: string;
+  start: number;
 };
 
 export type RemakeShot = {
