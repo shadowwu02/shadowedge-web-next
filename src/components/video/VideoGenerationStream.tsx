@@ -52,10 +52,10 @@ function statusClass(status: string, hasOutput: boolean, isStale = false) {
 
 function canvasActionClass(tone: "normal" | "primary" = "normal") {
   if (tone === "primary") {
-    return "grid size-9 place-items-center rounded-full border border-[#ffb44d]/42 bg-[#ffb44d]/13 text-[#ffb44d] shadow-xl shadow-black/30 backdrop-blur-md transition hover:bg-[#ffb44d]/20 disabled:cursor-not-allowed disabled:opacity-45";
+    return "grid size-9 place-items-center rounded-full border border-[#ffb44d]/38 bg-[#ffb44d]/12 text-[#ffb44d] shadow-xl shadow-black/24 backdrop-blur-md transition-colors hover:bg-[#ffb44d]/18 disabled:cursor-not-allowed disabled:opacity-45";
   }
 
-  return "grid size-9 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/84 text-[#f4f4f4]/72 shadow-xl shadow-black/30 backdrop-blur-md transition hover:border-[#ffb44d]/42 hover:bg-[#ffb44d]/12 hover:text-[#ffb44d] disabled:cursor-not-allowed disabled:opacity-45";
+  return "grid size-9 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/84 text-[#f4f4f4]/72 shadow-xl shadow-black/24 backdrop-blur-md transition-colors hover:border-[#ffb44d]/38 hover:bg-[#ffb44d]/10 hover:text-[#ffb44d] disabled:cursor-not-allowed disabled:opacity-45";
 }
 
 function getRecordModelLogoLookup(record: VideoTaskRecord, modelLabel: string) {
@@ -172,7 +172,7 @@ function VideoGenerationCard({
           : view.statusLabel;
 
   return (
-    <article className="group grid gap-3 rounded-[34px] border border-[rgba(244,244,244,0.08)] bg-[linear-gradient(180deg,rgba(17,19,24,0.92),rgba(8,10,14,0.94))] p-2.5 shadow-[0_28px_70px_rgba(0,0,0,0.30)] transition hover:border-[#ffb44d]/26 xl:grid-cols-[minmax(0,3.7fr)_minmax(240px,1fr)] 2xl:grid-cols-[minmax(0,3.95fr)_minmax(280px,1fr)]">
+    <article className="group grid gap-3 rounded-[30px] border border-[rgba(244,244,244,0.08)] bg-[linear-gradient(180deg,rgba(17,19,24,0.90),rgba(8,10,14,0.94))] p-2.5 shadow-[0_28px_70px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(244,244,244,0.035)] transition-colors hover:border-[#ffb44d]/24 xl:grid-cols-[minmax(0,3.7fr)_minmax(240px,1fr)] 2xl:grid-cols-[minmax(0,3.95fr)_minmax(280px,1fr)]">
       <div className="min-w-0">
         <div className="mb-2 flex items-center justify-between gap-3 px-1">
           <div className="flex min-w-0 items-center gap-2">
@@ -187,7 +187,7 @@ function VideoGenerationCard({
           <span className="shrink-0 text-[11px] text-[#b9b9b9]/45">{view.createdAtLabel}</span>
         </div>
 
-        <div className="relative grid min-h-[500px] place-items-center overflow-hidden rounded-[30px] border border-[rgba(244,244,244,0.08)] bg-[#05070b] shadow-inner shadow-black/35 transition xl:min-h-[560px] 2xl:min-h-[620px]">
+        <div className="relative grid min-h-[500px] place-items-center overflow-hidden rounded-[26px] border border-[rgba(244,244,244,0.08)] bg-[#05070b] shadow-inner shadow-black/35 transition-colors xl:min-h-[560px] 2xl:min-h-[620px]">
           {view.outputUrl ? (
             <>
               <video className="max-h-[74vh] min-h-[500px] w-full object-contain xl:min-h-[560px] 2xl:min-h-[620px]" controls playsInline src={view.outputUrl} />
@@ -241,7 +241,7 @@ function VideoGenerationCard({
           ) : isFailed || isStaleActive ? (
             <div className="grid min-h-[500px] w-full place-items-center bg-[#05070b] px-6 text-center xl:min-h-[560px] 2xl:min-h-[620px]">
               <div>
-                <div className="mx-auto mb-4 grid size-14 place-items-center rounded-[22px] border border-[#7f2d2d]/70 bg-[#2a1012] text-xl font-semibold text-red-100">
+                <div className="mx-auto mb-4 grid size-14 place-items-center rounded-[20px] border border-[#7f2d2d]/64 bg-[#2a1012] text-xl font-semibold text-red-100">
                   !
                 </div>
                 <div className="mb-4 flex flex-wrap justify-center gap-2">
@@ -262,7 +262,7 @@ function VideoGenerationCard({
                 <p className="text-lg font-semibold text-red-100">
                   {isStaleActive ? t("video.generation.stale") : sensitiveFailure ? t("video.generation.sensitive") : t("video.generation.failed")}
                 </p>
-                <p className="mx-auto mt-2 line-clamp-3 max-w-lg text-sm leading-6 text-red-100/58">{view.errorMessage}</p>
+                <p className="mx-auto mt-2 line-clamp-2 max-w-lg text-sm leading-6 text-red-100/54">{view.errorMessage}</p>
                 <div className="mt-5 flex flex-wrap justify-center gap-2">
                   {onFill ? (
                     <button
@@ -356,11 +356,11 @@ export function VideoGenerationStream({
 
   return (
     <section className="flex h-full min-h-[420px] flex-col overflow-hidden">
-      <div className="mb-2.5 flex flex-none flex-wrap items-center justify-between gap-2 rounded-[26px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/82 p-2 shadow-xl shadow-black/18">
+      <div className="mb-2.5 flex flex-none flex-wrap items-center justify-between gap-2 rounded-[24px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/82 p-2 shadow-xl shadow-black/14">
         <div className="flex flex-wrap gap-1.5">
           {filters.map((item) => (
             <button
-              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                 item === filter
                   ? "border-[#ffb44d]/44 bg-[#ffb44d]/12 text-[#ffb44d]"
                   : "border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/66 text-[#b9b9b9]/66 hover:border-[#ffb44d]/34 hover:bg-[#ffb44d]/8 hover:text-[#ffb44d]"
@@ -374,7 +374,7 @@ export function VideoGenerationStream({
             </button>
           ))}
         </div>
-        <span className="text-xs font-bold text-[#b9b9b9]/48">
+        <span className="text-xs font-medium text-[#b9b9b9]/48">
           {isLoading ? t("video.history.loading") : tf("video.history.itemsCount", { total: records.length, visible: visibleRecords.length })}
         </span>
       </div>
@@ -398,7 +398,7 @@ export function VideoGenerationStream({
               );
             })
           ) : (
-            <div className="grid min-h-[520px] place-items-center rounded-[32px] border border-dashed border-[rgba(244,244,244,0.10)] bg-[#111318]/66 p-8 text-center">
+            <div className="grid min-h-[520px] place-items-center rounded-[28px] border border-dashed border-[rgba(244,244,244,0.10)] bg-[#111318]/66 p-8 text-center">
               <div className="max-w-md">
                 <p className="text-lg font-semibold text-[#f4f4f4]">{t("video.generation.empty.title")}</p>
                 <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/55">{t("video.generation.empty.body")}</p>

@@ -40,7 +40,7 @@ export function TopBar({
   const { credits } = useCredits();
 
   return (
-    <header className="flex min-h-14 shrink-0 items-center justify-between gap-4 border-b border-[rgba(244,244,244,0.08)] bg-[#05070b]/92 px-3 backdrop-blur-xl md:px-4">
+    <header className="flex min-h-14 shrink-0 items-center justify-between gap-4 border-b border-[rgba(244,244,244,0.08)] bg-[#05070b]/94 px-3 backdrop-blur-xl md:px-4">
       <div className="flex min-w-0 items-center gap-4">
         <Link href="/" className="flex shrink-0 items-center gap-2.5">
           <Image
@@ -51,7 +51,7 @@ export function TopBar({
             src="/brand/shadowedge-logo.png"
             width={136}
           />
-          <span className="hidden text-[10px] font-semibold uppercase tracking-[.18em] text-[#b9b9b9]/48 sm:block">
+          <span className="hidden text-[10px] font-medium uppercase tracking-[.18em] text-[#b9b9b9]/42 sm:block">
             AI Studio
           </span>
         </Link>
@@ -61,10 +61,10 @@ export function TopBar({
             {workspaceLinks.map((item) => (
               <Link
                 className={cn(
-                  "rounded-full px-3 py-2 text-sm font-bold transition",
+                  "rounded-full px-3 py-2 text-[13px] font-medium transition-colors",
                   item.active
-                    ? "border border-[#ffb44d]/24 bg-[#ffb44d]/12 text-[#ffb44d]"
-                    : "border border-transparent text-[#b9b9b9]/66 hover:bg-[#1a1c22]/80 hover:text-[#f4f4f4]",
+                    ? "border border-[#ffb44d]/26 bg-[#ffb44d]/10 text-[#ffb44d] shadow-inner shadow-[#ffb44d]/5"
+                    : "border border-transparent text-[#b9b9b9]/66 hover:border-[rgba(244,244,244,0.08)] hover:bg-[#1a1c22]/72 hover:text-[#f4f4f4]",
                 )}
                 href={item.href}
                 key={item.href}
@@ -75,7 +75,7 @@ export function TopBar({
           </nav>
         ) : (
           <div>
-            <p className="text-xs font-bold uppercase tracking-[.2em] text-[#ffcf83]">{workspaceLabels.title}</p>
+            <p className="text-xs font-semibold uppercase tracking-[.18em] text-[#ffcf83]">{workspaceLabels.title}</p>
             <h1 className="text-lg font-semibold text-[#f4f4f4] md:text-xl">{workspaceLabels.videoCreator}</h1>
           </div>
         )}
@@ -84,7 +84,7 @@ export function TopBar({
         <CreditBadge credits={credits} label={creditLabel} />
         <LanguageSwitch locale={locale} onChange={onLocaleChange} />
         {profile?.email ? (
-          <span className="hidden max-w-[190px] truncate rounded-full border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/64 px-3 py-2 text-xs font-semibold text-[#b9b9b9]/70 md:inline-block">
+          <span className="hidden max-w-[190px] truncate rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/74 px-3 py-2 text-xs font-medium text-[#b9b9b9]/68 md:inline-block">
             {profile.email}
           </span>
         ) : null}

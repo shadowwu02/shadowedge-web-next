@@ -203,7 +203,7 @@ export function ReferenceMediaTray({
   }
 
   return (
-    <section className="se-card rounded-[24px] p-3" ref={rootRef}>
+    <section className="se-card rounded-[22px] p-3" ref={rootRef}>
       <div className="mb-3">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -224,7 +224,7 @@ export function ReferenceMediaTray({
             : tf("video.references.modelDoesNotAcceptNamed", { model: modelRule.label })}
         </p>
         {firstIssue ? (
-          <p className="mt-2 rounded-2xl border border-[#ffb44d]/30 bg-[#ffb44d]/10 px-3 py-2 text-xs font-bold leading-5 text-[#ffb44d]">
+          <p className="mt-2 rounded-2xl border border-[#ffb44d]/30 bg-[#ffb44d]/10 px-3 py-2 text-xs font-semibold leading-5 text-[#ffb44d]">
             {localizeIssue(firstIssue)}
           </p>
         ) : null}
@@ -242,7 +242,7 @@ export function ReferenceMediaTray({
 
             return (
               <article
-                className={`group relative h-[82px] overflow-hidden rounded-[18px] border bg-[#05070b]/40 shadow-inner shadow-black/20 transition ${
+                className={`group relative h-[82px] overflow-hidden rounded-[16px] border bg-[#05070b]/40 shadow-inner shadow-black/18 transition-colors ${
                   hasIssues ? "border-[#ffb44d]/55" : "border-[rgba(244,244,244,0.08)] hover:border-[#ffb44d]/34"
                 }`}
                 key={item.id}
@@ -285,7 +285,7 @@ export function ReferenceMediaTray({
 
                 <button
                   aria-label={tf("video.references.removeAsset", { name: item.name })}
-                  className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-[#05070b]/78 text-[11px] text-[#f4f4f4]/76 opacity-0 transition hover:text-red-100 group-hover:opacity-100"
+                  className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-[#05070b]/78 text-[11px] text-[#f4f4f4]/76 opacity-0 transition-colors hover:text-red-100 group-hover:opacity-100"
                   onClick={() => onRemove(item.id)}
                   type="button"
                 >
@@ -294,7 +294,7 @@ export function ReferenceMediaTray({
 
                 <button
                   aria-label={tf("video.references.fullScreenAsset", { name: item.name })}
-                  className="absolute bottom-1.5 right-1.5 grid size-7 place-items-center rounded-full border border-[#33323a]/60 bg-[#05070b]/78 text-[#f4f4f4]/80 opacity-0 transition hover:border-[#ffb44d]/38 hover:text-[#ffb44d] group-hover:opacity-100"
+                  className="absolute bottom-1.5 right-1.5 grid size-7 place-items-center rounded-full border border-[#33323a]/60 bg-[#05070b]/78 text-[#f4f4f4]/80 opacity-0 transition-colors hover:border-[#ffb44d]/38 hover:text-[#ffb44d] group-hover:opacity-100"
                   onClick={(event) => {
                     event.stopPropagation();
                     setPreviewItem(item);
@@ -307,7 +307,7 @@ export function ReferenceMediaTray({
                 <div className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition group-hover:opacity-100">
                   <button
                     aria-label={tf("video.references.openRoleMenu", { name: item.name })}
-                    className="pointer-events-auto grid size-[30px] place-items-center rounded-full border border-[#33323a]/60 bg-[#05070b]/78 text-[#f4f4f4]/82 shadow-xl shadow-black/30 transition hover:border-[#ffb44d]/38 hover:text-[#ffb44d]"
+                    className="pointer-events-auto grid size-[30px] place-items-center rounded-full border border-[#33323a]/60 bg-[#05070b]/78 text-[#f4f4f4]/82 shadow-xl shadow-black/26 transition-colors hover:border-[#ffb44d]/38 hover:text-[#ffb44d]"
                     onClick={(event) => {
                       event.stopPropagation();
                       setRoleMenuPosition(getRoleMenuPosition(event.currentTarget));
@@ -323,7 +323,7 @@ export function ReferenceMediaTray({
           })}
 
           <button
-            className="grid h-[82px] place-items-center rounded-[18px] border border-dashed border-[#ffb44d]/34 bg-[#ffb44d]/8 p-3 text-center transition hover:bg-[#ffb44d]/12"
+            className="grid h-[82px] place-items-center rounded-[16px] border border-dashed border-[#ffb44d]/34 bg-[#ffb44d]/8 p-3 text-center transition-colors hover:bg-[#ffb44d]/12"
             onClick={(event) => openMediaPicker(event.currentTarget)}
             type="button"
           >
@@ -337,7 +337,7 @@ export function ReferenceMediaTray({
         </div>
       ) : (
         <button
-          className="grid min-h-[124px] w-full place-items-center rounded-[24px] border border-dashed border-[rgba(244,244,244,0.12)] bg-[#05070b]/24 px-4 text-center transition hover:border-[#ffb44d]/38 hover:bg-[#ffb44d]/8"
+          className="grid min-h-[124px] w-full place-items-center rounded-[22px] border border-dashed border-[rgba(244,244,244,0.12)] bg-[#05070b]/24 px-4 text-center transition-colors hover:border-[#ffb44d]/38 hover:bg-[#ffb44d]/8"
           onClick={(event) => openMediaPicker(event.currentTarget)}
           type="button"
         >
@@ -368,7 +368,7 @@ export function ReferenceMediaTray({
             const isDisabled = !canUseReferenceRole(modelRule, openRoleItem.type, option.value);
             return (
               <button
-                className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold transition ${
+                className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-xs font-semibold transition-colors ${
                   isDisabled
                     ? "cursor-not-allowed text-[#b9b9b9]/28"
                     : currentRole === option.value
@@ -392,7 +392,7 @@ export function ReferenceMediaTray({
           <div className="my-1 border-t border-[#33323a]/60" />
           <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[.16em] text-[#b9b9b9]/40">{t("video.references.interactions")}</p>
           <button
-            className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-[#b9b9b9]/70 transition hover:bg-[#1a1c22] hover:text-[#f4f4f4]"
+            className="w-full rounded-xl px-3 py-2 text-left text-xs font-semibold text-[#b9b9b9]/70 transition-colors hover:bg-[#1a1c22] hover:text-[#f4f4f4]"
             onClick={() => {
               setPreviewItem(openRoleItem);
               setOpenRoleId("");
@@ -402,7 +402,7 @@ export function ReferenceMediaTray({
             {t("video.references.fullScreen")}
           </button>
           <button
-            className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-[#b9b9b9]/70 transition hover:bg-[#1a1c22] hover:text-[#f4f4f4] disabled:cursor-not-allowed disabled:opacity-40"
+            className="w-full rounded-xl px-3 py-2 text-left text-xs font-semibold text-[#b9b9b9]/70 transition-colors hover:bg-[#1a1c22] hover:text-[#f4f4f4] disabled:cursor-not-allowed disabled:opacity-40"
             disabled={!openRoleMention}
             onClick={() => {
               if (openRoleMention) insertMention(openRoleMention);
@@ -428,7 +428,7 @@ export function ReferenceMediaTray({
               </div>
               <button
                 aria-label={t("video.references.closePreview")}
-                className="grid size-9 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#1a1c22] text-base font-semibold text-[#b9b9b9]/75 transition hover:border-[#ffb44d]/35 hover:text-[#ffb44d]"
+                className="grid size-9 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#1a1c22] text-base font-semibold text-[#b9b9b9]/75 transition-colors hover:border-[#ffb44d]/35 hover:text-[#ffb44d]"
                 onClick={() => setPreviewItem(null)}
                 type="button"
               >
@@ -444,7 +444,7 @@ export function ReferenceMediaTray({
               ) : previewItem.type === "audio" && previewItem.url ? (
                 <div className="grid w-full max-w-lg gap-5 rounded-3xl border border-[#33323a]/60 bg-[#1a1c22]/65 p-8 text-center">
                   <span className="mx-auto grid size-16 place-items-center rounded-3xl bg-[#33323a]/55 text-sm font-semibold text-[#b9b9b9]/60">AUD</span>
-                  <p className="text-sm font-bold text-[#b9b9b9]/72">{previewItem.name}</p>
+                  <p className="text-sm font-semibold text-[#b9b9b9]/72">{previewItem.name}</p>
                   <audio className="w-full" controls src={previewItem.url} />
                 </div>
               ) : (
@@ -452,7 +452,7 @@ export function ReferenceMediaTray({
                   <span className="mx-auto grid size-16 place-items-center rounded-3xl bg-[#33323a]/55 text-sm font-semibold text-[#b9b9b9]/60">
                     {mediaFallback(previewItem.type)}
                   </span>
-                  <p className="text-sm font-bold text-[#b9b9b9]/72">{previewItem.name}</p>
+                  <p className="text-sm font-semibold text-[#b9b9b9]/72">{previewItem.name}</p>
                 </div>
               )}
             </div>

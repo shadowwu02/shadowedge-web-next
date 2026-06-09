@@ -53,14 +53,14 @@ export function ModelSelector({
     <section className="relative" ref={rootRef}>
       <button
         aria-expanded={isOpen}
-        className="flex min-h-14 w-full items-center justify-between gap-3 rounded-[24px] border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/68 px-3 py-2 text-left transition hover:border-[#ffb44d]/32 hover:bg-[#1f2027]/76"
+        className="flex min-h-14 w-full items-center justify-between gap-3 rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/62 px-3 py-2 text-left shadow-inner shadow-black/10 transition-colors hover:border-[#ffb44d]/30 hover:bg-[#1f2027]/72"
         onClick={() => setIsOpen((current) => !current)}
         type="button"
       >
         <span className="flex min-w-0 items-center gap-3">
           <VideoModelLogo label={selected?.label} lookup={getModelLogoLookup(selected)} size="lg" />
           <span className="min-w-0">
-            <span className="block text-[11px] font-medium text-[#b9b9b9]/58">{t("video.params.model")}</span>
+            <span className="block text-[11px] font-medium text-[#b9b9b9]/56">{t("video.params.model")}</span>
             <span className="mt-0.5 block truncate text-sm font-semibold text-[#f4f4f4]">{selected?.label || t("video.model.select")}</span>
           </span>
         </span>
@@ -73,12 +73,12 @@ export function ModelSelector({
       </button>
 
       {isOpen ? (
-        <div className="se-scrollbar absolute left-0 right-0 top-[calc(100%+8px)] z-40 max-h-72 overflow-y-auto rounded-[24px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/98 p-2 shadow-2xl shadow-black/45 backdrop-blur-xl">
+        <div className="se-scrollbar absolute left-0 right-0 top-[calc(100%+8px)] z-40 max-h-72 overflow-y-auto rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/98 p-2 shadow-2xl shadow-black/45 backdrop-blur-xl">
           {models.map((model) => {
             const isSelected = model.id === selected?.id;
             return (
               <button
-                className={`w-full rounded-2xl border px-3 py-2.5 text-left transition ${
+                className={`w-full rounded-[16px] border px-3 py-2.5 text-left transition-colors ${
                   isSelected
                     ? "border-[#ffb44d]/34 bg-[#ffb44d]/12"
                     : "border-transparent hover:border-[rgba(244,244,244,0.08)] hover:bg-[#1a1c22]/72"

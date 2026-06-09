@@ -25,10 +25,10 @@ function safeDownloadFilename(view: ReturnType<typeof getSafeVideoHistoryView>) 
 
 function actionIconClass(tone: "normal" | "primary" = "normal") {
   if (tone === "primary") {
-    return "grid size-8 place-items-center rounded-full border border-[#ffb44d]/42 bg-[#ffb44d]/13 text-[#ffb44d] transition hover:bg-[#ffb44d]/20 disabled:cursor-not-allowed disabled:opacity-45";
+    return "grid size-8 place-items-center rounded-full border border-[#ffb44d]/38 bg-[#ffb44d]/12 text-[#ffb44d] transition-colors hover:bg-[#ffb44d]/18 disabled:cursor-not-allowed disabled:opacity-45";
   }
 
-  return "grid size-8 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/76 text-[#b9b9b9] transition hover:border-[#ffb44d]/42 hover:bg-[#ffb44d]/10 hover:text-[#ffb44d] disabled:cursor-not-allowed disabled:opacity-45";
+  return "grid size-8 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/70 text-[#b9b9b9] transition-colors hover:border-[#ffb44d]/38 hover:bg-[#ffb44d]/10 hover:text-[#ffb44d] disabled:cursor-not-allowed disabled:opacity-45";
 }
 
 function FillIcon() {
@@ -125,7 +125,7 @@ export function VideoOutputDetailPanel({
 
   if (!record || !view) {
     return (
-      <aside className="se-card-quiet flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] p-4 shadow-2xl shadow-black/20">
+      <aside className="se-card-quiet flex h-full min-h-0 flex-col overflow-hidden rounded-[24px] p-4 shadow-2xl shadow-black/18">
         <p className="se-eyebrow">{t("video.history.selectedDetail")}</p>
         <div className="grid min-h-0 flex-1 place-items-center text-center">
           <div>
@@ -155,7 +155,7 @@ export function VideoOutputDetailPanel({
           : view.statusLabel;
 
   return (
-    <aside className="se-card-quiet flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] shadow-2xl shadow-black/20">
+    <aside className="se-card-quiet flex h-full min-h-0 flex-col overflow-hidden rounded-[24px] shadow-2xl shadow-black/18">
       <div className="flex flex-none items-start justify-between gap-3 border-b border-[rgba(244,244,244,0.08)] p-3.5">
         <div className="min-w-0">
           <p className="se-eyebrow">{t("video.history.selectedDetail")}</p>
@@ -174,7 +174,7 @@ export function VideoOutputDetailPanel({
 
       <div className="se-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto p-3.5">
         <button
-          className="group/prompt w-full rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/64 p-3 text-left transition hover:border-[#ffb44d]/34 hover:bg-[#ffb44d]/8 disabled:cursor-default disabled:hover:border-[rgba(244,244,244,0.08)] disabled:hover:bg-[#1a1c22]/64"
+          className="group/prompt w-full rounded-[20px] border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/52 p-3 text-left shadow-inner shadow-black/10 transition-colors hover:border-[#ffb44d]/30 hover:bg-[#ffb44d]/8 disabled:cursor-default disabled:hover:border-[rgba(244,244,244,0.08)] disabled:hover:bg-[#1a1c22]/52"
           disabled={!onFill}
           onClick={() => onFill?.(record)}
           title={onFill ? t("video.generation.fillPrompt") : undefined}
@@ -184,10 +184,10 @@ export function VideoOutputDetailPanel({
             <span className="se-eyebrow">{t("video.generation.prompt")}</span>
             {onFill ? <span className="text-[10px] font-semibold text-[#b9b9b9]/45 opacity-0 transition group-hover/prompt:opacity-100">{t("video.generation.fillPrompt")}</span> : null}
           </div>
-          <p className="line-clamp-6 text-[13px] font-medium leading-5 text-[#f4f4f4]/82">{view.title}</p>
+          <p className="line-clamp-6 text-[13px] font-normal leading-5 text-[#f4f4f4]/84">{view.title}</p>
         </button>
 
-        <div className="rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/50 p-3">
+        <div className="rounded-[20px] border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/46 p-3 shadow-inner shadow-black/8">
           <div className="mb-2 flex items-center justify-between">
             <span className="se-eyebrow">{t("video.generation.references")}</span>
             <span className="text-[10px] text-[#b9b9b9]/45">{referenceAssets.length}</span>
@@ -199,14 +199,14 @@ export function VideoOutputDetailPanel({
                 const isBlocked = Boolean(issue);
                 return (
                   <button
-                    className="group/ref grid w-full grid-cols-[42px_minmax(0,1fr)] items-center gap-2 rounded-2xl border border-[rgba(244,244,244,0.08)] bg-[#111318]/68 p-1.5 text-left transition hover:border-[#ffb44d]/34 hover:bg-[#ffb44d]/8 disabled:cursor-not-allowed disabled:opacity-45"
+                    className="group/ref grid w-full grid-cols-[42px_minmax(0,1fr)] items-center gap-2 rounded-[16px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/66 p-1.5 text-left transition-colors hover:border-[#ffb44d]/30 hover:bg-[#ffb44d]/8 disabled:cursor-not-allowed disabled:opacity-45"
                     disabled={isBlocked || !onAddReference}
                     key={`${asset.id}-${asset.url}-${label}`}
                     onClick={() => onAddReference?.(asset)}
                     title={issue || t("video.generation.addReference")}
                     type="button"
                   >
-                    <span className="grid aspect-square place-items-center overflow-hidden rounded-xl bg-[#05070b] text-[10px] font-semibold text-[#b9b9b9]/65">
+                    <span className="grid aspect-square place-items-center overflow-hidden rounded-[12px] bg-[#05070b] text-[10px] font-semibold text-[#b9b9b9]/65">
                       {asset.type === "image" && (asset.previewUrl || asset.url) ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img alt="" className="h-full w-full object-cover" src={asset.previewUrl || asset.url} />
@@ -233,10 +233,10 @@ export function VideoOutputDetailPanel({
         </div>
 
         <div className="grid grid-cols-2 gap-2 text-[11px] font-medium text-[#b9b9b9]/70">
-          <span className="se-pill truncate rounded-xl px-2.5 py-1.5">{view.quality}</span>
-          <span className="se-pill truncate rounded-xl px-2.5 py-1.5">{view.duration}</span>
-          <span className="se-pill truncate rounded-xl px-2.5 py-1.5">{view.ratio}</span>
-          <span className="se-pill truncate rounded-xl px-2.5 py-1.5">{tf("video.history.job", { job: view.jobLabel })}</span>
+          <span className="se-pill truncate rounded-[12px] px-2.5 py-1.5">{view.quality}</span>
+          <span className="se-pill truncate rounded-[12px] px-2.5 py-1.5">{view.duration}</span>
+          <span className="se-pill truncate rounded-[12px] px-2.5 py-1.5">{view.ratio}</span>
+          <span className="se-pill truncate rounded-[12px] px-2.5 py-1.5">{tf("video.history.job", { job: view.jobLabel })}</span>
         </div>
 
         {isFailed || isStaleActive ? (

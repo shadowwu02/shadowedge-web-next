@@ -639,9 +639,9 @@ export function VideoWorkspace() {
 
   return (
     <div className="se-scrollbar h-full min-h-0 space-y-3 overflow-y-auto overflow-x-hidden xl:grid xl:grid-cols-[minmax(310px,340px)_minmax(0,1fr)] xl:gap-3 xl:space-y-0 xl:overflow-hidden 2xl:grid-cols-[340px_minmax(0,1fr)]">
-      <aside className="se-panel flex min-h-0 flex-col overflow-hidden rounded-[32px]">
+      <aside className="se-panel flex min-h-0 flex-col overflow-hidden rounded-[28px]">
         <div className="shrink-0 border-b border-[rgba(244,244,244,0.08)] px-4 py-3">
-          <div className="flex gap-4 text-sm font-semibold text-[#b9b9b9]/66">
+          <div className="flex gap-4 text-[13px] font-semibold text-[#b9b9b9]/66">
             <button className="border-b-2 border-[#ffb44d] pb-2 text-[#f4f4f4]" type="button">
               {t("video.workspace.createVideo")}
             </button>
@@ -673,14 +673,14 @@ export function VideoWorkspace() {
           />
           <div className="grid grid-cols-2 gap-2">
             <button
-              className="se-control rounded-[20px] px-3 py-2 text-xs font-semibold text-[#f4f4f4]/76"
+              className="se-control rounded-[18px] px-3 py-2 text-xs font-semibold text-[#f4f4f4]/76"
               onClick={() => setPrompt((current) => `${current}${current && !current.endsWith(" ") ? " " : ""}@`)}
               type="button"
             >
               {t("video.prompt.elements")}
             </button>
             <button
-              className={`rounded-[20px] border px-3 py-2 text-xs font-semibold transition ${
+              className={`rounded-[18px] border px-3 py-2 text-xs font-semibold transition-colors ${
                 params.generateAudio
                   ? "border-[#ffb44d]/38 bg-[#ffb44d]/12 text-[#ffb44d]"
                   : "border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/66 text-[#f4f4f4]/72 hover:border-[#ffb44d]/34 hover:bg-[#ffb44d]/8 hover:text-[#ffb44d]"
@@ -698,13 +698,13 @@ export function VideoWorkspace() {
             value={params}
           />
           {!token && !isSignedIn ? (
-            <div className="rounded-[24px] border border-[#ffb44d]/28 bg-[#ffb44d]/9 p-4">
+            <div className="rounded-[22px] border border-[#ffb44d]/26 bg-[#ffb44d]/8 p-4">
               <p className="text-sm font-semibold text-[#ffb44d]">{t("video.errors.signInRequired")}</p>
               <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/70">
                 {t("video.workspace.signInBody")}
               </p>
               <Link
-                className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-[#ffb44d] px-5 text-sm font-semibold text-[#05070b] transition hover:bg-[#ffc766]"
+                className="mt-4 inline-flex h-10 items-center justify-center rounded-full border border-[#ffd08a]/32 bg-[#ffb44d] px-5 text-sm font-semibold text-[#05070b] transition-colors hover:bg-[#ffc766]"
                 href="/sign-in?next=/workspace/video"
               >
                 {t("video.actions.signIn")}
@@ -726,15 +726,15 @@ export function VideoWorkspace() {
       </aside>
 
       <main className="flex min-h-[520px] min-w-0 flex-col overflow-hidden xl:min-h-0">
-        <div className="mb-2 flex flex-none gap-2 rounded-[26px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/82 p-1.5 shadow-xl shadow-black/18">
+        <div className="mb-2 flex flex-none gap-2 rounded-[24px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/82 p-1.5 shadow-xl shadow-black/16">
           {([
             { key: "history", label: t("video.main.history") },
             { key: "guide", label: t("video.main.howItWorks") },
           ] as const).map((item) => (
             <button
-              className={`min-h-10 rounded-[20px] px-4 text-xs font-semibold transition ${
+              className={`min-h-10 rounded-[18px] px-4 text-xs font-semibold transition-colors ${
                 mainPanel === item.key
-                  ? "border border-[#ffb44d]/38 bg-[#ffb44d]/12 text-[#ffb44d] shadow-lg shadow-black/18"
+                  ? "border border-[#ffb44d]/34 bg-[#ffb44d]/12 text-[#ffb44d] shadow-lg shadow-black/14"
                   : "border border-transparent text-[#b9b9b9]/62 hover:bg-[#1a1c22] hover:text-[#f4f4f4]"
               }`}
               key={item.key}

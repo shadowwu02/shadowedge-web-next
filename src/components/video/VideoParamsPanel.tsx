@@ -234,7 +234,7 @@ export function VideoParamsPanel({
       {chips.map((chip) => (
         <button
           aria-expanded={openKey === chip.key}
-          className="flex min-h-12 min-w-[96px] flex-1 basis-[calc(33.333%-0.5rem)] flex-col items-start justify-center gap-0.5 rounded-[20px] border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/66 px-3 text-left text-xs font-medium text-[#b9b9b9]/58 transition hover:border-[#ffb44d]/32 hover:bg-[#ffb44d]/8"
+          className="flex min-h-12 min-w-[96px] flex-1 basis-[calc(33.333%-0.5rem)] flex-col items-start justify-center gap-0.5 rounded-[18px] border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/62 px-3 text-left text-xs font-medium text-[#b9b9b9]/58 shadow-inner shadow-black/10 transition-colors hover:border-[#ffb44d]/30 hover:bg-[#ffb44d]/8"
           key={chip.key}
           onClick={(event) => openMenu(chip.key, event.currentTarget)}
           type="button"
@@ -282,7 +282,7 @@ export function VideoParamsPanel({
               >
                 {durationOptions.map((duration) => (
                   <button
-                    className={`min-w-0 rounded-full px-0.5 py-1 transition ${
+                    className={`min-w-0 rounded-full px-0.5 py-1 transition-colors ${
                       duration === value.duration
                         ? "bg-[#ffb44d]/18 text-[#ffd08a]"
                         : "hover:bg-[#1a1c22] hover:text-[#f4f4f4]"
@@ -296,7 +296,7 @@ export function VideoParamsPanel({
                 ))}
               </div>
               <button
-                className="justify-self-end rounded-full border border-[rgba(244,244,244,0.08)] px-3 py-1.5 text-xs font-semibold text-[#b9b9b9]/70 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a]"
+                className="justify-self-end rounded-full border border-[rgba(244,244,244,0.08)] px-3 py-1.5 text-xs font-semibold text-[#b9b9b9]/70 transition-colors hover:border-[#ffb44d]/35 hover:text-[#ffd08a]"
                 onClick={() => setOpenKey(null)}
                 type="button"
               >
@@ -309,7 +309,7 @@ export function VideoParamsPanel({
                 const isSelected = option === (openKey === "ratio" ? value.ratio : value.quality);
                 return (
                   <button
-                    className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-bold transition ${
+                    className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-semibold transition-colors ${
                       isSelected
                         ? "bg-[#ffb44d]/16 text-[#ffd08a]"
                         : "text-[#b9b9b9]/72 hover:bg-[#1a1c22] hover:text-[#f4f4f4]"
