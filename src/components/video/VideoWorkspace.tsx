@@ -12,6 +12,10 @@ import { UploadBox } from "@/components/video/UploadBox";
 import { VideoGenerationStream, type VideoHistoryFilter } from "@/components/video/VideoGenerationStream";
 import { VideoHowItWorks } from "@/components/video/VideoHowItWorks";
 import { type VideoParams, VideoParamsPanel } from "@/components/video/VideoParamsPanel";
+import { RemakeStoryboardPanel } from "@/components/video/remake/RemakeStoryboardPanel";
+import { VideoRemakeWorkspace } from "@/components/video/remake/VideoRemakeWorkspace";
+import { buildMockRemakeStoryboard } from "@/components/video/remake/remakeMockData";
+import type { RemakeMode, RemakeSourceVideo, RemakeStoryboard, RemakeTargetRegion } from "@/components/video/remake/remakeTypes";
 import { useTaskPolling } from "@/hooks/useTaskPolling";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useCredits } from "@/hooks/useCredits";
@@ -62,6 +66,7 @@ const fallbackModels: VideoModel[] = [
 ];
 
 type MainPanel = "history" | "guide";
+type WorkspaceMode = "create" | "edit" | "motion" | "remake";
 
 function getVideoModelRuleId(model: VideoModel) {
   const candidates = [model.id, model.providerModel, model.label].filter((value): value is string => Boolean(value));
@@ -208,6 +213,14 @@ export function VideoWorkspace() {
   const [draftReady, setDraftReady] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<VideoHistoryFilter>("all");
   const [mainPanel, setMainPanel] = useState<MainPanel>("history");
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("create");
+  const [remakeMode, setRemakeMode] = useState<RemakeMode>("single_clip");
+  const [remakeSourceVideo, setRemakeSourceVideo] = useState<RemakeSourceVideo | null>(null);
+  const [remakeTargetRegion, setRemakeTargetRegion] = useState<RemakeTargetRegion>("US");
+  const [remakeCharacterRules, setRemakeCharacterRules] = useState("");
+  const [remakeSceneStyle, setRemakeSceneStyle] = useState("");
+  const [remakeTranslateDialogue, setRemakeTranslateDialogue] = useState(true);
+  const [remakeStoryboard, setRemakeStoryboard] = useState<RemakeStoryboard | null>(null);
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestDraftSnapshotRef = useRef<{
     media: UploadMediaItem[];
@@ -374,6 +387,31 @@ export function VideoWorkspace() {
   const updateMediaRole = useCallback((id: string, role: UploadMediaRole) => {
     setMedia((currentItems) => currentItems.map((item) => (item.id === id ? { ...item, role } : item)));
   }, []);
+
+  const handleAnalyzeRemakeStoryboard = useCallback(() => {
+    // TODO: Replace this front-end mock with POST /api/internal/video/reverse-analyze in Remake-B.
+    setRemakeStoryboard(
+      buildMockRemakeStoryboard(
+        {
+          characterRules: remakeCharacterRules,
+          mode: remakeMode,
+          sceneStyle: remakeSceneStyle,
+          targetRegion: remakeTargetRegion,
+          translateDialogue: remakeTranslateDialogue,
+        },
+        remakeSourceVideo,
+      ),
+    );
+  }, [remakeCharacterRules, remakeMode, remakeSceneStyle, remakeSourceVideo, remakeTargetRegion, remakeTranslateDialogue]);
+
+  const handleUseRemakePrompt = useCallback(
+    (nextPrompt: string) => {
+      setPrompt(nextPrompt);
+      setWorkspaceMode("create");
+      setWorkspaceNotice(t("video.remake.promptLoaded"));
+    },
+    [t],
+  );
 
   const isUploadingMedia = isAssetPickerUploading || media.some((item) => item.uploadStatus === "uploading");
   const isCurrentTaskProcessing = Boolean(task && isVideoActiveStatus(task.status) && !isVideoStaleActiveRecord(task));
@@ -637,133 +675,195 @@ export function VideoWorkspace() {
     [findRetryModel, getRetryMediaName, selectedModel, t],
   );
 
+  const workspaceTabs: Array<{
+    disabled?: boolean;
+    key: WorkspaceMode;
+    label: string;
+  }> = [
+    { key: "create", label: t("video.workspace.createVideo") },
+    { disabled: true, key: "edit", label: t("video.workspace.editVideo") },
+    { disabled: true, key: "motion", label: t("video.workspace.motionControl") },
+    { key: "remake", label: t("video.remake.tab") },
+  ];
+
   return (
     <div className="se-scrollbar h-full min-h-0 space-y-3 overflow-y-auto overflow-x-hidden xl:grid xl:grid-cols-[minmax(310px,340px)_minmax(0,1fr)] xl:gap-3 xl:space-y-0 xl:overflow-hidden 2xl:grid-cols-[340px_minmax(0,1fr)]">
       <aside className="se-panel flex min-h-0 flex-col overflow-hidden rounded-[28px]">
         <div className="shrink-0 border-b border-[rgba(244,244,244,0.08)] px-4 py-3">
           <div className="flex gap-4 text-[13px] font-semibold text-[#b9b9b9]/66">
-            <button className="border-b-2 border-[#ffb44d] pb-2 text-[#f4f4f4]" type="button">
-              {t("video.workspace.createVideo")}
-            </button>
-            <button className="cursor-not-allowed pb-2 text-[#b9b9b9]/42" disabled type="button">
-              {t("video.workspace.editVideo")}
-            </button>
-            <button className="cursor-not-allowed pb-2 text-[#b9b9b9]/42" disabled type="button">
-              {t("video.workspace.motionControl")}
-            </button>
+            {workspaceTabs.map((tab) => {
+              const isActive = workspaceMode === tab.key;
+              return (
+                <button
+                  className={`whitespace-nowrap border-b-2 pb-2 transition-colors ${
+                    isActive
+                      ? "border-[#ffb44d] text-[#f4f4f4]"
+                      : tab.disabled
+                        ? "cursor-not-allowed border-transparent text-[#b9b9b9]/42"
+                        : "border-transparent text-[#b9b9b9]/66 hover:text-[#ffb44d]"
+                  }`}
+                  disabled={tab.disabled}
+                  key={tab.key}
+                  onClick={() => {
+                    if (!tab.disabled) setWorkspaceMode(tab.key);
+                  }}
+                  type="button"
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
         <div className="se-subtle-scrollbar grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-3">
-          {modelLoading ? <LoadingState label={t("video.model.loading")} /> : null}
-          <UploadBox
-            media={media}
-            modelRule={selectedModelRule}
-            onBusyChange={setIsAssetPickerUploading}
-            onChange={setMedia}
-            reusableMedia={reusableMedia}
-          />
-          <ReferenceMediaTray media={media} modelRule={selectedModelRule} onRemove={removeMedia} onRoleChange={updateMediaRole} />
-          <PromptBox
-            media={media}
-            mentionBindings={reconciledMentionBindings}
-            onChange={setPrompt}
-            onMentionBindingsChange={setMentionBindings}
-            value={prompt}
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              className="se-control rounded-[18px] px-3 py-2 text-xs font-semibold text-[#f4f4f4]/76"
-              onClick={() => setPrompt((current) => `${current}${current && !current.endsWith(" ") ? " " : ""}@`)}
-              type="button"
-            >
-              {t("video.prompt.elements")}
-            </button>
-            <button
-              className={`rounded-[18px] border px-3 py-2 text-xs font-semibold transition-colors ${
-                params.generateAudio
-                  ? "border-[#ffb44d]/38 bg-[#ffb44d]/12 text-[#ffb44d]"
-                  : "border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/66 text-[#f4f4f4]/72 hover:border-[#ffb44d]/34 hover:bg-[#ffb44d]/8 hover:text-[#ffb44d]"
-              }`}
-              onClick={() => setParams((current) => ({ ...current, generateAudio: !current.generateAudio }))}
-              type="button"
-            >
-              {params.generateAudio ? t("video.params.audioOn") : t("video.params.audioOff")}
-            </button>
-          </div>
-          <ModelSelector models={models} onChange={handleModelChange} selectedModelId={selectedModel.id} />
-          <VideoParamsPanel
-            modelId={selectedModelRuleId}
-            onChange={setParams}
-            value={params}
-          />
-          {!token && !isSignedIn ? (
-            <div className="rounded-[22px] border border-[#ffb44d]/26 bg-[#ffb44d]/8 p-4">
-              <p className="text-sm font-semibold text-[#ffb44d]">{t("video.errors.signInRequired")}</p>
-              <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/70">
-                {t("video.workspace.signInBody")}
-              </p>
-              <Link
-                className="mt-4 inline-flex h-10 items-center justify-center rounded-full border border-[#ffd08a]/32 bg-[#ffb44d] px-5 text-sm font-semibold text-[#05070b] transition-colors hover:bg-[#ffc766]"
-                href="/sign-in?next=/workspace/video"
-              >
-                {t("video.actions.signIn")}
-              </Link>
-            </div>
-          ) : null}
+          {workspaceMode === "remake" ? (
+            <VideoRemakeWorkspace
+              characterRules={remakeCharacterRules}
+              mode={remakeMode}
+              onAnalyze={handleAnalyzeRemakeStoryboard}
+              onCharacterRulesChange={setRemakeCharacterRules}
+              onModeChange={setRemakeMode}
+              onSceneStyleChange={setRemakeSceneStyle}
+              onSourceVideoChange={setRemakeSourceVideo}
+              onTargetRegionChange={setRemakeTargetRegion}
+              onTranslateDialogueChange={setRemakeTranslateDialogue}
+              sceneStyle={remakeSceneStyle}
+              sourceVideo={remakeSourceVideo}
+              targetRegion={remakeTargetRegion}
+              translateDialogue={remakeTranslateDialogue}
+            />
+          ) : (
+            <>
+              {modelLoading ? <LoadingState label={t("video.model.loading")} /> : null}
+              <UploadBox
+                media={media}
+                modelRule={selectedModelRule}
+                onBusyChange={setIsAssetPickerUploading}
+                onChange={setMedia}
+                reusableMedia={reusableMedia}
+              />
+              <ReferenceMediaTray media={media} modelRule={selectedModelRule} onRemove={removeMedia} onRoleChange={updateMediaRole} />
+              <PromptBox
+                media={media}
+                mentionBindings={reconciledMentionBindings}
+                onChange={setPrompt}
+                onMentionBindingsChange={setMentionBindings}
+                value={prompt}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  className="se-control rounded-[18px] px-3 py-2 text-xs font-semibold text-[#f4f4f4]/76"
+                  onClick={() => setPrompt((current) => `${current}${current && !current.endsWith(" ") ? " " : ""}@`)}
+                  type="button"
+                >
+                  {t("video.prompt.elements")}
+                </button>
+                <button
+                  className={`rounded-[18px] border px-3 py-2 text-xs font-semibold transition-colors ${
+                    params.generateAudio
+                      ? "border-[#ffb44d]/38 bg-[#ffb44d]/12 text-[#ffb44d]"
+                      : "border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/66 text-[#f4f4f4]/72 hover:border-[#ffb44d]/34 hover:bg-[#ffb44d]/8 hover:text-[#ffb44d]"
+                  }`}
+                  onClick={() => setParams((current) => ({ ...current, generateAudio: !current.generateAudio }))}
+                  type="button"
+                >
+                  {params.generateAudio ? t("video.params.audioOn") : t("video.params.audioOff")}
+                </button>
+              </div>
+              <ModelSelector models={models} onChange={handleModelChange} selectedModelId={selectedModel.id} />
+              <VideoParamsPanel
+                modelId={selectedModelRuleId}
+                onChange={setParams}
+                value={params}
+              />
+              {!token && !isSignedIn ? (
+                <div className="rounded-[22px] border border-[#ffb44d]/26 bg-[#ffb44d]/8 p-4">
+                  <p className="text-sm font-semibold text-[#ffb44d]">{t("video.errors.signInRequired")}</p>
+                  <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/70">
+                    {t("video.workspace.signInBody")}
+                  </p>
+                  <Link
+                    className="mt-4 inline-flex h-10 items-center justify-center rounded-full border border-[#ffd08a]/32 bg-[#ffb44d] px-5 text-sm font-semibold text-[#05070b] transition-colors hover:bg-[#ffc766]"
+                    href="/sign-in?next=/workspace/video"
+                  >
+                    {t("video.actions.signIn")}
+                  </Link>
+                </div>
+              ) : null}
+            </>
+          )}
           <ErrorState message={displayNotice} />
         </div>
 
-        <div className="shrink-0 border-t border-[rgba(244,244,244,0.08)] p-3">
-          <GenerateButton
-            credits={selectedModel.credits}
-            disabled={!canGenerate}
-            isSubmitting={isSubmitting}
-            label={generateButtonLabel}
-            onClick={submitCurrent}
-          />
-        </div>
+        {workspaceMode === "remake" ? null : (
+          <div className="shrink-0 border-t border-[rgba(244,244,244,0.08)] p-3">
+            <GenerateButton
+              credits={selectedModel.credits}
+              disabled={!canGenerate}
+              isSubmitting={isSubmitting}
+              label={generateButtonLabel}
+              onClick={submitCurrent}
+            />
+          </div>
+        )}
       </aside>
 
       <main className="flex min-h-[520px] min-w-0 flex-col overflow-hidden xl:min-h-0">
-        <div className="mb-2 flex flex-none gap-2 rounded-[24px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/82 p-1.5 shadow-xl shadow-black/16">
-          {([
-            { key: "history", label: t("video.main.history") },
-            { key: "guide", label: t("video.main.howItWorks") },
-          ] as const).map((item) => (
-            <button
-              className={`min-h-10 rounded-[18px] px-4 text-xs font-semibold transition-colors ${
-                mainPanel === item.key
-                  ? "border border-[#ffb44d]/34 bg-[#ffb44d]/12 text-[#ffb44d] shadow-lg shadow-black/14"
-                  : "border border-transparent text-[#b9b9b9]/62 hover:bg-[#1a1c22] hover:text-[#f4f4f4]"
-              }`}
-              key={item.key}
-              onClick={() => setMainPanel(item.key)}
-              type="button"
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-        <div className="min-h-0 flex-1 overflow-hidden">
-          {mainPanel === "guide" ? (
-            <VideoHowItWorks modelName={selectedModel.label} />
-          ) : (
-            <VideoGenerationStream
-              filter={historyFilter}
-              getAddReferenceIssue={getHistoryReferenceAssetIssue}
-              getUseResultAsReferenceIssue={getGeneratedResultReferenceIssue}
-              history={history}
-              isLoading={isHistoryLoading}
-              onAddReference={handleAddHistoryReferenceAsset}
-              onFilterChange={setHistoryFilter}
-              onFill={handleFillFromHistory}
-              onRetry={handleRetry}
-              onUseResultAsReference={handleUseResultAsReference}
-              task={task}
-            />
-          )}
-        </div>
+        {workspaceMode === "remake" ? (
+          <RemakeStoryboardPanel
+            onUsePrompt={handleUseRemakePrompt}
+            settings={{
+              characterRules: remakeCharacterRules,
+              mode: remakeMode,
+              sceneStyle: remakeSceneStyle,
+              targetRegion: remakeTargetRegion,
+              translateDialogue: remakeTranslateDialogue,
+            }}
+            storyboard={remakeStoryboard}
+          />
+        ) : (
+          <>
+            <div className="mb-2 flex flex-none gap-2 rounded-[24px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/82 p-1.5 shadow-xl shadow-black/16">
+              {([
+                { key: "history", label: t("video.main.history") },
+                { key: "guide", label: t("video.main.howItWorks") },
+              ] as const).map((item) => (
+                <button
+                  className={`min-h-10 rounded-[18px] px-4 text-xs font-semibold transition-colors ${
+                    mainPanel === item.key
+                      ? "border border-[#ffb44d]/34 bg-[#ffb44d]/12 text-[#ffb44d] shadow-lg shadow-black/14"
+                      : "border border-transparent text-[#b9b9b9]/62 hover:bg-[#1a1c22] hover:text-[#f4f4f4]"
+                  }`}
+                  key={item.key}
+                  onClick={() => setMainPanel(item.key)}
+                  type="button"
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              {mainPanel === "guide" ? (
+                <VideoHowItWorks modelName={selectedModel.label} />
+              ) : (
+                <VideoGenerationStream
+                  filter={historyFilter}
+                  getAddReferenceIssue={getHistoryReferenceAssetIssue}
+                  getUseResultAsReferenceIssue={getGeneratedResultReferenceIssue}
+                  history={history}
+                  isLoading={isHistoryLoading}
+                  onAddReference={handleAddHistoryReferenceAsset}
+                  onFilterChange={setHistoryFilter}
+                  onFill={handleFillFromHistory}
+                  onRetry={handleRetry}
+                  onUseResultAsReference={handleUseResultAsReference}
+                  task={task}
+                />
+              )}
+            </div>
+          </>
+        )}
       </main>
     </div>
   );
