@@ -378,6 +378,13 @@ export function VideoWorkspace() {
       tf("video.history.retryMediaName", { index: index + 1, type: localizedMediaTypeLabel(type) }),
     [localizedMediaTypeLabel, tf],
   );
+  const getRemakeVlmProviderLabel = useCallback(
+    (provider: string) => {
+      if (provider.toLowerCase() === "bai") return t("video.remake.vlmProvider.bai");
+      return provider;
+    },
+    [t],
+  );
 
   const handleStatus = useCallback((_result: VideoStatusResponse) => {
     void _result;
@@ -479,7 +486,7 @@ export function VideoWorkspace() {
       } else if (result.meta?.mock) {
         setRemakeAnalysisNotice(t("video.remake.analysisDraft"));
       } else if (result.meta?.vlmProvider) {
-        setRemakeAnalysisNotice(tf("video.remake.vlmProvider", { provider: result.meta.vlmProvider }));
+        setRemakeAnalysisNotice(tf("video.remake.vlmProvider", { provider: getRemakeVlmProviderLabel(result.meta.vlmProvider) }));
       } else {
         setRemakeAnalysisNotice("");
       }
@@ -494,7 +501,17 @@ export function VideoWorkspace() {
       setIsRemakeAnalyzing(false);
       setIsRemakeSourceUploading(false);
     }
-  }, [remakeCharacterRules, remakeMode, remakeSceneStyle, remakeSourceVideo, remakeTargetRegion, remakeTranslateDialogue, t, tf]);
+  }, [
+    getRemakeVlmProviderLabel,
+    remakeCharacterRules,
+    remakeMode,
+    remakeSceneStyle,
+    remakeSourceVideo,
+    remakeTargetRegion,
+    remakeTranslateDialogue,
+    t,
+    tf,
+  ]);
 
   const handleRemakeSourceVideoChange = useCallback((source: RemakeSourceVideo | null) => {
     setRemakeSourceVideo((current) => {
