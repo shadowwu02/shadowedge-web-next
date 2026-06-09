@@ -4,7 +4,10 @@ import { useI18n } from "@/i18n/useI18n";
 import type { RemakeMode, RemakeTargetRegion } from "@/components/video/remake/remakeTypes";
 
 type RemakeSettingsPanelProps = {
+  analysisError?: string;
+  analysisNotice?: string;
   characterRules: string;
+  isAnalyzing?: boolean;
   mode: RemakeMode;
   onAnalyze: () => void;
   onCharacterRulesChange: (value: string) => void;
@@ -29,7 +32,10 @@ function modeHintKey(mode: RemakeMode) {
 }
 
 export function RemakeSettingsPanel({
+  analysisError = "",
+  analysisNotice = "",
   characterRules,
+  isAnalyzing = false,
   mode,
   onAnalyze,
   onCharacterRulesChange,
@@ -126,12 +132,26 @@ export function RemakeSettingsPanel({
         {t("video.remake.complianceNotice")}
       </p>
 
+      {analysisNotice ? (
+        <p className="rounded-[18px] border border-[#ffb44d]/24 bg-[#ffb44d]/10 p-3 text-xs leading-5 text-[#ffd08a]/86">
+          {analysisNotice}
+        </p>
+      ) : null}
+
+      {analysisError ? (
+        <p className="rounded-[18px] border border-[#7f2d2d]/42 bg-[#2a1012]/70 p-3 text-xs leading-5 text-[#f1b4b4]/86">
+          {analysisError}
+        </p>
+      ) : null}
+
       <button
-        className="min-h-11 rounded-[18px] border border-[#ffd08a]/34 bg-[linear-gradient(180deg,#ffc96d,#ffb44d)] px-4 text-sm font-semibold text-[#05070b] shadow-[0_18px_36px_rgba(255,180,77,0.14),inset_0_1px_0_rgba(255,255,255,0.18)] transition hover:border-[#ffd08a]/48 hover:brightness-105 active:translate-y-px"
+        aria-busy={isAnalyzing}
+        className="min-h-11 rounded-[18px] border border-[#ffd08a]/34 bg-[linear-gradient(180deg,#ffc96d,#ffb44d)] px-4 text-sm font-semibold text-[#05070b] shadow-[0_18px_36px_rgba(255,180,77,0.14),inset_0_1px_0_rgba(255,255,255,0.18)] transition hover:border-[#ffd08a]/48 hover:brightness-105 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-62"
+        disabled={isAnalyzing}
         onClick={onAnalyze}
         type="button"
       >
-        {t("video.remake.analyze")}
+        {isAnalyzing ? t("video.remake.analyzing") : t("video.remake.analyze")}
       </button>
     </section>
   );

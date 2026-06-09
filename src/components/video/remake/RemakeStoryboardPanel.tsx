@@ -4,6 +4,7 @@ import { useI18n } from "@/i18n/useI18n";
 import type { RemakeSettings, RemakeShot, RemakeStoryboard } from "@/components/video/remake/remakeTypes";
 
 type RemakeStoryboardPanelProps = {
+  analysisNotice?: string;
   onUsePrompt: (prompt: string) => void;
   settings: RemakeSettings;
   storyboard: RemakeStoryboard | null;
@@ -32,7 +33,7 @@ function ShotMeta({
   );
 }
 
-export function RemakeStoryboardPanel({ onUsePrompt, settings, storyboard }: RemakeStoryboardPanelProps) {
+export function RemakeStoryboardPanel({ analysisNotice = "", onUsePrompt, settings, storyboard }: RemakeStoryboardPanelProps) {
   const { t } = useI18n();
   const shots = storyboard?.shots || [];
 
@@ -59,6 +60,12 @@ export function RemakeStoryboardPanel({ onUsePrompt, settings, storyboard }: Rem
           <ShotMeta label={t("video.remake.characterRules")} value={storyboard.characterRules || "--"} />
           <ShotMeta label={t("video.remake.sceneStyle")} value={storyboard.sceneStyle || "--"} />
         </div>
+      ) : null}
+
+      {analysisNotice ? (
+        <p className="mb-5 rounded-[20px] border border-[#ffb44d]/24 bg-[#ffb44d]/10 p-3 text-sm leading-6 text-[#ffd08a]/86">
+          {analysisNotice}
+        </p>
       ) : null}
 
       {shots.length ? (

@@ -22,7 +22,7 @@ import { useCredits } from "@/hooks/useCredits";
 import { useVideoGeneration } from "@/hooks/useVideoGeneration";
 import { useI18n } from "@/i18n/useI18n";
 import { collectGeneratedResultMediaAssets, collectHistoryInputMediaAssets, collectReusableVideoAssets, mergeMediaAssets } from "@/lib/media-assets";
-import { getVideoModels } from "@/lib/video-api";
+import { getVideoModels, reverseAnalyzeVideoRemake } from "@/lib/video-api";
 import { getSafeHistoryOutputUrl, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
 import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
 import { getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
@@ -221,6 +221,9 @@ export function VideoWorkspace() {
   const [remakeSceneStyle, setRemakeSceneStyle] = useState("");
   const [remakeTranslateDialogue, setRemakeTranslateDialogue] = useState(true);
   const [remakeStoryboard, setRemakeStoryboard] = useState<RemakeStoryboard | null>(null);
+  const [isRemakeAnalyzing, setIsRemakeAnalyzing] = useState(false);
+  const [remakeAnalysisError, setRemakeAnalysisError] = useState("");
+  const [remakeAnalysisNotice, setRemakeAnalysisNotice] = useState("");
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestDraftSnapshotRef = useRef<{
     media: UploadMediaItem[];
@@ -388,21 +391,40 @@ export function VideoWorkspace() {
     setMedia((currentItems) => currentItems.map((item) => (item.id === id ? { ...item, role } : item)));
   }, []);
 
-  const handleAnalyzeRemakeStoryboard = useCallback(() => {
-    // TODO: Replace this front-end mock with POST /api/internal/video/reverse-analyze in Remake-B.
-    setRemakeStoryboard(
-      buildMockRemakeStoryboard(
-        {
-          characterRules: remakeCharacterRules,
-          mode: remakeMode,
-          sceneStyle: remakeSceneStyle,
-          targetRegion: remakeTargetRegion,
-          translateDialogue: remakeTranslateDialogue,
-        },
-        remakeSourceVideo,
-      ),
-    );
-  }, [remakeCharacterRules, remakeMode, remakeSceneStyle, remakeSourceVideo, remakeTargetRegion, remakeTranslateDialogue]);
+  const handleAnalyzeRemakeStoryboard = useCallback(async () => {
+    const settings = {
+      characterRules: remakeCharacterRules,
+      mode: remakeMode,
+      sceneStyle: remakeSceneStyle,
+      targetRegion: remakeTargetRegion,
+      translateDialogue: remakeTranslateDialogue,
+    };
+
+    setIsRemakeAnalyzing(true);
+    setRemakeAnalysisError("");
+    setRemakeAnalysisNotice("");
+
+    try {
+      const result = await reverseAnalyzeVideoRemake({
+        ...settings,
+        sourceFileName: remakeSourceVideo?.name || "",
+        sourceLanguage: "zh",
+        sourceVideoUrl: "",
+        targetLanguage: "en",
+      });
+
+      setRemakeStoryboard(result.storyboard);
+      setRemakeAnalysisNotice(result.meta?.mock ? t("video.remake.backendMockNotice") : "");
+    } catch (error) {
+      setRemakeStoryboard(buildMockRemakeStoryboard(settings, remakeSourceVideo));
+      setRemakeAnalysisError(
+        `${t("video.remake.analysisFailed")} ${error instanceof Error ? error.message : t("video.remake.apiUnavailable")}`,
+      );
+      setRemakeAnalysisNotice(t("video.remake.mockFallback"));
+    } finally {
+      setIsRemakeAnalyzing(false);
+    }
+  }, [remakeCharacterRules, remakeMode, remakeSceneStyle, remakeSourceVideo, remakeTargetRegion, remakeTranslateDialogue, t]);
 
   const handleUseRemakePrompt = useCallback(
     (nextPrompt: string) => {
@@ -719,7 +741,10 @@ export function VideoWorkspace() {
         <div className="se-subtle-scrollbar grid min-h-0 flex-1 content-start gap-3 overflow-y-auto p-3">
           {workspaceMode === "remake" ? (
             <VideoRemakeWorkspace
+              analysisError={remakeAnalysisError}
+              analysisNotice={remakeAnalysisNotice}
               characterRules={remakeCharacterRules}
+              isAnalyzing={isRemakeAnalyzing}
               mode={remakeMode}
               onAnalyze={handleAnalyzeRemakeStoryboard}
               onCharacterRulesChange={setRemakeCharacterRules}
@@ -812,6 +837,7 @@ export function VideoWorkspace() {
       <main className="flex min-h-[520px] min-w-0 flex-col overflow-hidden xl:min-h-0">
         {workspaceMode === "remake" ? (
           <RemakeStoryboardPanel
+            analysisNotice={remakeAnalysisNotice}
             onUsePrompt={handleUseRemakePrompt}
             settings={{
               characterRules: remakeCharacterRules,

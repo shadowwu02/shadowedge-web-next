@@ -1,4 +1,5 @@
 import { apiRequest } from "@/lib/api";
+import type { RemakeMode, RemakeStoryboard, RemakeTargetRegion } from "@/components/video/remake/remakeTypes";
 import { getSafeHistoryOutputUrl, getSafeHistoryThumbnailUrl } from "@/lib/video/historyUtils";
 import type {
   UploadedMediaResponse,
@@ -11,6 +12,27 @@ import type {
 
 type RawModel = Record<string, unknown>;
 type RawRecord = Record<string, unknown>;
+
+export type VideoRemakeReverseAnalyzeInput = {
+  characterRules: string;
+  mode: RemakeMode;
+  sceneStyle: string;
+  sourceFileName?: string;
+  sourceLanguage?: string;
+  sourceVideoUrl?: string;
+  targetLanguage?: string;
+  targetRegion: RemakeTargetRegion;
+  translateDialogue: boolean;
+};
+
+export type VideoRemakeReverseAnalyzeResponse = {
+  meta?: {
+    estimatedCredits?: number;
+    mock?: boolean;
+    nextStep?: string;
+  };
+  storyboard: RemakeStoryboard;
+};
 
 function buildDurationArray(config: unknown) {
   const item = (config || {}) as { values?: unknown[]; min?: number; max?: number };
@@ -47,6 +69,57 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
     supportsAudio: Boolean(model.supportsAudio),
     uploadSlots: Array.isArray(model.uploadSlots) ? model.uploadSlots.map(String) : ["media"],
     raw: model,
+  };
+}
+
+function getReverseAnalyzeErrorMessage(payload: unknown) {
+  const record = asRecord(payload);
+  return pickString(record.message, record.error, record.code) || "Reverse analyze API request failed.";
+}
+
+export async function reverseAnalyzeVideoRemake(input: VideoRemakeReverseAnalyzeInput): Promise<VideoRemakeReverseAnalyzeResponse> {
+  let response: Response;
+
+  try {
+    response = await fetch("/api/internal/video/reverse-analyze", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+      cache: "no-store",
+    });
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : "Reverse analyze API is unavailable.");
+  }
+
+  const text = await response.text();
+  let payload: unknown = null;
+
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    payload = {
+      ok: false,
+      error: text,
+    };
+  }
+
+  const record = asRecord(payload);
+  if (!response.ok || record.ok === false) {
+    throw new Error(getReverseAnalyzeErrorMessage(record));
+  }
+
+  const data = asRecord(record.data);
+  const storyboard = (record.storyboard || data.storyboard) as RemakeStoryboard | undefined;
+
+  if (!storyboard?.shots?.length) {
+    throw new Error("Reverse analyze API returned no storyboard.");
+  }
+
+  return {
+    meta: asRecord(record.meta || data.meta) as VideoRemakeReverseAnalyzeResponse["meta"],
+    storyboard,
   };
 }
 

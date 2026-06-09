@@ -6,7 +6,10 @@ import { useI18n } from "@/i18n/useI18n";
 import type { RemakeMode, RemakeSourceVideo, RemakeTargetRegion } from "@/components/video/remake/remakeTypes";
 
 type VideoRemakeWorkspaceProps = {
+  analysisError?: string;
+  analysisNotice?: string;
   characterRules: string;
+  isAnalyzing?: boolean;
   mode: RemakeMode;
   onAnalyze: () => void;
   onCharacterRulesChange: (value: string) => void;
@@ -22,7 +25,10 @@ type VideoRemakeWorkspaceProps = {
 };
 
 export function VideoRemakeWorkspace({
+  analysisError = "",
+  analysisNotice = "",
   characterRules,
+  isAnalyzing = false,
   mode,
   onAnalyze,
   onCharacterRulesChange,
@@ -48,7 +54,10 @@ export function VideoRemakeWorkspace({
 
       <RemakeSourceUpload onChange={onSourceVideoChange} sourceVideo={sourceVideo} />
       <RemakeSettingsPanel
+        analysisError={analysisError}
+        analysisNotice={analysisNotice}
         characterRules={characterRules}
+        isAnalyzing={isAnalyzing}
         mode={mode}
         onAnalyze={onAnalyze}
         onCharacterRulesChange={onCharacterRulesChange}
