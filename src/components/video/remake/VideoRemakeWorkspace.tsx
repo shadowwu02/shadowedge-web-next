@@ -14,6 +14,7 @@ type VideoRemakeWorkspaceProps = {
   mode: RemakeMode;
   onAnalyze: () => void;
   onCharacterRulesChange: (value: string) => void;
+  onClearSourceVideo: () => void;
   onModeChange: (mode: RemakeMode) => void;
   onSceneStyleChange: (value: string) => void;
   onSourceVideoChange: (source: RemakeSourceVideo | null) => void;
@@ -34,6 +35,7 @@ export function VideoRemakeWorkspace({
   mode,
   onAnalyze,
   onCharacterRulesChange,
+  onClearSourceVideo,
   onModeChange,
   onSceneStyleChange,
   onSourceVideoChange,
@@ -61,6 +63,7 @@ export function VideoRemakeWorkspace({
               (mode === "single_clip" && sourceVideo.duration > 60) ||
               (mode === "full_film" && sourceVideo.duration > 120)),
         )}
+        onClear={onClearSourceVideo}
         onChange={onSourceVideoChange}
         sourceVideo={sourceVideo}
       />

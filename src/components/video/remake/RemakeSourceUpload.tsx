@@ -1,11 +1,12 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useRef } from "react";
 import { useI18n } from "@/i18n/useI18n";
 import type { RemakeSourceVideo } from "@/components/video/remake/remakeTypes";
 
 type RemakeSourceUploadProps = {
   durationWarning?: boolean;
+  onClear: () => void;
   onChange: (source: RemakeSourceVideo | null) => void;
   sourceVideo: RemakeSourceVideo | null;
 };
@@ -54,9 +55,38 @@ function readVideoDuration(file: File) {
   });
 }
 
-export function RemakeSourceUpload({ durationWarning = false, onChange, sourceVideo }: RemakeSourceUploadProps) {
+function TrashIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="size-3.5"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="m19 6-1 14H6L5 6" />
+      <path d="M10 11v5" />
+      <path d="M14 11v5" />
+    </svg>
+  );
+}
+
+export function RemakeSourceUpload({ durationWarning = false, onChange, onClear, sourceVideo }: RemakeSourceUploadProps) {
   const { t } = useI18n();
   const inputId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const selectionVersionRef = useRef(0);
+
+  function handleClear() {
+    selectionVersionRef.current += 1;
+    if (inputRef.current) inputRef.current.value = "";
+    onClear();
+  }
 
   return (
     <section className="rounded-[24px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/70 p-4 shadow-inner shadow-black/10">
@@ -65,9 +95,23 @@ export function RemakeSourceUpload({ durationWarning = false, onChange, sourceVi
           <p className="se-eyebrow">{t("video.remake.sourceVideo")}</p>
           <h2 className="mt-1 text-sm font-semibold text-[#f4f4f4]">{t("video.remake.uploadSource")}</h2>
         </div>
-        <span className="rounded-full border border-[#ffb44d]/28 bg-[#ffb44d]/10 px-2.5 py-1 text-[10px] font-semibold text-[#ffb44d]">
-          {t("video.remake.noBackendNotice")}
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="rounded-full border border-[#ffb44d]/28 bg-[#ffb44d]/10 px-2.5 py-1 text-[10px] font-semibold text-[#ffb44d]">
+            {t("video.remake.noBackendNotice")}
+          </span>
+          {sourceVideo ? (
+            <button
+              aria-label={t("video.remake.removeSourceVideo")}
+              className="inline-flex min-h-8 items-center gap-1.5 rounded-[12px] border border-[rgba(244,244,244,0.10)] bg-[#1a1c22]/70 px-2.5 text-xs font-semibold text-[#f4f4f4]/78 transition-colors hover:border-[#ffb44d]/32 hover:text-[#ffb44d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ffb44d]/50"
+              onClick={handleClear}
+              title={t("video.remake.clearSourceVideo")}
+              type="button"
+            >
+              <TrashIcon />
+              <span>{t("video.remake.removeSourceVideo")}</span>
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <label
@@ -78,13 +122,13 @@ export function RemakeSourceUpload({ durationWarning = false, onChange, sourceVi
           accept="video/*"
           className="sr-only"
           id={inputId}
+          ref={inputRef}
           onChange={(event) => {
             const file = event.target.files?.[0] || null;
-            if (!file) {
-              onChange(null);
-              return;
-            }
+            if (!file) return;
 
+            selectionVersionRef.current += 1;
+            const selectionVersion = selectionVersionRef.current;
             const nextSource = {
               file,
               lastModified: file.lastModified,
@@ -95,8 +139,9 @@ export function RemakeSourceUpload({ durationWarning = false, onChange, sourceVi
 
             onChange(nextSource);
             void readVideoDuration(file).then((duration) => {
-              if (duration > 0) onChange({ ...nextSource, duration });
+              if (selectionVersionRef.current === selectionVersion && duration > 0) onChange({ ...nextSource, duration });
             });
+            event.currentTarget.value = "";
           }}
           type="file"
         />
@@ -116,6 +161,7 @@ export function RemakeSourceUpload({ durationWarning = false, onChange, sourceVi
                 .join(" · ")
             : t("video.remake.sourceHint")}
         </span>
+        {sourceVideo ? <span className="mt-1 block text-[11px] font-semibold text-[#ffb44d]/80">{t("video.remake.replaceSourceVideo")}</span> : null}
       </label>
 
       <div className="mt-3 grid gap-2 text-xs leading-5 text-[#b9b9b9]/62">

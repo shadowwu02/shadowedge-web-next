@@ -507,6 +507,11 @@ function getNextRemakeRetryAttempt(generation: RemakeShotGenerationState | undef
   return Number.isFinite(attempt) && attempt >= 0 ? attempt + 1 : 1;
 }
 
+function isSameRemakeSourceVideo(left: RemakeSourceVideo | null, right: RemakeSourceVideo | null) {
+  if (!left || !right) return false;
+  return left.lastModified === right.lastModified && left.name === right.name && left.size === right.size;
+}
+
 export function VideoWorkspace() {
   const { t, tf } = useI18n();
   const [models, setModels] = useState<VideoModel[]>(fallbackModels);
@@ -548,6 +553,7 @@ export function VideoWorkspace() {
   const remakeActiveRecoveryRef = useRef("");
   const remakeShotGenerationsRef = useRef<Record<string, RemakeShotGenerationState>>({});
   const remakeShotQueueSubmittingRef = useRef(false);
+  const remakeSourceRevisionRef = useRef(0);
   const latestDraftSnapshotRef = useRef<{
     media: UploadMediaItem[];
     mentionBindings: VideoMentionBinding[];
@@ -864,7 +870,28 @@ export function VideoWorkspace() {
     setMedia((currentItems) => currentItems.map((item) => (item.id === id ? { ...item, role } : item)));
   }, []);
 
+  const resetRemakeDerivedSourceState = useCallback((workspaceMessage = "") => {
+    clearRemakeStoryboardDraft();
+    clearRemakeShotQueueDraft();
+    remakeQueueDraftSignatureRef.current = "";
+    remakeQueueDraftHydratedRef.current = "";
+    remakeActiveRecoveryRef.current = "";
+    remakeShotQueueSubmittingRef.current = false;
+    setIsRemakeAnalyzing(false);
+    setIsRemakeSourceUploading(false);
+    setRemakeStoryboard(null);
+    setRemakeAnalysisMeta(null);
+    setRemakeAnalysisError("");
+    setRemakeAnalysisNotice("");
+    setIsRemakeDraftRestored(false);
+    setRemakeShotGenerations({});
+    setRemakeShotQueue(idleRemakeShotQueue);
+    setRemakeActiveShotRecovery(null);
+    setWorkspaceNotice(workspaceMessage);
+  }, []);
+
   const handleAnalyzeRemakeStoryboard = useCallback(async () => {
+    const analysisRevision = remakeSourceRevisionRef.current;
     const settings = {
       characterRules: remakeCharacterRules,
       mode: remakeMode,
@@ -896,6 +923,7 @@ export function VideoWorkspace() {
 
         try {
           const uploaded = await uploadMedia(remakeSourceVideo.file);
+          if (remakeSourceRevisionRef.current !== analysisRevision) return;
           sourceVideoUrl = uploaded.url;
           sourceVideoForAnalyze = {
             ...remakeSourceVideo,
@@ -910,6 +938,7 @@ export function VideoWorkspace() {
               : current,
           );
         } catch (uploadError) {
+          if (remakeSourceRevisionRef.current !== analysisRevision) return;
           setRemakeAnalysisError(
             `${t("video.remake.sourceUploadFailed")} ${
               uploadError instanceof Error ? uploadError.message : t("video.errors.uploadFailed")
@@ -917,10 +946,11 @@ export function VideoWorkspace() {
           );
           return;
         } finally {
-          setIsRemakeSourceUploading(false);
+          if (remakeSourceRevisionRef.current === analysisRevision) setIsRemakeSourceUploading(false);
         }
       }
 
+      if (remakeSourceRevisionRef.current !== analysisRevision) return;
       setRemakeAnalysisNotice(t("video.remake.vlmAnalyzing"));
       const result = await reverseAnalyzeVideoRemake({
         ...settings,
@@ -929,6 +959,7 @@ export function VideoWorkspace() {
         sourceVideoUrl,
         targetLanguage: "en",
       });
+      if (remakeSourceRevisionRef.current !== analysisRevision) return;
 
       setRemakeStoryboard(result.storyboard);
       setRemakeAnalysisMeta({
@@ -957,6 +988,7 @@ export function VideoWorkspace() {
         setRemakeAnalysisNotice("");
       }
     } catch (error) {
+      if (remakeSourceRevisionRef.current !== analysisRevision) return;
       setRemakeStoryboard(buildMockRemakeStoryboard(settings, remakeSourceVideo));
       setRemakeAnalysisMeta(null);
       setRemakeAnalysisError(
@@ -964,8 +996,10 @@ export function VideoWorkspace() {
       );
       setRemakeAnalysisNotice(t("video.remake.mockFallback"));
     } finally {
-      setIsRemakeAnalyzing(false);
-      setIsRemakeSourceUploading(false);
+      if (remakeSourceRevisionRef.current === analysisRevision) {
+        setIsRemakeAnalyzing(false);
+        setIsRemakeSourceUploading(false);
+      }
     }
   }, [
     getRemakeVlmProviderLabel,
@@ -979,41 +1013,44 @@ export function VideoWorkspace() {
     tf,
   ]);
 
-  const handleRemakeSourceVideoChange = useCallback((source: RemakeSourceVideo | null) => {
-    setRemakeSourceVideo((current) => {
-      if (
-        source &&
-        current?.url &&
-        !source.url &&
-        current.lastModified === source.lastModified &&
-        current.name === source.name &&
-        current.size === source.size
-      ) {
-        return {
-          ...source,
-          url: current.url,
-        };
+  const handleRemakeSourceVideoChange = useCallback(
+    (source: RemakeSourceVideo | null) => {
+      if (!source) {
+        remakeSourceRevisionRef.current += 1;
+        setRemakeSourceVideo(null);
+        resetRemakeDerivedSourceState();
+        return;
       }
 
-      return source;
-    });
-  }, []);
+      const isSameSource = isSameRemakeSourceVideo(remakeSourceVideo, source);
+      if (!isSameSource) {
+        remakeSourceRevisionRef.current += 1;
+        resetRemakeDerivedSourceState();
+      }
+
+      setRemakeSourceVideo(
+        isSameSource && remakeSourceVideo?.url && !source.url
+          ? {
+              ...source,
+              url: remakeSourceVideo.url,
+            }
+          : source,
+      );
+    },
+    [remakeSourceVideo, resetRemakeDerivedSourceState],
+  );
+
+  const handleClearRemakeSourceVideo = useCallback(() => {
+    remakeSourceRevisionRef.current += 1;
+    setRemakeSourceVideo(null);
+    resetRemakeDerivedSourceState(t("video.remake.sourceVideoRemoved"));
+  }, [resetRemakeDerivedSourceState, t]);
 
   const handleClearRemakeDraft = useCallback(() => {
-    clearRemakeStoryboardDraft();
-    clearRemakeShotQueueDraft();
-    remakeQueueDraftSignatureRef.current = "";
-    remakeQueueDraftHydratedRef.current = "";
-    setRemakeStoryboard(null);
-    setRemakeAnalysisMeta(null);
-    setRemakeAnalysisError("");
-    setRemakeAnalysisNotice("");
-    setIsRemakeDraftRestored(false);
-    setRemakeShotGenerations({});
-    setRemakeShotQueue(idleRemakeShotQueue);
+    remakeSourceRevisionRef.current += 1;
     setRemakeSourceVideo(null);
-    setWorkspaceNotice("");
-  }, []);
+    resetRemakeDerivedSourceState();
+  }, [resetRemakeDerivedSourceState]);
 
   const handleUseRemakePrompt = useCallback(
     (nextPrompt: string) => {
@@ -2223,6 +2260,7 @@ export function VideoWorkspace() {
               mode={remakeMode}
               onAnalyze={handleAnalyzeRemakeStoryboard}
               onCharacterRulesChange={setRemakeCharacterRules}
+              onClearSourceVideo={handleClearRemakeSourceVideo}
               onModeChange={setRemakeMode}
               onSceneStyleChange={setRemakeSceneStyle}
               onSourceVideoChange={handleRemakeSourceVideoChange}
