@@ -34,7 +34,12 @@ import { useVideoGeneration } from "@/hooks/useVideoGeneration";
 import { useI18n } from "@/i18n/useI18n";
 import { collectGeneratedResultMediaAssets, collectHistoryInputMediaAssets, collectReusableVideoAssets, mergeMediaAssets } from "@/lib/media-assets";
 import { getVideoModels, reverseAnalyzeVideoRemake, uploadMedia } from "@/lib/video-api";
-import { getSafeHistoryOutputUrl, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
+import {
+  getSafeHistoryOutputUrl,
+  getSafeVideoHistoryErrorMessage,
+  getVideoHistoryTime,
+  isVideoStaleActiveRecord,
+} from "@/lib/video/historyUtils";
 import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
 import { getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
 import {
@@ -98,6 +103,11 @@ const idleRemakeShotQueue: RemakeShotQueueState = {
   queueRunId: "",
   queueTotal: 0,
   status: "idle",
+};
+
+type RemakeHistoryShotCandidate = RemakeShotGenerationState & {
+  historyTime: number;
+  matchPriority: number;
 };
 
 function createRemakeShotQueueRunId() {
@@ -239,6 +249,153 @@ function isSameVideoTaskId(record: VideoTaskRecord, taskId: string) {
   return [record.jobId, record.providerJobId, record.dbJobId]
     .filter(Boolean)
     .some((value) => String(value) === String(taskId));
+}
+
+function asPlainRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function getStringValue(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function getNumberValue(value: unknown) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function isTrueValue(value: unknown) {
+  if (value === true) return true;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") return value.trim().toLowerCase() === "true";
+  return false;
+}
+
+function getRemakeHistoryLookupKey(shotGroupId: string, shotNumber: number) {
+  return `${shotGroupId}:${shotNumber}`;
+}
+
+function getRemakeHistoryTaskId(record: VideoTaskRecord) {
+  const meta = asPlainRecord(record.meta);
+  return (
+    getStringValue(record.jobId) ||
+    getStringValue(record.providerJobId) ||
+    getStringValue(record.dbJobId) ||
+    getStringValue(meta.jobId) ||
+    getStringValue(meta.providerJobId)
+  );
+}
+
+function preferRemakeHistoryCandidate(current: RemakeHistoryShotCandidate | undefined, candidate: RemakeHistoryShotCandidate) {
+  if (!current) return true;
+  if (candidate.matchPriority !== current.matchPriority) return candidate.matchPriority > current.matchPriority;
+  if (candidate.historyTime !== current.historyTime) return candidate.historyTime > current.historyTime;
+  if (candidate.status === "success" && current.status !== "success") return true;
+  return false;
+}
+
+function toRemakeShotGenerationState(candidate: RemakeHistoryShotCandidate): RemakeShotGenerationState {
+  return {
+    error: candidate.error,
+    outputUrl: candidate.outputUrl,
+    queueIndex: candidate.queueIndex,
+    queueRunId: candidate.queueRunId,
+    queueTotal: candidate.queueTotal,
+    status: candidate.status,
+    taskId: candidate.taskId,
+    updatedAt: candidate.updatedAt,
+  };
+}
+
+function buildRemakeHistoryShotMap(
+  records: VideoTaskRecord[],
+  storyboard: RemakeStoryboard | null,
+): Record<string, RemakeShotGenerationState> {
+  if (!storyboard?.shots.length) return {};
+
+  const exactShotKeys = new Map<string, string>();
+  const fallbackShotKeys = new Map<string, string>();
+  storyboard.shots.forEach((shot) => {
+    const lookupKey = getRemakeHistoryLookupKey(shot.shotGroupId, shot.shot);
+    const shotKey = getRemakeShotGenerationKey(storyboard.id, shot);
+    exactShotKeys.set(`${storyboard.id}:${lookupKey}`, shotKey);
+    fallbackShotKeys.set(lookupKey, shotKey);
+  });
+
+  const candidates = new Map<string, RemakeHistoryShotCandidate>();
+
+  records.forEach((record) => {
+    const meta = asPlainRecord(record.meta);
+    if (getStringValue(meta.source) !== "remake") return;
+    if (!isTrueValue(meta.remake)) return;
+    if (getStringValue(meta.remake_source) !== "storyboard_shot") return;
+
+    const shotGroupId = getStringValue(meta.shotGroupId);
+    const shotNumber = getNumberValue(meta.shotNumber);
+    if (!shotGroupId || !shotNumber) return;
+
+    const historyAnalysisId = getStringValue(meta.analysisId);
+    if (historyAnalysisId && historyAnalysisId !== storyboard.id) return;
+
+    const lookupKey = getRemakeHistoryLookupKey(shotGroupId, shotNumber);
+    const isExactMatch = Boolean(historyAnalysisId);
+    const shotKey = isExactMatch
+      ? exactShotKeys.get(`${historyAnalysisId}:${lookupKey}`)
+      : fallbackShotKeys.get(lookupKey);
+    if (!shotKey) return;
+
+    const outputUrl = getSafeHistoryOutputUrl(record);
+    const status = String(record.status || "");
+    const isSuccess = Boolean(outputUrl);
+    const isFailed = isVideoFailedStatus(status);
+    if (!isSuccess && !isFailed) return;
+
+    const historyTime = getVideoHistoryTime(record);
+    const candidate: RemakeHistoryShotCandidate = {
+      error: isFailed ? getSafeVideoHistoryErrorMessage(record) : "",
+      historyTime,
+      matchPriority: isExactMatch ? 2 : 1,
+      outputUrl: isSuccess ? outputUrl : "",
+      queueIndex: getNumberValue(meta.queueIndex) || undefined,
+      queueRunId: getStringValue(meta.queueRunId) || undefined,
+      queueTotal: getNumberValue(meta.queueTotal) || undefined,
+      status: isSuccess ? "success" : "failed",
+      taskId: getRemakeHistoryTaskId(record) || undefined,
+      updatedAt: historyTime || undefined,
+    };
+
+    if (preferRemakeHistoryCandidate(candidates.get(shotKey), candidate)) {
+      candidates.set(shotKey, candidate);
+    }
+  });
+
+  return Object.fromEntries(
+    Array.from(candidates.entries()).map(([key, candidate]) => [key, toRemakeShotGenerationState(candidate)]),
+  );
+}
+
+function shouldApplyRemakeHistoryGeneration(
+  current: RemakeShotGenerationState | undefined,
+  restored: RemakeShotGenerationState,
+) {
+  if (!current) return true;
+  if (current.status === "queued" || current.status === "generating" || current.status === "skipped") return false;
+
+  const currentTime = current.updatedAt || 0;
+  const restoredTime = restored.updatedAt || 0;
+  if (
+    current.status === restored.status &&
+    current.outputUrl === restored.outputUrl &&
+    current.error === restored.error &&
+    current.taskId === restored.taskId
+  ) {
+    return false;
+  }
+
+  if (current.status === "success" && current.outputUrl && currentTime >= restoredTime) return false;
+  if (current.status === "failed" && currentTime > restoredTime) return false;
+
+  return true;
 }
 
 export function VideoWorkspace() {
@@ -779,6 +936,35 @@ export function VideoWorkspace() {
       token,
     ],
   );
+
+  const remakeHistoryShotMap = useMemo(
+    () => buildRemakeHistoryShotMap(task ? [task, ...history] : history, remakeStoryboard),
+    [history, remakeStoryboard, task],
+  );
+
+  useEffect(() => {
+    if (!Object.keys(remakeHistoryShotMap).length) return;
+
+    const timer = window.setTimeout(() => {
+      setRemakeShotGenerations((current) => {
+        let changed = false;
+        const next = { ...current };
+
+        Object.entries(remakeHistoryShotMap).forEach(([shotKey, restoredGeneration]) => {
+          if (!shouldApplyRemakeHistoryGeneration(current[shotKey], restoredGeneration)) return;
+          next[shotKey] = {
+            ...(current[shotKey] || {}),
+            ...restoredGeneration,
+          };
+          changed = true;
+        });
+
+        return changed ? next : current;
+      });
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [remakeHistoryShotMap]);
 
   const displayedRemakeShotGenerations = useMemo(() => {
     const entries = Object.entries(remakeShotGenerations).filter(([, generation]) => generation.taskId);
