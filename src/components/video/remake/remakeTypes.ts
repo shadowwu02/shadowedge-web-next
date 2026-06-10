@@ -66,11 +66,16 @@ export type RemakeShot = {
   };
 };
 
-export type RemakeShotGenerationStatus = "idle" | "generating" | "success" | "failed";
+export type RemakeShotQueueStatus = "idle" | "running" | "paused" | "completed" | "failed" | "cancelled";
+
+export type RemakeShotGenerationStatus = "idle" | "queued" | "generating" | "success" | "failed" | "skipped";
 
 export type RemakeShotGenerationState = {
   error?: string;
   outputUrl?: string;
+  queueIndex?: number;
+  queueRunId?: string;
+  queueTotal?: number;
   startedAt?: number;
   status: RemakeShotGenerationStatus;
   taskId?: string;

@@ -8,18 +8,27 @@ import type {
   RemakeSettings,
   RemakeShot,
   RemakeShotGenerationState,
+  RemakeShotQueueStatus,
   RemakeSourceVideoMetadata,
   RemakeStoryboard,
 } from "@/components/video/remake/remakeTypes";
 
 type RemakeStoryboardPanelProps = {
   analysisNotice?: string;
+  canGenerateAllShots?: boolean;
   metadata?: {
     segments?: RemakeSegment[];
     sourceVideo?: RemakeSourceVideoMetadata;
   };
+  onCancelQueue?: () => void;
+  onContinueQueue?: () => void;
+  onGenerateAllShots?: () => void;
   onGenerateShot: (shot: RemakeShot) => void;
+  onSkipFailedShot?: () => void;
   onUsePrompt: (prompt: string) => void;
+  queueCompletedCount?: number;
+  queueStatus?: RemakeShotQueueStatus;
+  queueTotal?: number;
   settings: RemakeSettings;
   shotGenerations?: Record<string, RemakeShotGenerationState>;
   storyboard: RemakeStoryboard | null;
@@ -110,9 +119,17 @@ function RemakeKeyframes({ keyframes }: { keyframes: RemakeKeyframe[] }) {
 
 export function RemakeStoryboardPanel({
   analysisNotice = "",
+  canGenerateAllShots = false,
   metadata,
+  onCancelQueue,
+  onContinueQueue,
+  onGenerateAllShots,
   onGenerateShot,
+  onSkipFailedShot,
   onUsePrompt,
+  queueCompletedCount = 0,
+  queueStatus = "idle",
+  queueTotal = 0,
   settings,
   shotGenerations = {},
   storyboard,
@@ -120,6 +137,19 @@ export function RemakeStoryboardPanel({
   const { t } = useI18n();
   const shots = storyboard?.shots || [];
   const segments = metadata?.segments || [];
+  const isQueueRunning = queueStatus === "running";
+  const isQueuePaused = queueStatus === "paused";
+  const hasQueueStatus = queueStatus === "running" || queueStatus === "paused" || queueStatus === "completed" || queueStatus === "cancelled";
+  const queueStatusLabel =
+    queueStatus === "running"
+      ? t("video.remake.queueRunning")
+      : queueStatus === "paused"
+        ? t("video.remake.queuePaused")
+        : queueStatus === "completed"
+          ? t("video.remake.queueCompleted")
+          : queueStatus === "cancelled"
+            ? t("video.remake.queueCancelled")
+            : "";
 
   return (
     <section className="se-scrollbar h-full min-h-[520px] overflow-y-auto overflow-x-hidden rounded-[30px] border border-[rgba(244,244,244,0.08)] bg-[linear-gradient(180deg,rgba(17,19,24,0.88),rgba(5,7,11,0.95))] p-4 shadow-[0_28px_80px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(244,244,244,0.035)]">
@@ -134,8 +164,66 @@ export function RemakeStoryboardPanel({
             {settings.mode === "single_clip" ? t("video.remake.mode.singleClip") : t("video.remake.mode.fullFilm")}
           </span>
           <span>{settings.targetRegion}</span>
+          {canGenerateAllShots ? (
+            <button
+              className="min-h-9 rounded-[14px] border border-[#ffb44d]/34 bg-[#ffb44d] px-3 text-xs font-semibold text-[#05070b] transition-colors hover:bg-[#ffc766]"
+              onClick={onGenerateAllShots}
+              type="button"
+            >
+              {t("video.remake.generateAllShots")}
+            </button>
+          ) : null}
+          {isQueueRunning ? (
+            <button
+              className="min-h-9 rounded-[14px] border border-red-300/24 bg-red-500/10 px-3 text-xs font-semibold text-red-100/82 transition-colors hover:bg-red-500/16"
+              onClick={onCancelQueue}
+              type="button"
+            >
+              {t("video.remake.cancelQueue")}
+            </button>
+          ) : null}
+          {isQueuePaused ? (
+            <div className="grid gap-1.5">
+              <button
+                className="min-h-9 rounded-[14px] border border-[#ffb44d]/34 bg-[#ffb44d] px-3 text-xs font-semibold text-[#05070b] transition-colors hover:bg-[#ffc766]"
+                onClick={onContinueQueue}
+                type="button"
+              >
+                {t("video.remake.continueQueue")}
+              </button>
+              <button
+                className="min-h-9 rounded-[14px] border border-[rgba(244,244,244,0.1)] bg-[#1a1c22]/64 px-3 text-xs font-semibold text-[#f4f4f4]/82 transition-colors hover:border-[#ffb44d]/34 hover:text-[#ffb44d]"
+                onClick={onSkipFailedShot}
+                type="button"
+              >
+                {t("video.remake.skipShot")}
+              </button>
+              <button
+                className="min-h-9 rounded-[14px] border border-red-300/24 bg-red-500/10 px-3 text-xs font-semibold text-red-100/82 transition-colors hover:bg-red-500/16"
+                onClick={onCancelQueue}
+                type="button"
+              >
+                {t("video.remake.cancelQueue")}
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
+
+      {storyboard ? (
+        <div className="mb-5 grid gap-2 rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/58 p-3 text-sm leading-6 text-[#b9b9b9]/72">
+          <p>{t("video.remake.queueCreditNotice")}</p>
+          {hasQueueStatus ? (
+            <p className="font-semibold text-[#f4f4f4]/82">
+              {queueStatusLabel}
+              {queueTotal ? ` ${queueCompletedCount}/${queueTotal}` : ""}
+            </p>
+          ) : null}
+          {isQueuePaused ? (
+            <p className="text-[#ffd08a]/86">{t("video.remake.queueFailedNotice")}</p>
+          ) : null}
+        </div>
+      ) : null}
 
       {storyboard ? (
         <div className="mb-5 grid gap-3 lg:grid-cols-4">
@@ -160,6 +248,8 @@ export function RemakeStoryboardPanel({
             const keyframes = getShotKeyframes(shot, segments);
             const generation = shotGenerations[getRemakeShotGenerationKey(storyboard?.id, shot)];
             const isGenerating = generation?.status === "generating";
+            const isQueued = generation?.status === "queued";
+            const isSkipped = generation?.status === "skipped";
             const hasGeneratedOutput = generation?.status === "success" && Boolean(generation.outputUrl);
 
             return (
@@ -178,6 +268,16 @@ export function RemakeStoryboardPanel({
                   <span className="rounded-full border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/70 px-3 py-1.5 text-xs font-medium text-[#b9b9b9]/72">
                     {formatTimeRange(shot)}
                   </span>
+                  {isQueued ? (
+                    <span className="rounded-full border border-[#ffb44d]/28 bg-[#ffb44d]/10 px-3 py-1.5 text-xs font-semibold text-[#ffb44d]">
+                      {t("video.remake.queued")}
+                    </span>
+                  ) : null}
+                  {isSkipped ? (
+                    <span className="rounded-full border border-[rgba(244,244,244,0.1)] bg-[#1a1c22]/66 px-3 py-1.5 text-xs font-semibold text-[#b9b9b9]/68">
+                      {t("video.remake.skipped")}
+                    </span>
+                  ) : null}
                 </div>
 
                 <RemakeKeyframes keyframes={keyframes} />
@@ -239,15 +339,17 @@ export function RemakeStoryboardPanel({
                   ) : null}
                   <button
                     className={`min-h-10 rounded-[16px] border px-3 text-sm font-semibold transition-colors ${
-                      isGenerating
+                      isGenerating || isQueued || isQueueRunning
                         ? "cursor-wait border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/56 text-[#b9b9b9]/54"
                         : "border-[#ffb44d]/34 bg-[#ffb44d] text-[#05070b] hover:bg-[#ffc766]"
                     }`}
-                    disabled={isGenerating}
+                    disabled={isGenerating || isQueued || isQueueRunning}
                     onClick={() => onGenerateShot(shot)}
                     type="button"
                   >
-                    {isGenerating
+                    {isQueued
+                      ? t("video.remake.queued")
+                      : isGenerating
                       ? t("video.remake.generatingShot")
                       : generation?.status === "success" || generation?.status === "failed"
                         ? t("video.remake.retryShot")

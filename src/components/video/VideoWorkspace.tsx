@@ -21,6 +21,7 @@ import type {
   RemakeSegment,
   RemakeShot,
   RemakeShotGenerationState,
+  RemakeShotQueueStatus,
   RemakeSourceVideo,
   RemakeSourceVideoMetadata,
   RemakeStoryboard,
@@ -77,6 +78,31 @@ const fallbackModels: VideoModel[] = [
 
 type MainPanel = "history" | "guide";
 type WorkspaceMode = "create" | "edit" | "motion" | "remake";
+type RemakeShotQueueMeta = {
+  queueIndex: number;
+  queueMode: "serial";
+  queueRunId: string;
+  queueTotal: number;
+};
+type RemakeShotQueueState = {
+  activeShotKey?: string;
+  ignoredShotKeys: string[];
+  pausedShotKey?: string;
+  queueRunId: string;
+  queueTotal: number;
+  status: RemakeShotQueueStatus;
+};
+
+const idleRemakeShotQueue: RemakeShotQueueState = {
+  ignoredShotKeys: [],
+  queueRunId: "",
+  queueTotal: 0,
+  status: "idle",
+};
+
+function createRemakeShotQueueRunId() {
+  return `remake_queue_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
 
 function getVideoModelRuleId(model: VideoModel) {
   const candidates = [model.id, model.providerModel, model.label].filter((value): value is string => Boolean(value));
@@ -246,7 +272,9 @@ export function VideoWorkspace() {
   const [remakeAnalysisError, setRemakeAnalysisError] = useState("");
   const [remakeAnalysisNotice, setRemakeAnalysisNotice] = useState("");
   const [remakeShotGenerations, setRemakeShotGenerations] = useState<Record<string, RemakeShotGenerationState>>({});
+  const [remakeShotQueue, setRemakeShotQueue] = useState<RemakeShotQueueState>(idleRemakeShotQueue);
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const remakeShotQueueSubmittingRef = useRef(false);
   const latestDraftSnapshotRef = useRef<{
     media: UploadMediaItem[];
     mentionBindings: VideoMentionBinding[];
@@ -601,8 +629,15 @@ export function VideoWorkspace() {
   }, [hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, selectedModel.credits, t, tf, token]);
 
   const handleGenerateRemakeShot = useCallback(
-    async (shot: RemakeShot) => {
+    async (shot: RemakeShot, queueMeta?: RemakeShotQueueMeta) => {
       const shotKey = getRemakeShotGenerationKey(remakeStoryboard?.id, shot);
+      const queueGenerationMeta = queueMeta
+        ? {
+            queueIndex: queueMeta.queueIndex,
+            queueRunId: queueMeta.queueRunId,
+            queueTotal: queueMeta.queueTotal,
+          }
+        : {};
       setWorkspaceNotice("");
 
       const failShot = (message: string) => {
@@ -610,6 +645,7 @@ export function VideoWorkspace() {
           ...current,
           [shotKey]: {
             ...(current[shotKey] || { status: "idle" }),
+            ...queueGenerationMeta,
             error: message,
             status: "failed",
             updatedAt: Date.now(),
@@ -659,6 +695,7 @@ export function VideoWorkspace() {
         [shotKey]: {
           error: "",
           outputUrl: "",
+          ...queueGenerationMeta,
           startedAt,
           status: "generating",
           updatedAt: startedAt,
@@ -687,6 +724,14 @@ export function VideoWorkspace() {
           audio: shot.audio,
           referenceHints: shot.referenceHints,
           generationParams: shot.generationParams,
+          ...(queueMeta
+            ? {
+                queueRunId: queueMeta.queueRunId,
+                queueIndex: queueMeta.queueIndex,
+                queueTotal: queueMeta.queueTotal,
+                queueMode: queueMeta.queueMode,
+              }
+            : {}),
           remakeTargetRegion,
           remakeCharacterRules,
           remakeSceneStyle,
@@ -706,6 +751,7 @@ export function VideoWorkspace() {
           ...(current[shotKey] || {}),
           error: "",
           outputUrl: "",
+          ...queueGenerationMeta,
           startedAt,
           status: "generating",
           taskId: nextTask.jobId,
@@ -789,6 +835,249 @@ export function VideoWorkspace() {
 
     return next;
   }, [history, remakeShotGenerations, t, task]);
+
+  const remakeShots = useMemo(() => remakeStoryboard?.shots || [], [remakeStoryboard]);
+  const unfinishedRemakeShots = useMemo(
+    () =>
+      remakeShots.filter((shot) => {
+        const generation = displayedRemakeShotGenerations[getRemakeShotGenerationKey(remakeStoryboard?.id, shot)];
+        return generation?.status !== "success" && generation?.status !== "skipped";
+      }),
+    [displayedRemakeShotGenerations, remakeShots, remakeStoryboard?.id],
+  );
+  const isRemakeQueueActive = remakeShotQueue.status === "running" || remakeShotQueue.status === "paused";
+  const canGenerateAllRemakeShots = Boolean(
+    remakeStoryboard &&
+      unfinishedRemakeShots.length > 0 &&
+      !isProcessing &&
+      !isSubmitting &&
+      !isRemakeQueueActive &&
+      !isRemakeAnalyzing &&
+      !isRemakeSourceUploading &&
+      (token || isSignedIn),
+  );
+  const remakeQueueCompletedCount = useMemo(() => {
+    if (!remakeShotQueue.queueRunId) return 0;
+
+    return remakeShots.filter((shot) => {
+      const generation = displayedRemakeShotGenerations[getRemakeShotGenerationKey(remakeStoryboard?.id, shot)];
+      return generation?.queueRunId === remakeShotQueue.queueRunId && generation.status === "success";
+    }).length;
+  }, [displayedRemakeShotGenerations, remakeShotQueue.queueRunId, remakeShots, remakeStoryboard?.id]);
+
+  const handleGenerateAllRemakeShots = useCallback(() => {
+    if (!remakeStoryboard || !unfinishedRemakeShots.length) return;
+
+    if (!canGenerateAllRemakeShots) {
+      setWorkspaceNotice(t("video.errors.activeGeneration"));
+      return;
+    }
+
+    const queueRunId = createRemakeShotQueueRunId();
+    const queueTotal = unfinishedRemakeShots.length;
+    const now = Date.now();
+
+    setRemakeShotQueue({
+      ignoredShotKeys: [],
+      queueRunId,
+      queueTotal,
+      status: "running",
+    });
+    setRemakeShotGenerations((current) => {
+      const next = { ...current };
+      unfinishedRemakeShots.forEach((shot, index) => {
+        const shotKey = getRemakeShotGenerationKey(remakeStoryboard.id, shot);
+        next[shotKey] = {
+          ...(next[shotKey] || {}),
+          error: "",
+          outputUrl: "",
+          queueIndex: index + 1,
+          queueRunId,
+          queueTotal,
+          status: "queued",
+          updatedAt: now,
+        };
+      });
+      return next;
+    });
+    setWorkspaceNotice(t("video.remake.queueRunning"));
+  }, [canGenerateAllRemakeShots, remakeStoryboard, t, unfinishedRemakeShots]);
+
+  const handleCancelRemakeQueue = useCallback(() => {
+    const cancelledRunId = remakeShotQueue.queueRunId;
+
+    setRemakeShotQueue((current) => ({
+      ...current,
+      activeShotKey: undefined,
+      pausedShotKey: undefined,
+      status: "cancelled",
+    }));
+    setRemakeShotGenerations((current) => {
+      if (!cancelledRunId) return current;
+      let changed = false;
+      const next = { ...current };
+
+      Object.entries(next).forEach(([key, generation]) => {
+        if (generation.queueRunId !== cancelledRunId || generation.status !== "queued") return;
+        changed = true;
+        next[key] = {
+          ...generation,
+          status: "idle",
+          updatedAt: Date.now(),
+        };
+      });
+
+      return changed ? next : current;
+    });
+    setWorkspaceNotice(t("video.remake.queueCancelled"));
+  }, [remakeShotQueue.queueRunId, t]);
+
+  const handleContinueRemakeQueue = useCallback(() => {
+    setRemakeShotQueue((current) => {
+      if (current.status !== "paused") return current;
+      const ignoredShotKeys = current.pausedShotKey
+        ? Array.from(new Set([...current.ignoredShotKeys, current.pausedShotKey]))
+        : current.ignoredShotKeys;
+
+      return {
+        ...current,
+        activeShotKey: undefined,
+        ignoredShotKeys,
+        pausedShotKey: undefined,
+        status: "running",
+      };
+    });
+    setWorkspaceNotice(t("video.remake.queueRunning"));
+  }, [t]);
+
+  const handleSkipFailedRemakeShot = useCallback(() => {
+    const failedShotKey = remakeShotQueue.pausedShotKey;
+    if (!failedShotKey) return;
+
+    setRemakeShotGenerations((current) => ({
+      ...current,
+      [failedShotKey]: {
+        ...(current[failedShotKey] || { status: "idle" }),
+        error: "",
+        status: "skipped",
+        updatedAt: Date.now(),
+      },
+    }));
+    setRemakeShotQueue((current) => ({
+      ...current,
+      activeShotKey: undefined,
+      ignoredShotKeys: Array.from(new Set([...current.ignoredShotKeys, failedShotKey])),
+      pausedShotKey: undefined,
+      status: "running",
+    }));
+    setWorkspaceNotice(t("video.remake.queueRunning"));
+  }, [remakeShotQueue.pausedShotKey, t]);
+
+  useEffect(() => {
+    if (remakeShotQueue.status !== "running" || !remakeStoryboard) return;
+    if (remakeShotQueueSubmittingRef.current || isSubmitting || isProcessing) return;
+
+    const ignoredShotKeys = new Set(remakeShotQueue.ignoredShotKeys);
+    const queueRunId = remakeShotQueue.queueRunId;
+    const queueShots = remakeStoryboard.shots.map((shot) => {
+      const key = getRemakeShotGenerationKey(remakeStoryboard.id, shot);
+      return {
+        generation: displayedRemakeShotGenerations[key],
+        key,
+        shot,
+      };
+    });
+
+    if (queueShots.some((item) => item.generation?.queueRunId === queueRunId && item.generation.status === "generating")) {
+      return;
+    }
+
+    const failedShot = queueShots.find(
+      (item) => item.generation?.queueRunId === queueRunId && item.generation.status === "failed" && !ignoredShotKeys.has(item.key),
+    );
+
+    if (failedShot) {
+      const timer = window.setTimeout(() => {
+        setRemakeShotQueue((current) =>
+          current.queueRunId === queueRunId
+            ? {
+                ...current,
+                activeShotKey: undefined,
+                pausedShotKey: failedShot.key,
+                status: "paused",
+              }
+            : current,
+        );
+        setWorkspaceNotice(t("video.remake.queueFailedNotice"));
+      }, 0);
+
+      return () => window.clearTimeout(timer);
+    }
+
+    const nextShot = queueShots.find((item) => {
+      if (ignoredShotKeys.has(item.key)) return false;
+      if (item.generation?.queueRunId !== queueRunId) return false;
+      return item.generation.status === "queued" || item.generation.status === "idle";
+    });
+
+    if (!nextShot) {
+      const timer = window.setTimeout(() => {
+        setRemakeShotQueue((current) =>
+          current.queueRunId === queueRunId
+            ? {
+                ...current,
+                activeShotKey: undefined,
+                pausedShotKey: undefined,
+                status: "completed",
+              }
+            : current,
+        );
+        setWorkspaceNotice(t("video.remake.queueCompleted"));
+      }, 0);
+
+      return () => window.clearTimeout(timer);
+    }
+
+    const queueIndex = nextShot.generation?.queueIndex || 1;
+    const queueTotal = nextShot.generation?.queueTotal || remakeShotQueue.queueTotal || 1;
+
+    let started = false;
+    remakeShotQueueSubmittingRef.current = true;
+
+    const timer = window.setTimeout(() => {
+      started = true;
+      setRemakeShotQueue((current) =>
+        current.queueRunId === queueRunId
+          ? {
+              ...current,
+              activeShotKey: nextShot.key,
+            }
+          : current,
+      );
+
+      void handleGenerateRemakeShot(nextShot.shot, {
+        queueIndex,
+        queueMode: "serial",
+        queueRunId,
+        queueTotal,
+      }).finally(() => {
+        remakeShotQueueSubmittingRef.current = false;
+      });
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+      if (!started) remakeShotQueueSubmittingRef.current = false;
+    };
+  }, [
+    displayedRemakeShotGenerations,
+    handleGenerateRemakeShot,
+    isProcessing,
+    isSubmitting,
+    remakeShotQueue,
+    remakeStoryboard,
+    t,
+  ]);
 
   const findRetryModel = useCallback((record: { modelId?: string; providerModel?: string; frontendModel?: string; model?: string }) => {
     return (
@@ -1152,8 +1441,16 @@ export function VideoWorkspace() {
         {workspaceMode === "remake" ? (
           <RemakeStoryboardPanel
             analysisNotice={remakeAnalysisNotice}
+            canGenerateAllShots={canGenerateAllRemakeShots}
             metadata={remakeAnalysisMeta || undefined}
+            onCancelQueue={handleCancelRemakeQueue}
+            onContinueQueue={handleContinueRemakeQueue}
+            onGenerateAllShots={handleGenerateAllRemakeShots}
             onGenerateShot={handleGenerateRemakeShot}
+            onSkipFailedShot={handleSkipFailedRemakeShot}
+            queueCompletedCount={remakeQueueCompletedCount}
+            queueStatus={remakeShotQueue.status}
+            queueTotal={remakeShotQueue.queueTotal}
             onUsePrompt={handleUseRemakePrompt}
             settings={{
               characterRules: remakeCharacterRules,
