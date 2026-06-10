@@ -309,6 +309,46 @@ function asPlainRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
+function getNestedPlainRecord(source: Record<string, unknown>, key: string) {
+  return asPlainRecord(source[key]);
+}
+
+function getRemakeHistoryMeta(record: VideoTaskRecord) {
+  const raw = asPlainRecord(record);
+  const request = getNestedPlainRecord(raw, "request");
+  const rawPayload = getNestedPlainRecord(raw, "raw");
+  const params = getNestedPlainRecord(raw, "params");
+  const data = getNestedPlainRecord(raw, "data");
+
+  return (
+    [
+      asPlainRecord(raw.meta),
+      asPlainRecord(raw.metadata),
+      asPlainRecord(request.meta),
+      asPlainRecord(rawPayload.meta),
+      asPlainRecord(params.meta),
+      asPlainRecord(data.meta),
+    ].find((meta) => Object.keys(meta).length > 0) || {}
+  );
+}
+
+function getRemakeHistoryOutputUrl(record: VideoTaskRecord) {
+  const raw = asPlainRecord(record);
+  const request = getNestedPlainRecord(raw, "request");
+  const rawPayload = getNestedPlainRecord(raw, "raw");
+  const params = getNestedPlainRecord(raw, "params");
+  const data = getNestedPlainRecord(raw, "data");
+
+  return (
+    getSafeHistoryOutputUrl(record) ||
+    getSafeHistoryOutputUrl(raw.metadata) ||
+    getSafeHistoryOutputUrl(request) ||
+    getSafeHistoryOutputUrl(rawPayload) ||
+    getSafeHistoryOutputUrl(params) ||
+    getSafeHistoryOutputUrl(data)
+  );
+}
+
 function getStringValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : "";
 }
@@ -326,11 +366,11 @@ function isTrueValue(value: unknown) {
 }
 
 function getRemakeHistoryLookupKey(shotGroupId: string, shotNumber: number) {
-  return `${shotGroupId}:${shotNumber}`;
+  return `${shotGroupId}:${String(shotNumber)}`;
 }
 
 function getRemakeHistoryTaskId(record: VideoTaskRecord) {
-  const meta = asPlainRecord(record.meta);
+  const meta = getRemakeHistoryMeta(record);
   return (
     getStringValue(record.jobId) ||
     getStringValue(record.providerJobId) ||
@@ -384,7 +424,7 @@ function buildRemakeHistoryShotMap(
   const candidates = new Map<string, RemakeHistoryShotCandidate>();
 
   records.forEach((record) => {
-    const meta = asPlainRecord(record.meta);
+    const meta = getRemakeHistoryMeta(record);
     if (getStringValue(meta.source) !== "remake") return;
     if (!isTrueValue(meta.remake)) return;
     if (getStringValue(meta.remake_source) !== "storyboard_shot") return;
@@ -403,7 +443,7 @@ function buildRemakeHistoryShotMap(
       : fallbackShotKeys.get(lookupKey);
     if (!shotKey) return;
 
-    const outputUrl = getSafeHistoryOutputUrl(record);
+    const outputUrl = getRemakeHistoryOutputUrl(record);
     const status = String(record.status || "");
     const isSuccess = Boolean(outputUrl);
     const isFailed = isVideoFailedStatus(status);
