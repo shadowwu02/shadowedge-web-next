@@ -96,9 +96,14 @@ export function RemakeSourceUpload({ durationWarning = false, onChange, onClear,
           <h2 className="mt-1 text-sm font-semibold text-[#f4f4f4]">{t("video.remake.uploadSource")}</h2>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <span className="rounded-full border border-[#ffb44d]/28 bg-[#ffb44d]/10 px-2.5 py-1 text-[10px] font-semibold text-[#ffb44d]">
-            {t("video.remake.noBackendNotice")}
+          <span className="rounded-full border border-[rgba(244,244,244,0.10)] bg-[#1a1c22]/70 px-2.5 py-1 text-[10px] font-semibold text-[#b9b9b9]/72">
+            {t("video.remake.sourceVideo")}
           </span>
+          {sourceVideo ? (
+            <span className="rounded-full border border-[#ffb44d]/28 bg-[#ffb44d]/10 px-2.5 py-1 text-[10px] font-semibold text-[#ffb44d]">
+              {t("video.remake.readyToAnalyze")}
+            </span>
+          ) : null}
           {sourceVideo ? (
             <button
               aria-label={t("video.remake.removeSourceVideo")}
@@ -161,6 +166,7 @@ export function RemakeSourceUpload({ durationWarning = false, onChange, onClear,
                 .join(" · ")
             : t("video.remake.sourceHint")}
         </span>
+        {sourceVideo ? <span className="mt-2 block text-xs font-semibold text-[#ffb44d]">{t("video.remake.sourceReady")}</span> : null}
         {sourceVideo ? <span className="mt-1 block text-[11px] font-semibold text-[#ffb44d]/80">{t("video.remake.replaceSourceVideo")}</span> : null}
       </label>
 

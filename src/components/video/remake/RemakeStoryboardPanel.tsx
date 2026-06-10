@@ -20,6 +20,8 @@ type RemakeStoryboardPanelProps = {
   canRetryAllFailedShots?: boolean;
   disableGenerationActions?: boolean;
   draftNotice?: string;
+  hasSourceVideo?: boolean;
+  isAnalyzing?: boolean;
   metadata?: {
     segments?: RemakeSegment[];
     sourceVideo?: RemakeSourceVideoMetadata;
@@ -132,6 +134,8 @@ export function RemakeStoryboardPanel({
   canRetryAllFailedShots = false,
   disableGenerationActions = false,
   draftNotice = "",
+  hasSourceVideo = false,
+  isAnalyzing = false,
   metadata,
   onCancelQueue,
   onClearDraft,
@@ -159,6 +163,16 @@ export function RemakeStoryboardPanel({
   const isQueueInterrupted = isQueuePaused && queueWasInterrupted;
   const isRetryQueue = queueIntent === "retry_failed" || queueIntent === "retry_single";
   const hasQueueStatus = queueStatus === "running" || queueStatus === "paused" || queueStatus === "completed" || queueStatus === "cancelled";
+  const emptyStateTitle = isAnalyzing
+    ? t("video.remake.analyzingSourceVideoTitle")
+    : hasSourceVideo
+      ? t("video.remake.sourceReady")
+      : t("video.remake.noStoryboardTitle");
+  const emptyStateBody = isAnalyzing
+    ? t("video.remake.analyzingStoryboardHint")
+    : hasSourceVideo
+      ? t("video.remake.sourceReadyStoryboardHint")
+      : t("video.remake.noSourceStoryboardHint");
   const queueStatusLabel =
     queueStatus === "running"
       ? isRetryQueue
@@ -435,8 +449,8 @@ export function RemakeStoryboardPanel({
                 <path d="M8 16h5" />
               </svg>
             </span>
-            <h2 className="mt-4 text-lg font-semibold text-[#f4f4f4]">{t("video.remake.storyboardEmpty")}</h2>
-            <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/62">{t("video.remake.storyboardEmptyBody")}</p>
+            <h2 className="mt-4 text-lg font-semibold text-[#f4f4f4]">{emptyStateTitle}</h2>
+            <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/62">{emptyStateBody}</p>
           </div>
         </div>
       )}

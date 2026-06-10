@@ -2214,10 +2214,10 @@ export function VideoWorkspace() {
   ];
 
   const remakeAnalyzeLabel = isRemakeSourceUploading
-    ? t("video.remake.uploadingSource")
+    ? t("video.remake.analyzingSourceVideo")
     : isRemakeAnalyzing
-      ? t("video.remake.vlmAnalyzing")
-      : t("video.remake.analyze");
+      ? t("video.remake.analyzingSourceVideo")
+      : t("video.remake.analyzeSourceVideo");
 
   return (
     <div className="se-scrollbar h-full min-h-0 space-y-3 overflow-y-auto overflow-x-hidden xl:grid xl:grid-cols-[minmax(310px,340px)_minmax(0,1fr)] xl:gap-3 xl:space-y-0 xl:overflow-hidden 2xl:grid-cols-[340px_minmax(0,1fr)]">
@@ -2355,6 +2355,8 @@ export function VideoWorkspace() {
             canRetryAllFailedShots={canRetryAllFailedRemakeShots}
             disableGenerationActions={Boolean(isRemakeActiveRecoveryPending)}
             draftNotice={isRemakeDraftRestored ? t("video.remake.restoredDraft") : ""}
+            hasSourceVideo={Boolean(remakeSourceVideo)}
+            isAnalyzing={isRemakeAnalyzing || isRemakeSourceUploading}
             metadata={remakeAnalysisMeta || undefined}
             onCancelQueue={handleCancelRemakeQueue}
             onClearDraft={handleClearRemakeDraft}
