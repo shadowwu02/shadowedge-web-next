@@ -67,6 +67,8 @@ export type RemakeShot = {
 };
 
 export type RemakeShotQueueStatus = "idle" | "running" | "paused" | "completed" | "failed" | "cancelled";
+export type RemakeShotQueueIntent = "generate_all" | "retry_failed" | "retry_single";
+export type RemakeShotQueueMode = "serial" | "retry_serial";
 
 export type RemakeShotGenerationStatus = "idle" | "queued" | "generating" | "success" | "failed" | "skipped";
 
@@ -76,6 +78,11 @@ export type RemakeShotGenerationState = {
   queueIndex?: number;
   queueRunId?: string;
   queueTotal?: number;
+  queueMode?: RemakeShotQueueMode;
+  retryAttempt?: number;
+  retryOfShotKey?: string;
+  retryOfTaskId?: string;
+  retryQueueRunId?: string;
   startedAt?: number;
   status: RemakeShotGenerationStatus;
   taskId?: string;

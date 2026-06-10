@@ -1,4 +1,10 @@
-import type { RemakeShotGenerationState, RemakeShotGenerationStatus, RemakeShotQueueStatus } from "@/components/video/remake/remakeTypes";
+import type {
+  RemakeShotGenerationState,
+  RemakeShotGenerationStatus,
+  RemakeShotQueueIntent,
+  RemakeShotQueueMode,
+  RemakeShotQueueStatus,
+} from "@/components/video/remake/remakeTypes";
 
 export const REMAKE_SHOT_QUEUE_DRAFT_KEY = "shadowedge_video_remake_queue_draft_v1";
 export const REMAKE_SHOT_QUEUE_DRAFT_VERSION = 1;
@@ -6,17 +12,32 @@ export const REMAKE_SHOT_QUEUE_DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
 
 const QUEUE_STATUSES = new Set<RemakeShotQueueStatus>(["idle", "running", "paused", "completed", "failed", "cancelled"]);
 const SHOT_STATUSES = new Set<RemakeShotGenerationStatus>(["idle", "queued", "generating", "success", "failed", "skipped"]);
+const QUEUE_INTENTS = new Set<RemakeShotQueueIntent>(["generate_all", "retry_failed", "retry_single"]);
+const QUEUE_MODES = new Set<RemakeShotQueueMode>(["serial", "retry_serial"]);
 const SENSITIVE_TEXT_PATTERNS = [/authorization/i, /bearer\s+/i, /access[_-]?token/i, /refresh[_-]?token/i, /api[_-]?key/i, /cookie/i, /session/i];
 
 export type RemakeShotQueueDraftShotState = Pick<
   RemakeShotGenerationState,
-  "error" | "outputUrl" | "queueIndex" | "queueRunId" | "queueTotal" | "status" | "taskId" | "updatedAt"
+  | "error"
+  | "outputUrl"
+  | "queueIndex"
+  | "queueMode"
+  | "queueRunId"
+  | "queueTotal"
+  | "retryAttempt"
+  | "retryOfShotKey"
+  | "retryOfTaskId"
+  | "retryQueueRunId"
+  | "status"
+  | "taskId"
+  | "updatedAt"
 >;
 
 export type RemakeShotQueueDraft = {
   version: typeof REMAKE_SHOT_QUEUE_DRAFT_VERSION;
   userKeyHash?: string;
   analysisId: string;
+  queueIntent: RemakeShotQueueIntent;
   queueRunId: string;
   status: RemakeShotQueueStatus;
   orderedShotKeys: string[];
@@ -44,6 +65,7 @@ type SaveRemakeShotQueueDraftInput = {
   ignoredShotKeys?: string[];
   orderedShotKeys: string[];
   pausedShotKey?: string;
+  queueIntent?: RemakeShotQueueIntent;
   queueRunId: string;
   queueTotal: number;
   shotStates: Record<string, RemakeShotGenerationState | undefined>;
@@ -117,6 +139,16 @@ function sanitizeQueueStatus(value: unknown): RemakeShotQueueStatus {
   return QUEUE_STATUSES.has(status) ? status : "idle";
 }
 
+function sanitizeQueueIntent(value: unknown): RemakeShotQueueIntent {
+  const intent = asString(value) as RemakeShotQueueIntent;
+  return QUEUE_INTENTS.has(intent) ? intent : "generate_all";
+}
+
+function sanitizeQueueMode(value: unknown): RemakeShotQueueMode | undefined {
+  const mode = asString(value) as RemakeShotQueueMode;
+  return QUEUE_MODES.has(mode) ? mode : undefined;
+}
+
 function sanitizeShotStatus(value: unknown): RemakeShotGenerationStatus {
   const status = asString(value) as RemakeShotGenerationStatus;
   return SHOT_STATUSES.has(status) ? status : "idle";
@@ -131,8 +163,13 @@ function sanitizeShotState(value: unknown): RemakeShotQueueDraftShotState | null
     error: sanitizeText(raw.error),
     outputUrl: sanitizeStoredUrl(raw.outputUrl),
     queueIndex: asNumber(raw.queueIndex),
+    queueMode: sanitizeQueueMode(raw.queueMode),
     queueRunId: sanitizeText(raw.queueRunId, 120),
     queueTotal: asNumber(raw.queueTotal),
+    retryAttempt: asNumber(raw.retryAttempt),
+    retryOfShotKey: sanitizeText(raw.retryOfShotKey, 160),
+    retryOfTaskId: sanitizeText(raw.retryOfTaskId, 160),
+    retryQueueRunId: sanitizeText(raw.retryQueueRunId, 160),
     status,
     taskId: sanitizeText(raw.taskId, 160),
     updatedAt,
@@ -194,6 +231,7 @@ function normalizeDraft(raw: unknown): RemakeShotQueueDraft | null {
     ignoredShotKeys,
     orderedShotKeys,
     pausedShotKey: pausedShotKey && allowedKeys.has(pausedShotKey) ? pausedShotKey : undefined,
+    queueIntent: sanitizeQueueIntent(record.queueIntent),
     queueRunId,
     shotStates: sanitizeShotStates(record.shotStates, allowedKeys),
     skippedShotKeys,
@@ -310,6 +348,7 @@ export function saveRemakeShotQueueDraft(input: SaveRemakeShotQueueDraftInput) {
     ignoredShotKeys,
     orderedShotKeys,
     pausedShotKey: pausedShotKey && allowedKeys.has(pausedShotKey) ? pausedShotKey : undefined,
+    queueIntent: sanitizeQueueIntent(input.queueIntent),
     queueRunId,
     shotStates,
     skippedShotKeys: collectKeysByStatus(orderedShotKeys, input.shotStates, "skipped"),

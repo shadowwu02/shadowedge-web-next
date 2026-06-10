@@ -8,6 +8,7 @@ import type {
   RemakeSettings,
   RemakeShot,
   RemakeShotGenerationState,
+  RemakeShotQueueIntent,
   RemakeShotQueueStatus,
   RemakeSourceVideoMetadata,
   RemakeStoryboard,
@@ -16,6 +17,8 @@ import type {
 type RemakeStoryboardPanelProps = {
   analysisNotice?: string;
   canGenerateAllShots?: boolean;
+  canRetryAllFailedShots?: boolean;
+  disableGenerationActions?: boolean;
   draftNotice?: string;
   metadata?: {
     segments?: RemakeSegment[];
@@ -26,10 +29,12 @@ type RemakeStoryboardPanelProps = {
   onContinueQueue?: () => void;
   onGenerateAllShots?: () => void;
   onGenerateShot: (shot: RemakeShot) => void;
+  onRetryAllFailedShots?: () => void;
   onSkipFailedShot?: () => void;
   onUsePrompt: (prompt: string) => void;
   queueCompletedCount?: number;
   queueError?: string;
+  queueIntent?: RemakeShotQueueIntent;
   queueStatus?: RemakeShotQueueStatus;
   queueTotal?: number;
   queueWasInterrupted?: boolean;
@@ -124,6 +129,8 @@ function RemakeKeyframes({ keyframes }: { keyframes: RemakeKeyframe[] }) {
 export function RemakeStoryboardPanel({
   analysisNotice = "",
   canGenerateAllShots = false,
+  canRetryAllFailedShots = false,
+  disableGenerationActions = false,
   draftNotice = "",
   metadata,
   onCancelQueue,
@@ -131,10 +138,12 @@ export function RemakeStoryboardPanel({
   onContinueQueue,
   onGenerateAllShots,
   onGenerateShot,
+  onRetryAllFailedShots,
   onSkipFailedShot,
   onUsePrompt,
   queueCompletedCount = 0,
   queueError = "",
+  queueIntent = "generate_all",
   queueStatus = "idle",
   queueTotal = 0,
   queueWasInterrupted = false,
@@ -142,16 +151,19 @@ export function RemakeStoryboardPanel({
   shotGenerations = {},
   storyboard,
 }: RemakeStoryboardPanelProps) {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const shots = storyboard?.shots || [];
   const segments = metadata?.segments || [];
   const isQueueRunning = queueStatus === "running";
   const isQueuePaused = queueStatus === "paused";
   const isQueueInterrupted = isQueuePaused && queueWasInterrupted;
+  const isRetryQueue = queueIntent === "retry_failed" || queueIntent === "retry_single";
   const hasQueueStatus = queueStatus === "running" || queueStatus === "paused" || queueStatus === "completed" || queueStatus === "cancelled";
   const queueStatusLabel =
     queueStatus === "running"
-      ? t("video.remake.queueRunning")
+      ? isRetryQueue
+        ? t("video.remake.retryingFailedShots")
+        : t("video.remake.queueRunning")
       : queueStatus === "paused"
         ? isQueueInterrupted
           ? t("video.remake.queueInterrupted")
@@ -191,6 +203,15 @@ export function RemakeStoryboardPanel({
               type="button"
             >
               {t("video.remake.generateAllShots")}
+            </button>
+          ) : null}
+          {canRetryAllFailedShots ? (
+            <button
+              className="min-h-9 rounded-[14px] border border-[#ffb44d]/34 bg-[#ffb44d]/12 px-3 text-xs font-semibold text-[#ffb44d] transition-colors hover:bg-[#ffb44d]/18"
+              onClick={onRetryAllFailedShots}
+              type="button"
+            >
+              {t("video.remake.retryAllFailed")}
             </button>
           ) : null}
           {isQueueRunning ? (
@@ -276,6 +297,7 @@ export function RemakeStoryboardPanel({
             const isGenerating = generation?.status === "generating";
             const isQueued = generation?.status === "queued";
             const isSkipped = generation?.status === "skipped";
+            const isGenerateDisabled = disableGenerationActions || isGenerating || isQueued || isQueueRunning;
             const hasGeneratedOutput = generation?.status === "success" && Boolean(generation.outputUrl);
 
             return (
@@ -302,6 +324,11 @@ export function RemakeStoryboardPanel({
                   {isSkipped ? (
                     <span className="rounded-full border border-[rgba(244,244,244,0.1)] bg-[#1a1c22]/66 px-3 py-1.5 text-xs font-semibold text-[#b9b9b9]/68">
                       {t("video.remake.skipped")}
+                    </span>
+                  ) : null}
+                  {generation?.retryAttempt ? (
+                    <span className="rounded-full border border-[#ffb44d]/24 bg-[#ffb44d]/8 px-3 py-1.5 text-xs font-semibold text-[#ffd08a]/84">
+                      {tf("video.remake.retryAttempt", { attempt: generation.retryAttempt })}
                     </span>
                   ) : null}
                 </div>
@@ -365,11 +392,11 @@ export function RemakeStoryboardPanel({
                   ) : null}
                   <button
                     className={`min-h-10 rounded-[16px] border px-3 text-sm font-semibold transition-colors ${
-                      isGenerating || isQueued || isQueueRunning
+                      isGenerateDisabled
                         ? "cursor-wait border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/56 text-[#b9b9b9]/54"
                         : "border-[#ffb44d]/34 bg-[#ffb44d] text-[#05070b] hover:bg-[#ffc766]"
                     }`}
-                    disabled={isGenerating || isQueued || isQueueRunning}
+                    disabled={isGenerateDisabled}
                     onClick={() => onGenerateShot(shot)}
                     type="button"
                   >

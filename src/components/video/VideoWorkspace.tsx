@@ -21,6 +21,8 @@ import type {
   RemakeSegment,
   RemakeShot,
   RemakeShotGenerationState,
+  RemakeShotQueueIntent,
+  RemakeShotQueueMode,
   RemakeShotQueueStatus,
   RemakeSourceVideo,
   RemakeSourceVideoMetadata,
@@ -96,15 +98,21 @@ const fallbackModels: VideoModel[] = [
 type MainPanel = "history" | "guide";
 type WorkspaceMode = "create" | "edit" | "motion" | "remake";
 type RemakeShotQueueMeta = {
-  queueIndex: number;
-  queueMode: "serial";
-  queueRunId: string;
-  queueTotal: number;
+  queueIndex?: number;
+  queueMode?: RemakeShotQueueMode;
+  queueRunId?: string;
+  queueTotal?: number;
+  retry?: boolean;
+  retryAttempt?: number;
+  retryOfShotKey?: string;
+  retryOfTaskId?: string;
+  retryQueueRunId?: string;
 };
 type RemakeShotQueueState = {
   activeShotKey?: string;
   ignoredShotKeys: string[];
   pausedShotKey?: string;
+  queueIntent: RemakeShotQueueIntent;
   queueRunId: string;
   queueTotal: number;
   status: RemakeShotQueueStatus;
@@ -119,6 +127,7 @@ type RemakeActiveShotRecoveryState = {
 
 const idleRemakeShotQueue: RemakeShotQueueState = {
   ignoredShotKeys: [],
+  queueIntent: "generate_all",
   queueRunId: "",
   queueTotal: 0,
   status: "idle",
@@ -131,6 +140,10 @@ type RemakeHistoryShotCandidate = RemakeShotGenerationState & {
 
 function createRemakeShotQueueRunId() {
   return `remake_queue_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function createRemakeRetryQueueRunId() {
+  return `remake_retry_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function normalizeRemakeQueueDraftShotState(state: RemakeShotGenerationState): RemakeShotGenerationState {
@@ -340,8 +353,13 @@ function toRemakeShotGenerationState(candidate: RemakeHistoryShotCandidate): Rem
     error: candidate.error,
     outputUrl: candidate.outputUrl,
     queueIndex: candidate.queueIndex,
+    queueMode: candidate.queueMode,
     queueRunId: candidate.queueRunId,
     queueTotal: candidate.queueTotal,
+    retryAttempt: candidate.retryAttempt,
+    retryOfShotKey: candidate.retryOfShotKey,
+    retryOfTaskId: candidate.retryOfTaskId,
+    retryQueueRunId: candidate.retryQueueRunId,
     status: candidate.status,
     taskId: candidate.taskId,
     updatedAt: candidate.updatedAt,
@@ -398,8 +416,13 @@ function buildRemakeHistoryShotMap(
       matchPriority: isExactMatch ? 2 : 1,
       outputUrl: isSuccess ? outputUrl : "",
       queueIndex: getNumberValue(meta.queueIndex) || undefined,
+      queueMode: getStringValue(meta.queueMode) === "retry_serial" ? "retry_serial" : getStringValue(meta.queueMode) === "serial" ? "serial" : undefined,
       queueRunId: getStringValue(meta.queueRunId) || undefined,
       queueTotal: getNumberValue(meta.queueTotal) || undefined,
+      retryAttempt: getNumberValue(meta.retryAttempt) || undefined,
+      retryOfShotKey: getStringValue(meta.retryOfShotKey) || undefined,
+      retryOfTaskId: getStringValue(meta.retryOfTaskId) || undefined,
+      retryQueueRunId: getStringValue(meta.retryQueueRunId) || undefined,
       status: isSuccess ? "success" : "failed",
       taskId: getRemakeHistoryTaskId(record) || undefined,
       updatedAt: historyTime || undefined,
@@ -437,6 +460,11 @@ function shouldApplyRemakeHistoryGeneration(
   if (current.status === "failed" && currentTime > restoredTime) return false;
 
   return true;
+}
+
+function getNextRemakeRetryAttempt(generation: RemakeShotGenerationState | undefined) {
+  const attempt = Number(generation?.retryAttempt || 0);
+  return Number.isFinite(attempt) && attempt >= 0 ? attempt + 1 : 1;
 }
 
 export function VideoWorkspace() {
@@ -731,6 +759,7 @@ export function VideoWorkspace() {
         activeShotKey: wasInterruptedFromDraft ? draft.activeShotKey : undefined,
         ignoredShotKeys: Array.from(ignoredShotKeys),
         pausedShotKey,
+        queueIntent: draft.queueIntent,
         queueRunId: draft.queueRunId,
         queueTotal,
         status: "paused",
@@ -1006,13 +1035,32 @@ export function VideoWorkspace() {
   const handleGenerateRemakeShot = useCallback(
     async (shot: RemakeShot, queueMeta?: RemakeShotQueueMeta) => {
       const shotKey = getRemakeShotGenerationKey(remakeStoryboard?.id, shot);
-      const queueGenerationMeta = queueMeta
+      const previousGeneration = remakeShotGenerationsRef.current[shotKey];
+      const isRetry = Boolean(queueMeta?.retry) || (!queueMeta && (previousGeneration?.status === "failed" || previousGeneration?.status === "success"));
+      const retryAttempt = queueMeta?.retryAttempt || (isRetry ? getNextRemakeRetryAttempt(previousGeneration) : undefined);
+      const retryOfTaskId = queueMeta?.retryOfTaskId || (isRetry ? previousGeneration?.taskId || previousGeneration?.retryOfTaskId || "" : "");
+      const retryOfShotKey = queueMeta?.retryOfShotKey || (isRetry ? shotKey : "");
+      const retryQueueRunId = queueMeta?.retryQueueRunId || (isRetry ? createRemakeRetryQueueRunId() : "");
+      const queueGenerationMeta = queueMeta?.queueRunId
         ? {
             queueIndex: queueMeta.queueIndex,
+            queueMode: queueMeta.queueMode || "serial",
             queueRunId: queueMeta.queueRunId,
             queueTotal: queueMeta.queueTotal,
           }
         : {};
+      const retryGenerationMeta = isRetry
+        ? {
+            retryAttempt,
+            retryOfShotKey,
+            retryOfTaskId,
+            retryQueueRunId,
+          }
+        : {};
+      const shotGenerationMeta = {
+        ...queueGenerationMeta,
+        ...retryGenerationMeta,
+      };
       setWorkspaceNotice("");
 
       const failShot = (message: string) => {
@@ -1020,7 +1068,7 @@ export function VideoWorkspace() {
           ...current,
           [shotKey]: {
             ...(current[shotKey] || { status: "idle" }),
-            ...queueGenerationMeta,
+            ...shotGenerationMeta,
             error: message,
             status: "failed",
             updatedAt: Date.now(),
@@ -1070,7 +1118,7 @@ export function VideoWorkspace() {
         [shotKey]: {
           error: "",
           outputUrl: "",
-          ...queueGenerationMeta,
+          ...shotGenerationMeta,
           startedAt,
           status: "generating",
           updatedAt: startedAt,
@@ -1103,12 +1151,21 @@ export function VideoWorkspace() {
           audio: shot.audio,
           referenceHints: shot.referenceHints,
           generationParams: shot.generationParams,
-          ...(queueMeta
+          ...(queueMeta?.queueRunId
             ? {
                 queueRunId: queueMeta.queueRunId,
                 queueIndex: queueMeta.queueIndex,
                 queueTotal: queueMeta.queueTotal,
-                queueMode: queueMeta.queueMode,
+                queueMode: queueMeta.queueMode || "serial",
+              }
+            : {}),
+          ...(isRetry
+            ? {
+                retry: true,
+                retryAttempt,
+                retryOfTaskId,
+                retryOfShotKey,
+                retryQueueRunId,
               }
             : {}),
           remakeTargetRegion,
@@ -1132,7 +1189,7 @@ export function VideoWorkspace() {
           ...(current[shotKey] || {}),
           error: "",
           outputUrl: "",
-          ...queueGenerationMeta,
+          ...shotGenerationMeta,
           startedAt,
           status: "generating",
           taskId: nextTask.jobId,
@@ -1435,13 +1492,34 @@ export function VideoWorkspace() {
       }),
     [displayedRemakeShotGenerations, remakeShots, remakeStoryboard?.id],
   );
+  const failedRemakeShots = useMemo(
+    () =>
+      remakeShots.filter((shot) => {
+        const generation = displayedRemakeShotGenerations[getRemakeShotGenerationKey(remakeStoryboard?.id, shot)];
+        return generation?.status === "failed";
+      }),
+    [displayedRemakeShotGenerations, remakeShots, remakeStoryboard?.id],
+  );
   const isRemakeQueueActive = remakeShotQueue.status === "running" || remakeShotQueue.status === "paused";
+  const isRemakeActiveRecoveryPending =
+    remakeActiveShotRecovery?.status === "checking" || remakeActiveShotRecovery?.status === "processing";
   const canGenerateAllRemakeShots = Boolean(
     remakeStoryboard &&
       unfinishedRemakeShots.length > 0 &&
       !isProcessing &&
       !isSubmitting &&
       !isRemakeQueueActive &&
+      !isRemakeAnalyzing &&
+      !isRemakeSourceUploading &&
+      (token || isSignedIn),
+  );
+  const canRetryAllFailedRemakeShots = Boolean(
+    remakeStoryboard &&
+      failedRemakeShots.length > 0 &&
+      !isProcessing &&
+      !isSubmitting &&
+      remakeShotQueue.status !== "running" &&
+      !isRemakeActiveRecoveryPending &&
       !isRemakeAnalyzing &&
       !isRemakeSourceUploading &&
       (token || isSignedIn),
@@ -1495,6 +1573,7 @@ export function VideoWorkspace() {
       ignoredShotKeys: remakeShotQueue.ignoredShotKeys,
       orderedShotKeys: remakeQueueOrderedShotKeys,
       pausedShotKey: remakeShotQueue.pausedShotKey || "",
+      queueIntent: remakeShotQueue.queueIntent,
       queueRunId: remakeShotQueue.queueRunId,
       queueTotal: remakeShotQueue.queueTotal,
       shotStates: queueShotStates,
@@ -1511,6 +1590,7 @@ export function VideoWorkspace() {
       ignoredShotKeys: remakeShotQueue.ignoredShotKeys,
       orderedShotKeys: remakeQueueOrderedShotKeys,
       pausedShotKey: remakeShotQueue.pausedShotKey,
+      queueIntent: remakeShotQueue.queueIntent,
       queueRunId: remakeShotQueue.queueRunId,
       queueTotal: remakeShotQueue.queueTotal || remakeQueueOrderedShotKeys.length,
       shotStates: queueShotStates,
@@ -1540,6 +1620,7 @@ export function VideoWorkspace() {
 
     setRemakeShotQueue({
       ignoredShotKeys: [],
+      queueIntent: "generate_all",
       queueRunId,
       queueTotal,
       status: "running",
@@ -1553,6 +1634,7 @@ export function VideoWorkspace() {
           error: "",
           outputUrl: "",
           queueIndex: index + 1,
+          queueMode: "serial",
           queueRunId,
           queueTotal,
           status: "queued",
@@ -1563,6 +1645,56 @@ export function VideoWorkspace() {
     });
     setWorkspaceNotice(t("video.remake.queueRunning"));
   }, [canGenerateAllRemakeShots, remakeStoryboard, t, unfinishedRemakeShots]);
+
+  const handleRetryAllFailedRemakeShots = useCallback(() => {
+    if (!remakeStoryboard) return;
+
+    if (!failedRemakeShots.length) {
+      setWorkspaceNotice(t("video.remake.noFailedShots"));
+      return;
+    }
+
+    if (!canRetryAllFailedRemakeShots) {
+      setWorkspaceNotice(t("video.errors.activeGeneration"));
+      return;
+    }
+
+    const queueRunId = createRemakeRetryQueueRunId();
+    const queueTotal = failedRemakeShots.length;
+    const now = Date.now();
+
+    setRemakeShotQueue({
+      ignoredShotKeys: [],
+      queueIntent: "retry_failed",
+      queueRunId,
+      queueTotal,
+      status: "running",
+    });
+    setRemakeShotGenerations((current) => {
+      const next = { ...current };
+      failedRemakeShots.forEach((shot, index) => {
+        const shotKey = getRemakeShotGenerationKey(remakeStoryboard.id, shot);
+        const previous = displayedRemakeShotGenerations[shotKey] || next[shotKey];
+        next[shotKey] = {
+          ...(previous || {}),
+          error: "",
+          outputUrl: "",
+          queueIndex: index + 1,
+          queueMode: "retry_serial",
+          queueRunId,
+          queueTotal,
+          retryAttempt: getNextRemakeRetryAttempt(previous),
+          retryOfShotKey: shotKey,
+          retryOfTaskId: previous?.taskId || previous?.retryOfTaskId || "",
+          retryQueueRunId: queueRunId,
+          status: "queued",
+          updatedAt: now,
+        };
+      });
+      return next;
+    });
+    setWorkspaceNotice(t("video.remake.retryingFailedShots"));
+  }, [canRetryAllFailedRemakeShots, displayedRemakeShotGenerations, failedRemakeShots, remakeStoryboard, t]);
 
   const handleCancelRemakeQueue = useCallback(() => {
     const cancelledRunId = remakeShotQueue.queueRunId;
@@ -1622,8 +1754,12 @@ export function VideoWorkspace() {
         wasInterruptedFromDraft: false,
       };
     });
-    setWorkspaceNotice(t("video.remake.queueRunning"));
-  }, [remakeActiveShotRecovery, remakeShotQueue.activeShotKey, t]);
+    setWorkspaceNotice(
+      remakeShotQueue.queueIntent === "retry_failed" || remakeShotQueue.queueIntent === "retry_single"
+        ? t("video.remake.retryingFailedShots")
+        : t("video.remake.queueRunning"),
+    );
+  }, [remakeActiveShotRecovery, remakeShotQueue.activeShotKey, remakeShotQueue.queueIntent, t]);
 
   const handleSkipFailedRemakeShot = useCallback(() => {
     const failedShotKey = remakeShotQueue.pausedShotKey;
@@ -1646,8 +1782,12 @@ export function VideoWorkspace() {
       status: "running",
       wasInterruptedFromDraft: false,
     }));
-    setWorkspaceNotice(t("video.remake.queueRunning"));
-  }, [remakeShotQueue.pausedShotKey, t]);
+    setWorkspaceNotice(
+      remakeShotQueue.queueIntent === "retry_failed" || remakeShotQueue.queueIntent === "retry_single"
+        ? t("video.remake.retryingFailedShots")
+        : t("video.remake.queueRunning"),
+    );
+  }, [remakeShotQueue.pausedShotKey, remakeShotQueue.queueIntent, t]);
 
   useEffect(() => {
     if (remakeShotQueue.status !== "running" || !remakeStoryboard) return;
@@ -1655,6 +1795,7 @@ export function VideoWorkspace() {
 
     const ignoredShotKeys = new Set(remakeShotQueue.ignoredShotKeys);
     const queueRunId = remakeShotQueue.queueRunId;
+    const isRetryQueue = remakeShotQueue.queueIntent === "retry_failed" || remakeShotQueue.queueIntent === "retry_single";
     const queueShots = remakeStoryboard.shots.map((shot) => {
       const key = getRemakeShotGenerationKey(remakeStoryboard.id, shot);
       return {
@@ -1721,6 +1862,7 @@ export function VideoWorkspace() {
 
     const queueIndex = nextShot.generation?.queueIndex || 1;
     const queueTotal = nextShot.generation?.queueTotal || remakeShotQueue.queueTotal || 1;
+    const queueMode: RemakeShotQueueMode = isRetryQueue ? "retry_serial" : "serial";
 
     let started = false;
     remakeShotQueueSubmittingRef.current = true;
@@ -1738,9 +1880,18 @@ export function VideoWorkspace() {
 
       void handleGenerateRemakeShot(nextShot.shot, {
         queueIndex,
-        queueMode: "serial",
+        queueMode,
         queueRunId,
         queueTotal,
+        ...(isRetryQueue
+          ? {
+              retry: true,
+              retryAttempt: nextShot.generation?.retryAttempt || 1,
+              retryOfShotKey: nextShot.generation?.retryOfShotKey || nextShot.key,
+              retryOfTaskId: nextShot.generation?.retryOfTaskId || nextShot.generation?.taskId || "",
+              retryQueueRunId: nextShot.generation?.retryQueueRunId || queueRunId,
+            }
+          : {}),
       }).finally(() => {
         remakeShotQueueSubmittingRef.current = false;
       });
@@ -2123,6 +2274,8 @@ export function VideoWorkspace() {
           <RemakeStoryboardPanel
             analysisNotice={remakeAnalysisNotice}
             canGenerateAllShots={canGenerateAllRemakeShots}
+            canRetryAllFailedShots={canRetryAllFailedRemakeShots}
+            disableGenerationActions={Boolean(isRemakeActiveRecoveryPending)}
             draftNotice={isRemakeDraftRestored ? t("video.remake.restoredDraft") : ""}
             metadata={remakeAnalysisMeta || undefined}
             onCancelQueue={handleCancelRemakeQueue}
@@ -2130,9 +2283,11 @@ export function VideoWorkspace() {
             onContinueQueue={handleContinueRemakeQueue}
             onGenerateAllShots={handleGenerateAllRemakeShots}
             onGenerateShot={handleGenerateRemakeShot}
+            onRetryAllFailedShots={handleRetryAllFailedRemakeShots}
             onSkipFailedShot={handleSkipFailedRemakeShot}
             queueCompletedCount={remakeQueueCompletedCount}
             queueError={remakeQueueError}
+            queueIntent={remakeShotQueue.queueIntent}
             queueStatus={remakeShotQueue.status}
             queueTotal={remakeShotQueue.queueTotal}
             queueWasInterrupted={Boolean(remakeShotQueue.wasInterruptedFromDraft)}
