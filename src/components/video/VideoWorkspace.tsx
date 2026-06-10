@@ -40,6 +40,12 @@ import {
   getVideoHistoryTime,
   isVideoStaleActiveRecord,
 } from "@/lib/video/historyUtils";
+import {
+  clearRemakeStoryboardDraft,
+  getRemakeSourceVideoFromDraft,
+  readRemakeStoryboardDraft,
+  saveRemakeStoryboardDraft,
+} from "@/lib/video/remakeStoryboardDraft";
 import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
 import { getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
 import {
@@ -428,9 +434,11 @@ export function VideoWorkspace() {
   } | null>(null);
   const [remakeAnalysisError, setRemakeAnalysisError] = useState("");
   const [remakeAnalysisNotice, setRemakeAnalysisNotice] = useState("");
+  const [isRemakeDraftRestored, setIsRemakeDraftRestored] = useState(false);
   const [remakeShotGenerations, setRemakeShotGenerations] = useState<Record<string, RemakeShotGenerationState>>({});
   const [remakeShotQueue, setRemakeShotQueue] = useState<RemakeShotQueueState>(idleRemakeShotQueue);
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const remakeDraftHydratedRef = useRef(false);
   const remakeShotQueueSubmittingRef = useRef(false);
   const latestDraftSnapshotRef = useRef<{
     media: UploadMediaItem[];
@@ -554,6 +562,45 @@ export function VideoWorkspace() {
     void loadHistory();
   }, [loadHistory]);
 
+  useEffect(() => {
+    if (remakeDraftHydratedRef.current) return;
+    remakeDraftHydratedRef.current = true;
+
+    const result = readRemakeStoryboardDraft();
+    if (result.status === "missing" || result.status === "unavailable") return;
+
+    const timer = window.setTimeout(() => {
+      if (!result.draft) {
+        if (result.status === "expired") {
+          setWorkspaceNotice(t("video.remake.draftExpired"));
+        } else {
+          setWorkspaceNotice(t("video.remake.draftRestoreFailed"));
+        }
+        return;
+      }
+
+      const draft = result.draft;
+      setRemakeMode(draft.settings.mode);
+      setRemakeTargetRegion(draft.settings.targetRegion);
+      setRemakeCharacterRules(draft.settings.characterRules);
+      setRemakeSceneStyle(draft.settings.sceneStyle);
+      setRemakeTranslateDialogue(draft.settings.translateDialogue);
+      setRemakeSourceVideo(getRemakeSourceVideoFromDraft(draft));
+      setRemakeStoryboard(draft.storyboard);
+      setRemakeAnalysisMeta({
+        segments: draft.segments,
+        sourceVideo: draft.sourceVideo,
+      });
+      setRemakeAnalysisError("");
+      setRemakeAnalysisNotice(t("video.remake.restoredDraft"));
+      setIsRemakeDraftRestored(true);
+      setRemakeShotQueue(idleRemakeShotQueue);
+      setWorkspaceMode("remake");
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [t]);
+
   const handleModelChange = useCallback((model: VideoModel) => {
     setSelectedModel(model);
     setParams((current) => buildParamsForModel(model, current));
@@ -676,6 +723,18 @@ export function VideoWorkspace() {
         segments: result.meta?.segments,
         sourceVideo: result.meta?.sourceVideo,
       });
+      const draftResult = saveRemakeStoryboardDraft({
+        segments: result.meta?.segments,
+        settings,
+        sourceVideo: sourceVideoForAnalyze,
+        sourceVideoMetadata: result.meta?.sourceVideo,
+        sourceVideoUrl,
+        storyboard: result.storyboard,
+      });
+      if (!draftResult.ok) {
+        setWorkspaceNotice(t("video.remake.draftSaveFailed"));
+      }
+      setIsRemakeDraftRestored(false);
       if (result.meta?.vlmFailed || result.meta?.vlmUnavailable) {
         setRemakeAnalysisNotice(t("video.remake.vlmFallback"));
       } else if (result.meta?.mock) {
@@ -726,6 +785,19 @@ export function VideoWorkspace() {
 
       return source;
     });
+  }, []);
+
+  const handleClearRemakeDraft = useCallback(() => {
+    clearRemakeStoryboardDraft();
+    setRemakeStoryboard(null);
+    setRemakeAnalysisMeta(null);
+    setRemakeAnalysisError("");
+    setRemakeAnalysisNotice("");
+    setIsRemakeDraftRestored(false);
+    setRemakeShotGenerations({});
+    setRemakeShotQueue(idleRemakeShotQueue);
+    setRemakeSourceVideo(null);
+    setWorkspaceNotice("");
   }, []);
 
   const handleUseRemakePrompt = useCallback(
@@ -1641,8 +1713,10 @@ export function VideoWorkspace() {
           <RemakeStoryboardPanel
             analysisNotice={remakeAnalysisNotice}
             canGenerateAllShots={canGenerateAllRemakeShots}
+            draftNotice={isRemakeDraftRestored ? t("video.remake.restoredDraft") : ""}
             metadata={remakeAnalysisMeta || undefined}
             onCancelQueue={handleCancelRemakeQueue}
+            onClearDraft={handleClearRemakeDraft}
             onContinueQueue={handleContinueRemakeQueue}
             onGenerateAllShots={handleGenerateAllRemakeShots}
             onGenerateShot={handleGenerateRemakeShot}

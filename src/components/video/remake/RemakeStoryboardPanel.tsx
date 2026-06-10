@@ -16,11 +16,13 @@ import type {
 type RemakeStoryboardPanelProps = {
   analysisNotice?: string;
   canGenerateAllShots?: boolean;
+  draftNotice?: string;
   metadata?: {
     segments?: RemakeSegment[];
     sourceVideo?: RemakeSourceVideoMetadata;
   };
   onCancelQueue?: () => void;
+  onClearDraft?: () => void;
   onContinueQueue?: () => void;
   onGenerateAllShots?: () => void;
   onGenerateShot: (shot: RemakeShot) => void;
@@ -121,8 +123,10 @@ function RemakeKeyframes({ keyframes }: { keyframes: RemakeKeyframe[] }) {
 export function RemakeStoryboardPanel({
   analysisNotice = "",
   canGenerateAllShots = false,
+  draftNotice = "",
   metadata,
   onCancelQueue,
+  onClearDraft,
   onContinueQueue,
   onGenerateAllShots,
   onGenerateShot,
@@ -166,6 +170,15 @@ export function RemakeStoryboardPanel({
             {settings.mode === "single_clip" ? t("video.remake.mode.singleClip") : t("video.remake.mode.fullFilm")}
           </span>
           <span>{settings.targetRegion}</span>
+          {storyboard && onClearDraft ? (
+            <button
+              className="min-h-9 rounded-[14px] border border-[rgba(244,244,244,0.1)] bg-[#1a1c22]/64 px-3 text-xs font-semibold text-[#f4f4f4]/82 transition-colors hover:border-[#ffb44d]/34 hover:text-[#ffb44d]"
+              onClick={onClearDraft}
+              type="button"
+            >
+              {t("video.remake.clearDraft")}
+            </button>
+          ) : null}
           {canGenerateAllShots ? (
             <button
               className="min-h-9 rounded-[14px] border border-[#ffb44d]/34 bg-[#ffb44d] px-3 text-xs font-semibold text-[#05070b] transition-colors hover:bg-[#ffc766]"
@@ -214,6 +227,7 @@ export function RemakeStoryboardPanel({
 
       {storyboard ? (
         <div className="mb-5 grid gap-2 rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/58 p-3 text-sm leading-6 text-[#b9b9b9]/72">
+          {draftNotice ? <p className="font-semibold text-[#ffd08a]/88">{draftNotice}</p> : null}
           <p>{t("video.remake.queueCreditNotice")}</p>
           {hasQueueStatus ? (
             <p className="font-semibold text-[#f4f4f4]/82">
