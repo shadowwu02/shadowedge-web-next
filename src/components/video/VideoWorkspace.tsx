@@ -46,6 +46,12 @@ import {
   readRemakeStoryboardDraft,
   saveRemakeStoryboardDraft,
 } from "@/lib/video/remakeStoryboardDraft";
+import {
+  clearRemakeShotQueueDraft,
+  getRemakeQueueUserKeyHash,
+  readRemakeShotQueueDraft,
+  saveRemakeShotQueueDraft,
+} from "@/lib/video/remakeShotQueueDraft";
 import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
 import { getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
 import {
@@ -102,6 +108,7 @@ type RemakeShotQueueState = {
   queueRunId: string;
   queueTotal: number;
   status: RemakeShotQueueStatus;
+  wasInterruptedFromDraft?: boolean;
 };
 
 const idleRemakeShotQueue: RemakeShotQueueState = {
@@ -118,6 +125,15 @@ type RemakeHistoryShotCandidate = RemakeShotGenerationState & {
 
 function createRemakeShotQueueRunId() {
   return `remake_queue_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeRemakeQueueDraftShotState(state: RemakeShotGenerationState): RemakeShotGenerationState {
+  if (state.status === "success" || state.status === "failed" || state.status === "skipped") return state;
+
+  return {
+    ...state,
+    status: "idle",
+  };
 }
 
 function getVideoModelRuleId(model: VideoModel) {
@@ -439,6 +455,8 @@ export function VideoWorkspace() {
   const [remakeShotQueue, setRemakeShotQueue] = useState<RemakeShotQueueState>(idleRemakeShotQueue);
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const remakeDraftHydratedRef = useRef(false);
+  const remakeQueueDraftHydratedRef = useRef("");
+  const remakeQueueDraftSignatureRef = useRef("");
   const remakeShotQueueSubmittingRef = useRef(false);
   const latestDraftSnapshotRef = useRef<{
     media: UploadMediaItem[];
@@ -448,7 +466,7 @@ export function VideoWorkspace() {
     selectedModel: VideoModel;
   } | null>(null);
 
-  const { isSignedIn, token } = useAuthSession();
+  const { isLoading: isAuthLoading, isSignedIn, profile, token } = useAuthSession();
   const { credits, maxConcurrency } = useCredits();
   const {
     activeTaskCount,
@@ -461,6 +479,10 @@ export function VideoWorkspace() {
     submit,
     task,
   } = useVideoGeneration();
+  const remakeQueueUserKeyHash = useMemo(
+    () => getRemakeQueueUserKeyHash(profile?.email || profile?.name || ""),
+    [profile?.email, profile?.name],
+  );
   const [workspaceNotice, setWorkspaceNotice] = useState("");
   const reconciledMentionBindings = useMemo(
     () => serializeMentionBindings(stripReconciledMentionBindings(reconcileMentionBindings(mentionBindings, media))),
@@ -600,6 +622,97 @@ export function VideoWorkspace() {
 
     return () => window.clearTimeout(timer);
   }, [t]);
+
+  useEffect(() => {
+    const storyboard = remakeStoryboard;
+    if (!storyboard) {
+      remakeQueueDraftHydratedRef.current = "";
+      return;
+    }
+    const analysisId = storyboard.id;
+    if (!analysisId) {
+      remakeQueueDraftHydratedRef.current = "";
+      return;
+    }
+
+    if ((token || isSignedIn) && isAuthLoading && !remakeQueueUserKeyHash) return;
+
+    const hydrateKey = `${analysisId}:${remakeQueueUserKeyHash || "anonymous"}`;
+    if (remakeQueueDraftHydratedRef.current === hydrateKey) return;
+
+    const result = readRemakeShotQueueDraft({
+      analysisId,
+      userKeyHash: remakeQueueUserKeyHash,
+    });
+
+    if (result.status === "user_mismatch" && !remakeQueueUserKeyHash && (token || isSignedIn)) return;
+
+    remakeQueueDraftHydratedRef.current = hydrateKey;
+
+    if (!result.draft) return;
+    if (result.draft.status === "idle" || result.draft.status === "completed" || result.draft.status === "cancelled") {
+      clearRemakeShotQueueDraft();
+      return;
+    }
+
+    const draft = result.draft;
+    const storyboardShotKeys = new Set(storyboard.shots.map((shot) => getRemakeShotGenerationKey(storyboard.id, shot)));
+    const orderedShotKeys = draft.orderedShotKeys.filter((key) => storyboardShotKeys.has(key));
+    if (!orderedShotKeys.length) return;
+
+    const wasInterruptedFromDraft = draft.status === "running" || Boolean(draft.activeShotKey);
+    const ignoredShotKeys = new Set(draft.ignoredShotKeys.filter((key) => storyboardShotKeys.has(key)));
+    if (wasInterruptedFromDraft && draft.activeShotKey && storyboardShotKeys.has(draft.activeShotKey)) {
+      ignoredShotKeys.add(draft.activeShotKey);
+    }
+    const pausedShotKey =
+      !wasInterruptedFromDraft && draft.pausedShotKey && storyboardShotKeys.has(draft.pausedShotKey)
+        ? draft.pausedShotKey
+        : !wasInterruptedFromDraft
+          ? draft.failedShotKeys.find((key) => storyboardShotKeys.has(key))
+          : undefined;
+    const queueTotal = Math.max(
+      orderedShotKeys.length,
+      ...orderedShotKeys.map((key) => Number(draft.shotStates[key]?.queueTotal || 0)),
+    );
+
+    const timer = window.setTimeout(() => {
+      setRemakeShotGenerations((current) => {
+        let changed = false;
+        const next = { ...current };
+
+        orderedShotKeys.forEach((shotKey) => {
+          const restored = draft.shotStates[shotKey];
+          if (!restored) return;
+          const normalized = normalizeRemakeQueueDraftShotState(restored);
+          if (!shouldApplyRemakeHistoryGeneration(current[shotKey], normalized)) return;
+          next[shotKey] = {
+            ...(current[shotKey] || {}),
+            ...normalized,
+            queueRunId: normalized.queueRunId || draft.queueRunId,
+            queueTotal: normalized.queueTotal || queueTotal,
+          };
+          changed = true;
+        });
+
+        return changed ? next : current;
+      });
+      setRemakeShotQueue({
+        activeShotKey: wasInterruptedFromDraft ? draft.activeShotKey : undefined,
+        ignoredShotKeys: Array.from(ignoredShotKeys),
+        pausedShotKey,
+        queueRunId: draft.queueRunId,
+        queueTotal,
+        status: "paused",
+        wasInterruptedFromDraft,
+      });
+      setWorkspaceNotice(
+        wasInterruptedFromDraft ? t("video.remake.queueInterrupted") : t("video.remake.queueDraftRestored"),
+      );
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [isAuthLoading, isSignedIn, remakeQueueUserKeyHash, remakeStoryboard, t, token]);
 
   const handleModelChange = useCallback((model: VideoModel) => {
     setSelectedModel(model);
@@ -789,6 +902,9 @@ export function VideoWorkspace() {
 
   const handleClearRemakeDraft = useCallback(() => {
     clearRemakeStoryboardDraft();
+    clearRemakeShotQueueDraft();
+    remakeQueueDraftSignatureRef.current = "";
+    remakeQueueDraftHydratedRef.current = "";
     setRemakeStoryboard(null);
     setRemakeAnalysisMeta(null);
     setRemakeAnalysisError("");
@@ -1132,6 +1248,73 @@ export function VideoWorkspace() {
     if (remakeShotQueue.status !== "paused" || !remakeShotQueue.pausedShotKey) return "";
     return displayedRemakeShotGenerations[remakeShotQueue.pausedShotKey]?.error || "";
   }, [displayedRemakeShotGenerations, remakeShotQueue.pausedShotKey, remakeShotQueue.status]);
+  const remakeQueueOrderedShotKeys = useMemo(
+    () => remakeShots.map((shot) => getRemakeShotGenerationKey(remakeStoryboard?.id, shot)),
+    [remakeShots, remakeStoryboard?.id],
+  );
+
+  useEffect(() => {
+    if (!remakeStoryboard || !remakeShotQueue.queueRunId || !remakeQueueOrderedShotKeys.length) {
+      if (remakeQueueDraftSignatureRef.current) {
+        clearRemakeShotQueueDraft();
+        remakeQueueDraftSignatureRef.current = "";
+      }
+      return;
+    }
+
+    if (remakeShotQueue.status === "idle" || remakeShotQueue.status === "completed" || remakeShotQueue.status === "cancelled") {
+      clearRemakeShotQueueDraft();
+      remakeQueueDraftSignatureRef.current = "";
+      return;
+    }
+
+    const queueShotStates = remakeQueueOrderedShotKeys.reduce<Record<string, RemakeShotGenerationState | undefined>>((next, key) => {
+      const state = displayedRemakeShotGenerations[key] || remakeShotGenerations[key];
+      if (!state) return next;
+      if (state.queueRunId && state.queueRunId !== remakeShotQueue.queueRunId) return next;
+      next[key] = {
+        ...state,
+        queueRunId: state.queueRunId || remakeShotQueue.queueRunId,
+        queueTotal: state.queueTotal || remakeShotQueue.queueTotal || remakeQueueOrderedShotKeys.length,
+      };
+      return next;
+    }, {});
+    const signature = JSON.stringify({
+      activeShotKey: remakeShotQueue.activeShotKey || "",
+      analysisId: remakeStoryboard.id,
+      ignoredShotKeys: remakeShotQueue.ignoredShotKeys,
+      orderedShotKeys: remakeQueueOrderedShotKeys,
+      pausedShotKey: remakeShotQueue.pausedShotKey || "",
+      queueRunId: remakeShotQueue.queueRunId,
+      queueTotal: remakeShotQueue.queueTotal,
+      shotStates: queueShotStates,
+      status: remakeShotQueue.status,
+      userKeyHash: remakeQueueUserKeyHash,
+    });
+
+    if (signature === remakeQueueDraftSignatureRef.current) return;
+    remakeQueueDraftSignatureRef.current = signature;
+
+    saveRemakeShotQueueDraft({
+      activeShotKey: remakeShotQueue.activeShotKey,
+      analysisId: remakeStoryboard.id,
+      ignoredShotKeys: remakeShotQueue.ignoredShotKeys,
+      orderedShotKeys: remakeQueueOrderedShotKeys,
+      pausedShotKey: remakeShotQueue.pausedShotKey,
+      queueRunId: remakeShotQueue.queueRunId,
+      queueTotal: remakeShotQueue.queueTotal || remakeQueueOrderedShotKeys.length,
+      shotStates: queueShotStates,
+      status: remakeShotQueue.status,
+      userKeyHash: remakeQueueUserKeyHash,
+    });
+  }, [
+    displayedRemakeShotGenerations,
+    remakeQueueOrderedShotKeys,
+    remakeQueueUserKeyHash,
+    remakeShotGenerations,
+    remakeShotQueue,
+    remakeStoryboard,
+  ]);
 
   const handleGenerateAllRemakeShots = useCallback(() => {
     if (!remakeStoryboard || !unfinishedRemakeShots.length) return;
@@ -1173,12 +1356,15 @@ export function VideoWorkspace() {
 
   const handleCancelRemakeQueue = useCallback(() => {
     const cancelledRunId = remakeShotQueue.queueRunId;
+    clearRemakeShotQueueDraft();
+    remakeQueueDraftSignatureRef.current = "";
 
     setRemakeShotQueue((current) => ({
       ...current,
       activeShotKey: undefined,
       pausedShotKey: undefined,
       status: "cancelled",
+      wasInterruptedFromDraft: false,
     }));
     setRemakeShotGenerations((current) => {
       if (!cancelledRunId) return current;
@@ -1203,8 +1389,9 @@ export function VideoWorkspace() {
   const handleContinueRemakeQueue = useCallback(() => {
     setRemakeShotQueue((current) => {
       if (current.status !== "paused") return current;
-      const ignoredShotKeys = current.pausedShotKey
-        ? Array.from(new Set([...current.ignoredShotKeys, current.pausedShotKey]))
+      const interruptedActiveShotKey = current.wasInterruptedFromDraft ? current.activeShotKey : undefined;
+      const ignoredShotKeys = current.pausedShotKey || interruptedActiveShotKey
+        ? Array.from(new Set([...current.ignoredShotKeys, current.pausedShotKey, interruptedActiveShotKey].filter(Boolean) as string[]))
         : current.ignoredShotKeys;
 
       return {
@@ -1213,6 +1400,7 @@ export function VideoWorkspace() {
         ignoredShotKeys,
         pausedShotKey: undefined,
         status: "running",
+        wasInterruptedFromDraft: false,
       };
     });
     setWorkspaceNotice(t("video.remake.queueRunning"));
@@ -1237,6 +1425,7 @@ export function VideoWorkspace() {
       ignoredShotKeys: Array.from(new Set([...current.ignoredShotKeys, failedShotKey])),
       pausedShotKey: undefined,
       status: "running",
+      wasInterruptedFromDraft: false,
     }));
     setWorkspaceNotice(t("video.remake.queueRunning"));
   }, [remakeShotQueue.pausedShotKey, t]);
@@ -1273,6 +1462,7 @@ export function VideoWorkspace() {
                 activeShotKey: undefined,
                 pausedShotKey: failedShot.key,
                 status: "paused",
+                wasInterruptedFromDraft: false,
               }
             : current,
         );
@@ -1300,6 +1490,7 @@ export function VideoWorkspace() {
                 activeShotKey: undefined,
                 pausedShotKey: undefined,
                 status: "completed",
+                wasInterruptedFromDraft: false,
               }
             : current,
         );
@@ -1725,6 +1916,7 @@ export function VideoWorkspace() {
             queueError={remakeQueueError}
             queueStatus={remakeShotQueue.status}
             queueTotal={remakeShotQueue.queueTotal}
+            queueWasInterrupted={Boolean(remakeShotQueue.wasInterruptedFromDraft)}
             onUsePrompt={handleUseRemakePrompt}
             settings={{
               characterRules: remakeCharacterRules,

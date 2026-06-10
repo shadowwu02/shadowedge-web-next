@@ -32,6 +32,7 @@ type RemakeStoryboardPanelProps = {
   queueError?: string;
   queueStatus?: RemakeShotQueueStatus;
   queueTotal?: number;
+  queueWasInterrupted?: boolean;
   settings: RemakeSettings;
   shotGenerations?: Record<string, RemakeShotGenerationState>;
   storyboard: RemakeStoryboard | null;
@@ -136,6 +137,7 @@ export function RemakeStoryboardPanel({
   queueError = "",
   queueStatus = "idle",
   queueTotal = 0,
+  queueWasInterrupted = false,
   settings,
   shotGenerations = {},
   storyboard,
@@ -145,12 +147,15 @@ export function RemakeStoryboardPanel({
   const segments = metadata?.segments || [];
   const isQueueRunning = queueStatus === "running";
   const isQueuePaused = queueStatus === "paused";
+  const isQueueInterrupted = isQueuePaused && queueWasInterrupted;
   const hasQueueStatus = queueStatus === "running" || queueStatus === "paused" || queueStatus === "completed" || queueStatus === "cancelled";
   const queueStatusLabel =
     queueStatus === "running"
       ? t("video.remake.queueRunning")
       : queueStatus === "paused"
-        ? t("video.remake.queuePaused")
+        ? isQueueInterrupted
+          ? t("video.remake.queueInterrupted")
+          : t("video.remake.queuePaused")
         : queueStatus === "completed"
           ? t("video.remake.queueCompleted")
           : queueStatus === "cancelled"
@@ -204,15 +209,17 @@ export function RemakeStoryboardPanel({
                 onClick={onContinueQueue}
                 type="button"
               >
-                {t("video.remake.continueQueue")}
+                {isQueueInterrupted ? t("video.remake.resumeQueue") : t("video.remake.continueQueue")}
               </button>
-              <button
-                className="min-h-9 rounded-[14px] border border-[rgba(244,244,244,0.1)] bg-[#1a1c22]/64 px-3 text-xs font-semibold text-[#f4f4f4]/82 transition-colors hover:border-[#ffb44d]/34 hover:text-[#ffb44d]"
-                onClick={onSkipFailedShot}
-                type="button"
-              >
-                {t("video.remake.skipShot")}
-              </button>
+              {!isQueueInterrupted ? (
+                <button
+                  className="min-h-9 rounded-[14px] border border-[rgba(244,244,244,0.1)] bg-[#1a1c22]/64 px-3 text-xs font-semibold text-[#f4f4f4]/82 transition-colors hover:border-[#ffb44d]/34 hover:text-[#ffb44d]"
+                  onClick={onSkipFailedShot}
+                  type="button"
+                >
+                  {t("video.remake.skipShot")}
+                </button>
+              ) : null}
               <button
                 className="min-h-9 rounded-[14px] border border-red-300/24 bg-red-500/10 px-3 text-xs font-semibold text-red-100/82 transition-colors hover:bg-red-500/16"
                 onClick={onCancelQueue}
@@ -237,7 +244,7 @@ export function RemakeStoryboardPanel({
           ) : null}
           {isQueuePaused ? (
             <div className="grid gap-1 text-[#ffd08a]/86">
-              <p>{t("video.remake.queueFailedNotice")}</p>
+              <p>{isQueueInterrupted ? t("video.remake.queueDraftRestored") : t("video.remake.queueFailedNotice")}</p>
               {queueError ? <p className="break-words font-semibold text-red-100/82">{queueError}</p> : null}
             </div>
           ) : null}
