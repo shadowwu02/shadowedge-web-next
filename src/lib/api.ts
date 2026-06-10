@@ -14,33 +14,90 @@ function resolveUrl(path: string) {
 }
 
 function payloadText(payload: ApiEnvelope<unknown> | null) {
-  return String(payload?.message || payload?.error || payload?.code || "").toLowerCase();
+  const record = asRecord(payload);
+  return String(
+    record.public_message ||
+      record.publicMessage ||
+      record.message ||
+      record.error ||
+      record.details ||
+      record.code ||
+      record.error_code ||
+      record.errorCode ||
+      "",
+  ).toLowerCase();
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function pickString(...values: unknown[]) {
+  return values.find((value) => typeof value === "string" && value.trim()) as string | undefined;
+}
+
+function truncateText(value: string, maxLength = 240) {
+  const text = value.replace(/\s+/g, " ").trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 1).trim()}...`;
+}
+
+function sanitizeErrorText(value: string) {
+  const text = String(value || "")
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer <redacted>")
+    .replace(/\b(access_token|refresh_token|token|api[_-]?key|session|cookie|authorization)=([^&\s]+)/gi, "$1=<redacted>")
+    .replace(/https?:\/\/[^\s"'<>]+/gi, (rawUrl) => {
+      try {
+        const url = new URL(rawUrl);
+        url.search = "";
+        url.hash = "";
+        return url.toString();
+      } catch {
+        return "<redacted-url>";
+      }
+    });
+
+  return truncateText(text);
+}
+
+function getApiErrorMessage(status: number, payload: ApiEnvelope<unknown> | null) {
+  const record = asRecord(payload);
+  const code = sanitizeErrorText(pickString(record.code, record.error_code, record.errorCode) || "");
+  const message = sanitizeErrorText(
+    pickString(record.public_message, record.publicMessage, record.message, record.error, record.details) || "",
+  );
+
+  if (code && message && code !== message) return `${code}: ${message}`;
+  if (code || message) return code || message;
+  return status ? `HTTP ${status} request failed.` : "ShadowEdge API request failed";
 }
 
 export function normalizeApiError(status: number, payload: ApiEnvelope<unknown> | null) {
   const text = payloadText(payload);
+  const message = getApiErrorMessage(status, payload);
+  const code = pickString(asRecord(payload).code, asRecord(payload).error_code, asRecord(payload).errorCode);
 
   if (status === 401) {
-    return new ApiError("Sign in required.", {
+    return new ApiError(message === `HTTP ${status} request failed.` ? "Sign in required." : message, {
       status,
-      code: payload?.code,
+      code,
       payload,
       kind: "auth",
     });
   }
 
-  if (status === 403 || text.includes("insufficient") || text.includes("not enough credit") || text.includes("credits")) {
-    return new ApiError(text.includes("admin") ? "Contact administrator." : "Not enough credits.", {
+  if (status === 402 || status === 403 || text.includes("insufficient") || text.includes("not enough credit") || text.includes("credits")) {
+    return new ApiError(text.includes("admin") ? "Contact administrator." : message || "Not enough credits.", {
       status,
-      code: payload?.code,
+      code,
       payload,
       kind: "credits",
     });
   }
 
-  return new ApiError(payload?.message || payload?.error || "ShadowEdge API request failed", {
+  return new ApiError(message || "ShadowEdge API request failed", {
     status,
-    code: payload?.code,
+    code,
     payload,
     kind: status >= 500 ? "server" : "unknown",
   });
@@ -116,7 +173,8 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   try {
     response = await fetch(requestUrl, requestInit);
   } catch (error) {
-    throw new ApiError(error instanceof Error ? error.message : "Network request failed.", {
+    console.warn("[ShadowEdge Next] API network request failed:", error instanceof Error ? error.message : error);
+    throw new ApiError("Network request failed.", {
       kind: "network",
     });
   }
@@ -142,7 +200,8 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
         });
         payload = await readJsonEnvelope<T>(response);
       } catch (error) {
-        throw new ApiError(error instanceof Error ? error.message : "Network request failed.", {
+        console.warn("[ShadowEdge Next] API network retry failed:", error instanceof Error ? error.message : error);
+        throw new ApiError("Network request failed.", {
           kind: "network",
         });
       }

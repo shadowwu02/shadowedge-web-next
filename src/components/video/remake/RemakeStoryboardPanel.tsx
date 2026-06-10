@@ -27,6 +27,7 @@ type RemakeStoryboardPanelProps = {
   onSkipFailedShot?: () => void;
   onUsePrompt: (prompt: string) => void;
   queueCompletedCount?: number;
+  queueError?: string;
   queueStatus?: RemakeShotQueueStatus;
   queueTotal?: number;
   settings: RemakeSettings;
@@ -128,6 +129,7 @@ export function RemakeStoryboardPanel({
   onSkipFailedShot,
   onUsePrompt,
   queueCompletedCount = 0,
+  queueError = "",
   queueStatus = "idle",
   queueTotal = 0,
   settings,
@@ -220,7 +222,10 @@ export function RemakeStoryboardPanel({
             </p>
           ) : null}
           {isQueuePaused ? (
-            <p className="text-[#ffd08a]/86">{t("video.remake.queueFailedNotice")}</p>
+            <div className="grid gap-1 text-[#ffd08a]/86">
+              <p>{t("video.remake.queueFailedNotice")}</p>
+              {queueError ? <p className="break-words font-semibold text-red-100/82">{queueError}</p> : null}
+            </div>
           ) : null}
         </div>
       ) : null}
@@ -361,7 +366,7 @@ export function RemakeStoryboardPanel({
                     </p>
                   ) : null}
                   {generation?.status === "failed" ? (
-                    <p className="rounded-[16px] border border-red-400/18 bg-red-500/8 p-2 text-xs leading-5 text-red-100/76">
+                    <p className="break-words rounded-[16px] border border-red-400/18 bg-red-500/8 p-2 text-xs leading-5 text-red-100/76">
                       {generation.error || t("video.remake.shotGenerationFailed")}
                     </p>
                   ) : null}

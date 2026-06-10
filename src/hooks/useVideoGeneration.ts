@@ -30,6 +30,7 @@ type SubmitVideoOptions = {
   mentionBindings?: VideoMentionBinding[];
   meta?: Record<string, unknown>;
   maxConcurrency?: number | null;
+  onSubmitError?: (message: string) => void;
 };
 
 type SubmitValidationCopy = {
@@ -252,7 +253,9 @@ export function useVideoGeneration() {
 
   const submit = useCallback(async (options: SubmitVideoOptions): Promise<VideoTaskRecord | null> => {
     if (isSubmitting) {
-      setError(submitValidationCopy.activeGeneration);
+      const message = submitValidationCopy.activeGeneration;
+      setError(message);
+      options.onSubmitError?.(message);
       return null;
     }
 
@@ -314,6 +317,7 @@ export function useVideoGeneration() {
     } catch (submitError) {
       const message = submitError instanceof Error ? submitError.message : t("video.errors.generationRequestFailed");
       setError(message);
+      options.onSubmitError?.(message);
       return null;
     } finally {
       setIsSubmitting(false);

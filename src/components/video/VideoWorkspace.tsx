@@ -859,6 +859,7 @@ export function VideoWorkspace() {
         },
       }));
 
+      let submitFailureMessage = "";
       const nextTask = await submit({
         prompt: shot.prompt.trim(),
         model: selectedModel,
@@ -869,6 +870,9 @@ export function VideoWorkspace() {
         media: [],
         mentionBindings: [],
         maxConcurrency,
+        onSubmitError: (message) => {
+          submitFailureMessage = message;
+        },
         meta: {
           source: "remake",
           remake: true,
@@ -898,7 +902,9 @@ export function VideoWorkspace() {
       });
 
       if (!nextTask) {
-        failShot(t("video.errors.generationRequestFailed"));
+        const message = submitFailureMessage || t("video.errors.generationRequestFailed");
+        setWorkspaceNotice(message);
+        failShot(message);
         return;
       }
 
@@ -1050,6 +1056,10 @@ export function VideoWorkspace() {
       return generation?.queueRunId === remakeShotQueue.queueRunId && generation.status === "success";
     }).length;
   }, [displayedRemakeShotGenerations, remakeShotQueue.queueRunId, remakeShots, remakeStoryboard?.id]);
+  const remakeQueueError = useMemo(() => {
+    if (remakeShotQueue.status !== "paused" || !remakeShotQueue.pausedShotKey) return "";
+    return displayedRemakeShotGenerations[remakeShotQueue.pausedShotKey]?.error || "";
+  }, [displayedRemakeShotGenerations, remakeShotQueue.pausedShotKey, remakeShotQueue.status]);
 
   const handleGenerateAllRemakeShots = useCallback(() => {
     if (!remakeStoryboard || !unfinishedRemakeShots.length) return;
@@ -1194,7 +1204,10 @@ export function VideoWorkspace() {
               }
             : current,
         );
-        setWorkspaceNotice(t("video.remake.queueFailedNotice"));
+        const message = failedShot.generation?.error
+          ? `${t("video.remake.queueFailedNotice")} ${failedShot.generation.error}`
+          : t("video.remake.queueFailedNotice");
+        setWorkspaceNotice(message);
       }, 0);
 
       return () => window.clearTimeout(timer);
@@ -1635,6 +1648,7 @@ export function VideoWorkspace() {
             onGenerateShot={handleGenerateRemakeShot}
             onSkipFailedShot={handleSkipFailedRemakeShot}
             queueCompletedCount={remakeQueueCompletedCount}
+            queueError={remakeQueueError}
             queueStatus={remakeShotQueue.status}
             queueTotal={remakeShotQueue.queueTotal}
             onUsePrompt={handleUseRemakePrompt}
