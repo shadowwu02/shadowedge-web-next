@@ -12,7 +12,7 @@ import { UploadBox } from "@/components/video/UploadBox";
 import { VideoGenerationStream, type VideoHistoryFilter } from "@/components/video/VideoGenerationStream";
 import { VideoHowItWorks } from "@/components/video/VideoHowItWorks";
 import { type VideoParams, VideoParamsPanel } from "@/components/video/VideoParamsPanel";
-import { RemakeStoryboardPanel } from "@/components/video/remake/RemakeStoryboardPanel";
+import { RemakeStoryboardPanel, type RemakeOutputItem, type RemakeOutputScope } from "@/components/video/remake/RemakeStoryboardPanel";
 import { VideoRemakeWorkspace } from "@/components/video/remake/VideoRemakeWorkspace";
 import { buildMockRemakeStoryboard } from "@/components/video/remake/remakeMockData";
 import { getRemakeShotGenerationKey } from "@/components/video/remake/remakeTypes";
@@ -38,6 +38,8 @@ import { collectGeneratedResultMediaAssets, collectHistoryInputMediaAssets, coll
 import { getVideoModels, getVideoStatus, reverseAnalyzeVideoRemake, uploadMedia } from "@/lib/video-api";
 import {
   getSafeHistoryOutputUrl,
+  getSafeVideoHistoryView,
+  getVideoHistoryStableKey,
   getSafeVideoHistoryErrorMessage,
   getVideoHistoryTime,
   isVideoStaleActiveRecord,
@@ -123,6 +125,10 @@ type RemakeActiveShotRecoveryState = {
   jobId: string;
   shotKey: string;
   status: "checking" | "processing" | "completed" | "failed";
+};
+type RemakeOutputsView = {
+  items: RemakeOutputItem[];
+  scope: RemakeOutputScope;
 };
 
 const idleRemakeShotQueue: RemakeShotQueueState = {
@@ -319,16 +325,18 @@ function getRemakeHistoryMeta(record: VideoTaskRecord) {
   const rawPayload = getNestedPlainRecord(raw, "raw");
   const params = getNestedPlainRecord(raw, "params");
   const data = getNestedPlainRecord(raw, "data");
+  const candidates = [
+    asPlainRecord(raw.meta),
+    asPlainRecord(raw.metadata),
+    asPlainRecord(request.meta),
+    asPlainRecord(rawPayload.meta),
+    asPlainRecord(params.meta),
+    asPlainRecord(data.meta),
+  ];
 
   return (
-    [
-      asPlainRecord(raw.meta),
-      asPlainRecord(raw.metadata),
-      asPlainRecord(request.meta),
-      asPlainRecord(rawPayload.meta),
-      asPlainRecord(params.meta),
-      asPlainRecord(data.meta),
-    ].find((meta) => Object.keys(meta).length > 0) || {}
+    candidates.find((meta) => String(meta.source || "").trim() === "remake" || meta.remake !== undefined || meta.remake_source !== undefined) ||
+    candidates.reduce<Record<string, unknown>>((merged, meta) => ({ ...merged, ...meta }), {})
   );
 }
 
@@ -378,6 +386,96 @@ function getRemakeHistoryTaskId(record: VideoTaskRecord) {
     getStringValue(meta.jobId) ||
     getStringValue(meta.providerJobId)
   );
+}
+
+function getRemakeOutputStatusKind(statusValue: string, outputUrl: string): RemakeOutputItem["statusKind"] {
+  const status = String(statusValue || "").toLowerCase();
+  if (isVideoFailedStatus(status)) return "failed";
+  if (outputUrl) return "completed";
+  if (isVideoActiveStatus(status)) return "processing";
+  return "unknown";
+}
+
+function findRemakeOutputShot(storyboard: RemakeStoryboard | null, analysisId: string, shotGroupId: string, shotNumber: number) {
+  if (!storyboard?.shots.length) return undefined;
+  if (analysisId && analysisId !== storyboard.id) return undefined;
+
+  return storyboard.shots.find((shot) => shot.shotGroupId === shotGroupId && String(shot.shot) === String(shotNumber));
+}
+
+function toRemakeOutputItem(item: RemakeOutputItem & { historyTime: number }): RemakeOutputItem {
+  const output = { ...item } as RemakeOutputItem & { historyTime?: number };
+  delete output.historyTime;
+  return output;
+}
+
+function buildRemakeOutputItems(records: VideoTaskRecord[], storyboard: RemakeStoryboard | null): RemakeOutputsView {
+  const outputs = new Map<string, RemakeOutputItem & { historyTime: number }>();
+
+  records.forEach((record, index) => {
+    const meta = getRemakeHistoryMeta(record);
+    if (getStringValue(meta.source) !== "remake") return;
+    if (!isTrueValue(meta.remake)) return;
+    if (getStringValue(meta.remake_source) !== "storyboard_shot") return;
+
+    const view = getSafeVideoHistoryView(record, `remake-output:${index}`);
+    const outputUrl = getRemakeHistoryOutputUrl(record) || view.outputUrl;
+    const statusKind = getRemakeOutputStatusKind(view.status, outputUrl);
+    if (statusKind === "unknown" && !outputUrl) return;
+
+    const analysisId = getStringValue(meta.analysisId);
+    const shotGroupId = getStringValue(meta.shotGroupId);
+    const shotNumber = getNumberValue(meta.shotNumber) || undefined;
+    const historyTime = getVideoHistoryTime(record);
+    const key = getVideoHistoryStableKey(record, `remake-output:${index}`) || `remake-output:${index}`;
+    const item: RemakeOutputItem & { historyTime: number } = {
+      analysisId: analysisId || undefined,
+      createdAtLabel: view.createdAtLabel,
+      duration: view.duration,
+      errorMessage: statusKind === "failed" ? getSafeVideoHistoryErrorMessage(record) : "",
+      historyTime,
+      key,
+      modelLabel: view.modelLabel,
+      outputUrl: outputUrl || view.outputUrl,
+      quality: view.quality,
+      ratio: view.ratio,
+      shot: shotGroupId && shotNumber ? findRemakeOutputShot(storyboard, analysisId, shotGroupId, shotNumber) : undefined,
+      shotGroupId: shotGroupId || undefined,
+      shotNumber,
+      status: view.status,
+      statusKind,
+    };
+    const current = outputs.get(key);
+    if (!current || item.historyTime >= current.historyTime) outputs.set(key, item);
+  });
+
+  const allOutputs = Array.from(outputs.values());
+
+  if (storyboard?.id) {
+    const exactOutputs = allOutputs.filter((item) => item.analysisId === storyboard.id);
+    const scopedOutputs = exactOutputs.length
+      ? exactOutputs
+      : allOutputs.filter((item) => !item.analysisId && item.shot);
+
+    return {
+      items: scopedOutputs
+        .sort((a, b) => {
+          const shotDelta = (a.shotNumber || Number.MAX_SAFE_INTEGER) - (b.shotNumber || Number.MAX_SAFE_INTEGER);
+          if (shotDelta !== 0) return shotDelta;
+          return b.historyTime - a.historyTime;
+        })
+        .map(toRemakeOutputItem),
+      scope: "current",
+    };
+  }
+
+  return {
+    items: allOutputs
+      .sort((a, b) => b.historyTime - a.historyTime)
+      .slice(0, 5)
+      .map(toRemakeOutputItem),
+    scope: "recent",
+  };
 }
 
 function preferRemakeHistoryCandidate(current: RemakeHistoryShotCandidate | undefined, candidate: RemakeHistoryShotCandidate) {
@@ -1560,6 +1658,11 @@ export function VideoWorkspace() {
     return next;
   }, [history, remakeShotGenerations, t, task]);
 
+  const remakeOutputsView = useMemo(
+    () => buildRemakeOutputItems(task ? [task, ...history] : history, remakeStoryboard),
+    [history, remakeStoryboard, task],
+  );
+
   const remakeShots = useMemo(() => remakeStoryboard?.shots || [], [remakeStoryboard]);
   const unfinishedRemakeShots = useMemo(
     () =>
@@ -2365,6 +2468,8 @@ export function VideoWorkspace() {
             onGenerateShot={handleGenerateRemakeShot}
             onRetryAllFailedShots={handleRetryAllFailedRemakeShots}
             onSkipFailedShot={handleSkipFailedRemakeShot}
+            outputs={remakeOutputsView.items}
+            outputsScope={remakeOutputsView.scope}
             queueCompletedCount={remakeQueueCompletedCount}
             queueError={remakeQueueError}
             queueIntent={remakeShotQueue.queueIntent}

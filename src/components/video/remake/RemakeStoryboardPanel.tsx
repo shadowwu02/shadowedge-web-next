@@ -34,6 +34,8 @@ type RemakeStoryboardPanelProps = {
   onRetryAllFailedShots?: () => void;
   onSkipFailedShot?: () => void;
   onUsePrompt: (prompt: string) => void;
+  outputs?: RemakeOutputItem[];
+  outputsScope?: RemakeOutputScope;
   queueCompletedCount?: number;
   queueError?: string;
   queueIntent?: RemakeShotQueueIntent;
@@ -43,6 +45,25 @@ type RemakeStoryboardPanelProps = {
   settings: RemakeSettings;
   shotGenerations?: Record<string, RemakeShotGenerationState>;
   storyboard: RemakeStoryboard | null;
+};
+
+export type RemakeOutputScope = "current" | "recent";
+
+export type RemakeOutputItem = {
+  analysisId?: string;
+  createdAtLabel: string;
+  duration: string;
+  errorMessage?: string;
+  key: string;
+  modelLabel: string;
+  outputUrl: string;
+  quality: string;
+  ratio: string;
+  shot?: RemakeShot;
+  shotGroupId?: string;
+  shotNumber?: number;
+  status: string;
+  statusKind: "completed" | "failed" | "processing" | "unknown";
 };
 
 function formatTime(seconds: number) {
@@ -128,6 +149,143 @@ function RemakeKeyframes({ keyframes }: { keyframes: RemakeKeyframe[] }) {
   );
 }
 
+function outputStatusClass(statusKind: RemakeOutputItem["statusKind"]) {
+  if (statusKind === "completed") return "border-emerald-400/22 bg-emerald-400/8 text-emerald-100";
+  if (statusKind === "failed") return "border-red-400/20 bg-red-500/8 text-red-100";
+  if (statusKind === "processing") return "border-[#ffb44d]/28 bg-[#ffb44d]/10 text-[#ffb44d]";
+  return "border-[rgba(244,244,244,0.10)] bg-[#1a1c22]/68 text-[#b9b9b9]/72";
+}
+
+function RemakeOutputsPanel({
+  disableRetry,
+  onRetryShot,
+  outputs,
+  scope,
+}: {
+  disableRetry: boolean;
+  onRetryShot: (shot: RemakeShot) => void;
+  outputs: RemakeOutputItem[];
+  scope: RemakeOutputScope;
+}) {
+  const { t } = useI18n();
+  const scopeLabel = scope === "current" ? t("video.remake.currentStoryboardOutputs") : t("video.remake.recentOutputs");
+
+  function statusLabel(output: RemakeOutputItem) {
+    if (output.statusKind === "completed") return t("common.status.completed");
+    if (output.statusKind === "failed") return t("video.status.failed");
+    if (output.statusKind === "processing") return t("video.status.processing");
+    return output.status || "--";
+  }
+
+  return (
+    <section className="mt-5 rounded-[28px] border border-[rgba(244,244,244,0.08)] bg-[#05070b]/36 p-4">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="se-eyebrow">{t("video.remake.outputsTitle")}</p>
+          <h2 className="mt-1 text-lg font-semibold text-[#f4f4f4]">{t("video.remake.outputsTitle")}</h2>
+          <p className="mt-1 text-sm leading-6 text-[#b9b9b9]/62">{t("video.remake.outputsDescription")}</p>
+        </div>
+        <span className="rounded-full border border-[#ffb44d]/24 bg-[#ffb44d]/8 px-3 py-1.5 text-xs font-semibold text-[#ffd08a]/86">
+          {scopeLabel}
+        </span>
+      </div>
+
+      {outputs.length ? (
+        <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+          {outputs.map((output) => {
+            const canRetryShot = Boolean(output.shot) && output.statusKind !== "processing";
+
+            return (
+              <article
+                className="overflow-hidden rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/70 shadow-inner shadow-black/10"
+                key={output.key}
+              >
+                <div className="aspect-video bg-[#05070b]">
+                  {output.outputUrl ? (
+                    <video className="size-full object-contain" controls playsInline preload="metadata" src={output.outputUrl} />
+                  ) : (
+                    <div className="grid size-full place-items-center px-4 text-center">
+                      <div>
+                        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${outputStatusClass(output.statusKind)}`}>
+                          {statusLabel(output)}
+                        </span>
+                        {output.statusKind === "processing" ? <span className="mx-auto mt-4 block size-9 animate-pulse rounded-2xl border border-[#ffb44d]/28 bg-[#ffb44d]/12" /> : null}
+                        {output.statusKind === "failed" && output.errorMessage ? (
+                          <p className="mx-auto mt-3 line-clamp-3 max-w-xs text-xs leading-5 text-red-100/70">{output.errorMessage}</p>
+                        ) : null}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="grid gap-3 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${outputStatusClass(output.statusKind)}`}>
+                      {statusLabel(output)}
+                    </span>
+                    {output.shotNumber ? (
+                      <span className="rounded-full border border-[#ffb44d]/22 bg-[#ffb44d]/8 px-2.5 py-1 text-[11px] font-semibold text-[#ffb44d]">
+                        {t("video.remake.shot")} {output.shotNumber}
+                      </span>
+                    ) : null}
+                    {output.shotGroupId ? (
+                      <span className="rounded-full border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/66 px-2.5 py-1 text-[11px] font-medium text-[#b9b9b9]/66">
+                        {output.shotGroupId}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs text-[#b9b9b9]/68">
+                    <span className="truncate">{output.modelLabel || "--"}</span>
+                    <span className="text-right">{output.createdAtLabel}</span>
+                    <span>{output.quality || "--"}</span>
+                    <span className="text-right">{[output.duration, output.ratio].filter(Boolean).join(" / ") || "--"}</span>
+                  </div>
+
+                  {output.statusKind === "failed" && output.errorMessage ? (
+                    <p className="break-words rounded-[14px] border border-red-400/16 bg-red-500/8 p-2 text-xs leading-5 text-red-100/72">
+                      {output.errorMessage}
+                    </p>
+                  ) : null}
+
+                  <div className="flex flex-wrap gap-2">
+                    {output.outputUrl ? (
+                      <a
+                        className="inline-flex min-h-9 items-center justify-center rounded-[14px] border border-[rgba(244,244,244,0.1)] bg-[#1a1c22]/64 px-3 text-xs font-semibold text-[#f4f4f4]/82 transition-colors hover:border-[#ffb44d]/34 hover:text-[#ffb44d]"
+                        href={output.outputUrl}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        {t("video.remake.openOutput")}
+                      </a>
+                    ) : null}
+                    {canRetryShot ? (
+                      <button
+                        className="min-h-9 rounded-[14px] border border-[#ffb44d]/34 bg-[#ffb44d]/12 px-3 text-xs font-semibold text-[#ffb44d] transition-colors hover:bg-[#ffb44d]/18 disabled:cursor-not-allowed disabled:opacity-45"
+                        disabled={disableRetry}
+                        onClick={() => {
+                          if (output.shot) onRetryShot(output.shot);
+                        }}
+                        type="button"
+                      >
+                        {t("video.remake.retryShot")}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="rounded-[22px] border border-dashed border-[rgba(244,244,244,0.10)] bg-[#111318]/48 p-6 text-center">
+          <h3 className="text-sm font-semibold text-[#f4f4f4]">{t("video.remake.noOutputs")}</h3>
+          <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/60">{t("video.remake.noOutputsHint")}</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function RemakeStoryboardPanel({
   analysisNotice = "",
   canGenerateAllShots = false,
@@ -145,6 +303,8 @@ export function RemakeStoryboardPanel({
   onRetryAllFailedShots,
   onSkipFailedShot,
   onUsePrompt,
+  outputs = [],
+  outputsScope = "recent",
   queueCompletedCount = 0,
   queueError = "",
   queueIntent = "generate_all",
@@ -454,6 +614,12 @@ export function RemakeStoryboardPanel({
           </div>
         </div>
       )}
+      <RemakeOutputsPanel
+        disableRetry={disableGenerationActions || isQueueRunning}
+        onRetryShot={onGenerateShot}
+        outputs={outputs}
+        scope={outputsScope}
+      />
     </section>
   );
 }
