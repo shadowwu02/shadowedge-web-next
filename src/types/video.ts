@@ -149,6 +149,7 @@ export type VideoTaskRecord = {
   prompt?: string;
   videoUrl?: string;
   outputUrl?: string;
+  output_url?: string;
   outputUrls?: string[];
   thumbnail?: string;
   thumbnailUrl?: string;
@@ -188,6 +189,7 @@ export type VideoStatusResponse = {
   status?: string;
   videoUrl?: string;
   outputUrl?: string;
+  output_url?: string;
   outputUrls?: string[];
   output_urls?: string[];
   provider?: string;

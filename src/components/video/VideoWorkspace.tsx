@@ -33,7 +33,7 @@ import { useCredits } from "@/hooks/useCredits";
 import { useVideoGeneration } from "@/hooks/useVideoGeneration";
 import { useI18n } from "@/i18n/useI18n";
 import { collectGeneratedResultMediaAssets, collectHistoryInputMediaAssets, collectReusableVideoAssets, mergeMediaAssets } from "@/lib/media-assets";
-import { getVideoModels, reverseAnalyzeVideoRemake, uploadMedia } from "@/lib/video-api";
+import { getVideoModels, getVideoStatus, reverseAnalyzeVideoRemake, uploadMedia } from "@/lib/video-api";
 import {
   getSafeHistoryOutputUrl,
   getSafeVideoHistoryErrorMessage,
@@ -110,6 +110,12 @@ type RemakeShotQueueState = {
   status: RemakeShotQueueStatus;
   wasInterruptedFromDraft?: boolean;
 };
+type RemakeActiveShotRecoveryState = {
+  error?: string;
+  jobId: string;
+  shotKey: string;
+  status: "checking" | "processing" | "completed" | "failed";
+};
 
 const idleRemakeShotQueue: RemakeShotQueueState = {
   ignoredShotKeys: [],
@@ -134,6 +140,19 @@ function normalizeRemakeQueueDraftShotState(state: RemakeShotGenerationState): R
     ...state,
     status: "idle",
   };
+}
+
+function getVideoStatusOutputUrl(result: VideoStatusResponse) {
+  if (typeof result.videoUrl === "string" && result.videoUrl) return result.videoUrl;
+  if (typeof result.outputUrl === "string" && result.outputUrl) return result.outputUrl;
+  if (typeof result.output_url === "string" && result.output_url) return result.output_url;
+  if (Array.isArray(result.outputUrls) && result.outputUrls[0]) return result.outputUrls[0];
+  if (Array.isArray(result.output_urls) && result.output_urls[0]) return result.output_urls[0];
+  return "";
+}
+
+function getVideoStatusErrorMessage(result: VideoStatusResponse, fallback: string) {
+  return String(result.error_message || result.errorMessage || result.message || result.error || fallback);
 }
 
 function getVideoModelRuleId(model: VideoModel) {
@@ -453,10 +472,13 @@ export function VideoWorkspace() {
   const [isRemakeDraftRestored, setIsRemakeDraftRestored] = useState(false);
   const [remakeShotGenerations, setRemakeShotGenerations] = useState<Record<string, RemakeShotGenerationState>>({});
   const [remakeShotQueue, setRemakeShotQueue] = useState<RemakeShotQueueState>(idleRemakeShotQueue);
+  const [remakeActiveShotRecovery, setRemakeActiveShotRecovery] = useState<RemakeActiveShotRecoveryState | null>(null);
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const remakeDraftHydratedRef = useRef(false);
   const remakeQueueDraftHydratedRef = useRef("");
   const remakeQueueDraftSignatureRef = useRef("");
+  const remakeActiveRecoveryRef = useRef("");
+  const remakeShotGenerationsRef = useRef<Record<string, RemakeShotGenerationState>>({});
   const remakeShotQueueSubmittingRef = useRef(false);
   const latestDraftSnapshotRef = useRef<{
     media: UploadMediaItem[];
@@ -488,6 +510,10 @@ export function VideoWorkspace() {
     () => serializeMentionBindings(stripReconciledMentionBindings(reconcileMentionBindings(mentionBindings, media))),
     [media, mentionBindings],
   );
+
+  useEffect(() => {
+    remakeShotGenerationsRef.current = remakeShotGenerations;
+  }, [remakeShotGenerations]);
 
   useEffect(() => {
     let cancelled = false;
@@ -661,8 +687,9 @@ export function VideoWorkspace() {
     if (!orderedShotKeys.length) return;
 
     const wasInterruptedFromDraft = draft.status === "running" || Boolean(draft.activeShotKey);
+    const activeShotTaskId = wasInterruptedFromDraft && draft.activeShotKey ? draft.shotStates[draft.activeShotKey]?.taskId || "" : "";
     const ignoredShotKeys = new Set(draft.ignoredShotKeys.filter((key) => storyboardShotKeys.has(key)));
-    if (wasInterruptedFromDraft && draft.activeShotKey && storyboardShotKeys.has(draft.activeShotKey)) {
+    if (wasInterruptedFromDraft && !activeShotTaskId && draft.activeShotKey && storyboardShotKeys.has(draft.activeShotKey)) {
       ignoredShotKeys.add(draft.activeShotKey);
     }
     const pausedShotKey =
@@ -684,7 +711,10 @@ export function VideoWorkspace() {
         orderedShotKeys.forEach((shotKey) => {
           const restored = draft.shotStates[shotKey];
           if (!restored) return;
-          const normalized = normalizeRemakeQueueDraftShotState(restored);
+          const normalized =
+            activeShotTaskId && shotKey === draft.activeShotKey
+              ? { ...restored, status: "generating" as const }
+              : normalizeRemakeQueueDraftShotState(restored);
           if (!shouldApplyRemakeHistoryGeneration(current[shotKey], normalized)) return;
           next[shotKey] = {
             ...(current[shotKey] || {}),
@@ -1160,6 +1190,186 @@ export function VideoWorkspace() {
     return () => window.clearTimeout(timer);
   }, [remakeHistoryShotMap]);
 
+  useEffect(() => {
+    if (!remakeStoryboard || remakeShotQueue.status !== "paused" || !remakeShotQueue.wasInterruptedFromDraft || !remakeShotQueue.activeShotKey) return;
+
+    const shotKey = remakeShotQueue.activeShotKey;
+    const generation = remakeShotGenerations[shotKey];
+    const jobId = generation?.taskId || "";
+    if (!jobId) return;
+    if (generation?.status === "success" || generation?.status === "failed") return;
+
+    const recoveryKey = `${shotKey}:${jobId}`;
+    if (remakeActiveRecoveryRef.current === recoveryKey) return;
+    remakeActiveRecoveryRef.current = recoveryKey;
+
+    let cancelled = false;
+    setRemakeActiveShotRecovery({
+      jobId,
+      shotKey,
+      status: "checking",
+    });
+    setWorkspaceNotice(t("video.remake.recoveringActiveShot"));
+    setRemakeShotGenerations((current) => {
+      const currentGeneration = current[shotKey];
+      if (!currentGeneration || currentGeneration.status === "success" || currentGeneration.status === "failed") return current;
+      return {
+        ...current,
+        [shotKey]: {
+          ...currentGeneration,
+          error: "",
+          status: "generating",
+          updatedAt: Date.now(),
+        },
+      };
+    });
+
+    void getVideoStatus(jobId, true)
+      .then((response) => {
+        if (cancelled) return;
+        const latestGeneration = remakeShotGenerationsRef.current[shotKey];
+        if (latestGeneration?.status === "success" || latestGeneration?.status === "failed") return;
+
+        const result = response.data || {};
+        const status = String(result.status || "").toLowerCase();
+        const outputUrl = getVideoStatusOutputUrl(result);
+
+        if (outputUrl || status === "completed" || status === "success" || status === "succeeded" || status === "done") {
+          setRemakeShotGenerations((current) => {
+            const currentGeneration = current[shotKey];
+            if (!currentGeneration || currentGeneration.status === "success") return current;
+            return {
+              ...current,
+              [shotKey]: {
+                ...currentGeneration,
+                error: "",
+                outputUrl,
+                status: "success",
+                taskId: jobId,
+                updatedAt: Date.now(),
+              },
+            };
+          });
+          setRemakeActiveShotRecovery({
+            jobId,
+            shotKey,
+            status: "completed",
+          });
+          setRemakeShotQueue((current) =>
+            current.activeShotKey === shotKey
+              ? {
+                  ...current,
+                  activeShotKey: undefined,
+                  wasInterruptedFromDraft: true,
+                }
+              : current,
+          );
+          setWorkspaceNotice(t("video.remake.activeShotRecovered"));
+          return;
+        }
+
+        if (isVideoFailedStatus(status)) {
+          const message = getVideoStatusErrorMessage(result, t("video.remake.shotGenerationFailed"));
+          setRemakeShotGenerations((current) => {
+            const currentGeneration = current[shotKey];
+            if (!currentGeneration || currentGeneration.status === "success") return current;
+            return {
+              ...current,
+              [shotKey]: {
+                ...currentGeneration,
+                error: message,
+                outputUrl: "",
+                status: "failed",
+                taskId: jobId,
+                updatedAt: Date.now(),
+              },
+            };
+          });
+          setRemakeActiveShotRecovery({
+            error: message,
+            jobId,
+            shotKey,
+            status: "failed",
+          });
+          setRemakeShotQueue((current) =>
+            current.activeShotKey === shotKey
+              ? {
+                  ...current,
+                  activeShotKey: undefined,
+                  pausedShotKey: shotKey,
+                  wasInterruptedFromDraft: false,
+                }
+              : current,
+          );
+          setWorkspaceNotice(`${t("video.remake.activeShotFailed")} ${message}`);
+          return;
+        }
+
+        setRemakeActiveShotRecovery({
+          jobId,
+          shotKey,
+          status: "processing",
+        });
+        setRemakeShotGenerations((current) => {
+          const currentGeneration = current[shotKey];
+          if (!currentGeneration || currentGeneration.status === "success" || currentGeneration.status === "failed") return current;
+          return {
+            ...current,
+            [shotKey]: {
+              ...currentGeneration,
+              error: "",
+              status: "generating",
+              taskId: jobId,
+              updatedAt: Date.now(),
+            },
+          };
+        });
+        setWorkspaceNotice(t("video.remake.activeShotStillProcessing"));
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        const latestGeneration = remakeShotGenerationsRef.current[shotKey];
+        if (latestGeneration?.status === "success" || latestGeneration?.status === "failed") return;
+
+        const message = error instanceof Error ? error.message : t("video.errors.statusRefreshFailed");
+        setRemakeActiveShotRecovery({
+          error: message,
+          jobId,
+          shotKey,
+          status: "failed",
+        });
+        setRemakeShotGenerations((current) => {
+          const currentGeneration = current[shotKey];
+          if (!currentGeneration || currentGeneration.status === "success" || currentGeneration.status === "failed") return current;
+          return {
+            ...current,
+            [shotKey]: {
+              ...currentGeneration,
+              error: message,
+              status: "failed",
+              taskId: jobId,
+              updatedAt: Date.now(),
+            },
+          };
+        });
+        setRemakeShotQueue((current) =>
+          current.activeShotKey === shotKey
+            ? {
+                ...current,
+                activeShotKey: undefined,
+                pausedShotKey: shotKey,
+                wasInterruptedFromDraft: false,
+              }
+            : current,
+        );
+        setWorkspaceNotice(`${t("video.remake.activeShotFailed")} ${message}`);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [remakeShotGenerations, remakeShotQueue, remakeStoryboard, t]);
+
   const displayedRemakeShotGenerations = useMemo(() => {
     const entries = Object.entries(remakeShotGenerations).filter(([, generation]) => generation.taskId);
     if (!entries.length) return remakeShotGenerations;
@@ -1387,6 +1597,15 @@ export function VideoWorkspace() {
   }, [remakeShotQueue.queueRunId, t]);
 
   const handleContinueRemakeQueue = useCallback(() => {
+    if (
+      remakeActiveShotRecovery &&
+      (remakeActiveShotRecovery.status === "checking" || remakeActiveShotRecovery.status === "processing") &&
+      remakeActiveShotRecovery.shotKey === remakeShotQueue.activeShotKey
+    ) {
+      setWorkspaceNotice(t("video.remake.activeShotStillProcessing"));
+      return;
+    }
+
     setRemakeShotQueue((current) => {
       if (current.status !== "paused") return current;
       const interruptedActiveShotKey = current.wasInterruptedFromDraft ? current.activeShotKey : undefined;
@@ -1404,7 +1623,7 @@ export function VideoWorkspace() {
       };
     });
     setWorkspaceNotice(t("video.remake.queueRunning"));
-  }, [t]);
+  }, [remakeActiveShotRecovery, remakeShotQueue.activeShotKey, t]);
 
   const handleSkipFailedRemakeShot = useCallback(() => {
     const failedShotKey = remakeShotQueue.pausedShotKey;
