@@ -22,6 +22,14 @@ function getModelLogoLookup(model: VideoModel | undefined) {
   return [model.id, model.providerModel, model.provider, model.label].filter(Boolean).join(" ");
 }
 
+function ChevronIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4" fill="none" viewBox="0 0 24 24">
+      <path d="m8 10 4 4 4-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+    </svg>
+  );
+}
+
 export function ModelSelector({
   models,
   selectedModelId,
@@ -53,7 +61,7 @@ export function ModelSelector({
     <section className="relative" ref={rootRef}>
       <button
         aria-expanded={isOpen}
-        className="flex min-h-14 w-full items-center justify-between gap-3 rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/62 px-3 py-2 text-left shadow-inner shadow-black/10 transition-colors hover:border-[#ffb44d]/30 hover:bg-[#1f2027]/72"
+        className="group flex min-h-14 w-full items-center justify-between gap-3 rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/62 px-3 py-2 text-left shadow-inner shadow-black/10 transition-colors hover:border-[#ffb44d]/30 hover:bg-[#1f2027]/72"
         onClick={() => setIsOpen((current) => !current)}
         type="button"
       >
@@ -64,11 +72,8 @@ export function ModelSelector({
             <span className="mt-0.5 block truncate text-sm font-semibold text-[#f4f4f4]">{selected?.label || t("video.model.select")}</span>
           </span>
         </span>
-        <span className="flex shrink-0 items-center gap-2">
-          <span className="rounded-full border border-[#ffb44d]/18 bg-[#ffb44d]/10 px-2.5 py-1 text-[11px] font-semibold text-[#ffd08a]">
-            {selected?.credits === undefined ? "--" : tf("video.model.creditsShort", { credits: selected.credits })}
-          </span>
-          <span className="text-lg leading-none text-[#b9b9b9]/45">›</span>
+        <span className="grid size-8 shrink-0 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/72 text-[#b9b9b9]/55 transition-colors group-hover:border-[#ffb44d]/24 group-hover:text-[#ffd08a]">
+          <ChevronIcon />
         </span>
       </button>
 
@@ -98,8 +103,8 @@ export function ModelSelector({
                       {getLocalizedModelDescription(model.desc, t) || model.providerModel}
                     </span>
                   </span>
-                  <span className="shrink-0 rounded-full border border-[rgba(244,244,244,0.07)] bg-[#111318]/76 px-2 py-1 text-[10px] font-semibold text-[#b9b9b9]/58">
-                    {tf("video.model.creditsShort", { credits: model.credits })}
+                  <span className="shrink-0 rounded-full border border-[rgba(244,244,244,0.07)] bg-[#05070b]/60 px-2 py-1 text-[10px] font-medium text-[#b9b9b9]/42">
+                    {tf("video.model.creditsFrom", { credits: model.credits })}
                   </span>
                 </span>
               </button>

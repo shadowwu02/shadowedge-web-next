@@ -44,8 +44,8 @@ function isSensitiveFailure(message: string) {
 
 function statusClass(status: string, hasOutput: boolean, isStale = false) {
   if (isStale) return "border-[#ffb44d]/30 bg-[#ffb44d]/10 text-[#ffb44d]";
-  if (isVideoFailedStatus(status)) return "border-[#7f2d2d]/70 bg-[#2a1012] text-red-100";
-  if (isVideoCompletedStatus(status) && hasOutput) return "border-[rgba(88,171,137,0.28)] bg-[rgba(39,94,75,0.18)] text-emerald-100";
+  if (isVideoFailedStatus(status)) return "border-[#8c4632]/46 bg-[#2a1410]/72 text-[#f2b3a1]";
+  if (isVideoCompletedStatus(status) && hasOutput) return "border-[#6fb7c8]/24 bg-[#12313a]/42 text-[#b8e7ee]";
   if (isVideoActiveStatus(status)) return "border-[#ffb44d]/30 bg-[#ffb44d]/10 text-[#ffb44d]";
   return "border-[#33323a]/65 bg-[#1a1c22] text-[#b9b9b9]";
 }
@@ -358,21 +358,24 @@ export function VideoGenerationStream({
     <section className="flex h-full min-h-[420px] flex-col overflow-hidden">
       <div className="mb-2.5 flex flex-none flex-wrap items-center justify-between gap-2 rounded-[24px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/82 p-2 shadow-xl shadow-black/14">
         <div className="flex flex-wrap gap-1.5">
-          {filters.map((item) => (
-            <button
-              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                item === filter
-                  ? "border-[#ffb44d]/44 bg-[#ffb44d]/12 text-[#ffb44d]"
-                  : "border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/66 text-[#b9b9b9]/66 hover:border-[#ffb44d]/34 hover:bg-[#ffb44d]/8 hover:text-[#ffb44d]"
-              }`}
-              key={item}
-              onClick={() => onFilterChange(item)}
-              type="button"
-            >
-              {t(`video.history.filter.${item}` as "video.history.filter.all")}
-              <span className="ml-2 text-[10px] text-[#b9b9b9]/45">{counts[item]}</span>
-            </button>
-          ))}
+          {filters.map((item) => {
+            const isActive = item === filter;
+            return (
+              <button
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold shadow-inner transition ${
+                  isActive
+                    ? "border-[#d9963e]/60 bg-[linear-gradient(180deg,#d08a32,#a86320)] text-[#080a0f] shadow-black/10"
+                    : "border-[rgba(244,244,244,0.08)] bg-[#05070b]/44 text-[#b9b9b9]/68 shadow-black/20 hover:border-[#ffb44d]/32 hover:bg-[#ffb44d]/9 hover:text-[#ffd08a]"
+                }`}
+                key={item}
+                onClick={() => onFilterChange(item)}
+                type="button"
+              >
+                {t(`video.history.filter.${item}` as "video.history.filter.all")}
+                <span className={`ml-2 text-[10px] ${isActive ? "text-[#080a0f]/58" : "text-[#b9b9b9]/38"}`}>{counts[item]}</span>
+              </button>
+            );
+          })}
         </div>
         <span className="text-xs font-medium text-[#b9b9b9]/48">
           {isLoading ? t("video.history.loading") : tf("video.history.itemsCount", { total: records.length, visible: visibleRecords.length })}

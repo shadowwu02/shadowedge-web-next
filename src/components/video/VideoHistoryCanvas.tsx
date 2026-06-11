@@ -32,8 +32,8 @@ function filterHistoryItem(item: VideoTaskRecord, filter: HistoryFilter) {
 }
 
 function statusClass(status: string, hasOutput: boolean) {
-  if (isVideoFailedStatus(status)) return "border-red-300/25 bg-red-400/10 text-red-100";
-  if (isVideoCompletedStatus(status) && hasOutput) return "border-emerald-300/20 bg-emerald-400/10 text-emerald-100";
+  if (isVideoFailedStatus(status)) return "border-[#8c4632]/46 bg-[#2a1410]/72 text-[#f2b3a1]";
+  if (isVideoCompletedStatus(status) && hasOutput) return "border-[#6fb7c8]/24 bg-[#12313a]/42 text-[#b8e7ee]";
   if (isVideoActiveStatus(status)) return "border-[#ffb44d]/24 bg-[#ffb44d]/10 text-[#ffd08a]";
   return "border-white/10 bg-white/[.045] text-white/58";
 }
@@ -78,6 +78,17 @@ export function VideoHistoryCanvas({
 }: VideoHistoryCanvasProps) {
   const { t, tf } = useI18n();
   const visibleHistory = useMemo(() => history.filter((item) => filterHistoryItem(item, filter)), [filter, history]);
+  const counts = useMemo(
+    () =>
+      filters.reduce<Record<HistoryFilter, number>>(
+        (result, item) => {
+          result[item] = history.filter((record) => filterHistoryItem(record, item)).length;
+          return result;
+        },
+        { all: history.length, failed: 0, processing: 0, success: 0 },
+      ),
+    [history],
+  );
   const filterLabel = (nextFilter: HistoryFilter) => t(`video.history.filter.${nextFilter}` as "video.history.filter.all");
   const statusLabel = (status: string, fallback: string, isStaleActive = false) => {
     if (isStaleActive) return t("video.history.status.stale");
@@ -98,20 +109,24 @@ export function VideoHistoryCanvas({
           </span>
         </div>
         <div className="flex max-w-full flex-wrap gap-1.5 rounded-2xl border border-white/10 bg-black/18 p-1.5">
-          {filters.map((item) => (
-            <button
-              className={`min-h-8 rounded-xl px-3 text-[11px] font-black transition ${
-                item === filter
-                  ? "bg-[#ffb44d] text-[#1f2027]"
-                  : "text-white/56 hover:bg-white/[.055] hover:text-[#ffd08a]"
-              }`}
-              key={item}
-              onClick={() => onFilterChange(item)}
-              type="button"
-            >
-              {filterLabel(item)}
-            </button>
-          ))}
+          {filters.map((item) => {
+            const isActive = item === filter;
+            return (
+              <button
+                className={`min-h-8 rounded-full border px-3 text-[11px] font-black shadow-inner transition ${
+                  isActive
+                    ? "border-[#d9963e]/60 bg-[linear-gradient(180deg,#d08a32,#a86320)] text-[#080a0f] shadow-black/10"
+                    : "border-white/10 bg-[#05070b]/40 text-white/56 shadow-black/20 hover:border-[#ffb44d]/30 hover:bg-[#ffb44d]/8 hover:text-[#ffd08a]"
+                }`}
+                key={item}
+                onClick={() => onFilterChange(item)}
+                type="button"
+              >
+                {filterLabel(item)}
+                <span className={`ml-1.5 text-[9px] ${isActive ? "text-[#080a0f]/58" : "text-white/34"}`}>{counts[item]}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 

@@ -405,7 +405,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
 
       {isMenuOpen ? (
         <div
-          className="se-scrollbar fixed z-[80] max-h-[340px] w-[300px] overflow-y-auto rounded-2xl border border-[#ffb44d]/24 bg-[#0f141e]/98 p-2 shadow-[0_18px_46px_rgba(0,0,0,.38)] backdrop-blur-xl"
+          className="se-scrollbar fixed z-[80] max-h-[320px] w-[286px] overflow-y-auto rounded-2xl border border-[#ffb44d]/22 bg-[#0f141e]/98 p-1.5 shadow-[0_18px_46px_rgba(0,0,0,.38)] backdrop-blur-xl"
           onMouseDown={handleMenuMouseDown}
           ref={menuRef}
           style={menuStyle}
@@ -416,28 +416,28 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
               if (!groupItems.length) return null;
 
               return (
-                <div className="grid gap-1.5 py-1" key={type}>
-                  <div className="px-2 py-1 text-[11px] font-black uppercase tracking-[.14em] text-white/44">
+                <div className="grid gap-1 py-0.5" key={type}>
+                  <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-[.14em] text-white/38">
                     {mentionGroupTitle(type)}
                   </div>
                   {groupItems.map((item) => (
                     <button
-                      className="flex w-full items-center gap-3 rounded-xl border border-transparent p-2 text-left transition hover:border-[#ffb44d]/28 hover:bg-[#ffb44d]/10 focus:border-[#ffb44d]/34 focus:bg-[#ffb44d]/12 focus:outline-none"
+                      className="flex min-h-10 w-full items-center gap-2.5 rounded-xl border border-transparent px-2 py-1.5 text-left transition hover:border-[#ffb44d]/26 hover:bg-[#ffb44d]/9 focus:border-[#ffb44d]/32 focus:bg-[#ffb44d]/10 focus:outline-none"
                       key={`${item.type}-${item.index}-${item.id}`}
                       onClick={() => insertMention(item)}
                       type="button"
                     >
                       {item.type === "image" && item.previewUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img alt="" className="h-11 w-11 rounded-lg object-cover" src={item.previewUrl} />
+                        <img alt="" className="size-9 rounded-lg object-cover" src={item.previewUrl} />
                       ) : (
-                        <span className="grid h-11 w-11 place-items-center rounded-lg border border-white/10 bg-[#ffb44d]/10 text-[#ffd08a]/78">
-                          <MediaTypeIcon type={item.type} />
+                        <span className="grid size-9 place-items-center rounded-lg border border-white/10 bg-[#ffb44d]/10 text-[#ffd08a]/78">
+                          <MediaTypeIcon className="size-[18px]" type={item.type} />
                         </span>
                       )}
                       <span className="min-w-0">
-                        <span className="block text-sm font-black text-white">{item.display}</span>
-                        <span className="mt-0.5 block truncate text-xs text-white/45">{item.title}</span>
+                        <span className="block text-[12px] font-semibold leading-4 text-white/90">{item.display}</span>
+                        <span className="mt-0.5 block truncate text-[10px] leading-3 text-white/38">{item.title}</span>
                       </span>
                     </button>
                   ))}
@@ -445,7 +445,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
               );
             })
           ) : (
-            <div className="rounded-xl border border-white/10 bg-white/[.045] px-3 py-4 text-sm text-white/55">
+            <div className="rounded-xl border border-white/10 bg-white/[.045] px-3 py-3 text-xs leading-5 text-white/50">
               {t("video.prompt.mentionEmpty")}
             </div>
           )}

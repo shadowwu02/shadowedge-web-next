@@ -71,8 +71,8 @@ function RetryIcon() {
 
 function statusClass(status: string, hasOutput: boolean, isStale = false) {
   if (isStale) return "border-[#ffb44d]/30 bg-[#ffb44d]/10 text-[#ffb44d]";
-  if (isVideoFailedStatus(status)) return "border-[#7f2d2d]/70 bg-[#2a1012] text-red-100";
-  if (isVideoCompletedStatus(status) && hasOutput) return "border-[rgba(88,171,137,0.28)] bg-[rgba(39,94,75,0.18)] text-emerald-100";
+  if (isVideoFailedStatus(status)) return "border-[#8c4632]/46 bg-[#2a1410]/72 text-[#f2b3a1]";
+  if (isVideoCompletedStatus(status) && hasOutput) return "border-[#6fb7c8]/24 bg-[#12313a]/42 text-[#b8e7ee]";
   if (isVideoActiveStatus(status)) return "border-[#ffb44d]/30 bg-[#ffb44d]/10 text-[#ffb44d]";
   return "border-[#33323a]/65 bg-[#1a1c22] text-[#b9b9b9]";
 }

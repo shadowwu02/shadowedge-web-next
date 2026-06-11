@@ -150,8 +150,8 @@ function RemakeKeyframes({ keyframes }: { keyframes: RemakeKeyframe[] }) {
 }
 
 function outputStatusClass(statusKind: RemakeOutputItem["statusKind"]) {
-  if (statusKind === "completed") return "border-emerald-400/22 bg-emerald-400/8 text-emerald-100";
-  if (statusKind === "failed") return "border-red-400/20 bg-red-500/8 text-red-100";
+  if (statusKind === "completed") return "border-[#6fb7c8]/24 bg-[#12313a]/42 text-[#b8e7ee]";
+  if (statusKind === "failed") return "border-[#8c4632]/46 bg-[#2a1410]/72 text-[#f2b3a1]";
   if (statusKind === "processing") return "border-[#ffb44d]/28 bg-[#ffb44d]/10 text-[#ffb44d]";
   return "border-[rgba(244,244,244,0.10)] bg-[#1a1c22]/68 text-[#b9b9b9]/72";
 }
@@ -583,12 +583,12 @@ export function RemakeStoryboardPanel({
                         : t("video.remake.generateShot")}
                   </button>
                   {generation?.status === "success" ? (
-                    <p className="rounded-[16px] border border-emerald-400/18 bg-emerald-400/8 p-2 text-xs leading-5 text-emerald-100/76">
+                    <p className="rounded-[16px] border border-[#6fb7c8]/20 bg-[#12313a]/36 p-2 text-xs leading-5 text-[#b8e7ee]/76">
                       {t("video.remake.shotGenerated")}
                     </p>
                   ) : null}
                   {generation?.status === "failed" ? (
-                    <p className="break-words rounded-[16px] border border-red-400/18 bg-red-500/8 p-2 text-xs leading-5 text-red-100/76">
+                    <p className="break-words rounded-[16px] border border-[#8c4632]/38 bg-[#2a1410]/62 p-2 text-xs leading-5 text-[#f2b3a1]/76">
                       {generation.error || t("video.remake.shotGenerationFailed")}
                     </p>
                   ) : null}
