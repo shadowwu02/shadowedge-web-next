@@ -795,4 +795,22 @@ export function normalizeVideoParamsForModel(
   };
 }
 
+export function estimateVideoCreditsForParams(
+  modelId: string,
+  params: VideoModelParamInput,
+  fallbackCredits = 12,
+) {
+  const rule = getVideoModelRule(modelId);
+  const normalized = normalizeVideoParamsForModel(modelId, params);
+  const creditRules = rule.creditRules || {};
+  const base = Number(creditRules.baseCredits || rule.credits || fallbackCredits || defaultRule.creditRules.baseCredits || 12);
+  const durationFactor = creditRules.durationMultiplier === "linear_from_5s"
+    ? Math.max(1, normalized.duration / 5)
+    : 1;
+  const qualityMultiplier = creditRules.qualityMultiplier?.[normalized.quality] ?? defaultQualityMultiplier[normalized.quality] ?? 1;
+  const estimated = Math.ceil(base * durationFactor * qualityMultiplier);
+
+  return Math.max(1, estimated);
+}
+
 export const videoModelRules = concreteRules;

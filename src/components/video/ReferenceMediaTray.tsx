@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
 import { getReadyMentionableMediaItems } from "@/lib/video-mentions";
 import type { MentionableMediaItem } from "@/lib/video-mentions";
 import type { UploadMediaItem, UploadMediaRole, UploadMediaType } from "@/types/video";
@@ -47,12 +48,6 @@ function insertMention(item: MentionableMediaItem) {
       },
     }),
   );
-}
-
-function mediaFallback(type: UploadMediaType) {
-  if (type === "audio") return "AUD";
-  if (type === "video") return "VID";
-  return "IMG";
 }
 
 function FullscreenIcon() {
@@ -260,8 +255,8 @@ export function ReferenceMediaTray({
                   ) : item.type === "video" && item.url ? (
                     <video className="h-full w-full object-cover" muted playsInline preload="metadata" src={item.url} />
                   ) : (
-                    <span className="grid size-12 place-items-center rounded-2xl bg-[#33323a]/55 text-[11px] font-semibold uppercase tracking-[.14em] text-[#b9b9b9]/70">
-                      {mediaFallback(item.type)}
+                    <span className="grid size-12 place-items-center rounded-2xl border border-[rgba(244,244,244,0.08)] bg-[#33323a]/55 text-[#ffd08a]/72">
+                      <MediaTypeIcon type={item.type} />
                     </span>
                   )}
                   <span className="absolute inset-0 bg-black/0 transition group-hover:bg-black/18" />
@@ -280,7 +275,7 @@ export function ReferenceMediaTray({
                 ) : null}
 
                   <span className="absolute left-1.5 top-1.5 rounded-full bg-[#05070b]/62 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[.08em] text-[#b9b9b9]/65 opacity-0 transition group-hover:opacity-100">
-                  {mention?.display || mediaFallback(item.type)}
+                  {mention?.display || allowedTypeLabel(item.type)}
                 </span>
 
                 <button
@@ -343,9 +338,9 @@ export function ReferenceMediaTray({
         >
           <span>
             <span className="mx-auto mb-3 flex justify-center gap-2">
-              {["IMG", "VID", "AUD"].map((item) => (
-                <span className="grid size-9 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#1a1c22] text-[10px] font-semibold text-[#b9b9b9]/60" key={item}>
-                  {item}
+              {(["image", "video", "audio"] as UploadMediaType[]).map((type) => (
+                <span className="grid size-9 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#1a1c22] text-[#ffd08a]/70" key={type}>
+                  <MediaTypeIcon className="size-4" type={type} />
                 </span>
               ))}
             </span>
@@ -443,14 +438,16 @@ export function ReferenceMediaTray({
                 <video className="max-h-[70vh] max-w-full rounded-2xl object-contain" controls src={previewItem.url} />
               ) : previewItem.type === "audio" && previewItem.url ? (
                 <div className="grid w-full max-w-lg gap-5 rounded-3xl border border-[#33323a]/60 bg-[#1a1c22]/65 p-8 text-center">
-                  <span className="mx-auto grid size-16 place-items-center rounded-3xl bg-[#33323a]/55 text-sm font-semibold text-[#b9b9b9]/60">AUD</span>
+                  <span className="mx-auto grid size-16 place-items-center rounded-3xl border border-[rgba(244,244,244,0.08)] bg-[#33323a]/55 text-[#ffd08a]/72">
+                    <MediaTypeIcon className="size-6" type="audio" />
+                  </span>
                   <p className="text-sm font-semibold text-[#b9b9b9]/72">{previewItem.name}</p>
                   <audio className="w-full" controls src={previewItem.url} />
                 </div>
               ) : (
                 <div className="grid gap-3 text-center">
                   <span className="mx-auto grid size-16 place-items-center rounded-3xl bg-[#33323a]/55 text-sm font-semibold text-[#b9b9b9]/60">
-                    {mediaFallback(previewItem.type)}
+                    <MediaTypeIcon className="size-6" type={previewItem.type} />
                   </span>
                   <p className="text-sm font-semibold text-[#b9b9b9]/72">{previewItem.name}</p>
                 </div>

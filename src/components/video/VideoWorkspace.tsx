@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingState } from "@/components/common/LoadingState";
+import { AudioToggle } from "@/components/video/AudioToggle";
 import { GenerateButton } from "@/components/video/GenerateButton";
 import { ModelSelector } from "@/components/video/ModelSelector";
 import { PromptBox } from "@/components/video/PromptBox";
@@ -57,7 +58,7 @@ import {
   saveRemakeShotQueueDraft,
 } from "@/lib/video/remakeShotQueueDraft";
 import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
-import { getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
+import { estimateVideoCreditsForParams, getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
 import {
   parseMentionBindings,
   reconcileMentionBindings,
@@ -80,6 +81,7 @@ const fallbackModels: VideoModel[] = [
     durationDefault: 5,
     ratios: ["16:9", "9:16", "1:1"],
     qualities: ["720p", "1080p"],
+    supportsAudio: true,
     uploadSlots: ["media"],
   },
   {
@@ -93,6 +95,7 @@ const fallbackModels: VideoModel[] = [
     durationDefault: 5,
     ratios: ["16:9", "9:16"],
     qualities: ["720p", "1080p"],
+    supportsAudio: true,
     uploadSlots: ["image", "last_frame_image"],
   },
 ];
@@ -184,7 +187,7 @@ function buildParamsForModel(model: VideoModel, current?: Partial<VideoParams>):
     duration: current?.duration ?? model.durationDefault,
     ratio: current?.ratio ?? model.ratios[0],
     quality: current?.quality ?? model.qualities[0],
-    generateAudio: current?.generateAudio ?? false,
+    generateAudio: current?.generateAudio ?? model.supportsAudio !== false,
   });
 
   return {
@@ -1162,10 +1165,26 @@ export function VideoWorkspace() {
   const isUploadingMedia = isAssetPickerUploading || media.some((item) => item.uploadStatus === "uploading");
   const isCurrentTaskProcessing = Boolean(task && isVideoActiveStatus(task.status) && !isVideoStaleActiveRecord(task));
   const isProcessing = activeTaskCount > 0 || isCurrentTaskProcessing;
-  const hasEnoughCredits = credits === null || selectedModel.credits <= credits;
-  const canGenerate = Boolean(selectedModel) && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits;
   const selectedModelRuleId = getVideoModelRuleId(selectedModel);
   const selectedModelRule = useMemo(() => getVideoModelRule(selectedModelRuleId), [selectedModelRuleId]);
+  const isAudioSupported = selectedModel.supportsAudio !== false;
+  const effectiveGenerateAudio = isAudioSupported && params.generateAudio;
+  const estimatedCredits = useMemo(
+    () =>
+      estimateVideoCreditsForParams(
+        selectedModelRuleId,
+        {
+          duration: params.duration,
+          generateAudio: effectiveGenerateAudio,
+          quality: params.quality,
+          ratio: params.ratio,
+        },
+        selectedModel.credits,
+      ),
+    [effectiveGenerateAudio, params.duration, params.quality, params.ratio, selectedModel.credits, selectedModelRuleId],
+  );
+  const hasEnoughCredits = credits === null || estimatedCredits <= credits;
+  const canGenerate = Boolean(selectedModel) && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits;
   const reusableMedia = useMemo(
     () => collectReusableVideoAssets(task ? [task, ...history] : history),
     [history, task],
@@ -1204,8 +1223,8 @@ export function VideoWorkspace() {
     if (isProcessing) return t("video.status.processing");
     if (!token && !isSignedIn) return t("video.errors.signInRequired");
     if (!hasEnoughCredits) return t("video.credits.notEnough");
-    return tf("video.actions.generateWithCredits", { credits: selectedModel.credits });
-  }, [hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, selectedModel.credits, t, tf, token]);
+    return tf("video.actions.generateWithCredits", { credits: estimatedCredits });
+  }, [estimatedCredits, hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, t, tf, token]);
 
   const handleGenerateRemakeShot = useCallback(
     async (shot: RemakeShot, queueMeta?: RemakeShotQueueMeta) => {
@@ -1283,7 +1302,7 @@ export function VideoWorkspace() {
       const startedAt = Date.now();
       const shotParams = buildParamsForModel(selectedModel, {
         duration: shot.generationParams.duration,
-        generateAudio: params.generateAudio,
+        generateAudio: effectiveGenerateAudio,
         quality: shot.generationParams.quality,
         ratio: shot.generationParams.ratio,
       });
@@ -1379,7 +1398,7 @@ export function VideoWorkspace() {
       isSignedIn,
       isUploadingMedia,
       maxConcurrency,
-      params.generateAudio,
+      effectiveGenerateAudio,
       remakeCharacterRules,
       remakeSceneStyle,
       remakeSourceVideo,
@@ -2130,12 +2149,12 @@ export function VideoWorkspace() {
       duration: params.duration,
       ratio: params.ratio,
       quality: params.quality,
-      generateAudio: params.generateAudio,
+      generateAudio: effectiveGenerateAudio,
       maxConcurrency,
       media,
       mentionBindings: reconciledMentionBindings,
     });
-  }, [hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, maxConcurrency, media, params, prompt, reconciledMentionBindings, selectedModel, submit, t, token]);
+  }, [effectiveGenerateAudio, hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, maxConcurrency, media, params, prompt, reconciledMentionBindings, selectedModel, submit, t, token]);
 
   const handleRetry = useCallback(
     (record: (typeof history)[number]) => {
@@ -2392,25 +2411,33 @@ export function VideoWorkspace() {
                 onMentionBindingsChange={setMentionBindings}
                 value={prompt}
               />
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                 <button
-                  className="se-control rounded-[18px] px-3 py-2 text-xs font-semibold text-[#f4f4f4]/76"
-                  onClick={() => setPrompt((current) => `${current}${current && !current.endsWith(" ") ? " " : ""}@`)}
+                  className="group flex min-h-[54px] items-center justify-between gap-3 rounded-[18px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/72 px-3 py-2 text-left text-xs font-semibold text-[#f4f4f4]/78 transition hover:border-[#ffb44d]/30 hover:bg-[#ffb44d]/8 hover:text-[#ffd08a]"
+                  onClick={(event) => {
+                    window.dispatchEvent(
+                      new CustomEvent("shadowedge:open-video-mention-menu", {
+                        detail: { anchorEl: event.currentTarget },
+                      }),
+                    );
+                  }}
                   type="button"
                 >
-                  {t("video.prompt.elements")}
+                  <span className="min-w-0">
+                    <span className="block leading-4">{t("video.prompt.elements")}</span>
+                    <span className="mt-0.5 block truncate text-[11px] font-medium leading-4 text-[#b9b9b9]/52">
+                      {t("video.prompt.tip")}
+                    </span>
+                  </span>
+                  <span className="grid size-8 shrink-0 place-items-center rounded-full border border-[#ffb44d]/22 bg-[#ffb44d]/10 text-base font-black text-[#ffd08a] transition group-hover:border-[#ffcc86]/38 group-hover:bg-[#ffb44d]/16">
+                    @
+                  </span>
                 </button>
-                <button
-                  className={`rounded-[18px] border px-3 py-2 text-xs font-semibold transition-colors ${
-                    params.generateAudio
-                      ? "border-[#ffb44d]/38 bg-[#ffb44d]/12 text-[#ffb44d]"
-                      : "border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/66 text-[#f4f4f4]/72 hover:border-[#ffb44d]/34 hover:bg-[#ffb44d]/8 hover:text-[#ffb44d]"
-                  }`}
-                  onClick={() => setParams((current) => ({ ...current, generateAudio: !current.generateAudio }))}
-                  type="button"
-                >
-                  {params.generateAudio ? t("video.params.audioOn") : t("video.params.audioOff")}
-                </button>
+                <AudioToggle
+                  checked={effectiveGenerateAudio}
+                  disabled={!isAudioSupported}
+                  onChange={(checked) => setParams((current) => ({ ...current, generateAudio: checked }))}
+                />
               </div>
               <ModelSelector models={models} onChange={handleModelChange} selectedModelId={selectedModel.id} />
               <VideoParamsPanel
@@ -2440,7 +2467,7 @@ export function VideoWorkspace() {
         {workspaceMode === "remake" ? null : (
           <div className="shrink-0 border-t border-[rgba(244,244,244,0.08)] p-3">
             <GenerateButton
-              credits={selectedModel.credits}
+              credits={estimatedCredits}
               disabled={!canGenerate}
               isSubmitting={isSubmitting}
               label={generateButtonLabel}

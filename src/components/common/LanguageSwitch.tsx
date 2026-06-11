@@ -11,14 +11,14 @@ export function LanguageSwitch({
   onChange: (locale: Locale) => void;
 }) {
   return (
-    <div className="inline-flex items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/78 p-1 shadow-inner shadow-black/20">
+    <div className="inline-flex items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#080b10]/72 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_10px_26px_rgba(0,0,0,0.18)] backdrop-blur-md">
       {(["en", "zh"] as const).map((item) => (
         <button
           className={cn(
-            "h-8 min-w-11 rounded-full px-3 text-[13px] font-semibold leading-none transition-colors",
+            "h-7 min-w-10 rounded-full px-3 text-[12px] font-semibold leading-none transition",
             locale === item
-              ? "bg-[#ffb44d] text-[#05070b] shadow-[0_8px_18px_rgba(255,180,77,0.16)]"
-              : "text-[#b9b9b9]/66 hover:bg-[#1a1c22]/86 hover:text-[#f4f4f4]",
+              ? "border border-[#ffb44d]/28 bg-[#ffb44d]/14 text-[#ffd08a] shadow-[0_8px_20px_rgba(255,180,77,0.1)]"
+              : "border border-transparent text-[#b9b9b9]/58 hover:bg-white/[.045] hover:text-[#f4f4f4]",
           )}
           key={item}
           onClick={() => onChange(item)}

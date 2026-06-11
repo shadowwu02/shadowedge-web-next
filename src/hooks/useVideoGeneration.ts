@@ -5,6 +5,7 @@ import { useI18n } from "@/i18n/useI18n";
 import { getCurrentUserProfile } from "@/lib/auth-api";
 import { createVideoTask, getVideoHistory, getVideoStatus, saveVideoHistory } from "@/lib/video-api";
 import { buildMediaAwarePrompt, getReadyMentionableMediaItems, toGenerationMediaList } from "@/lib/video-mentions";
+import { estimateVideoCreditsForParams } from "@/lib/video/videoModelRules";
 import {
   getSafeHistoryOutputUrl,
   getVideoHistoryStableKey,
@@ -80,6 +81,16 @@ function buildVideoRequest(options: SubmitVideoOptions): VideoGenerationRequest 
   const enhancedPrompt = buildMediaAwarePrompt(options.prompt, mentionMediaItems, mentionBindings);
   const primaryImageUrl = images[0] || "";
   const primaryVideoUrl = videos[0] || "";
+  const estimatedCredits = estimateVideoCreditsForParams(
+    options.model.id || options.model.providerModel || options.model.label,
+    {
+      duration: options.duration,
+      generateAudio: options.generateAudio,
+      quality: options.quality,
+      ratio: options.ratio,
+    },
+    options.model.credits,
+  );
 
   return {
     prompt: enhancedPrompt,
@@ -108,7 +119,7 @@ function buildVideoRequest(options: SubmitVideoOptions): VideoGenerationRequest 
     upload_assets: {
       media: mediaList,
     },
-    clientCost: options.model.credits,
+    clientCost: estimatedCredits,
     meta: {
       frontend_model: options.model.label,
       model_id: options.model.id,

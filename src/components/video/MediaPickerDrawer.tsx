@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, DragEvent, RefObject } from "react";
 import { mergeMediaAssets } from "@/lib/media-assets";
+import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
 import { slotAllowsAssetType } from "@/lib/upload-rules";
 import {
   getAllowedReferenceTypes,
@@ -29,12 +30,6 @@ const drawerMinWidth = 520;
 const drawerMaxHeight = 520;
 
 const filters: MediaFilter[] = ["uploads", "history", "generated", "image", "video", "audio", "elements", "liked"];
-
-function mediaFallback(type: UploadMediaItem["type"]) {
-  if (type === "audio") return "AUD";
-  if (type === "video") return "VID";
-  return "IMG";
-}
 
 function isSameMediaAsset(left: UploadMediaItem, right: UploadMediaItem) {
   return left.id === right.id || Boolean(left.url && right.url && left.url === right.url);
@@ -575,8 +570,8 @@ export function MediaPickerDrawer({
                         ) : item.type === "video" && item.url ? (
                           <video className="h-full w-full object-cover" muted playsInline preload="metadata" src={item.url} />
                         ) : (
-                          <span className="grid size-11 place-items-center rounded-2xl bg-white/[.06] text-[11px] font-black uppercase tracking-[.14em] text-white/52">
-                            {mediaFallback(item.type)}
+                          <span className="grid size-11 place-items-center rounded-2xl border border-white/10 bg-[#111318]/78 text-[#ffd08a]/78 shadow-inner shadow-black/20">
+                            <MediaTypeIcon type={item.type} />
                           </span>
                         )}
                         <span className="absolute left-2 top-2 rounded-full border border-white/10 bg-black/55 px-2 py-1 text-[10px] font-black uppercase tracking-[.12em] text-white/72 backdrop-blur">

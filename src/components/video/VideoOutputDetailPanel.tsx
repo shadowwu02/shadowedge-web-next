@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { useI18n } from "@/i18n/useI18n";
 import { collectHistoryInputMediaAssets } from "@/lib/media-assets";
@@ -87,12 +88,6 @@ function mediaTypeLabel(type: UploadMediaItem["type"], index: number, t: ReturnT
   if (type === "audio") return `${t("video.media.audio")} ${index}`;
   if (type === "video") return `${t("video.media.video")} ${index}`;
   return `${t("video.media.image")} ${index}`;
-}
-
-function mediaFallback(type: UploadMediaItem["type"]) {
-  if (type === "audio") return "AUD";
-  if (type === "video") return "VID";
-  return "IMG";
 }
 
 function getRecordModelLogoLookup(record: VideoTaskRecord, modelLabel: string) {
@@ -214,7 +209,7 @@ export function VideoOutputDetailPanel({
                         // eslint-disable-next-line @next/next/no-img-element
                         <img alt="" className="h-full w-full object-cover" src={asset.previewUrl} />
                       ) : (
-                        mediaFallback(asset.type)
+                        <MediaTypeIcon className="size-4 text-[#ffd08a]/70" type={asset.type} />
                       )}
                     </span>
                     <span className="min-w-0">

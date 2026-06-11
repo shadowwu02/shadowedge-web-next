@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ChangeEvent, KeyboardEvent, MouseEvent as ReactMouseEvent } from "react";
+import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
 import {
   findPromptMentions,
   getReadyMentionableMediaItems,
@@ -40,6 +41,10 @@ type InsertMentionInput = {
   token?: string;
   type?: UploadMediaType;
   url?: string;
+};
+
+type OpenMentionMenuInput = {
+  anchorEl?: HTMLElement | null;
 };
 
 const mentionGroups: UploadMediaType[] = ["image", "video", "audio"];
@@ -126,12 +131,6 @@ function findMentionReplaceRange(prompt: string, selectionStart: number, selecti
   return { start: selectionStart, end: selectionEnd };
 }
 
-function mediaIcon(type: UploadMediaType) {
-  if (type === "audio") return "AUD";
-  if (type === "video") return "VID";
-  return "IMG";
-}
-
 function getMediaIdentity(media: Pick<UploadMediaItem, "id" | "url">) {
   return String(media.id || media.url || "").trim();
 }
@@ -184,6 +183,28 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     setReplaceRange(findMentionReplaceRange(textarea.value, textarea.selectionStart || caretIndex, textarea.selectionEnd || caretIndex));
     setMenuPosition(getTextareaCaretClientPosition(textarea, caretIndex));
     setIsMenuOpen(true);
+  }
+
+  function openMentionMenuFromExternal(anchorEl?: HTMLElement | null) {
+    const textarea = textareaRef.current;
+    const selectionStart = textarea?.selectionStart ?? value.length;
+    const selectionEnd = textarea?.selectionEnd ?? selectionStart;
+    setReplaceRange(textarea ? findMentionReplaceRange(textarea.value, selectionStart, selectionEnd) : { start: value.length, end: value.length });
+
+    if (anchorEl) {
+      const rect = anchorEl.getBoundingClientRect();
+      setMenuPosition(clampMenuPosition(rect.left, rect.bottom + 10));
+    } else if (textarea) {
+      setMenuPosition(getTextareaCaretClientPosition(textarea, selectionStart));
+    } else {
+      setMenuPosition(clampMenuPosition(18, 88));
+    }
+
+    setIsMenuOpen(true);
+
+    window.requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+    });
   }
 
   function closeMentionMenu() {
@@ -313,8 +334,17 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
       insertMentionText(detail);
     }
 
+    function handleOpenMentionMenu(event: Event) {
+      const detail = (event as CustomEvent<OpenMentionMenuInput>).detail;
+      openMentionMenuFromExternal(detail?.anchorEl || null);
+    }
+
     window.addEventListener("shadowedge:insert-video-mention", handleExternalMention);
-    return () => window.removeEventListener("shadowedge:insert-video-mention", handleExternalMention);
+    window.addEventListener("shadowedge:open-video-mention-menu", handleOpenMentionMenu);
+    return () => {
+      window.removeEventListener("shadowedge:insert-video-mention", handleExternalMention);
+      window.removeEventListener("shadowedge:open-video-mention-menu", handleOpenMentionMenu);
+    };
   });
 
   useEffect(() => {
@@ -375,7 +405,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
 
       {isMenuOpen ? (
         <div
-          className="se-scrollbar fixed z-[80] max-h-[340px] w-[300px] overflow-y-auto rounded-2xl border border-[#4989ff]/30 bg-[#0f141e]/98 p-2 shadow-[0_18px_46px_rgba(0,0,0,.38)] backdrop-blur-xl"
+          className="se-scrollbar fixed z-[80] max-h-[340px] w-[300px] overflow-y-auto rounded-2xl border border-[#ffb44d]/24 bg-[#0f141e]/98 p-2 shadow-[0_18px_46px_rgba(0,0,0,.38)] backdrop-blur-xl"
           onMouseDown={handleMenuMouseDown}
           ref={menuRef}
           style={menuStyle}
@@ -401,8 +431,8 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
                         // eslint-disable-next-line @next/next/no-img-element
                         <img alt="" className="h-11 w-11 rounded-lg object-cover" src={item.previewUrl} />
                       ) : (
-                        <span className="grid h-11 w-11 place-items-center rounded-lg bg-[#4989ff]/16 text-[11px] font-black text-[#9cc2ff]">
-                          {mediaIcon(item.type)}
+                        <span className="grid h-11 w-11 place-items-center rounded-lg border border-white/10 bg-[#ffb44d]/10 text-[#ffd08a]/78">
+                          <MediaTypeIcon type={item.type} />
                         </span>
                       )}
                       <span className="min-w-0">
