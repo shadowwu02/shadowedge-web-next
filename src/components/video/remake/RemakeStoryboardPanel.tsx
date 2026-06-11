@@ -197,10 +197,10 @@ function RemakeOutputsPanel({
 
             return (
               <article
-                className="se-card-interactive overflow-hidden rounded-[22px] shadow-inner shadow-black/10"
+                className="se-card-interactive overflow-hidden rounded-[24px] shadow-inner shadow-black/10"
                 key={output.key}
               >
-                <div className="aspect-video bg-[#05070b]">
+                <div className="relative aspect-video bg-[#05070b]">
                   {output.outputUrl ? (
                     <video className="size-full object-contain" controls playsInline preload="metadata" src={output.outputUrl} />
                   ) : (
@@ -216,11 +216,24 @@ function RemakeOutputsPanel({
                       </div>
                     </div>
                   )}
+                  <div className="pointer-events-none absolute inset-x-3 top-3 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-[#ffb44d]/20 bg-black/50 px-2.5 py-1 text-[10px] font-semibold text-[#ffd08a] backdrop-blur-sm">
+                      {t("video.generation.remakeOutput")}
+                    </span>
+                    <span className={`se-status rounded-full px-2.5 py-1 text-[10px] font-semibold backdrop-blur-sm ${outputStatusClass(output.statusKind)}`}>
+                      {statusLabel(output)}
+                    </span>
+                  </div>
+                  {output.shotNumber ? (
+                    <span className="pointer-events-none absolute bottom-3 left-3 rounded-full border border-black/24 bg-black/58 px-2.5 py-1 text-[10px] font-semibold text-white/82 backdrop-blur-sm">
+                      {t("video.remake.shot")} {output.shotNumber}
+                    </span>
+                  ) : null}
                 </div>
                 <div className="grid gap-3 p-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`se-status rounded-full px-2.5 py-1 text-[11px] font-semibold ${outputStatusClass(output.statusKind)}`}>
-                      {statusLabel(output)}
+                    <span className="rounded-full border border-[#ffb44d]/20 bg-[#ffb44d]/8 px-2.5 py-1 text-[11px] font-semibold text-[#ffd08a]/86">
+                      {t("video.generation.remakeOutput")}
                     </span>
                     {output.shotNumber ? (
                       <span className="rounded-full border border-[#ffb44d]/22 bg-[#ffb44d]/8 px-2.5 py-1 text-[11px] font-semibold text-[#ffb44d]">
@@ -235,10 +248,10 @@ function RemakeOutputsPanel({
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-xs text-[#b9b9b9]/68">
-                    <span className="truncate">{output.modelLabel || "--"}</span>
-                    <span className="text-right">{output.createdAtLabel}</span>
-                    <span>{output.quality || "--"}</span>
-                    <span className="text-right">{[output.duration, output.ratio].filter(Boolean).join(" / ") || "--"}</span>
+                    <span className="se-pill truncate rounded-[14px] px-2.5 py-2">{output.modelLabel || "--"}</span>
+                    <span className="se-pill truncate rounded-[14px] px-2.5 py-2 text-right">{output.createdAtLabel}</span>
+                    <span className="se-pill truncate rounded-[14px] px-2.5 py-2">{output.quality || "--"}</span>
+                    <span className="se-pill truncate rounded-[14px] px-2.5 py-2 text-right">{[output.duration, output.ratio].filter(Boolean).join(" / ") || "--"}</span>
                   </div>
 
                   {output.statusKind === "failed" && output.errorMessage ? (
@@ -250,7 +263,7 @@ function RemakeOutputsPanel({
                   <div className="flex flex-wrap gap-2">
                     {output.outputUrl ? (
                       <a
-                        className="se-button-secondary inline-flex min-h-9 items-center justify-center rounded-[14px] px-3 text-xs font-semibold"
+                        className="se-button-secondary inline-flex min-h-9 items-center justify-center rounded-[15px] px-3 text-xs font-semibold"
                         href={output.outputUrl}
                         rel="noreferrer"
                         target="_blank"
@@ -260,7 +273,7 @@ function RemakeOutputsPanel({
                     ) : null}
                     {canRetryShot ? (
                       <button
-                        className="se-button-secondary min-h-9 rounded-[14px] px-3 text-xs font-semibold"
+                        className="se-button-ghost min-h-9 rounded-[15px] px-3 text-xs font-semibold"
                         disabled={disableRetry}
                         onClick={() => {
                           if (output.shot) onRetryShot(output.shot);

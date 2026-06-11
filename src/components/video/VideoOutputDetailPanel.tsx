@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { useI18n } from "@/i18n/useI18n";
@@ -24,12 +24,12 @@ function safeDownloadFilename(view: ReturnType<typeof getSafeVideoHistoryView>) 
   return `shadowedge-video-${String(id).replace(/[^\w.-]+/g, "-")}.mp4`;
 }
 
-function actionIconClass(tone: "normal" | "primary" = "normal") {
+function actionButtonClass(tone: "normal" | "primary" = "normal") {
   if (tone === "primary") {
-    return "se-icon-button-primary size-8";
+    return "se-button-secondary inline-flex min-h-9 items-center justify-center gap-2 rounded-[15px] px-3 text-xs font-semibold";
   }
 
-  return "se-icon-button size-8";
+  return "se-button-ghost inline-flex min-h-9 items-center justify-center gap-2 rounded-[15px] px-3 text-xs font-semibold";
 }
 
 function FillIcon() {
@@ -69,6 +69,15 @@ function RetryIcon() {
   );
 }
 
+function CopyIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <rect height="13" rx="2" width="13" x="9" y="9" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
 function statusClass(status: string, hasOutput: boolean, isStale = false) {
   if (isStale) return "se-status-paused";
   if (isVideoFailedStatus(status)) return "se-status-failed";
@@ -104,6 +113,7 @@ export function VideoOutputDetailPanel({
   record,
 }: VideoOutputDetailPanelProps) {
   const { t, tf } = useI18n();
+  const [isPromptExpanded, setIsPromptExpanded] = useState(false);
   const view = record ? getSafeVideoHistoryView(record) : null;
   const referenceAssets = useMemo(() => (record ? collectHistoryInputMediaAssets([record]).slice(0, 12) : []), [record]);
   const mappedReferences = useMemo(() => {
@@ -158,6 +168,11 @@ export function VideoOutputDetailPanel({
             <span className={`se-status rounded-full px-2.5 py-1 text-[10px] font-semibold ${statusClass(view.status, hasOutput, isStaleActive)}`}>
               {statusLabel}
             </span>
+            {view.refundNotice ? (
+              <span className="se-status se-status-refunded rounded-full px-2.5 py-1 text-[10px] font-semibold">
+                {t("video.generation.refunded")}
+              </span>
+            ) : null}
             <span className="inline-flex min-w-0 items-center gap-1.5 truncate rounded-full border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/74 px-2.5 py-1 text-[10px] font-semibold text-[#f4f4f4]/78">
               <VideoModelLogo label={view.modelLabel} lookup={modelLogoLookup} size="sm" />
               {view.modelLabel}
@@ -177,9 +192,18 @@ export function VideoOutputDetailPanel({
         >
           <div className="mb-2 flex items-center justify-between gap-3">
             <span className="se-eyebrow">{t("video.generation.prompt")}</span>
-            {onFill ? <span className="text-[10px] font-semibold text-[#b9b9b9]/45 opacity-0 transition group-hover/prompt:opacity-100">{t("video.generation.fillPrompt")}</span> : null}
+            <span className="text-[10px] font-semibold text-[#b9b9b9]/45 transition group-hover/prompt:text-[#ffd08a]/78">
+              {onFill ? t("video.generation.reusePrompt") : view.createdAtLabel}
+            </span>
           </div>
-          <p className="line-clamp-6 text-[13px] font-normal leading-6 text-[#f4f4f4]/84">{view.title}</p>
+          <p className={`${isPromptExpanded ? "" : "line-clamp-6"} text-[13px] font-normal leading-6 text-[#f4f4f4]/84`}>{view.title}</p>
+        </button>
+        <button
+          className="se-button-ghost -mt-2 inline-flex min-h-8 items-center justify-center rounded-full px-3 text-[11px] font-semibold"
+          onClick={() => setIsPromptExpanded((current) => !current)}
+          type="button"
+        >
+          {isPromptExpanded ? t("video.generation.collapsePrompt") : t("video.generation.expandPrompt")}
         </button>
 
         <div className="se-card rounded-[22px] p-3.5 shadow-inner shadow-black/8">
@@ -223,7 +247,9 @@ export function VideoOutputDetailPanel({
               })}
             </div>
           ) : (
-            <p className="text-xs leading-5 text-[#b9b9b9]/48">{t("video.drawer.empty.history")}</p>
+            <p className="rounded-[16px] border border-dashed border-[rgba(244,244,244,0.10)] bg-[#111318]/50 p-3 text-xs leading-5 text-[#b9b9b9]/48">
+              {t("video.generation.noReferences")}
+            </p>
           )}
         </div>
 
@@ -243,39 +269,66 @@ export function VideoOutputDetailPanel({
       </div>
 
       <div className="flex flex-none flex-wrap gap-2 border-t border-[rgba(244,244,244,0.08)] p-4">
+        {hasOutput ? (
+          <a
+            className={actionButtonClass("primary")}
+            href={view.outputUrl}
+            rel="noreferrer"
+            target="_blank"
+          >
+            {t("video.generation.openResult")}
+          </a>
+        ) : null}
         {onFill ? (
-          <button aria-label={t("video.history.fill")} className={actionIconClass("normal")} onClick={() => onFill(record)} title={t("video.history.fill")} type="button">
+          <button aria-label={t("video.generation.reusePrompt")} className={actionButtonClass("normal")} onClick={() => onFill(record)} title={t("video.generation.reusePrompt")} type="button">
             <FillIcon />
+            {t("video.generation.reusePrompt")}
           </button>
         ) : null}
         {hasOutput && onUseResultAsReference ? (
           <button
             aria-label={t("video.history.useAsReference")}
-            className={actionIconClass("normal")}
+            className={actionButtonClass("normal")}
             disabled={Boolean(useResultIssue)}
             onClick={() => onUseResultAsReference(record)}
             title={useResultIssue || t("video.history.useResultTitle")}
             type="button"
           >
             <AddReferenceIcon />
+            {t("video.generation.addReference")}
           </button>
         ) : null}
         {hasOutput ? (
           <a
-            aria-label={t("video.history.downloadOpen")}
-            className={actionIconClass("normal")}
+            aria-label={t("video.generation.downloadResult")}
+            className={actionButtonClass("normal")}
             download={safeDownloadFilename(view)}
             href={view.outputUrl}
             rel="noreferrer"
             target="_blank"
-            title={t("video.history.downloadOpen")}
+            title={t("video.generation.downloadResult")}
           >
             <DownloadIcon />
+            {t("video.generation.downloadResult")}
           </a>
         ) : null}
         {(isFailed || isStaleActive) && onRetry ? (
-          <button aria-label={t("video.history.retry")} className={actionIconClass("primary")} onClick={() => onRetry(record)} title={t("video.history.retry")} type="button">
+          <button aria-label={t("video.history.retry")} className={actionButtonClass("primary")} onClick={() => onRetry(record)} title={t("video.history.retry")} type="button">
             <RetryIcon />
+            {t("video.history.retry")}
+          </button>
+        ) : null}
+        {view.jobLabel && view.jobLabel !== "--" ? (
+          <button
+            className={actionButtonClass("normal")}
+            onClick={() => {
+              void navigator.clipboard?.writeText(view.jobLabel);
+            }}
+            title={t("video.generation.copyJobId")}
+            type="button"
+          >
+            <CopyIcon />
+            {t("video.generation.copyJobId")}
           </button>
         ) : null}
         {hasOutput && useResultIssue ? <span className="w-full text-[11px] leading-4 text-[#b9b9b9]/45">{useResultIssue}</span> : null}

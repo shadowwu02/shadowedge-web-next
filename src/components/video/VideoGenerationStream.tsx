@@ -58,8 +58,29 @@ function canvasActionClass(tone: "normal" | "primary" = "normal") {
   return "se-icon-button size-9 backdrop-blur-md";
 }
 
+function outputActionClass(tone: "primary" | "normal" = "normal") {
+  if (tone === "primary") {
+    return "se-button-secondary inline-flex min-h-9 items-center justify-center rounded-[15px] px-3 text-xs font-semibold";
+  }
+
+  return "se-button-ghost inline-flex min-h-9 items-center justify-center rounded-[15px] px-3 text-xs font-semibold";
+}
+
 function getRecordModelLogoLookup(record: VideoTaskRecord, modelLabel: string) {
   return [record.modelId, record.model, record.frontendModel, record.providerModel, record.provider, modelLabel].filter(Boolean).join(" ");
+}
+
+function getRecordMeta(record: VideoTaskRecord) {
+  return record.meta && typeof record.meta === "object" && !Array.isArray(record.meta) ? (record.meta as Record<string, unknown>) : {};
+}
+
+function getOutputSourceLabel(record: VideoTaskRecord, t: ReturnType<typeof useI18n>["t"]) {
+  const meta = getRecordMeta(record);
+  if (meta.source === "remake" || meta.remake === true || meta.remake_source === "storyboard_shot") {
+    return t("video.generation.remakeOutput");
+  }
+
+  return t("video.generation.createOutput");
 }
 
 function AddReferenceIcon() {
@@ -161,6 +182,7 @@ function VideoGenerationCard({
   const sensitiveFailure = isFailed && isSensitiveFailure(view.errorMessage);
   const useResultIssue = getUseResultAsReferenceIssue?.(record) || "";
   const modelLogoLookup = getRecordModelLogoLookup(record, view.modelLabel);
+  const sourceLabel = getOutputSourceLabel(record, t);
   const statusLabel = isStaleActive
     ? t("video.generation.stale")
     : isFailed
@@ -176,6 +198,9 @@ function VideoGenerationCard({
       <div className="min-w-0">
         <div className="mb-3 flex items-center justify-between gap-3 px-1">
           <div className="flex min-w-0 items-center gap-2">
+            <span className="rounded-full border border-[#ffb44d]/20 bg-[#ffb44d]/8 px-2.5 py-1 text-[10px] font-semibold text-[#ffd08a]/86">
+              {sourceLabel}
+            </span>
             <span className={`se-status rounded-full px-2.5 py-1 text-[10px] font-semibold ${statusClass(view.status, hasOutput, isStaleActive)}`}>
               {statusLabel}
             </span>
@@ -310,6 +335,48 @@ function VideoGenerationCard({
           <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#05070b]/78 via-[#05070b]/18 to-transparent p-4 opacity-0 transition group-hover:opacity-100">
             <p className="line-clamp-2 max-w-3xl text-sm font-medium leading-6 text-[#f4f4f4]/82">{view.title}</p>
           </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/58 p-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] font-medium text-[#b9b9b9]/58">
+            <span className="se-pill rounded-full px-2.5 py-1">{view.quality}</span>
+            <span className="se-pill rounded-full px-2.5 py-1">{view.duration}</span>
+            <span className="se-pill rounded-full px-2.5 py-1">{view.ratio}</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {hasOutput ? (
+              <>
+                <a className={outputActionClass("primary")} href={view.outputUrl} rel="noreferrer" target="_blank">
+                  {t("video.generation.openResult")}
+                </a>
+                <a className={outputActionClass()} download={safeDownloadFilename(view)} href={view.outputUrl} rel="noreferrer" target="_blank">
+                  {t("video.generation.downloadResult")}
+                </a>
+              </>
+            ) : null}
+            {(isSuccess || isFailed || isStaleActive) && onFill ? (
+              <button className={outputActionClass()} onClick={() => onFill(record)} type="button">
+                {t("video.generation.reusePrompt")}
+              </button>
+            ) : null}
+            {hasOutput && onUseResultAsReference ? (
+              <button
+                className={outputActionClass()}
+                disabled={Boolean(useResultIssue)}
+                onClick={() => onUseResultAsReference(record)}
+                title={useResultIssue || t("video.history.useResultTitle")}
+                type="button"
+              >
+                {t("video.generation.useAsReference")}
+              </button>
+            ) : null}
+            {(isFailed || isStaleActive) && onRetry ? (
+              <button className={outputActionClass("primary")} onClick={() => onRetry(record)} type="button">
+                {t("video.history.retry")}
+              </button>
+            ) : null}
+          </div>
+          {hasOutput && useResultIssue ? <p className="w-full text-[11px] leading-4 text-[#b9b9b9]/45">{useResultIssue}</p> : null}
         </div>
       </div>
 

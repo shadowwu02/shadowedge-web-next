@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useI18n } from "@/i18n/useI18n";
+import { collectHistoryInputMediaAssets } from "@/lib/media-assets";
 import { getSafeVideoHistoryView, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { VideoTaskRecord } from "@/types/video";
@@ -59,6 +60,19 @@ function actionButtonClass(tone: "danger" | "normal" | "primary" = "normal") {
     return "se-button-secondary rounded-full px-2 py-1 text-[10px] font-bold";
   }
   return "se-button-ghost rounded-full px-2 py-1 text-[10px] font-bold";
+}
+
+function getRecordMeta(record: VideoTaskRecord) {
+  return record.meta && typeof record.meta === "object" && !Array.isArray(record.meta) ? (record.meta as Record<string, unknown>) : {};
+}
+
+function getOutputSourceLabel(record: VideoTaskRecord, t: ReturnType<typeof useI18n>["t"]) {
+  const meta = getRecordMeta(record);
+  if (meta.source === "remake" || meta.remake === true || meta.remake_source === "storyboard_shot") {
+    return t("video.generation.remakeOutput");
+  }
+
+  return t("video.generation.createOutput");
 }
 
 export function HistoryPanel({
@@ -158,10 +172,12 @@ export function HistoryPanel({
               const isStaleActive = isVideoStaleActiveRecord(item);
               const isProcessing = isVideoActiveStatus(view.status) && !isStaleActive;
               const useResultIssue = getUseResultAsReferenceIssue?.(item) || "";
+              const referenceCount = collectHistoryInputMediaAssets([item]).length;
+              const sourceLabel = getOutputSourceLabel(item, t);
               return (
                 <article className="se-card-interactive group rounded-[18px] p-2" key={view.key}>
                   <div className="grid grid-cols-[68px_minmax(0,1fr)] gap-2">
-                    <div className="grid aspect-square place-items-center overflow-hidden rounded-2xl bg-white/[.045]">
+                    <div className="relative grid aspect-square place-items-center overflow-hidden rounded-2xl bg-white/[.045]">
                       {view.outputUrl ? (
                         <video className="h-full w-full object-cover" muted playsInline preload="metadata" src={view.outputUrl} />
                       ) : view.thumbnailUrl ? (
@@ -176,6 +192,9 @@ export function HistoryPanel({
                       ) : (
                         <span className="text-xs text-white/40">{t("video.history.status.task")}</span>
                       )}
+                      <span className="absolute inset-x-1.5 bottom-1.5 rounded-full border border-black/18 bg-black/58 px-2 py-0.5 text-center text-[9px] font-bold text-white/78 backdrop-blur-sm">
+                        {sourceLabel}
+                      </span>
                     </div>
                     <div className="min-w-0">
                       <div className="flex min-w-0 items-center gap-1.5">
@@ -188,6 +207,14 @@ export function HistoryPanel({
                       <div className="mt-1 grid gap-0.5 text-[10px] text-white/40">
                         <span className="truncate">{tf("video.history.model", { model: view.modelLabel })}</span>
                         <span className="truncate">{tf("video.history.job", { job: view.jobLabel })}</span>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5 text-[9px] font-semibold text-white/45">
+                        <span className="rounded-full border border-white/10 bg-white/[.035] px-2 py-0.5">{view.quality}</span>
+                        <span className="rounded-full border border-white/10 bg-white/[.035] px-2 py-0.5">{view.duration}</span>
+                        <span className="rounded-full border border-white/10 bg-white/[.035] px-2 py-0.5">{view.ratio}</span>
+                        <span className="rounded-full border border-white/10 bg-white/[.035] px-2 py-0.5">
+                          {tf("video.generation.referencesCount", { count: referenceCount })}
+                        </span>
                       </div>
                       {isFailed ? (
                         <div className="mt-2">

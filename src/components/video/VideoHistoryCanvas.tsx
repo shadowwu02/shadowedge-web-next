@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { useI18n } from "@/i18n/useI18n";
+import { collectHistoryInputMediaAssets } from "@/lib/media-assets";
 import { getSafeVideoHistoryView, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { VideoTaskRecord } from "@/types/video";
@@ -62,6 +63,19 @@ function actionButtonClass(tone: "danger" | "normal" | "primary" = "normal") {
 
 function isSensitiveFailure(message: string) {
   return /nsfw|sensitive|policy|content|moderation|copyright/i.test(message);
+}
+
+function getRecordMeta(record: VideoTaskRecord) {
+  return record.meta && typeof record.meta === "object" && !Array.isArray(record.meta) ? (record.meta as Record<string, unknown>) : {};
+}
+
+function getOutputSourceLabel(record: VideoTaskRecord, t: ReturnType<typeof useI18n>["t"]) {
+  const meta = getRecordMeta(record);
+  if (meta.source === "remake" || meta.remake === true || meta.remake_source === "storyboard_shot") {
+    return t("video.generation.remakeOutput");
+  }
+
+  return t("video.generation.createOutput");
 }
 
 export function VideoHistoryCanvas({
@@ -144,6 +158,8 @@ export function VideoHistoryCanvas({
               const isProcessing = isVideoActiveStatus(view.status) && !isStaleActive;
               const useResultIssue = getUseResultAsReferenceIssue?.(item) || "";
               const sensitiveFailure = isFailed && isSensitiveFailure(view.errorMessage);
+              const referenceCount = collectHistoryInputMediaAssets([item]).length;
+              const sourceLabel = getOutputSourceLabel(item, t);
 
               return (
                 <article className="overflow-hidden rounded-[28px] border border-white/10 bg-black/22" key={view.key}>
@@ -188,6 +204,9 @@ export function VideoHistoryCanvas({
 
                     <div className="flex min-w-0 flex-col gap-3 border-t border-white/10 p-4 2xl:border-l 2xl:border-t-0">
                       <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-[#ffb44d]/20 bg-[#ffb44d]/8 px-2.5 py-1 text-[10px] font-black text-[#ffd08a]/86">
+                          {sourceLabel}
+                        </span>
                         <span className={`se-status rounded-full px-2.5 py-1 text-[10px] font-black ${statusClass(isStaleActive ? "unknown" : view.status, Boolean(view.outputUrl))}`}>
                           {statusLabel(view.status, view.statusLabel, isStaleActive)}
                         </span>
@@ -208,6 +227,9 @@ export function VideoHistoryCanvas({
                         </span>
                         <span className="truncate rounded-2xl border border-white/10 bg-white/[.035] px-3 py-2">
                           {view.quality}
+                        </span>
+                        <span className="truncate rounded-2xl border border-white/10 bg-white/[.035] px-3 py-2">
+                          {tf("video.generation.referencesCount", { count: referenceCount })}
                         </span>
                       </div>
 
