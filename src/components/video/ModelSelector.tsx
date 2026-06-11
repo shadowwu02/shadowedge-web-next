@@ -61,7 +61,7 @@ export function ModelSelector({
     <section className="relative" ref={rootRef}>
       <button
         aria-expanded={isOpen}
-        className="se-control group flex min-h-14 w-full items-center justify-between gap-3 rounded-[22px] px-3 py-2 text-left shadow-inner shadow-black/10"
+        className="se-control group flex min-h-[62px] w-full items-center justify-between gap-3 rounded-[24px] px-3.5 py-2.5 text-left shadow-inner shadow-black/10"
         onClick={() => setIsOpen((current) => !current)}
         type="button"
       >

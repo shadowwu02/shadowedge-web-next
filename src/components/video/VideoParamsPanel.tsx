@@ -230,11 +230,11 @@ export function VideoParamsPanel({
   }, [modelId, onChange, value]);
 
   return (
-    <section className="flex flex-wrap gap-2" ref={rootRef}>
+    <section className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3" ref={rootRef}>
       {chips.map((chip) => (
         <button
           aria-expanded={openKey === chip.key}
-          className="se-control flex min-h-12 min-w-[96px] flex-1 basis-[calc(33.333%-0.5rem)] flex-col items-start justify-center gap-0.5 rounded-[18px] px-3 text-left text-xs font-medium text-[#b9b9b9]/58 shadow-inner shadow-black/10"
+          className="se-control flex min-h-[58px] min-w-0 flex-col items-start justify-center gap-0.5 rounded-[20px] px-3.5 text-left text-xs font-medium text-[#b9b9b9]/58 shadow-inner shadow-black/10"
           key={chip.key}
           onClick={(event) => openMenu(chip.key, event.currentTarget)}
           type="button"

@@ -380,13 +380,15 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
   }
 
   return (
-    <section className="se-card rounded-[22px] p-3">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-black text-white">{t("video.prompt.title")}</h2>
-        <span className="text-xs font-bold text-white/38">{value.length}/1200</span>
+    <section className="se-card rounded-[24px] p-3.5">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-[#f4f4f4]">{t("video.prompt.title")}</h2>
+        <span className="rounded-full border border-[rgba(244,244,244,0.08)] bg-[#05070b]/30 px-2.5 py-1 text-[11px] font-semibold text-[#b9b9b9]/50">
+          {value.length}/1200
+        </span>
       </div>
       <textarea
-        className="se-scrollbar h-36 min-h-32 w-full resize-y rounded-[22px] border border-white/10 bg-[#10141f] p-4 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70"
+        className="se-scrollbar h-40 min-h-36 w-full resize-y rounded-[24px] border border-white/10 bg-[#10141f]/92 px-4 py-3.5 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70"
         maxLength={1200}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
@@ -396,11 +398,16 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
       />
 
       {missingMentions.length ? (
-        <p className="mt-3 rounded-2xl border border-[#ffb44d]/25 bg-[#ffb44d]/10 px-3 py-2 text-xs font-semibold text-[#ffd08a]">
-          {tf("video.prompt.missingWarning", { items: missingMentions.map((mention) => mention.display).join(", ") })}
-        </p>
+        <div className="mt-3 inline-flex max-w-full items-start gap-2 rounded-[18px] border border-[#ffb44d]/24 bg-[#ffb44d]/9 px-3 py-2 text-xs font-semibold leading-5 text-[#ffd08a]/88">
+          <span className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border border-[#ffb44d]/28 bg-[#05070b]/40 text-[10px] leading-none text-[#ffb44d]">
+            !
+          </span>
+          <span className="min-w-0 break-words">
+            {tf("video.prompt.missingWarning", { items: missingMentions.map((mention) => mention.display).join(", ") })}
+          </span>
+        </div>
       ) : (
-        <p className="mt-3 text-xs text-white/38">{t("video.prompt.helper")}</p>
+        <p className="mt-3 text-xs leading-5 text-white/38">{t("video.prompt.helper")}</p>
       )}
 
       {isMenuOpen ? (

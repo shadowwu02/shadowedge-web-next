@@ -172,9 +172,9 @@ function VideoGenerationCard({
           : view.statusLabel;
 
   return (
-    <article className="group grid gap-3 rounded-[30px] border border-[rgba(244,244,244,0.08)] bg-[linear-gradient(180deg,rgba(17,19,24,0.90),rgba(8,10,14,0.94))] p-2.5 shadow-[0_28px_70px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(244,244,244,0.035)] transition-colors hover:border-[#ffb44d]/24 xl:grid-cols-[minmax(0,3.7fr)_minmax(240px,1fr)] 2xl:grid-cols-[minmax(0,3.95fr)_minmax(280px,1fr)]">
+    <article className="group grid gap-3.5 rounded-[32px] border border-[rgba(244,244,244,0.08)] bg-[linear-gradient(180deg,rgba(17,19,24,0.90),rgba(8,10,14,0.94))] p-3 shadow-[0_28px_70px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(244,244,244,0.035)] transition-colors hover:border-[#ffb44d]/24 xl:grid-cols-[minmax(0,2.35fr)_minmax(300px,0.85fr)] 2xl:grid-cols-[minmax(0,2.55fr)_minmax(330px,0.8fr)]">
       <div className="min-w-0">
-        <div className="mb-2 flex items-center justify-between gap-3 px-1">
+        <div className="mb-3 flex items-center justify-between gap-3 px-1">
           <div className="flex min-w-0 items-center gap-2">
             <span className={`se-status rounded-full px-2.5 py-1 text-[10px] font-semibold ${statusClass(view.status, hasOutput, isStaleActive)}`}>
               {statusLabel}
@@ -187,10 +187,10 @@ function VideoGenerationCard({
           <span className="shrink-0 text-[11px] text-[#b9b9b9]/45">{view.createdAtLabel}</span>
         </div>
 
-        <div className="relative grid min-h-[500px] place-items-center overflow-hidden rounded-[26px] border border-[rgba(244,244,244,0.08)] bg-[#05070b] shadow-inner shadow-black/35 transition-colors xl:min-h-[560px] 2xl:min-h-[620px]">
+        <div className="relative grid min-h-[460px] place-items-center overflow-hidden rounded-[28px] border border-[rgba(244,244,244,0.08)] bg-[#05070b] shadow-inner shadow-black/35 transition-colors xl:min-h-[520px] 2xl:min-h-[600px]">
           {view.outputUrl ? (
             <>
-              <video className="max-h-[74vh] min-h-[500px] w-full object-contain xl:min-h-[560px] 2xl:min-h-[620px]" controls playsInline src={view.outputUrl} />
+              <video className="max-h-[74vh] min-h-[460px] w-full object-contain xl:min-h-[520px] 2xl:min-h-[600px]" controls playsInline src={view.outputUrl} />
               <div className="absolute right-4 top-4 flex flex-col gap-2 opacity-0 transition group-hover:opacity-100">
                 {onUseResultAsReference ? (
                   <button
@@ -237,9 +237,9 @@ function VideoGenerationCard({
             </>
           ) : view.thumbnailUrl && !isFailed && !isStaleActive ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img alt="" className="max-h-[74vh] min-h-[500px] w-full object-contain xl:min-h-[560px] 2xl:min-h-[620px]" src={view.thumbnailUrl} />
+            <img alt="" className="max-h-[74vh] min-h-[460px] w-full object-contain xl:min-h-[520px] 2xl:min-h-[600px]" src={view.thumbnailUrl} />
           ) : isFailed || isStaleActive ? (
-            <div className="grid min-h-[500px] w-full place-items-center bg-[#05070b] px-6 text-center xl:min-h-[560px] 2xl:min-h-[620px]">
+            <div className="grid min-h-[460px] w-full place-items-center bg-[#05070b] px-6 text-center xl:min-h-[520px] 2xl:min-h-[600px]">
               <div>
                 <div className="mx-auto mb-4 grid size-14 place-items-center rounded-[20px] border border-[#8c4632]/42 bg-[#2a1012] text-xl font-semibold text-[#f2b3a1]">
                   !
@@ -294,7 +294,7 @@ function VideoGenerationCard({
               </div>
             </div>
           ) : isProcessing ? (
-            <div className="grid min-h-[500px] w-full place-items-center bg-[#111318] px-6 text-center xl:min-h-[560px] 2xl:min-h-[620px]">
+            <div className="grid min-h-[460px] w-full place-items-center bg-[#111318] px-6 text-center xl:min-h-[520px] 2xl:min-h-[600px]">
               <div>
                 <span className="mx-auto mb-5 block size-12 animate-pulse rounded-3xl border border-[#ffb44d]/32 bg-[#ffb44d]/16" />
                 <p className="text-lg font-semibold text-[#f4f4f4]">{t("video.result.processingTitle")}</p>
@@ -302,7 +302,7 @@ function VideoGenerationCard({
               </div>
             </div>
           ) : (
-            <div className="grid min-h-[500px] w-full place-items-center text-sm text-[#b9b9b9]/55 xl:min-h-[560px] 2xl:min-h-[620px]">
+            <div className="grid min-h-[460px] w-full place-items-center text-sm text-[#b9b9b9]/55 xl:min-h-[520px] 2xl:min-h-[600px]">
               {t("video.generation.empty.title")}
             </div>
           )}
@@ -356,7 +356,7 @@ export function VideoGenerationStream({
 
   return (
     <section className="flex h-full min-h-[420px] flex-col overflow-hidden">
-      <div className="se-segmented mb-2.5 flex flex-none flex-wrap items-center justify-between gap-2 rounded-[24px] p-2">
+      <div className="se-segmented mb-3 flex flex-none flex-wrap items-center justify-between gap-2 rounded-[24px] p-2">
         <div className="flex flex-wrap gap-1.5">
           {filters.map((item) => {
             const isActive = item === filter;
@@ -379,7 +379,7 @@ export function VideoGenerationStream({
       </div>
 
       <div className="se-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1.5">
-        <div className="grid gap-7">
+        <div className="grid gap-5">
           {visibleRecords.length ? (
             visibleRecords.map((record, index) => {
               const key = getVideoHistoryStableKey(record, `generation:${index}`) || `generation:${index}`;

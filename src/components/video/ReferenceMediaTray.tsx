@@ -198,7 +198,7 @@ export function ReferenceMediaTray({
   }
 
   return (
-    <section className="se-card rounded-[22px] p-3" ref={rootRef}>
+    <section className="se-card rounded-[24px] p-3.5" ref={rootRef}>
       <div className="mb-3">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -226,7 +226,7 @@ export function ReferenceMediaTray({
       </div>
 
       {media.length ? (
-        <div className="se-subtle-scrollbar grid max-h-[210px] grid-cols-2 gap-2 overflow-y-auto pr-1">
+        <div className="se-subtle-scrollbar grid max-h-[198px] grid-cols-2 gap-2 overflow-y-auto pr-1">
           {media.map((item) => {
             const mention = mentionById.get(item.id);
             const currentRole = item.role || "reference";
@@ -318,7 +318,7 @@ export function ReferenceMediaTray({
           })}
 
           <button
-            className="grid h-[82px] place-items-center rounded-[16px] border border-dashed border-[#ffb44d]/34 bg-[#ffb44d]/8 p-3 text-center transition-colors hover:bg-[#ffb44d]/12"
+            className="grid h-[82px] place-items-center rounded-[18px] border border-dashed border-[#ffb44d]/30 bg-[#ffb44d]/7 p-3 text-center transition-colors hover:bg-[#ffb44d]/12"
             onClick={(event) => openMediaPicker(event.currentTarget)}
             type="button"
           >
@@ -332,7 +332,7 @@ export function ReferenceMediaTray({
         </div>
       ) : (
         <button
-          className="grid min-h-[124px] w-full place-items-center rounded-[22px] border border-dashed border-[rgba(244,244,244,0.12)] bg-[#05070b]/24 px-4 text-center transition-colors hover:border-[#ffb44d]/38 hover:bg-[#ffb44d]/8"
+          className="grid min-h-[116px] w-full place-items-center rounded-[24px] border border-dashed border-[rgba(244,244,244,0.12)] bg-[#05070b]/24 px-4 text-center transition-colors hover:border-[#ffb44d]/38 hover:bg-[#ffb44d]/8"
           onClick={(event) => openMediaPicker(event.currentTarget)}
           type="button"
         >

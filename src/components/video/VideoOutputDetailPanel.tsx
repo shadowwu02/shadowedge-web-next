@@ -120,7 +120,7 @@ export function VideoOutputDetailPanel({
 
   if (!record || !view) {
     return (
-      <aside className="se-card-quiet flex h-full min-h-0 flex-col overflow-hidden rounded-[24px] p-4 shadow-2xl shadow-black/18">
+      <aside className="se-card-quiet flex h-full min-h-0 flex-col overflow-hidden rounded-[26px] p-4 shadow-2xl shadow-black/18">
         <p className="se-eyebrow">{t("video.history.selectedDetail")}</p>
         <div className="grid min-h-0 flex-1 place-items-center text-center">
           <div>
@@ -150,8 +150,8 @@ export function VideoOutputDetailPanel({
           : view.statusLabel;
 
   return (
-    <aside className="se-card-quiet flex h-full min-h-0 flex-col overflow-hidden rounded-[24px] shadow-2xl shadow-black/18">
-      <div className="flex flex-none items-start justify-between gap-3 border-b border-[rgba(244,244,244,0.08)] p-3.5">
+    <aside className="se-card-quiet flex h-full min-h-0 flex-col overflow-hidden rounded-[26px] shadow-2xl shadow-black/18">
+      <div className="flex flex-none items-start justify-between gap-3 border-b border-[rgba(244,244,244,0.08)] p-4">
         <div className="min-w-0">
           <p className="se-eyebrow">{t("video.history.selectedDetail")}</p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -167,9 +167,9 @@ export function VideoOutputDetailPanel({
         <span className="shrink-0 text-[11px] text-[#b9b9b9]/45">{view.createdAtLabel}</span>
       </div>
 
-      <div className="se-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto p-3.5">
+      <div className="se-scrollbar min-h-0 flex-1 space-y-3.5 overflow-y-auto p-4">
         <button
-          className="group/prompt w-full rounded-[20px] border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/52 p-3 text-left shadow-inner shadow-black/10 transition-colors hover:border-[#ffb44d]/30 hover:bg-[#ffb44d]/8 disabled:cursor-default disabled:hover:border-[rgba(244,244,244,0.08)] disabled:hover:bg-[#1a1c22]/52"
+          className="group/prompt w-full rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/52 p-3.5 text-left shadow-inner shadow-black/10 transition-colors hover:border-[#ffb44d]/30 hover:bg-[#ffb44d]/8 disabled:cursor-default disabled:hover:border-[rgba(244,244,244,0.08)] disabled:hover:bg-[#1a1c22]/52"
           disabled={!onFill}
           onClick={() => onFill?.(record)}
           title={onFill ? t("video.generation.fillPrompt") : undefined}
@@ -179,10 +179,10 @@ export function VideoOutputDetailPanel({
             <span className="se-eyebrow">{t("video.generation.prompt")}</span>
             {onFill ? <span className="text-[10px] font-semibold text-[#b9b9b9]/45 opacity-0 transition group-hover/prompt:opacity-100">{t("video.generation.fillPrompt")}</span> : null}
           </div>
-          <p className="line-clamp-6 text-[13px] font-normal leading-5 text-[#f4f4f4]/84">{view.title}</p>
+          <p className="line-clamp-6 text-[13px] font-normal leading-6 text-[#f4f4f4]/84">{view.title}</p>
         </button>
 
-        <div className="se-card rounded-[20px] p-3 shadow-inner shadow-black/8">
+        <div className="se-card rounded-[22px] p-3.5 shadow-inner shadow-black/8">
           <div className="mb-2 flex items-center justify-between">
             <span className="se-eyebrow">{t("video.generation.references")}</span>
             <span className="text-[10px] text-[#b9b9b9]/45">{referenceAssets.length}</span>
@@ -228,10 +228,10 @@ export function VideoOutputDetailPanel({
         </div>
 
         <div className="grid grid-cols-2 gap-2 text-[11px] font-medium text-[#b9b9b9]/70">
-          <span className="se-pill truncate rounded-[12px] px-2.5 py-1.5">{view.quality}</span>
-          <span className="se-pill truncate rounded-[12px] px-2.5 py-1.5">{view.duration}</span>
-          <span className="se-pill truncate rounded-[12px] px-2.5 py-1.5">{view.ratio}</span>
-          <span className="se-pill truncate rounded-[12px] px-2.5 py-1.5">{tf("video.history.job", { job: view.jobLabel })}</span>
+          <span className="se-pill truncate rounded-[14px] px-2.5 py-2">{view.quality}</span>
+          <span className="se-pill truncate rounded-[14px] px-2.5 py-2">{view.duration}</span>
+          <span className="se-pill truncate rounded-[14px] px-2.5 py-2">{view.ratio}</span>
+          <span className="se-pill truncate rounded-[14px] px-2.5 py-2">{tf("video.history.job", { job: view.jobLabel })}</span>
         </div>
 
         {isFailed || isStaleActive ? (
@@ -242,7 +242,7 @@ export function VideoOutputDetailPanel({
         ) : null}
       </div>
 
-      <div className="flex flex-none flex-wrap gap-1.5 border-t border-[rgba(244,244,244,0.08)] p-3.5">
+      <div className="flex flex-none flex-wrap gap-2 border-t border-[rgba(244,244,244,0.08)] p-4">
         {onFill ? (
           <button aria-label={t("video.history.fill")} className={actionIconClass("normal")} onClick={() => onFill(record)} title={t("video.history.fill")} type="button">
             <FillIcon />

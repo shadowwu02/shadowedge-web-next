@@ -20,7 +20,7 @@ export function GenerateButton({
 
   return (
     <button
-      className="se-button-primary min-h-12 w-full rounded-[18px] px-5 text-sm font-semibold"
+      className="se-button-primary min-h-[54px] w-full rounded-[20px] px-5 text-sm font-semibold"
       disabled={disabled || isSubmitting}
       onClick={onClick}
       type="button"
