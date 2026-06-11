@@ -50,7 +50,7 @@ export function VideoRemakeWorkspace({
 
   return (
     <div className="grid content-start gap-3">
-      <section className="rounded-[24px] border border-[#ffb44d]/20 bg-[#ffb44d]/8 p-4">
+      <section className="se-card rounded-[24px] p-4">
         <p className="se-eyebrow">{t("video.remake.title")}</p>
         <h1 className="mt-2 text-lg font-semibold tracking-[-0.02em] text-[#f4f4f4]">{t("video.remake.subtitle")}</h1>
         <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/68">{t("video.remake.workflowDescription")}</p>

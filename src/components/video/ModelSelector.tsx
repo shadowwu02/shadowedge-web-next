@@ -61,7 +61,7 @@ export function ModelSelector({
     <section className="relative" ref={rootRef}>
       <button
         aria-expanded={isOpen}
-        className="group flex min-h-14 w-full items-center justify-between gap-3 rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/62 px-3 py-2 text-left shadow-inner shadow-black/10 transition-colors hover:border-[#ffb44d]/30 hover:bg-[#1f2027]/72"
+        className="se-control group flex min-h-14 w-full items-center justify-between gap-3 rounded-[22px] px-3 py-2 text-left shadow-inner shadow-black/10"
         onClick={() => setIsOpen((current) => !current)}
         type="button"
       >
@@ -78,7 +78,7 @@ export function ModelSelector({
       </button>
 
       {isOpen ? (
-        <div className="se-scrollbar absolute left-0 right-0 top-[calc(100%+8px)] z-40 max-h-72 overflow-y-auto rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/98 p-2 shadow-2xl shadow-black/45 backdrop-blur-xl">
+        <div className="se-scrollbar se-card-quiet absolute left-0 right-0 top-[calc(100%+8px)] z-40 max-h-72 overflow-y-auto rounded-[22px] p-2 shadow-2xl shadow-black/45 backdrop-blur-xl">
           {models.map((model) => {
             const isSelected = model.id === selected?.id;
             return (

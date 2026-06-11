@@ -43,19 +43,19 @@ function isSensitiveFailure(message: string) {
 }
 
 function statusClass(status: string, hasOutput: boolean, isStale = false) {
-  if (isStale) return "border-[#ffb44d]/30 bg-[#ffb44d]/10 text-[#ffb44d]";
-  if (isVideoFailedStatus(status)) return "border-[#8c4632]/46 bg-[#2a1410]/72 text-[#f2b3a1]";
-  if (isVideoCompletedStatus(status) && hasOutput) return "border-[#6fb7c8]/24 bg-[#12313a]/42 text-[#b8e7ee]";
-  if (isVideoActiveStatus(status)) return "border-[#ffb44d]/30 bg-[#ffb44d]/10 text-[#ffb44d]";
-  return "border-[#33323a]/65 bg-[#1a1c22] text-[#b9b9b9]";
+  if (isStale) return "se-status-paused";
+  if (isVideoFailedStatus(status)) return "se-status-failed";
+  if (isVideoCompletedStatus(status) && hasOutput) return "se-status-completed";
+  if (isVideoActiveStatus(status)) return "se-status-processing";
+  return "se-status-neutral";
 }
 
 function canvasActionClass(tone: "normal" | "primary" = "normal") {
   if (tone === "primary") {
-    return "grid size-9 place-items-center rounded-full border border-[#ffb44d]/38 bg-[#ffb44d]/12 text-[#ffb44d] shadow-xl shadow-black/24 backdrop-blur-md transition-colors hover:bg-[#ffb44d]/18 disabled:cursor-not-allowed disabled:opacity-45";
+    return "se-icon-button-primary size-9 backdrop-blur-md";
   }
 
-  return "grid size-9 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/84 text-[#f4f4f4]/72 shadow-xl shadow-black/24 backdrop-blur-md transition-colors hover:border-[#ffb44d]/38 hover:bg-[#ffb44d]/10 hover:text-[#ffb44d] disabled:cursor-not-allowed disabled:opacity-45";
+  return "se-icon-button size-9 backdrop-blur-md";
 }
 
 function getRecordModelLogoLookup(record: VideoTaskRecord, modelLabel: string) {
@@ -176,7 +176,7 @@ function VideoGenerationCard({
       <div className="min-w-0">
         <div className="mb-2 flex items-center justify-between gap-3 px-1">
           <div className="flex min-w-0 items-center gap-2">
-            <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${statusClass(view.status, hasOutput, isStaleActive)}`}>
+            <span className={`se-status rounded-full px-2.5 py-1 text-[10px] font-semibold ${statusClass(view.status, hasOutput, isStaleActive)}`}>
               {statusLabel}
             </span>
             <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-xs font-semibold text-[#b9b9b9]/72">
@@ -241,15 +241,15 @@ function VideoGenerationCard({
           ) : isFailed || isStaleActive ? (
             <div className="grid min-h-[500px] w-full place-items-center bg-[#05070b] px-6 text-center xl:min-h-[560px] 2xl:min-h-[620px]">
               <div>
-                <div className="mx-auto mb-4 grid size-14 place-items-center rounded-[20px] border border-[#7f2d2d]/64 bg-[#2a1012] text-xl font-semibold text-red-100">
+                <div className="mx-auto mb-4 grid size-14 place-items-center rounded-[20px] border border-[#8c4632]/42 bg-[#2a1012] text-xl font-semibold text-[#f2b3a1]">
                   !
                 </div>
                 <div className="mb-4 flex flex-wrap justify-center gap-2">
-                  <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${statusClass(view.status, false, isStaleActive)}`}>
+                  <span className={`se-status rounded-full px-2.5 py-1 text-[10px] font-semibold ${statusClass(view.status, false, isStaleActive)}`}>
                     {statusLabel}
                   </span>
                   {sensitiveFailure ? (
-                    <span className="rounded-full border border-[#7f2d2d]/70 bg-[#2a1012] px-2.5 py-1 text-[10px] font-semibold text-red-100">
+                    <span className="se-status se-status-failed rounded-full px-2.5 py-1 text-[10px] font-semibold">
                       {t("video.generation.sensitive")}
                     </span>
                   ) : null}
@@ -259,10 +259,10 @@ function VideoGenerationCard({
                     </span>
                   ) : null}
                 </div>
-                <p className="text-lg font-semibold text-red-100">
+                <p className="text-lg font-semibold text-[#f2b3a1]">
                   {isStaleActive ? t("video.generation.stale") : sensitiveFailure ? t("video.generation.sensitive") : t("video.generation.failed")}
                 </p>
-                <p className="mx-auto mt-2 line-clamp-2 max-w-lg text-sm leading-6 text-red-100/54">{view.errorMessage}</p>
+                <p className="mx-auto mt-2 line-clamp-2 max-w-lg text-sm leading-6 text-[#f2b3a1]/54">{view.errorMessage}</p>
                 <div className="mt-5 flex flex-wrap justify-center gap-2">
                   {onFill ? (
                     <button
@@ -356,23 +356,19 @@ export function VideoGenerationStream({
 
   return (
     <section className="flex h-full min-h-[420px] flex-col overflow-hidden">
-      <div className="mb-2.5 flex flex-none flex-wrap items-center justify-between gap-2 rounded-[24px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/82 p-2 shadow-xl shadow-black/14">
+      <div className="se-segmented mb-2.5 flex flex-none flex-wrap items-center justify-between gap-2 rounded-[24px] p-2">
         <div className="flex flex-wrap gap-1.5">
           {filters.map((item) => {
             const isActive = item === filter;
             return (
               <button
-                className={`rounded-full border px-3 py-1.5 text-xs font-semibold shadow-inner transition ${
-                  isActive
-                    ? "border-[#d9963e]/60 bg-[linear-gradient(180deg,#d08a32,#a86320)] text-[#080a0f] shadow-black/10"
-                    : "border-[rgba(244,244,244,0.08)] bg-[#05070b]/44 text-[#b9b9b9]/68 shadow-black/20 hover:border-[#ffb44d]/32 hover:bg-[#ffb44d]/9 hover:text-[#ffd08a]"
-                }`}
+                className={`se-segmented-item rounded-full px-3 py-1.5 text-xs font-semibold ${isActive ? "se-segmented-item-active" : ""}`}
                 key={item}
                 onClick={() => onFilterChange(item)}
                 type="button"
               >
                 {t(`video.history.filter.${item}` as "video.history.filter.all")}
-                <span className={`ml-2 text-[10px] ${isActive ? "text-[#080a0f]/58" : "text-[#b9b9b9]/38"}`}>{counts[item]}</span>
+                <span className="se-segmented-count">{counts[item]}</span>
               </button>
             );
           })}

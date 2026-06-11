@@ -234,7 +234,7 @@ export function VideoParamsPanel({
       {chips.map((chip) => (
         <button
           aria-expanded={openKey === chip.key}
-          className="flex min-h-12 min-w-[96px] flex-1 basis-[calc(33.333%-0.5rem)] flex-col items-start justify-center gap-0.5 rounded-[18px] border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/62 px-3 text-left text-xs font-medium text-[#b9b9b9]/58 shadow-inner shadow-black/10 transition-colors hover:border-[#ffb44d]/30 hover:bg-[#ffb44d]/8"
+          className="se-control flex min-h-12 min-w-[96px] flex-1 basis-[calc(33.333%-0.5rem)] flex-col items-start justify-center gap-0.5 rounded-[18px] px-3 text-left text-xs font-medium text-[#b9b9b9]/58 shadow-inner shadow-black/10"
           key={chip.key}
           onClick={(event) => openMenu(chip.key, event.currentTarget)}
           type="button"
@@ -246,7 +246,7 @@ export function VideoParamsPanel({
 
       {openKey ? (
         <div
-          className="fixed z-40 rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/98 p-2 shadow-2xl shadow-black/50 backdrop-blur-xl"
+          className="se-card-quiet fixed z-40 rounded-[22px] p-2 shadow-2xl shadow-black/50 backdrop-blur-xl"
           ref={menuRef}
           style={{
             left: menuPosition.left,
@@ -296,7 +296,7 @@ export function VideoParamsPanel({
                 ))}
               </div>
               <button
-                className="justify-self-end rounded-full border border-[rgba(244,244,244,0.08)] px-3 py-1.5 text-xs font-semibold text-[#b9b9b9]/70 transition-colors hover:border-[#ffb44d]/35 hover:text-[#ffd08a]"
+                className="se-button-secondary justify-self-end rounded-full px-3 py-1.5 text-xs font-semibold"
                 onClick={() => setOpenKey(null)}
                 type="button"
               >

@@ -150,10 +150,10 @@ function RemakeKeyframes({ keyframes }: { keyframes: RemakeKeyframe[] }) {
 }
 
 function outputStatusClass(statusKind: RemakeOutputItem["statusKind"]) {
-  if (statusKind === "completed") return "border-[#6fb7c8]/24 bg-[#12313a]/42 text-[#b8e7ee]";
-  if (statusKind === "failed") return "border-[#8c4632]/46 bg-[#2a1410]/72 text-[#f2b3a1]";
-  if (statusKind === "processing") return "border-[#ffb44d]/28 bg-[#ffb44d]/10 text-[#ffb44d]";
-  return "border-[rgba(244,244,244,0.10)] bg-[#1a1c22]/68 text-[#b9b9b9]/72";
+  if (statusKind === "completed") return "se-status-completed";
+  if (statusKind === "failed") return "se-status-failed";
+  if (statusKind === "processing") return "se-status-processing";
+  return "se-status-neutral";
 }
 
 function RemakeOutputsPanel({
@@ -178,7 +178,7 @@ function RemakeOutputsPanel({
   }
 
   return (
-    <section className="mt-5 rounded-[28px] border border-[rgba(244,244,244,0.08)] bg-[#05070b]/36 p-4">
+    <section className="se-card-quiet mt-5 rounded-[28px] p-4">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="se-eyebrow">{t("video.remake.outputsTitle")}</p>
@@ -197,7 +197,7 @@ function RemakeOutputsPanel({
 
             return (
               <article
-                className="overflow-hidden rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/70 shadow-inner shadow-black/10"
+                className="se-card-interactive overflow-hidden rounded-[22px] shadow-inner shadow-black/10"
                 key={output.key}
               >
                 <div className="aspect-video bg-[#05070b]">
@@ -206,12 +206,12 @@ function RemakeOutputsPanel({
                   ) : (
                     <div className="grid size-full place-items-center px-4 text-center">
                       <div>
-                        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${outputStatusClass(output.statusKind)}`}>
+                        <span className={`se-status rounded-full px-2.5 py-1 text-[11px] font-semibold ${outputStatusClass(output.statusKind)}`}>
                           {statusLabel(output)}
                         </span>
                         {output.statusKind === "processing" ? <span className="mx-auto mt-4 block size-9 animate-pulse rounded-2xl border border-[#ffb44d]/28 bg-[#ffb44d]/12" /> : null}
                         {output.statusKind === "failed" && output.errorMessage ? (
-                          <p className="mx-auto mt-3 line-clamp-3 max-w-xs text-xs leading-5 text-red-100/70">{output.errorMessage}</p>
+                          <p className="mx-auto mt-3 line-clamp-3 max-w-xs text-xs leading-5 text-[#f2b3a1]/70">{output.errorMessage}</p>
                         ) : null}
                       </div>
                     </div>
@@ -219,7 +219,7 @@ function RemakeOutputsPanel({
                 </div>
                 <div className="grid gap-3 p-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${outputStatusClass(output.statusKind)}`}>
+                    <span className={`se-status rounded-full px-2.5 py-1 text-[11px] font-semibold ${outputStatusClass(output.statusKind)}`}>
                       {statusLabel(output)}
                     </span>
                     {output.shotNumber ? (
@@ -242,7 +242,7 @@ function RemakeOutputsPanel({
                   </div>
 
                   {output.statusKind === "failed" && output.errorMessage ? (
-                    <p className="break-words rounded-[14px] border border-red-400/16 bg-red-500/8 p-2 text-xs leading-5 text-red-100/72">
+                    <p className="se-status se-status-failed break-words rounded-[14px] p-2 text-xs leading-5">
                       {output.errorMessage}
                     </p>
                   ) : null}
@@ -250,7 +250,7 @@ function RemakeOutputsPanel({
                   <div className="flex flex-wrap gap-2">
                     {output.outputUrl ? (
                       <a
-                        className="inline-flex min-h-9 items-center justify-center rounded-[14px] border border-[rgba(244,244,244,0.1)] bg-[#1a1c22]/64 px-3 text-xs font-semibold text-[#f4f4f4]/82 transition-colors hover:border-[#ffb44d]/34 hover:text-[#ffb44d]"
+                        className="se-button-secondary inline-flex min-h-9 items-center justify-center rounded-[14px] px-3 text-xs font-semibold"
                         href={output.outputUrl}
                         rel="noreferrer"
                         target="_blank"
@@ -260,7 +260,7 @@ function RemakeOutputsPanel({
                     ) : null}
                     {canRetryShot ? (
                       <button
-                        className="min-h-9 rounded-[14px] border border-[#ffb44d]/34 bg-[#ffb44d]/12 px-3 text-xs font-semibold text-[#ffb44d] transition-colors hover:bg-[#ffb44d]/18 disabled:cursor-not-allowed disabled:opacity-45"
+                        className="se-button-secondary min-h-9 rounded-[14px] px-3 text-xs font-semibold"
                         disabled={disableRetry}
                         onClick={() => {
                           if (output.shot) onRetryShot(output.shot);
@@ -363,7 +363,7 @@ export function RemakeStoryboardPanel({
           <span>{settings.targetRegion}</span>
           {storyboard && onClearDraft ? (
             <button
-              className="min-h-9 rounded-[14px] border border-[rgba(244,244,244,0.1)] bg-[#1a1c22]/64 px-3 text-xs font-semibold text-[#f4f4f4]/82 transition-colors hover:border-[#ffb44d]/34 hover:text-[#ffb44d]"
+              className="se-button-secondary min-h-9 rounded-[14px] px-3 text-xs font-semibold"
               onClick={onClearDraft}
               type="button"
             >
@@ -372,7 +372,7 @@ export function RemakeStoryboardPanel({
           ) : null}
           {canGenerateAllShots ? (
             <button
-              className="min-h-9 rounded-[14px] border border-[#ffb44d]/34 bg-[#ffb44d] px-3 text-xs font-semibold text-[#05070b] transition-colors hover:bg-[#ffc766]"
+              className="se-button-primary min-h-9 rounded-[14px] px-3 text-xs font-semibold"
               onClick={onGenerateAllShots}
               type="button"
             >
@@ -381,7 +381,7 @@ export function RemakeStoryboardPanel({
           ) : null}
           {canRetryAllFailedShots ? (
             <button
-              className="min-h-9 rounded-[14px] border border-[#ffb44d]/34 bg-[#ffb44d]/12 px-3 text-xs font-semibold text-[#ffb44d] transition-colors hover:bg-[#ffb44d]/18"
+              className="se-button-secondary min-h-9 rounded-[14px] px-3 text-xs font-semibold"
               onClick={onRetryAllFailedShots}
               type="button"
             >
@@ -390,7 +390,7 @@ export function RemakeStoryboardPanel({
           ) : null}
           {isQueueRunning ? (
             <button
-              className="min-h-9 rounded-[14px] border border-red-300/24 bg-red-500/10 px-3 text-xs font-semibold text-red-100/82 transition-colors hover:bg-red-500/16"
+              className="se-button-danger min-h-9 rounded-[14px] px-3 text-xs font-semibold"
               onClick={onCancelQueue}
               type="button"
             >
@@ -400,7 +400,7 @@ export function RemakeStoryboardPanel({
           {isQueuePaused ? (
             <div className="grid gap-1.5">
               <button
-                className="min-h-9 rounded-[14px] border border-[#ffb44d]/34 bg-[#ffb44d] px-3 text-xs font-semibold text-[#05070b] transition-colors hover:bg-[#ffc766]"
+                className="se-button-primary min-h-9 rounded-[14px] px-3 text-xs font-semibold"
                 onClick={onContinueQueue}
                 type="button"
               >
@@ -408,7 +408,7 @@ export function RemakeStoryboardPanel({
               </button>
               {!isQueueInterrupted ? (
                 <button
-                  className="min-h-9 rounded-[14px] border border-[rgba(244,244,244,0.1)] bg-[#1a1c22]/64 px-3 text-xs font-semibold text-[#f4f4f4]/82 transition-colors hover:border-[#ffb44d]/34 hover:text-[#ffb44d]"
+                  className="se-button-secondary min-h-9 rounded-[14px] px-3 text-xs font-semibold"
                   onClick={onSkipFailedShot}
                   type="button"
                 >
@@ -416,7 +416,7 @@ export function RemakeStoryboardPanel({
                 </button>
               ) : null}
               <button
-                className="min-h-9 rounded-[14px] border border-red-300/24 bg-red-500/10 px-3 text-xs font-semibold text-red-100/82 transition-colors hover:bg-red-500/16"
+                className="se-button-danger min-h-9 rounded-[14px] px-3 text-xs font-semibold"
                 onClick={onCancelQueue}
                 type="button"
               >
@@ -440,7 +440,7 @@ export function RemakeStoryboardPanel({
           {isQueuePaused ? (
             <div className="grid gap-1 text-[#ffd08a]/86">
               <p>{isQueueInterrupted ? t("video.remake.queueDraftRestored") : t("video.remake.queueFailedNotice")}</p>
-              {queueError ? <p className="break-words font-semibold text-red-100/82">{queueError}</p> : null}
+              {queueError ? <p className="break-words font-semibold text-[#f2b3a1]/82">{queueError}</p> : null}
             </div>
           ) : null}
         </div>
@@ -476,7 +476,7 @@ export function RemakeStoryboardPanel({
 
             return (
             <article
-              className="grid gap-4 rounded-[28px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/78 p-4 shadow-inner shadow-black/12 xl:grid-cols-[minmax(0,1fr)_280px]"
+              className="se-card-interactive grid gap-4 rounded-[28px] p-4 shadow-inner shadow-black/12 xl:grid-cols-[minmax(0,1fr)_280px]"
               key={`${shot.shotGroupId}-${shot.shot}`}
             >
               <div className="min-w-0">
@@ -491,12 +491,12 @@ export function RemakeStoryboardPanel({
                     {formatTimeRange(shot)}
                   </span>
                   {isQueued ? (
-                    <span className="rounded-full border border-[#ffb44d]/28 bg-[#ffb44d]/10 px-3 py-1.5 text-xs font-semibold text-[#ffb44d]">
+                    <span className="se-status se-status-processing rounded-full px-3 py-1.5 text-xs font-semibold">
                       {t("video.remake.queued")}
                     </span>
                   ) : null}
                   {isSkipped ? (
-                    <span className="rounded-full border border-[rgba(244,244,244,0.1)] bg-[#1a1c22]/66 px-3 py-1.5 text-xs font-semibold text-[#b9b9b9]/68">
+                    <span className="se-status se-status-neutral rounded-full px-3 py-1.5 text-xs font-semibold">
                       {t("video.remake.skipped")}
                     </span>
                   ) : null}
@@ -548,7 +548,7 @@ export function RemakeStoryboardPanel({
 
                 <div className="grid gap-2 pt-1">
                   <button
-                    className="min-h-10 rounded-[16px] border border-[#ffb44d]/34 bg-[#ffb44d]/12 px-3 text-sm font-semibold text-[#ffb44d] transition-colors hover:bg-[#ffb44d]/18"
+                    className="se-button-secondary min-h-10 rounded-[16px] px-3 text-sm font-semibold"
                     onClick={() => onUsePrompt(shot.prompt)}
                     type="button"
                   >
@@ -556,7 +556,7 @@ export function RemakeStoryboardPanel({
                   </button>
                   {hasGeneratedOutput ? (
                     <a
-                      className="inline-flex min-h-10 items-center justify-center rounded-[16px] border border-[rgba(244,244,244,0.1)] bg-[#1a1c22]/64 px-3 text-sm font-semibold text-[#f4f4f4]/82 transition-colors hover:border-[#ffb44d]/34 hover:text-[#ffb44d]"
+                      className="se-button-secondary inline-flex min-h-10 items-center justify-center rounded-[16px] px-3 text-sm font-semibold"
                       href={generation.outputUrl}
                       rel="noreferrer"
                       target="_blank"
@@ -565,10 +565,10 @@ export function RemakeStoryboardPanel({
                     </a>
                   ) : null}
                   <button
-                    className={`min-h-10 rounded-[16px] border px-3 text-sm font-semibold transition-colors ${
+                    className={`min-h-10 rounded-[16px] px-3 text-sm font-semibold ${
                       isGenerateDisabled
-                        ? "cursor-wait border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/56 text-[#b9b9b9]/54"
-                        : "border-[#ffb44d]/34 bg-[#ffb44d] text-[#05070b] hover:bg-[#ffc766]"
+                        ? "se-button-secondary cursor-wait"
+                        : "se-button-primary"
                     }`}
                     disabled={isGenerateDisabled}
                     onClick={() => onGenerateShot(shot)}
@@ -583,12 +583,12 @@ export function RemakeStoryboardPanel({
                         : t("video.remake.generateShot")}
                   </button>
                   {generation?.status === "success" ? (
-                    <p className="rounded-[16px] border border-[#6fb7c8]/20 bg-[#12313a]/36 p-2 text-xs leading-5 text-[#b8e7ee]/76">
+                    <p className="se-status se-status-completed rounded-[16px] p-2 text-xs leading-5">
                       {t("video.remake.shotGenerated")}
                     </p>
                   ) : null}
                   {generation?.status === "failed" ? (
-                    <p className="break-words rounded-[16px] border border-[#8c4632]/38 bg-[#2a1410]/62 p-2 text-xs leading-5 text-[#f2b3a1]/76">
+                    <p className="se-status se-status-failed break-words rounded-[16px] p-2 text-xs leading-5">
                       {generation.error || t("video.remake.shotGenerationFailed")}
                     </p>
                   ) : null}

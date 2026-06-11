@@ -32,6 +32,13 @@ export function ResultViewer({ task }: { task: VideoTaskRecord | null }) {
         : isFailed
           ? t("video.status.failed")
           : task?.status || t("video.status.idle");
+  const statusToneClass = isFailed || isStaleActive
+    ? "se-status-failed"
+    : isActive
+      ? "se-status-processing"
+      : videoUrl
+        ? "se-status-completed"
+        : "se-status-neutral";
 
   return (
     <section className="flex h-full min-h-[420px] flex-col overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_50%_0%,rgba(255,180,77,.14),transparent_35%),rgba(255,255,255,.045)] p-4 shadow-2xl shadow-black/24">
@@ -40,7 +47,7 @@ export function ResultViewer({ task }: { task: VideoTaskRecord | null }) {
           <p className="text-[11px] font-black uppercase tracking-[.2em] text-[#ffcf83]">{t("video.workspace.previewCanvas")}</p>
           <h2 className="mt-1 text-base font-black text-white">{t("video.result.latest")}</h2>
         </div>
-        <span className="rounded-full border border-white/10 bg-black/24 px-3 py-1 text-xs font-bold text-white/56">
+        <span className={`se-status rounded-full px-3 py-1 text-xs font-bold ${statusToneClass}`}>
           {statusLabel}
         </span>
       </div>
@@ -51,11 +58,11 @@ export function ResultViewer({ task }: { task: VideoTaskRecord | null }) {
             <video className="h-full max-h-full w-full rounded-[18px] object-contain" controls playsInline src={videoUrl} />
           ) : isFailed || isStaleActive ? (
             <div className="px-6 text-center">
-              <div className="mx-auto mb-4 grid size-12 place-items-center rounded-2xl border border-red-300/25 bg-red-400/10 text-lg font-black text-red-100">
+              <div className="mx-auto mb-4 grid size-12 place-items-center rounded-2xl border border-[#8c4632]/42 bg-[#2a1012] text-lg font-black text-[#f2b3a1]">
                 !
               </div>
-              <p className="text-lg font-black text-red-100">{isStaleActive ? t("video.result.statusCheckStopped") : t("video.result.failedTitle")}</p>
-              <p className="mt-2 text-sm text-red-100/62">
+              <p className="text-lg font-black text-[#f2b3a1]">{isStaleActive ? t("video.result.statusCheckStopped") : t("video.result.failedTitle")}</p>
+              <p className="mt-2 text-sm text-[#f2b3a1]/62">
                 {isStaleActive
                   ? t("video.result.staleBody")
                   : task

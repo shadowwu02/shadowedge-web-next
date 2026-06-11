@@ -2413,7 +2413,7 @@ export function VideoWorkspace() {
               />
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                 <button
-                  className="group flex min-h-[54px] items-center justify-between gap-3 rounded-[18px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/72 px-3 py-2 text-left text-xs font-semibold text-[#f4f4f4]/78 transition hover:border-[#ffb44d]/30 hover:bg-[#ffb44d]/8 hover:text-[#ffd08a]"
+                  className="se-control group flex min-h-[54px] items-center justify-between gap-3 rounded-[18px] px-3 py-2 text-left text-xs font-semibold text-[#f4f4f4]/78"
                   onClick={(event) => {
                     window.dispatchEvent(
                       new CustomEvent("shadowedge:open-video-mention-menu", {
@@ -2452,7 +2452,7 @@ export function VideoWorkspace() {
                     {t("video.workspace.signInBody")}
                   </p>
                   <Link
-                    className="mt-4 inline-flex h-10 items-center justify-center rounded-full border border-[#ffd08a]/32 bg-[#ffb44d] px-5 text-sm font-semibold text-[#05070b] transition-colors hover:bg-[#ffc766]"
+                    className="se-button-primary mt-4 inline-flex h-10 items-center justify-center rounded-full px-5 text-sm font-semibold"
                     href="/sign-in?next=/workspace/video"
                   >
                     {t("video.actions.signIn")}
@@ -2516,17 +2516,13 @@ export function VideoWorkspace() {
           />
         ) : (
           <>
-            <div className="mb-2 flex flex-none gap-2 rounded-[24px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/82 p-1.5 shadow-xl shadow-black/16">
+            <div className="se-segmented mb-2 flex flex-none gap-2 rounded-[24px] p-1.5">
               {([
                 { key: "history", label: t("video.main.history") },
                 { key: "guide", label: t("video.main.howItWorks") },
               ] as const).map((item) => (
                 <button
-                  className={`min-h-10 rounded-[18px] px-4 text-xs font-semibold transition-colors ${
-                    mainPanel === item.key
-                      ? "border border-[#ffb44d]/34 bg-[#ffb44d]/12 text-[#ffb44d] shadow-lg shadow-black/14"
-                      : "border border-transparent text-[#b9b9b9]/62 hover:bg-[#1a1c22] hover:text-[#f4f4f4]"
-                  }`}
+                  className={`se-segmented-item min-h-10 rounded-[18px] px-4 text-xs font-semibold ${mainPanel === item.key ? "se-segmented-item-active" : ""}`}
                   key={item.key}
                   onClick={() => setMainPanel(item.key)}
                   type="button"

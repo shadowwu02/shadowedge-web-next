@@ -280,7 +280,7 @@ export function ReferenceMediaTray({
 
                 <button
                   aria-label={tf("video.references.removeAsset", { name: item.name })}
-                  className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-[#05070b]/78 text-[11px] text-[#f4f4f4]/76 opacity-0 transition-colors hover:text-red-100 group-hover:opacity-100"
+                  className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-[#05070b]/78 text-[11px] text-[#f4f4f4]/76 opacity-0 transition-colors hover:text-[#f2b3a1] group-hover:opacity-100"
                   onClick={() => onRemove(item.id)}
                   type="button"
                 >

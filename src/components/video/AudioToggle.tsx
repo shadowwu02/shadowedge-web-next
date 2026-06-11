@@ -18,8 +18,8 @@ export function AudioToggle({
       aria-checked={checked}
       className={`group flex min-h-[54px] items-center justify-between gap-3 rounded-[18px] border px-3 py-2 text-left transition ${
         checked && !disabled
-          ? "border-[#ffb44d]/36 bg-[#ffb44d]/10 text-[#ffd08a]"
-          : "border-[rgba(244,244,244,0.08)] bg-[#111318]/72 text-[#f4f4f4]/76 hover:border-[#ffb44d]/30 hover:bg-[#ffb44d]/7 hover:text-[#ffd08a]"
+          ? "se-status-ready text-[#ffd08a]"
+          : "se-control text-[#f4f4f4]/76 hover:text-[#ffd08a]"
       } disabled:cursor-not-allowed disabled:border-[rgba(244,244,244,0.08)] disabled:bg-[#111318]/48 disabled:text-[#b9b9b9]/42`}
       disabled={disabled}
       onClick={() => onChange(!checked)}

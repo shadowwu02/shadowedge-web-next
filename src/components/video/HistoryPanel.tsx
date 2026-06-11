@@ -33,10 +33,10 @@ function filterHistoryItem(item: VideoTaskRecord, filter: HistoryFilter) {
 }
 
 function statusClass(status: string, hasOutput: boolean) {
-  if (isVideoFailedStatus(status)) return "border-[#8c4632]/46 bg-[#2a1410]/72 text-[#f2b3a1]";
-  if (isVideoCompletedStatus(status) && hasOutput) return "border-[#6fb7c8]/24 bg-[#12313a]/42 text-[#b8e7ee]";
-  if (isVideoActiveStatus(status)) return "border-[#ffb44d]/24 bg-[#ffb44d]/10 text-[#ffd08a]";
-  return "border-white/10 bg-white/[.045] text-white/55";
+  if (isVideoFailedStatus(status)) return "se-status-failed";
+  if (isVideoCompletedStatus(status) && hasOutput) return "se-status-completed";
+  if (isVideoActiveStatus(status)) return "se-status-processing";
+  return "se-status-neutral";
 }
 
 function emptyMessageKey(filter: HistoryFilter) {
@@ -53,12 +53,12 @@ function safeDownloadFilename(view: ReturnType<typeof getSafeVideoHistoryView>) 
 
 function actionButtonClass(tone: "danger" | "normal" | "primary" = "normal") {
   if (tone === "danger") {
-    return "rounded-full border border-red-300/25 bg-red-400/10 px-2 py-1 text-[10px] font-bold text-red-100 transition hover:bg-red-400/16 disabled:cursor-not-allowed disabled:opacity-45";
+    return "se-button-danger rounded-full px-2 py-1 text-[10px] font-bold";
   }
   if (tone === "primary") {
-    return "rounded-full border border-[#ffb44d]/35 bg-[#ffb44d]/10 px-2 py-1 text-[10px] font-bold text-[#ffd08a] transition hover:bg-[#ffb44d]/16 disabled:cursor-not-allowed disabled:opacity-45";
+    return "se-button-secondary rounded-full px-2 py-1 text-[10px] font-bold";
   }
-  return "rounded-full border border-white/10 bg-white/[.045] px-2 py-1 text-[10px] font-bold text-white/68 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a] disabled:cursor-not-allowed disabled:opacity-45";
+  return "se-button-ghost rounded-full px-2 py-1 text-[10px] font-bold";
 }
 
 export function HistoryPanel({
@@ -114,7 +114,7 @@ export function HistoryPanel({
   };
 
   return (
-    <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[26px] border border-white/10 bg-white/[.035] p-2.5 shadow-2xl shadow-black/18">
+    <section className="se-card-quiet flex h-full min-h-0 flex-col overflow-hidden rounded-[26px] p-2.5 shadow-2xl shadow-black/18">
       <div className="mb-2.5 flex flex-none flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2.5">
         <div>
           <p className="text-[11px] font-black uppercase tracking-[.18em] text-[#ffcf83]">{t("video.history.outputs")}</p>
@@ -123,22 +123,18 @@ export function HistoryPanel({
             {isLoading ? t("video.history.loading") : tf("video.history.itemsCount", { visible: visibleHistory.length, total: history.length })}
           </span>
         </div>
-        <div className="flex max-w-full flex-wrap gap-1.5 rounded-2xl border border-white/10 bg-black/18 p-1">
+        <div className="se-segmented flex max-w-full flex-wrap gap-1.5 rounded-2xl p-1">
           {filters.map((item) => {
             const isActive = item === currentFilter;
             return (
               <button
-                className={`rounded-full border px-2.5 py-1.5 text-[10px] font-black shadow-inner transition ${
-                  isActive
-                    ? "border-[#d9963e]/60 bg-[linear-gradient(180deg,#d08a32,#a86320)] text-[#080a0f] shadow-black/10"
-                    : "border-white/10 bg-[#05070b]/40 text-white/52 shadow-black/20 hover:border-[#ffb44d]/30 hover:bg-[#ffb44d]/8 hover:text-[#ffd08a]"
-                }`}
+                className={`se-segmented-item rounded-full px-2.5 py-1.5 text-[10px] font-black ${isActive ? "se-segmented-item-active" : ""}`}
                 key={item}
                 onClick={() => setNextFilter(item)}
                 type="button"
               >
                 {filterLabel(item)}
-                <span className={`ml-1.5 text-[9px] ${isActive ? "text-[#080a0f]/58" : "text-white/34"}`}>{counts[item]}</span>
+                <span className="se-segmented-count text-[9px]">{counts[item]}</span>
               </button>
             );
           })}
@@ -163,7 +159,7 @@ export function HistoryPanel({
               const isProcessing = isVideoActiveStatus(view.status) && !isStaleActive;
               const useResultIssue = getUseResultAsReferenceIssue?.(item) || "";
               return (
-                <article className="group rounded-[18px] border border-white/10 bg-black/18 p-2 transition hover:border-[#ffb44d]/22 hover:bg-[#ffb44d]/[.055]" key={view.key}>
+                <article className="se-card-interactive group rounded-[18px] p-2" key={view.key}>
                   <div className="grid grid-cols-[68px_minmax(0,1fr)] gap-2">
                     <div className="grid aspect-square place-items-center overflow-hidden rounded-2xl bg-white/[.045]">
                       {view.outputUrl ? (
@@ -172,7 +168,7 @@ export function HistoryPanel({
                         // eslint-disable-next-line @next/next/no-img-element
                         <img alt="" className="h-full w-full object-cover" src={view.thumbnailUrl} />
                       ) : isVideoFailedStatus(view.status) ? (
-                        <span className="text-xs font-black text-red-100/72">{t("video.status.failed")}</span>
+                        <span className="text-xs font-black text-[#f2b3a1]/72">{t("video.status.failed")}</span>
                       ) : isProcessing ? (
                         <span className="text-xs font-black text-[#ffd08a]">{t("video.status.processing")}</span>
                       ) : isStaleActive ? (
@@ -183,7 +179,7 @@ export function HistoryPanel({
                     </div>
                     <div className="min-w-0">
                       <div className="flex min-w-0 items-center gap-1.5">
-                        <span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-black ${statusClass(isStaleActive ? "unknown" : view.status, Boolean(view.outputUrl))}`}>
+                        <span className={`se-status shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-black ${statusClass(isStaleActive ? "unknown" : view.status, Boolean(view.outputUrl))}`}>
                           {statusLabel(view.status, view.statusLabel, isStaleActive)}
                         </span>
                         <span className="truncate text-[11px] text-white/34">{view.createdAtLabel}</span>
@@ -195,7 +191,7 @@ export function HistoryPanel({
                       </div>
                       {isFailed ? (
                         <div className="mt-2">
-                          <span className="line-clamp-2 w-full text-[11px] leading-4 text-red-100/62">
+                          <span className="line-clamp-2 w-full text-[11px] leading-4 text-[#f2b3a1]/62">
                             {localizeHistoryMessage(view.errorMessage)}
                             {view.refundNotice ? ` ${localizeRefundNotice(view.refundNotice)}` : ""}
                           </span>

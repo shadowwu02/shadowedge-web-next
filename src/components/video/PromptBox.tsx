@@ -380,7 +380,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
   }
 
   return (
-    <section className="rounded-[22px] border border-white/10 bg-white/[.055] p-3">
+    <section className="se-card rounded-[22px] p-3">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-black text-white">{t("video.prompt.title")}</h2>
         <span className="text-xs font-bold text-white/38">{value.length}/1200</span>

@@ -32,10 +32,10 @@ function filterHistoryItem(item: VideoTaskRecord, filter: HistoryFilter) {
 }
 
 function statusClass(status: string, hasOutput: boolean) {
-  if (isVideoFailedStatus(status)) return "border-[#8c4632]/46 bg-[#2a1410]/72 text-[#f2b3a1]";
-  if (isVideoCompletedStatus(status) && hasOutput) return "border-[#6fb7c8]/24 bg-[#12313a]/42 text-[#b8e7ee]";
-  if (isVideoActiveStatus(status)) return "border-[#ffb44d]/24 bg-[#ffb44d]/10 text-[#ffd08a]";
-  return "border-white/10 bg-white/[.045] text-white/58";
+  if (isVideoFailedStatus(status)) return "se-status-failed";
+  if (isVideoCompletedStatus(status) && hasOutput) return "se-status-completed";
+  if (isVideoActiveStatus(status)) return "se-status-processing";
+  return "se-status-neutral";
 }
 
 function emptyMessageKey(filter: HistoryFilter) {
@@ -52,12 +52,12 @@ function safeDownloadFilename(view: ReturnType<typeof getSafeVideoHistoryView>) 
 
 function actionButtonClass(tone: "danger" | "normal" | "primary" = "normal") {
   if (tone === "danger") {
-    return "rounded-full border border-red-300/25 bg-red-400/10 px-3 py-1.5 text-xs font-bold text-red-100 transition hover:bg-red-400/16 disabled:cursor-not-allowed disabled:opacity-45";
+    return "se-button-danger rounded-full px-3 py-1.5 text-xs font-bold";
   }
   if (tone === "primary") {
-    return "rounded-full border border-[#ffb44d]/35 bg-[#ffb44d]/10 px-3 py-1.5 text-xs font-bold text-[#ffd08a] transition hover:bg-[#ffb44d]/20 disabled:cursor-not-allowed disabled:opacity-45";
+    return "se-button-secondary rounded-full px-3 py-1.5 text-xs font-bold";
   }
-  return "rounded-full border border-white/10 bg-white/[.045] px-3 py-1.5 text-xs font-bold text-white/70 transition hover:border-[#ffb44d]/35 hover:text-[#ffd08a] disabled:cursor-not-allowed disabled:opacity-45";
+  return "se-button-ghost rounded-full px-3 py-1.5 text-xs font-bold";
 }
 
 function isSensitiveFailure(message: string) {
@@ -108,22 +108,18 @@ export function VideoHistoryCanvas({
             {isLoading ? t("video.history.loading") : tf("video.history.itemsCount", { visible: visibleHistory.length, total: history.length })}
           </span>
         </div>
-        <div className="flex max-w-full flex-wrap gap-1.5 rounded-2xl border border-white/10 bg-black/18 p-1.5">
+        <div className="se-segmented flex max-w-full flex-wrap gap-1.5 rounded-2xl p-1.5">
           {filters.map((item) => {
             const isActive = item === filter;
             return (
               <button
-                className={`min-h-8 rounded-full border px-3 text-[11px] font-black shadow-inner transition ${
-                  isActive
-                    ? "border-[#d9963e]/60 bg-[linear-gradient(180deg,#d08a32,#a86320)] text-[#080a0f] shadow-black/10"
-                    : "border-white/10 bg-[#05070b]/40 text-white/56 shadow-black/20 hover:border-[#ffb44d]/30 hover:bg-[#ffb44d]/8 hover:text-[#ffd08a]"
-                }`}
+                className={`se-segmented-item min-h-8 rounded-full px-3 text-[11px] font-black ${isActive ? "se-segmented-item-active" : ""}`}
                 key={item}
                 onClick={() => onFilterChange(item)}
                 type="button"
               >
                 {filterLabel(item)}
-                <span className={`ml-1.5 text-[9px] ${isActive ? "text-[#080a0f]/58" : "text-white/34"}`}>{counts[item]}</span>
+                <span className="se-segmented-count text-[9px]">{counts[item]}</span>
               </button>
             );
           })}
@@ -161,13 +157,13 @@ export function VideoHistoryCanvas({
                       ) : isFailed ? (
                         <div className="grid min-h-[280px] w-full place-items-center rounded-[22px] border border-white/10 bg-black/70 px-6 text-center">
                           <div>
-                            <div className="mx-auto mb-4 grid size-14 place-items-center rounded-3xl border border-red-300/25 bg-red-400/10 text-xl font-black text-red-100">
+                            <div className="mx-auto mb-4 grid size-14 place-items-center rounded-3xl border border-[#8c4632]/42 bg-[#2a1012] text-xl font-black text-[#f2b3a1]">
                               !
                             </div>
-                            <p className="text-lg font-black text-red-100">
+                            <p className="text-lg font-black text-[#f2b3a1]">
                               {sensitiveFailure ? t("video.history.canvas.sensitive") : t("video.history.canvas.failed")}
                             </p>
-                            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-red-100/58">{view.errorMessage}</p>
+                            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#f2b3a1]/58">{view.errorMessage}</p>
                             {view.refundNotice ? (
                               <span className="mt-4 inline-flex rounded-full border border-[#ffb44d]/20 bg-[#ffb44d]/10 px-3 py-1 text-xs font-black text-[#ffd08a]">
                                 {t("video.history.canvas.refunded")}
@@ -192,7 +188,7 @@ export function VideoHistoryCanvas({
 
                     <div className="flex min-w-0 flex-col gap-3 border-t border-white/10 p-4 2xl:border-l 2xl:border-t-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${statusClass(isStaleActive ? "unknown" : view.status, Boolean(view.outputUrl))}`}>
+                        <span className={`se-status rounded-full px-2.5 py-1 text-[10px] font-black ${statusClass(isStaleActive ? "unknown" : view.status, Boolean(view.outputUrl))}`}>
                           {statusLabel(view.status, view.statusLabel, isStaleActive)}
                         </span>
                         <span className="text-xs text-white/38">{view.createdAtLabel}</span>
@@ -216,7 +212,7 @@ export function VideoHistoryCanvas({
                       </div>
 
                       {isFailed ? (
-                        <p className="rounded-2xl border border-red-300/15 bg-red-400/10 px-3 py-2 text-xs leading-5 text-red-100/62">
+                        <p className="rounded-2xl border border-[#8c4632]/30 bg-[#2a1012]/62 px-3 py-2 text-xs leading-5 text-[#f2b3a1]/62">
                           {view.errorMessage}
                         </p>
                       ) : null}

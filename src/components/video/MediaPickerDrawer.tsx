@@ -545,7 +545,7 @@ export function MediaPickerDrawer({
                   <article
                     className={`group relative overflow-hidden rounded-[18px] border transition ${
                       isFailed
-                        ? "border-red-300/30 bg-red-400/10"
+                        ? "border-[#8c4632]/42 bg-[#2a1012]/72"
                         : isAlreadyAdded
                           ? "border-[#ffb44d]/28 bg-[#ffb44d]/8"
                         : isUnsupported
@@ -586,20 +586,20 @@ export function MediaPickerDrawer({
                       <span className="grid gap-1.5 p-2">
                         <span className="truncate text-xs font-bold text-white/72">{item.name}</span>
                         <span className="flex min-w-0 items-center gap-1.5 text-[10px] font-black uppercase tracking-[.12em]">
-                          <span className={isFailed || isUnsupported ? "text-red-100/75" : isAlreadyAdded ? "text-[#ffd08a]/72" : "text-white/38"}>
+                          <span className={isFailed || isUnsupported ? "text-[#f2b3a1]/75" : isAlreadyAdded ? "text-[#ffd08a]/72" : "text-white/38"}>
                             {localizedStatusLabel(item.uploadStatus, selectIssue)}
                           </span>
                           <span className="text-white/22">·</span>
                           <span className="truncate text-white/34">{sourceLabel(item.source)}</span>
                         </span>
-                        {isUnsupported ? <span className="line-clamp-2 text-xs leading-5 text-red-100/78">{localizeIssue(selectIssue)}</span> : null}
-                        {item.errorMessage ? <span className="line-clamp-2 text-xs leading-5 text-red-100/78">{localizeIssue(item.errorMessage)}</span> : null}
+                        {isUnsupported ? <span className="line-clamp-2 text-xs leading-5 text-[#f2b3a1]/78">{localizeIssue(selectIssue)}</span> : null}
+                        {item.errorMessage ? <span className="line-clamp-2 text-xs leading-5 text-[#f2b3a1]/78">{localizeIssue(item.errorMessage)}</span> : null}
                       </span>
                     </button>
                     {canRemove ? (
                       <button
                         aria-label={tf("video.drawer.removeAsset", { name: item.name })}
-                        className="absolute bottom-2 right-2 rounded-full border border-white/10 bg-black/70 px-2 py-1 text-[10px] font-bold text-white/58 opacity-0 transition hover:border-red-300/45 hover:text-red-100 group-hover:opacity-100"
+                        className="se-button-danger absolute bottom-2 right-2 rounded-full px-2 py-1 text-[10px] font-bold opacity-0 group-hover:opacity-100"
                         onClick={(event) => {
                           event.stopPropagation();
                           removeAsset(item.id);

@@ -89,7 +89,7 @@ export function RemakeSourceUpload({ durationWarning = false, onChange, onClear,
   }
 
   return (
-    <section className="rounded-[24px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/70 p-4 shadow-inner shadow-black/10">
+    <section className="se-card rounded-[24px] p-4 shadow-inner shadow-black/10">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <p className="se-eyebrow">{t("video.remake.sourceVideo")}</p>
@@ -100,14 +100,14 @@ export function RemakeSourceUpload({ durationWarning = false, onChange, onClear,
             {t("video.remake.sourceVideo")}
           </span>
           {sourceVideo ? (
-            <span className="rounded-full border border-[#ffb44d]/28 bg-[#ffb44d]/10 px-2.5 py-1 text-[10px] font-semibold text-[#ffb44d]">
+            <span className="se-status se-status-ready rounded-full px-2.5 py-1 text-[10px] font-semibold">
               {t("video.remake.readyToAnalyze")}
             </span>
           ) : null}
           {sourceVideo ? (
             <button
               aria-label={t("video.remake.removeSourceVideo")}
-              className="inline-flex min-h-8 items-center gap-1.5 rounded-[12px] border border-[rgba(244,244,244,0.10)] bg-[#1a1c22]/70 px-2.5 text-xs font-semibold text-[#f4f4f4]/78 transition-colors hover:border-[#ffb44d]/32 hover:text-[#ffb44d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ffb44d]/50"
+              className="se-button-secondary inline-flex min-h-8 items-center gap-1.5 rounded-[12px] px-2.5 text-xs font-semibold"
               onClick={handleClear}
               title={t("video.remake.clearSourceVideo")}
               type="button"

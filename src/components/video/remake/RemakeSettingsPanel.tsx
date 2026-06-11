@@ -52,7 +52,7 @@ export function RemakeSettingsPanel({
   const { t } = useI18n();
 
   return (
-    <section className="grid gap-3 rounded-[24px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/70 p-4 shadow-inner shadow-black/10">
+    <section className="se-card grid gap-3 rounded-[24px] p-4 shadow-inner shadow-black/10">
       <div>
         <p className="se-eyebrow">{t("video.remake.mode")}</p>
         <div className="mt-2 grid gap-2">
@@ -62,8 +62,8 @@ export function RemakeSettingsPanel({
               <button
                 className={`rounded-[18px] border p-3 text-left transition-colors ${
                   isActive
-                    ? "border-[#ffb44d]/42 bg-[#ffb44d]/12 text-[#ffb44d]"
-                    : "border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/58 text-[#f4f4f4]/72 hover:border-[#ffb44d]/30 hover:bg-[#ffb44d]/8 hover:text-[#f4f4f4]"
+                    ? "se-status-ready text-[#ffb44d]"
+                    : "se-control text-[#f4f4f4]/72 hover:text-[#f4f4f4]"
                 }`}
                 key={item}
                 onClick={() => onModeChange(item)}
@@ -115,8 +115,8 @@ export function RemakeSettingsPanel({
       <button
         className={`flex items-center justify-between rounded-[18px] border p-3 text-left transition-colors ${
           translateDialogue
-            ? "border-[#ffb44d]/42 bg-[#ffb44d]/12 text-[#ffb44d]"
-            : "border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/58 text-[#f4f4f4]/72 hover:border-[#ffb44d]/30 hover:bg-[#ffb44d]/8"
+            ? "se-status-ready text-[#ffb44d]"
+            : "se-control text-[#f4f4f4]/72"
         }`}
         onClick={() => onTranslateDialogueChange(!translateDialogue)}
         type="button"
@@ -148,7 +148,7 @@ export function RemakeSettingsPanel({
 
       <button
         aria-busy={isAnalyzing}
-        className="min-h-11 rounded-[18px] border border-[#ffd08a]/34 bg-[linear-gradient(180deg,#ffc96d,#ffb44d)] px-4 text-sm font-semibold text-[#05070b] shadow-[0_18px_36px_rgba(255,180,77,0.14),inset_0_1px_0_rgba(255,255,255,0.18)] transition hover:border-[#ffd08a]/48 hover:brightness-105 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-62"
+        className="se-button-primary min-h-11 rounded-[18px] px-4 text-sm font-semibold"
         disabled={isAnalyzing}
         onClick={onAnalyze}
         type="button"

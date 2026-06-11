@@ -26,10 +26,10 @@ function safeDownloadFilename(view: ReturnType<typeof getSafeVideoHistoryView>) 
 
 function actionIconClass(tone: "normal" | "primary" = "normal") {
   if (tone === "primary") {
-    return "grid size-8 place-items-center rounded-full border border-[#ffb44d]/38 bg-[#ffb44d]/12 text-[#ffb44d] transition-colors hover:bg-[#ffb44d]/18 disabled:cursor-not-allowed disabled:opacity-45";
+    return "se-icon-button-primary size-8";
   }
 
-  return "grid size-8 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/70 text-[#b9b9b9] transition-colors hover:border-[#ffb44d]/38 hover:bg-[#ffb44d]/10 hover:text-[#ffb44d] disabled:cursor-not-allowed disabled:opacity-45";
+  return "se-icon-button size-8";
 }
 
 function FillIcon() {
@@ -70,11 +70,11 @@ function RetryIcon() {
 }
 
 function statusClass(status: string, hasOutput: boolean, isStale = false) {
-  if (isStale) return "border-[#ffb44d]/30 bg-[#ffb44d]/10 text-[#ffb44d]";
-  if (isVideoFailedStatus(status)) return "border-[#8c4632]/46 bg-[#2a1410]/72 text-[#f2b3a1]";
-  if (isVideoCompletedStatus(status) && hasOutput) return "border-[#6fb7c8]/24 bg-[#12313a]/42 text-[#b8e7ee]";
-  if (isVideoActiveStatus(status)) return "border-[#ffb44d]/30 bg-[#ffb44d]/10 text-[#ffb44d]";
-  return "border-[#33323a]/65 bg-[#1a1c22] text-[#b9b9b9]";
+  if (isStale) return "se-status-paused";
+  if (isVideoFailedStatus(status)) return "se-status-failed";
+  if (isVideoCompletedStatus(status) && hasOutput) return "se-status-completed";
+  if (isVideoActiveStatus(status)) return "se-status-processing";
+  return "se-status-neutral";
 }
 
 function mediaTokenLabel(asset: UploadMediaItem, counts: Record<UploadMediaItem["type"], number>) {
@@ -155,7 +155,7 @@ export function VideoOutputDetailPanel({
         <div className="min-w-0">
           <p className="se-eyebrow">{t("video.history.selectedDetail")}</p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${statusClass(view.status, hasOutput, isStaleActive)}`}>
+            <span className={`se-status rounded-full px-2.5 py-1 text-[10px] font-semibold ${statusClass(view.status, hasOutput, isStaleActive)}`}>
               {statusLabel}
             </span>
             <span className="inline-flex min-w-0 items-center gap-1.5 truncate rounded-full border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/74 px-2.5 py-1 text-[10px] font-semibold text-[#f4f4f4]/78">
@@ -182,7 +182,7 @@ export function VideoOutputDetailPanel({
           <p className="line-clamp-6 text-[13px] font-normal leading-5 text-[#f4f4f4]/84">{view.title}</p>
         </button>
 
-        <div className="rounded-[20px] border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/46 p-3 shadow-inner shadow-black/8">
+        <div className="se-card rounded-[20px] p-3 shadow-inner shadow-black/8">
           <div className="mb-2 flex items-center justify-between">
             <span className="se-eyebrow">{t("video.generation.references")}</span>
             <span className="text-[10px] text-[#b9b9b9]/45">{referenceAssets.length}</span>
@@ -235,7 +235,7 @@ export function VideoOutputDetailPanel({
         </div>
 
         {isFailed || isStaleActive ? (
-          <div className="line-clamp-6 rounded-[20px] border border-[#7f2d2d]/70 bg-[#2a1012] p-3 text-xs leading-5 text-red-100/70">
+          <div className="line-clamp-6 rounded-[20px] border border-[#8c4632]/42 bg-[#2a1012] p-3 text-xs leading-5 text-[#f2b3a1]/70">
             {view.errorMessage}
             {view.refundNotice ? ` ${view.refundNotice}` : ""}
           </div>
