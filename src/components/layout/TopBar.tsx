@@ -20,6 +20,7 @@ export function TopBar({
   creditLabel,
   locale,
   onLocaleChange,
+  signInNext,
   userLabels,
   workspaceLabels,
   workspaceLinks,
@@ -28,6 +29,7 @@ export function TopBar({
   creditLabel: string;
   locale: Locale;
   onLocaleChange: (locale: Locale) => void;
+  signInNext?: string;
   userLabels: UserAvatarLabels;
   workspaceLabels: {
     title: string;
@@ -88,7 +90,7 @@ export function TopBar({
             {profile.email}
           </span>
         ) : null}
-        <UserAvatar email={profile?.email} labels={userLabels} name={profile?.name} />
+        <UserAvatar email={profile?.email} labels={userLabels} name={profile?.name} signInNext={signInNext} />
       </div>
     </header>
   );

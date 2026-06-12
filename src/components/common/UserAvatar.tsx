@@ -23,21 +23,25 @@ export function UserAvatar({
   email,
   labels = defaultLabels,
   name,
+  signInNext = "/workspace/video",
 }: {
   email?: string;
   labels?: UserAvatarLabels;
   name?: string;
+  signInNext?: string;
 }) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const label = name || email || "Guest";
   const initial = label.trim().charAt(0).toUpperCase() || "S";
+  const safeSignInNext = signInNext.startsWith("/") && !signInNext.startsWith("//") ? signInNext : "/workspace/video";
+  const signInHref = `/sign-in?next=${encodeURIComponent(safeSignInNext)}`;
 
   if (!email) {
     return (
       <Link
         className="inline-flex h-10 items-center justify-center rounded-full border border-[#ffb44d]/38 bg-[#ffb44d]/12 px-4 text-[13px] font-semibold text-[#ffd08a] transition-colors hover:border-[#ffb44d]/58 hover:bg-[#ffb44d]/18"
-        href="/sign-in?next=/workspace/video"
+        href={signInHref}
       >
         {labels.signIn}
       </Link>
@@ -47,7 +51,7 @@ export function UserAvatar({
   function handleLogout() {
     clearAuthSession();
     setIsOpen(false);
-    router.replace("/sign-in?next=/workspace/video");
+    router.replace(signInHref);
     router.refresh();
   }
 
