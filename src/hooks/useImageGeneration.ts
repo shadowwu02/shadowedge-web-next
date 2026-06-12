@@ -97,6 +97,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
   const [error, setError] = useState("");
   const currentJobRef = useRef<ImageHistoryItem | null>(null);
   const localJobsRef = useRef<ImageHistoryItem[]>([]);
+  const historyRef = useRef<ImageHistoryItem[]>([]);
 
   const selectedModel = useMemo(() => getImageModelById(models, selectedModelId), [models, selectedModelId]);
   const mergedHistory = useMemo(() => mergeImageHistory(history, localJobs), [history, localJobs]);
@@ -110,6 +111,10 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
   useEffect(() => {
     localJobsRef.current = localJobs;
   }, [localJobs]);
+
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
 
   const loadModels = useCallback(async () => {
     setLoadingModels(true);
@@ -181,6 +186,36 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     return localReference;
   }, [references.length, selectedModel]);
 
+  const uploadReferenceFile = useCallback(async (file: File) => {
+    if (!canAddImageReference(selectedModel, references.length)) {
+      const message = `This model supports up to ${selectedModel.capabilities.maxReferences} reference images.`;
+      setError(message);
+      return null;
+    }
+
+    const localReference = {
+      ...createLocalReference(file),
+      uploadStatus: "uploading" as const,
+    };
+
+    setReferences((current) => [...current, localReference]);
+
+    try {
+      const uploaded = await uploadImage(file);
+      const nextReference = {
+        ...uploaded,
+        previewUrl: localReference.previewUrl || uploaded.previewUrl,
+      };
+      setReferences((current) => current.map((item) => (item.id === localReference.id ? nextReference : item)));
+      return nextReference;
+    } catch (uploadError) {
+      const message = uploadError instanceof Error ? uploadError.message : "Image upload failed.";
+      setReferences((current) => current.map((item) => (item.id === localReference.id ? { ...item, uploadStatus: "failed", errorMessage: message } : item)));
+      setError(message);
+      return null;
+    }
+  }, [references.length, selectedModel]);
+
   const removeReference = useCallback((referenceId: string) => {
     setReferences((current) => current.filter((item) => item.id !== referenceId));
   }, []);
@@ -227,13 +262,18 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
 
     try {
       const status = await getImageStatus(jobId);
+      const baseJob =
+        [currentJobRef.current, ...localJobsRef.current, ...historyRef.current]
+          .filter((item): item is ImageHistoryItem => Boolean(item))
+          .find((item) => [item.jobId, item.dbJobId, item.id].filter(Boolean).some((value) => String(value) === String(jobId))) || status;
       setCurrentJob((current) => {
-        if (!current) return status;
+        if (!current || ![current.jobId, current.dbJobId, current.id].filter(Boolean).some((value) => String(value) === String(jobId))) {
+          return mergeImageStatusIntoJob(baseJob, status);
+        }
         return mergeImageStatusIntoJob(current, status);
       });
       setLocalJobs((current) => {
-        const base = current.find((item) => item.jobId === jobId || item.dbJobId === jobId) || currentJobRef.current || status;
-        const next = mergeImageStatusIntoJob(base, status);
+        const next = mergeImageStatusIntoJob(baseJob, status);
         return [next, ...current.filter((item) => item.jobId !== next.jobId && item.dbJobId !== next.dbJobId)].slice(0, 20);
       });
       if (isImageTerminalStatus(status.status)) {
@@ -314,6 +354,11 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     return recoverable;
   }, [mergedHistory]);
 
+  const selectJob = useCallback((job: ImageHistoryItem | null) => {
+    setCurrentJob(job);
+    return job;
+  }, []);
+
   return {
     models,
     loadingModels,
@@ -325,6 +370,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     references,
     setReferences,
     addReferenceFile,
+    uploadReferenceFile,
     removeReference,
     uploadReference,
     prompt,
@@ -341,6 +387,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     reloadHistory,
     recoverPolling,
     refreshStatus,
+    selectJob,
     submit,
   };
 }
