@@ -4,6 +4,7 @@ type VideoModelLogoEntry = {
 };
 
 export const VIDEO_MODEL_LOGO_PATHS = {
+  google: "/model-icons/veo.png",
   gptImage2: "/model-icons/gpt-image-2.png",
   grok: "/model-icons/grok.png",
   hailuo: "/model-icons/hailuo.png",
@@ -16,15 +17,47 @@ export const VIDEO_MODEL_LOGO_PATHS = {
 const videoModelLogoEntries: VideoModelLogoEntry[] = [
   {
     src: VIDEO_MODEL_LOGO_PATHS.seedance,
-    aliases: ["seedance", "seedance 2.0", "seedance_2_0", "seedance20", "seedance_v2_0", "seedance fast"],
+    aliases: [
+      "seedance",
+      "seedance 2.0",
+      "seedance_2_0",
+      "seedance20",
+      "seedance_v2_0",
+      "seedance fast",
+      "doubao seedance 2",
+      "doubao-seedance-2",
+      "doubao_seedance_2",
+      "bytedance seedance",
+    ],
   },
   {
     src: VIDEO_MODEL_LOGO_PATHS.kling,
     aliases: ["kling", "kling 2.6", "kling2_6", "kling 3.0", "kling3_0", "kling 4k"],
   },
   {
-    src: VIDEO_MODEL_LOGO_PATHS.veo,
-    aliases: ["veo", "google veo", "veo 3", "veo3", "veo 3.1", "veo3_1", "veo 3.1 lite"],
+    src: VIDEO_MODEL_LOGO_PATHS.google,
+    aliases: [
+      "google",
+      "gemini",
+      "veo",
+      "google veo",
+      "veo 3",
+      "veo3",
+      "veo 3.1",
+      "veo3_1",
+      "veo 3.1 lite",
+      "nano",
+      "banana",
+      "nano banana",
+      "nano banana 2",
+      "nano banana flash",
+      "nano_banana",
+      "nano_banana_2",
+      "nano_banana_flash",
+      "nanobanana",
+      "nanobanana2",
+      "nanobananaflash",
+    ],
   },
   {
     src: VIDEO_MODEL_LOGO_PATHS.wan,
