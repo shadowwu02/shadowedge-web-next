@@ -5,6 +5,7 @@ type RawRecord = Record<string, unknown>;
 const activeStatuses = new Set(["created", "queued", "pending", "submitted", "submitting", "processing", "running", "generating"]);
 const completedStatuses = new Set(["completed", "success", "succeeded", "done"]);
 const failedStatuses = new Set(["failed", "error", "canceled", "cancelled"]);
+const recoverableActiveJobMaxAgeMs = 2 * 60 * 60 * 1000;
 
 function asRecord(value: unknown): RawRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as RawRecord) : {};
@@ -192,8 +193,13 @@ export function mergeImageHistory(history: ImageHistoryItem[], localItems: Image
 }
 
 export function selectRecoverableImageJob(history: ImageHistoryItem[]) {
+  const now = Date.now();
   return history
-    .filter((item) => isImageActiveStatus(item.status) && Boolean(item.jobId || item.dbJobId))
+    .filter((item) => {
+      if (!isImageActiveStatus(item.status) || !Boolean(item.jobId || item.dbJobId)) return false;
+      const updatedAt = getImageHistoryTime(item);
+      return updatedAt > 0 && now - updatedAt <= recoverableActiveJobMaxAgeMs;
+    })
     .sort((left, right) => getImageHistoryTime(right) - getImageHistoryTime(left))[0] || null;
 }
 
