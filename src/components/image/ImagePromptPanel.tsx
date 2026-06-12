@@ -2,11 +2,8 @@
 
 import { ImageModelSelector } from "@/components/image/ImageModelSelector";
 import { ImageReferenceTray } from "@/components/image/ImageReferenceTray";
+import { useI18n } from "@/i18n/useI18n";
 import type { ImageGenerationParams, ImageModel, ImageReferenceItem } from "@/types/image";
-
-function optionLabel(value: string) {
-  return value || "Default";
-}
 
 export function ImagePromptPanel({
   error,
@@ -45,6 +42,7 @@ export function ImagePromptPanel({
   onUpdateParams: (params: Partial<ImageGenerationParams>) => void;
   onUploadReference: (file: File) => void;
 }) {
+  const { t, tf } = useI18n();
   const ratios = selectedModel?.capabilities.ratios || [];
   const resolutions = selectedModel?.capabilities.resolutions || [];
   const qualities = selectedModel?.capabilities.qualities || [];
@@ -52,38 +50,39 @@ export function ImagePromptPanel({
   const hasUploadingReferences = references.some((reference) => reference.uploadStatus === "uploading");
   const hasPrompt = Boolean(prompt.trim());
   const disabled = isGenerating || loadingModels || hasUploadingReferences || isPolling || isActiveJob || !hasPrompt;
+  const optionLabel = (value: string) => value || t("image.params.default");
   const generateLabel = hasUploadingReferences
-    ? "Uploading references..."
+    ? t("image.workspace.uploadingReferences")
     : isGenerating
-      ? "Generating..."
+      ? t("image.workspace.generating")
       : isPolling || isActiveJob
-        ? "Waiting for result..."
-        : `Generate image · Estimated ${estimatedCredits} credits`;
+        ? t("image.workspace.waitingForResult")
+        : tf("image.workspace.generateWithCredits", { credits: estimatedCredits });
 
   return (
     <aside className="se-panel se-scrollbar flex h-full min-h-0 flex-col overflow-y-auto rounded-[30px] p-4">
       <div className="mb-4">
-        <p className="se-eyebrow">Image Studio</p>
-        <h1 className="mt-2 text-2xl font-black text-[#f4f4f4]">Create images</h1>
-        <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/58">Prompt, references, and model controls stay here. Outputs appear in the center stage.</p>
+        <p className="se-eyebrow">{t("image.workspace.studioLabel")}</p>
+        <h1 className="mt-2 text-2xl font-black text-[#f4f4f4]">{t("image.workspace.createTitle")}</h1>
+        <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/58">{t("image.workspace.createSubtitle")}</p>
       </div>
 
       <div className="space-y-4">
         <section className="se-card rounded-[24px] p-3.5">
           <div className="mb-2 flex items-center justify-between">
-            <span className="se-eyebrow">Prompt</span>
+            <span className="se-eyebrow">{t("image.prompt.label")}</span>
             <span className="text-[10px] text-[#b9b9b9]/45">{prompt.length}/2000</span>
           </div>
           <textarea
             className="min-h-[168px] w-full resize-none rounded-[20px] border border-white/10 bg-[#05070b]/64 px-3.5 py-3 text-sm leading-6 text-[#f4f4f4] outline-none transition-colors placeholder:text-[#b9b9b9]/35 focus:border-[#ffb44d]/34"
             maxLength={2000}
             onChange={(event) => onPromptChange(event.target.value)}
-            placeholder="Describe the image, composition, camera, style, and details..."
+            placeholder={t("image.prompt.placeholder")}
             value={prompt}
           />
           {!hasPrompt ? (
             <p className="mt-2 rounded-full border border-[#ffb44d]/16 bg-[#ffb44d]/8 px-3 py-1.5 text-[11px] font-semibold text-[#ffd08a]/78">
-              Enter a prompt to enable generation.
+              {t("image.prompt.required")}
             </p>
           ) : null}
         </section>
@@ -93,19 +92,19 @@ export function ImagePromptPanel({
         <section className="se-card rounded-[24px] p-3.5">
           <div className="mb-3 flex items-center justify-between">
             <div>
-              <p className="se-eyebrow">Parameters</p>
-              <p className="mt-1 text-xs text-[#b9b9b9]/52">Normalized from model capabilities.</p>
+              <p className="se-eyebrow">{t("image.params.title")}</p>
+              <p className="mt-1 text-xs text-[#b9b9b9]/52">{t("image.params.normalized")}</p>
             </div>
             <span className="rounded-full border border-[#ffb44d]/20 bg-[#ffb44d]/10 px-2.5 py-1 text-[10px] font-semibold text-[#ffd08a]">
-              Estimated {estimatedCredits} credits
+              {tf("image.params.estimatedCredits", { credits: estimatedCredits })}
             </span>
           </div>
 
           <div className="grid gap-2">
             <label className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
               <span className="flex items-center justify-between gap-2">
-                Ratio
-                <span className="text-[10px] font-medium text-[#b9b9b9]/38">{ratios.length ? `${ratios.length} options` : "Default"}</span>
+                {t("image.params.ratio")}
+                <span className="text-[10px] font-medium text-[#b9b9b9]/38">{ratios.length ? tf("image.params.options", { count: ratios.length }) : t("image.params.default")}</span>
               </span>
               <select
                 className="se-control h-10 rounded-[15px] px-3 text-sm text-[#f4f4f4] outline-none"
@@ -123,7 +122,7 @@ export function ImagePromptPanel({
             {resolutions.length ? (
               <label className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
                 <span className="flex items-center justify-between gap-2">
-                  Resolution
+                  {t("image.params.resolution")}
                   <span className="text-[10px] font-medium text-[#b9b9b9]/38">{resolutions.join(" / ")}</span>
                 </span>
                 <select
@@ -143,7 +142,7 @@ export function ImagePromptPanel({
             {qualities.length ? (
               <label className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
                 <span className="flex items-center justify-between gap-2">
-                  Quality
+                  {t("image.params.quality")}
                   <span className="text-[10px] font-medium text-[#b9b9b9]/38">{qualities.join(" / ")}</span>
                 </span>
                 <select
@@ -163,7 +162,7 @@ export function ImagePromptPanel({
             {maxBatchCount > 1 ? (
               <label className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
                 <span className="flex items-center justify-between gap-2">
-                  Batch count
+                  {t("image.params.batchCount")}
                   <span className="text-[10px] font-medium text-[#b9b9b9]/38">1-{maxBatchCount}</span>
                 </span>
                 <input
@@ -177,7 +176,7 @@ export function ImagePromptPanel({
               </label>
             ) : null}
           </div>
-          <p className="mt-3 text-[11px] leading-5 text-[#b9b9b9]/45">Estimated cost is for UI guidance only. Actual credits are calculated by the backend.</p>
+          <p className="mt-3 text-[11px] leading-5 text-[#b9b9b9]/45">{t("image.params.estimatedCostHint")}</p>
         </section>
 
         <ImageReferenceTray model={selectedModel} onRemove={onRemoveReference} onUploadFile={onUploadReference} references={references} />

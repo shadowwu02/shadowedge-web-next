@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
+import { useI18n } from "@/i18n/useI18n";
 import type { ImageModel } from "@/types/image";
 
 function ChevronIcon() {
@@ -28,6 +29,7 @@ export function ImageModelSelector({
   selectedModel: ImageModel | null;
   onChange: (modelId: string) => void;
 }) {
+  const { t, tf } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLElement | null>(null);
 
@@ -56,8 +58,8 @@ export function ImageModelSelector({
         <span className="flex min-w-0 items-center gap-3">
           <VideoModelLogo label={selectedModel?.label} lookup={getImageModelLogoLookup(selectedModel)} size="lg" />
           <span className="min-w-0">
-            <span className="block text-[11px] font-medium text-[#b9b9b9]/56">Image model</span>
-            <span className="mt-0.5 block truncate text-sm font-semibold text-[#f4f4f4]">{selectedModel?.label || "Loading models"}</span>
+            <span className="block text-[11px] font-medium text-[#b9b9b9]/56">{t("image.model.label")}</span>
+            <span className="mt-0.5 block truncate text-sm font-semibold text-[#f4f4f4]">{selectedModel?.label || t("image.model.loading")}</span>
           </span>
         </span>
         <span className="grid size-8 shrink-0 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/72 text-[#b9b9b9]/55 transition-colors group-hover:border-[#ffb44d]/24 group-hover:text-[#ffd08a]">
@@ -70,8 +72,8 @@ export function ImageModelSelector({
           {models.map((model) => {
             const isSelected = model.id === selectedModel?.id;
             const tags = [
-              model.capabilities.imageToImage ? "References" : "",
-              model.capabilities.maxBatchCount > 1 ? `Batch ${model.capabilities.maxBatchCount}` : "",
+              model.capabilities.imageToImage ? t("image.model.referencesTag") : "",
+              model.capabilities.maxBatchCount > 1 ? tf("image.model.batchTag", { count: model.capabilities.maxBatchCount }) : "",
               model.provider,
             ].filter(Boolean);
 
