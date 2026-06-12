@@ -85,6 +85,23 @@ select {
   font: inherit;
 }
 
+select {
+  color-scheme: dark;
+  background-color: var(--se-surface);
+  color: var(--se-text-high);
+}
+
+select option,
+select optgroup {
+  background-color: var(--se-surface);
+  color: var(--se-text-high);
+}
+
+select option:checked {
+  background-color: rgba(255, 180, 77, 0.24);
+  color: var(--se-text-high);
+}
+
 ::selection {
   background: rgba(255, 180, 77, 0.32);
   color: #05070b;

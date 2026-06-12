@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import type { ImageModel } from "@/types/image";
 
 function ChevronIcon() {
@@ -11,15 +12,9 @@ function ChevronIcon() {
   );
 }
 
-function ModelGlyph() {
-  return (
-    <span className="grid size-10 shrink-0 place-items-center rounded-2xl border border-[#ffb44d]/20 bg-[#ffb44d]/10 text-[#ffd08a]">
-      <svg aria-hidden="true" className="size-5" fill="none" viewBox="0 0 24 24">
-        <rect height="14" rx="3" stroke="currentColor" strokeWidth="2" width="18" x="3" y="5" />
-        <path d="m7 15 3-3 2 2 3-4 2 5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-      </svg>
-    </span>
-  );
+function getImageModelLogoLookup(model: ImageModel | null | undefined) {
+  if (!model) return "";
+  return [model.id, model.providerModel, model.provider, model.label, model.name].filter(Boolean).join(" ");
 }
 
 export function ImageModelSelector({
@@ -59,7 +54,7 @@ export function ImageModelSelector({
         type="button"
       >
         <span className="flex min-w-0 items-center gap-3">
-          <ModelGlyph />
+          <VideoModelLogo label={selectedModel?.label} lookup={getImageModelLogoLookup(selectedModel)} size="lg" />
           <span className="min-w-0">
             <span className="block text-[11px] font-medium text-[#b9b9b9]/56">Image model</span>
             <span className="mt-0.5 block truncate text-sm font-semibold text-[#f4f4f4]">{selectedModel?.label || "Loading models"}</span>
@@ -95,7 +90,7 @@ export function ImageModelSelector({
                 type="button"
               >
                 <span className="grid grid-cols-[36px_minmax(0,1fr)] items-center gap-3">
-                  <ModelGlyph />
+                  <VideoModelLogo label={model.label} lookup={getImageModelLogoLookup(model)} size="lg" />
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold text-[#f4f4f4]">{model.label}</span>
                     <span className="mt-1 flex flex-wrap gap-1.5">
