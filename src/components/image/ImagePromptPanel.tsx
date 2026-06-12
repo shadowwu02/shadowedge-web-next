@@ -11,7 +11,9 @@ function optionLabel(value: string) {
 export function ImagePromptPanel({
   error,
   estimatedCredits,
+  isActiveJob,
   isGenerating,
+  isPolling,
   loadingModels,
   models,
   params,
@@ -27,7 +29,9 @@ export function ImagePromptPanel({
 }: {
   error: string;
   estimatedCredits: number;
+  isActiveJob?: boolean;
   isGenerating: boolean;
+  isPolling?: boolean;
   loadingModels: boolean;
   models: ImageModel[];
   params: ImageGenerationParams;
@@ -45,7 +49,16 @@ export function ImagePromptPanel({
   const resolutions = selectedModel?.capabilities.resolutions || [];
   const qualities = selectedModel?.capabilities.qualities || [];
   const maxBatchCount = selectedModel?.capabilities.maxBatchCount || 1;
-  const disabled = isGenerating || loadingModels || !prompt.trim();
+  const hasUploadingReferences = references.some((reference) => reference.uploadStatus === "uploading");
+  const hasPrompt = Boolean(prompt.trim());
+  const disabled = isGenerating || loadingModels || hasUploadingReferences || isPolling || isActiveJob || !hasPrompt;
+  const generateLabel = hasUploadingReferences
+    ? "Uploading references..."
+    : isGenerating
+      ? "Generating..."
+      : isPolling || isActiveJob
+        ? "Waiting for result..."
+        : `Generate image · Estimated ${estimatedCredits} credits`;
 
   return (
     <aside className="se-panel se-scrollbar flex h-full min-h-0 flex-col overflow-y-auto rounded-[30px] p-4">
@@ -68,6 +81,11 @@ export function ImagePromptPanel({
             placeholder="Describe the image, composition, camera, style, and details..."
             value={prompt}
           />
+          {!hasPrompt ? (
+            <p className="mt-2 rounded-full border border-[#ffb44d]/16 bg-[#ffb44d]/8 px-3 py-1.5 text-[11px] font-semibold text-[#ffd08a]/78">
+              Enter a prompt to enable generation.
+            </p>
+          ) : null}
         </section>
 
         <ImageModelSelector disabled={loadingModels || isGenerating} models={models} onChange={onSelectModel} selectedModel={selectedModel} />
@@ -79,13 +97,16 @@ export function ImagePromptPanel({
               <p className="mt-1 text-xs text-[#b9b9b9]/52">Normalized from model capabilities.</p>
             </div>
             <span className="rounded-full border border-[#ffb44d]/20 bg-[#ffb44d]/10 px-2.5 py-1 text-[10px] font-semibold text-[#ffd08a]">
-              Estimate {estimatedCredits} credits
+              Estimated {estimatedCredits} credits
             </span>
           </div>
 
           <div className="grid gap-2">
             <label className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
-              Ratio
+              <span className="flex items-center justify-between gap-2">
+                Ratio
+                <span className="text-[10px] font-medium text-[#b9b9b9]/38">{ratios.length ? `${ratios.length} options` : "Default"}</span>
+              </span>
               <select
                 className="se-control h-10 rounded-[15px] px-3 text-sm text-[#f4f4f4] outline-none"
                 onChange={(event) => onUpdateParams({ ratio: event.target.value })}
@@ -101,7 +122,10 @@ export function ImagePromptPanel({
 
             {resolutions.length ? (
               <label className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
-                Resolution
+                <span className="flex items-center justify-between gap-2">
+                  Resolution
+                  <span className="text-[10px] font-medium text-[#b9b9b9]/38">{resolutions.join(" / ")}</span>
+                </span>
                 <select
                   className="se-control h-10 rounded-[15px] px-3 text-sm text-[#f4f4f4] outline-none"
                   onChange={(event) => onUpdateParams({ resolution: event.target.value })}
@@ -118,7 +142,10 @@ export function ImagePromptPanel({
 
             {qualities.length ? (
               <label className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
-                Quality
+                <span className="flex items-center justify-between gap-2">
+                  Quality
+                  <span className="text-[10px] font-medium text-[#b9b9b9]/38">{qualities.join(" / ")}</span>
+                </span>
                 <select
                   className="se-control h-10 rounded-[15px] px-3 text-sm text-[#f4f4f4] outline-none"
                   onChange={(event) => onUpdateParams({ quality: event.target.value })}
@@ -135,7 +162,10 @@ export function ImagePromptPanel({
 
             {maxBatchCount > 1 ? (
               <label className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
-                Batch count
+                <span className="flex items-center justify-between gap-2">
+                  Batch count
+                  <span className="text-[10px] font-medium text-[#b9b9b9]/38">1-{maxBatchCount}</span>
+                </span>
                 <input
                   className="se-control h-10 rounded-[15px] px-3 text-sm text-[#f4f4f4] outline-none"
                   max={maxBatchCount}
@@ -147,7 +177,7 @@ export function ImagePromptPanel({
               </label>
             ) : null}
           </div>
-          <p className="mt-3 text-[11px] leading-5 text-[#b9b9b9]/45">Estimate is for UI guidance only. Actual credits are calculated by the backend.</p>
+          <p className="mt-3 text-[11px] leading-5 text-[#b9b9b9]/45">Estimated cost is for UI guidance only. Actual credits are calculated by the backend.</p>
         </section>
 
         <ImageReferenceTray model={selectedModel} onRemove={onRemoveReference} onUploadFile={onUploadReference} references={references} />
@@ -157,7 +187,7 @@ export function ImagePromptPanel({
 
       <div className="mt-4 flex-none pt-1">
         <button className="se-button-primary min-h-[54px] w-full rounded-[20px] px-5 text-sm font-semibold" disabled={disabled} onClick={onGenerate} type="button">
-          {isGenerating ? "Submitting..." : `Generate image · est. ${estimatedCredits} credits`}
+          {generateLabel}
         </button>
       </div>
     </aside>

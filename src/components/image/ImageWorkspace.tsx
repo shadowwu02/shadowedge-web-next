@@ -30,7 +30,9 @@ export function ImageWorkspace() {
         <ImagePromptPanel
           error={image.error}
           estimatedCredits={image.estimatedCredits}
+          isActiveJob={Boolean(image.currentJob && isImageActiveStatus(image.currentJob.status))}
           isGenerating={image.isGenerating}
+          isPolling={image.isPolling}
           loadingModels={image.loadingModels}
           models={image.models}
           onGenerate={() => void image.submit()}
@@ -53,6 +55,7 @@ export function ImageWorkspace() {
           isPolling={image.isPolling}
           job={displayJob}
           onRefresh={handleRefreshStatus}
+          recoveredJobId={image.recoveredJobId}
         />
       </div>
 
@@ -60,7 +63,9 @@ export function ImageWorkspace() {
         <ImageHistoryPanel
           currentJobId={displayJob?.dbJobId || displayJob?.jobId}
           history={image.history}
+          error={image.error}
           isLoading={image.loadingHistory}
+          onRefreshHistory={() => void image.reloadHistory()}
           onRefreshStatus={handleRefreshStatus}
           onSelect={handleHistorySelect}
         />

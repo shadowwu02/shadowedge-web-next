@@ -95,6 +95,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
   const [error, setError] = useState("");
+  const [recoveredJobId, setRecoveredJobId] = useState("");
   const currentJobRef = useRef<ImageHistoryItem | null>(null);
   const localJobsRef = useRef<ImageHistoryItem[]>([]);
   const historyRef = useRef<ImageHistoryItem[]>([]);
@@ -144,6 +145,9 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       const items = await getImageHistory(80);
       setHistory(items);
       const recoverable = selectRecoverableImageJob(mergeImageHistory(items, localJobsRef.current));
+      if (!currentJobRef.current && recoverable) {
+        setRecoveredJobId(recoverable.dbJobId || recoverable.jobId || recoverable.id);
+      }
       setCurrentJob((current) => current || recoverable);
       return items;
     } catch (historyError) {
@@ -277,6 +281,10 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
         return [next, ...current.filter((item) => item.jobId !== next.jobId && item.dbJobId !== next.dbJobId)].slice(0, 20);
       });
       if (isImageTerminalStatus(status.status)) {
+        const statusJobId = status.dbJobId || status.jobId || status.id;
+        if (statusJobId && String(statusJobId) === String(recoveredJobId)) {
+          setRecoveredJobId("");
+        }
         void reloadHistory();
       }
       return status;
@@ -287,7 +295,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     } finally {
       setIsPolling(false);
     }
-  }, [reloadHistory]);
+  }, [recoveredJobId, reloadHistory]);
 
   useEffect(() => {
     if (!currentJob || !isImageActiveStatus(currentJob.status)) return;
@@ -320,6 +328,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
 
     setIsGenerating(true);
     setError("");
+    setRecoveredJobId("");
 
     try {
       const effectiveModel = overrides.model || selectedModel;
@@ -351,11 +360,13 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
   const recoverPolling = useCallback(() => {
     const recoverable = selectRecoverableImageJob(mergedHistory);
     setCurrentJob(recoverable);
+    setRecoveredJobId(recoverable ? recoverable.dbJobId || recoverable.jobId || recoverable.id : "");
     return recoverable;
   }, [mergedHistory]);
 
   const selectJob = useCallback((job: ImageHistoryItem | null) => {
     setCurrentJob(job);
+    setRecoveredJobId("");
     return job;
   }, []);
 
@@ -382,6 +393,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     isGenerating,
     isPolling,
     error,
+    recoveredJobId,
     estimatedCredits,
     loadModels,
     reloadHistory,

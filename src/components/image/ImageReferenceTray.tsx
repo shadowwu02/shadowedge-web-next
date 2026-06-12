@@ -47,7 +47,7 @@ export function ImageReferenceTray({
     <section className="se-card rounded-[24px] p-3.5">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
-          <p className="se-eyebrow">References</p>
+          <p className="se-eyebrow">Reference images</p>
           <p className="mt-1 text-xs text-[#b9b9b9]/55">
             {maxReferences ? `${references.length}/${maxReferences} images` : "This model is text-only"}
           </p>
@@ -56,6 +56,7 @@ export function ImageReferenceTray({
           className="se-button-secondary inline-flex min-h-9 items-center justify-center gap-2 rounded-[15px] px-3 text-xs font-semibold"
           disabled={!canUpload}
           onClick={() => inputRef.current?.click()}
+          title={!maxReferences ? "This model does not support reference images" : !canUpload ? "Reference image limit reached" : "Add reference image"}
           type="button"
         >
           <ImageIcon />
@@ -90,7 +91,7 @@ export function ImageReferenceTray({
                 )}
                 <button
                   aria-label={`Remove ${reference.name}`}
-                  className="se-icon-button-danger absolute right-2 top-2 grid size-7 place-items-center rounded-full opacity-0 shadow-lg shadow-black/30 group-hover:opacity-100"
+                  className="se-icon-button-danger absolute right-2 top-2 grid size-7 place-items-center rounded-full opacity-100 shadow-lg shadow-black/30 sm:opacity-0 sm:group-hover:opacity-100"
                   onClick={() => onRemove(reference.id)}
                   type="button"
                 >
@@ -117,15 +118,22 @@ export function ImageReferenceTray({
           onClick={() => inputRef.current?.click()}
           type="button"
         >
-          <span>
+            <span>
             <span className="mx-auto grid size-11 place-items-center rounded-2xl border border-[#ffb44d]/20 bg-[#ffb44d]/10 text-[#ffd08a]">
               <ImageIcon />
             </span>
-            <span className="mt-3 block text-sm font-semibold text-[#f4f4f4]">Upload reference images</span>
-            <span className="mt-1 block text-xs text-[#b9b9b9]/52">Optional image-to-image guidance for supported models.</span>
+            <span className="mt-3 block text-sm font-semibold text-[#f4f4f4]">{maxReferences ? "Upload reference images" : "Reference images unavailable"}</span>
+            <span className="mt-1 block text-xs text-[#b9b9b9]/52">
+              {maxReferences ? "Optional image-to-image guidance for supported models." : "The selected model only supports text-to-image."}
+            </span>
           </span>
         </button>
       )}
+      {maxReferences && !canUpload ? (
+        <p className="mt-2 rounded-full border border-[#ffb44d]/16 bg-[#ffb44d]/8 px-3 py-1.5 text-[11px] font-semibold text-[#ffd08a]/75">
+          Reference image limit reached for this model.
+        </p>
+      ) : null}
     </section>
   );
 }

@@ -23,6 +23,16 @@ function ExternalIcon() {
   );
 }
 
+function DownloadIcon() {
+  return (
+    <svg aria-hidden="true" className="size-4" fill="none" viewBox="0 0 24 24">
+      <path d="M12 3v11" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+      <path d="m7 10 5 5 5-5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+      <path d="M5 20h14" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+    </svg>
+  );
+}
+
 function statusClass(status: string) {
   if (isImageFailedStatus(status)) return "se-status-failed";
   if (isImageCompletedStatus(status)) return "se-status-completed";
@@ -36,17 +46,20 @@ export function ImageOutputStage({
   isPolling,
   job,
   onRefresh,
+  recoveredJobId,
 }: {
   error?: string;
   isGenerating?: boolean;
   isPolling?: boolean;
   job: ImageHistoryItem | null;
   onRefresh?: (jobId: string) => void;
+  recoveredJobId?: string;
 }) {
   const status = String(job?.status || "");
   const isActive = Boolean(job && isImageActiveStatus(status));
   const isFailed = Boolean(job && isImageFailedStatus(status));
   const isCompleted = Boolean(job && isImageCompletedStatus(status) && job.outputUrls.length);
+  const isRecoveredActiveJob = Boolean(job && recoveredJobId && [job.dbJobId, job.jobId, job.id].filter(Boolean).some((value) => String(value) === String(recoveredJobId)));
 
   return (
     <section className="se-panel flex h-full min-h-[520px] flex-col overflow-hidden rounded-[34px] p-4 shadow-2xl shadow-black/24">
@@ -74,7 +87,12 @@ export function ImageOutputStage({
         ) : null}
       </div>
 
-      <div className="grid min-h-0 flex-1 place-items-center overflow-hidden rounded-[28px] border border-white/10 bg-[#05070b]/80 p-3">
+      <div className="relative grid min-h-0 flex-1 place-items-center overflow-hidden rounded-[28px] border border-white/10 bg-[#05070b]/80 p-3">
+        {isRecoveredActiveJob ? (
+          <div className="absolute left-6 right-6 top-[86px] z-10 rounded-full border border-[#ffb44d]/20 bg-[#2a1b08]/88 px-3 py-2 text-center text-[11px] font-semibold text-[#ffd08a] shadow-lg shadow-black/20">
+            Recovered an in-progress image job. Polling will continue until it finishes.
+          </div>
+        ) : null}
         {!job ? (
           <div className="max-w-md text-center">
             <div className="mx-auto mb-5 grid size-16 place-items-center rounded-[28px] border border-[#ffb44d]/20 bg-[#ffb44d]/10 text-[#ffd08a]">
@@ -97,7 +115,7 @@ export function ImageOutputStage({
                   </button>
                   <div className="flex items-center justify-between gap-2 p-2.5">
                     <span className="text-[11px] font-semibold text-[#f4f4f4]/72">Image {index + 1}</span>
-                    <span className="flex items-center gap-1">
+                    <span className="flex flex-wrap items-center justify-end gap-1">
                       <button
                         className="se-button-ghost inline-flex min-h-8 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold"
                         onClick={() => void navigator.clipboard?.writeText(url)}
@@ -109,6 +127,10 @@ export function ImageOutputStage({
                       <a className="se-button-secondary inline-flex min-h-8 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold" href={url} rel="noreferrer" target="_blank">
                         <ExternalIcon />
                         Open
+                      </a>
+                      <a className="se-button-secondary inline-flex min-h-8 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold" download={`shadowedge-image-${index + 1}.png`} href={url} rel="noreferrer" target="_blank">
+                        <DownloadIcon />
+                        Download
                       </a>
                     </span>
                   </div>
@@ -128,9 +150,19 @@ export function ImageOutputStage({
             <div className="mx-auto mb-5 grid size-14 place-items-center rounded-[24px] border border-[#8c4632]/42 bg-[#2a1012] text-xl font-black text-[#f2b3a1]">!</div>
             <p className="text-xl font-black text-[#f2b3a1]">Generation failed</p>
             <p className="mt-2 text-sm leading-6 text-[#f2b3a1]/68">{job.errorMessage || error || "Image generation failed."}</p>
-            {job.refunded || job.refundStatus === "refunded" ? (
-              <span className="mt-4 inline-flex rounded-full border border-[#ffb44d]/20 bg-[#ffb44d]/10 px-3 py-1 text-xs font-semibold text-[#ffd08a]">Refunded</span>
-            ) : null}
+            <p className="mt-3 text-xs leading-5 text-[#b9b9b9]/52">
+              Generation failed. Credits were refunded if charged.
+            </p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              {job.cost || job.creditsCharged ? (
+                <span className="inline-flex rounded-full border border-white/10 bg-white/[.04] px-3 py-1 text-xs font-semibold text-[#b9b9b9]/70">
+                  Cost {job.cost || job.creditsCharged} credits
+                </span>
+              ) : null}
+              {job.refunded || job.refundStatus === "refunded" ? (
+                <span className="inline-flex rounded-full border border-[#ffb44d]/20 bg-[#ffb44d]/10 px-3 py-1 text-xs font-semibold text-[#ffd08a]">Refunded</span>
+              ) : null}
+            </div>
           </div>
         ) : (
           <div className="max-w-md text-center text-sm text-[#b9b9b9]/55">Waiting for image output...</div>
