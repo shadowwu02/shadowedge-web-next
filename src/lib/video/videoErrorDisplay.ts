@@ -1,4 +1,6 @@
 type VideoErrorKey =
+  | "video.errors.durationTooLong"
+  | "video.errors.fileTooLarge"
   | "video.errors.generationFailedFriendly"
   | "video.errors.insufficientCredits"
   | "video.errors.invalidPrompt"
@@ -17,6 +19,18 @@ const providerInternalErrorTerms = [
   "higgsfield",
   "provider",
   "internal",
+  "replicate",
+  "replicate api",
+  "prediction",
+  "predictions",
+  "prediction failed",
+  "model failed",
+  "provider failed",
+  "request was throttled",
+  "rate limit",
+  "upstream",
+  "upstream error",
+  "worker failed",
   "submit failed",
   "api error",
   "http 500",
@@ -33,6 +47,23 @@ const providerInternalErrorTerms = [
   "eai_again",
 ];
 
+const rawDumpErrorTerms = [
+  "failed {",
+  "{\"error\"",
+  "{ \"error\"",
+  "\"status\":\"failed\"",
+  "\"status\": \"failed\"",
+  "status\":\"failed\"",
+  "providerjobid",
+  "provider_job_id",
+  "stack",
+  "trace",
+  "stderr",
+  "stdout",
+  "exitcode",
+  "exit code",
+];
+
 function normalizeErrorMessage(message: string | null | undefined) {
   return String(message || "").trim();
 }
@@ -40,7 +71,7 @@ function normalizeErrorMessage(message: string | null | undefined) {
 export function isProviderInternalVideoError(message: string | null | undefined) {
   const normalized = normalizeErrorMessage(message).toLowerCase();
   if (!normalized) return false;
-  return providerInternalErrorTerms.some((term) => normalized.includes(term));
+  return providerInternalErrorTerms.some((term) => normalized.includes(term)) || rawDumpErrorTerms.some((term) => normalized.includes(term));
 }
 
 export function getVideoUserFacingError(message: string | null | undefined, t: VideoErrorTranslator, options: VideoErrorDisplayOptions = {}) {
@@ -48,7 +79,15 @@ export function getVideoUserFacingError(message: string | null | undefined, t: V
   if (!raw) return "";
 
   const normalized = raw.toLowerCase();
-  if (normalized.includes("not enough credits") || normalized.includes("insufficient credits")) {
+  if (
+    normalized.includes("not enough credits") ||
+    normalized.includes("not enough credit") ||
+    normalized.includes("insufficient credits") ||
+    normalized.includes("insufficient credit") ||
+    normalized.includes("purchase credit") ||
+    normalized.includes("billing") ||
+    normalized.includes("balance")
+  ) {
     return t("video.errors.insufficientCredits");
   }
 
@@ -64,11 +103,26 @@ export function getVideoUserFacingError(message: string | null | undefined, t: V
     return t("video.errors.unsupportedReference");
   }
 
+  if (normalized.includes("file too large") || normalized.includes("payload too large") || normalized.includes("413")) {
+    return t("video.errors.fileTooLarge");
+  }
+
+  if (normalized.includes("duration too long") || normalized.includes("video too long") || normalized.includes("exceeds duration") || normalized.includes("exceed duration")) {
+    return t("video.errors.durationTooLong");
+  }
+
   if (normalized.includes("unauthorized") || normalized.includes("forbidden") || normalized.includes("401") || normalized.includes("403")) {
     return t("video.errors.signInRequired");
   }
 
-  if (isProviderInternalVideoError(raw)) {
+  if (
+    normalized.includes("video generation failed. please try again later") ||
+    normalized === "video generation failed." ||
+    normalized === "video generation failed" ||
+    normalized.includes("generation failed. please try again later") ||
+    normalized === "failed to fetch" ||
+    isProviderInternalVideoError(raw)
+  ) {
     return t(options.context === "remake" ? "video.errors.remakeShotFailedFriendly" : "video.errors.generationFailedFriendly");
   }
 
