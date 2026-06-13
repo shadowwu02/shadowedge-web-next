@@ -568,6 +568,8 @@ export const dictionary = {
     "image.errors.statusRefreshFailed": "Failed to refresh image status.",
     "image.errors.generationRequestFailed": "Image generation request failed.",
     "image.errors.promptRequired": "Enter a prompt to enable generation.",
+    "image.errors.referenceLimitReachedWithCount": "Reference limit reached. This model supports up to {count} reference images.",
+    "image.errors.withDetails": "{message}: {details}",
   },
   zh: {
     videoWorkspace: "视频工作区",
@@ -1134,5 +1136,7 @@ export const dictionary = {
     "image.errors.statusRefreshFailed": "刷新图像状态失败。",
     "image.errors.generationRequestFailed": "图像生成请求失败。",
     "image.errors.promptRequired": "输入提示词后即可生成。",
+    "image.errors.referenceLimitReachedWithCount": "参考图数量已达上限。当前模型最多支持 {count} 张参考图。",
+    "image.errors.withDetails": "{message}：{details}",
   },
 } satisfies Record<Locale, Record<string, string>>;

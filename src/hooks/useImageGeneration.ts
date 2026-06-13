@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildImageGenerateRequest, generateImage, getImageHistory, getImageModels, getImageStatus, uploadImage } from "@/lib/image-api";
+import { useI18n } from "@/i18n/useI18n";
 import {
   isImageActiveStatus,
   isImageTerminalStatus,
@@ -80,6 +81,7 @@ function buildCurrentJobFromGenerateResponse(response: Awaited<ReturnType<typeof
 }
 
 export function useImageGeneration(options: UseImageGenerationOptions = {}) {
+  const { t, tf } = useI18n();
   const pollingIntervalMs = options.pollingIntervalMs || defaultPollingIntervalMs;
   const autoLoad = options.autoLoad !== false;
   const [models, setModels] = useState<ImageModel[]>([]);
@@ -105,6 +107,16 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
   const outputs = useMemo(() => mergedHistory.filter((item) => item.outputUrls.length || isImageTerminalStatus(item.status)), [mergedHistory]);
   const estimatedCredits = useMemo(() => estimateImageCredits(selectedModel, params), [params, selectedModel]);
 
+  const formatImageError = useCallback(
+    (labelKey: Parameters<typeof t>[0], error: unknown, fallback: string) => {
+      const label = t(labelKey);
+      const details = error instanceof Error ? error.message.trim() : "";
+      if (!details || details === fallback || details === label) return label;
+      return tf("image.errors.withDetails", { message: label, details });
+    },
+    [t, tf],
+  );
+
   useEffect(() => {
     currentJobRef.current = currentJob;
   }, [currentJob]);
@@ -129,13 +141,12 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       setParams((current) => normalizeImageGenerationParams(defaultModel, current));
       return nextModels;
     } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : "Failed to load image models.";
-      setError(message);
+      setError(formatImageError("image.errors.modelLoadFailed", loadError, "Failed to load image models."));
       return [];
     } finally {
       setLoadingModels(false);
     }
-  }, []);
+  }, [formatImageError]);
 
   const reloadHistory = useCallback(async () => {
     setLoadingHistory(true);
@@ -151,13 +162,12 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       setCurrentJob((current) => current || recoverable);
       return items;
     } catch (historyError) {
-      const message = historyError instanceof Error ? historyError.message : "Failed to load image history.";
-      setError(message);
+      setError(formatImageError("image.errors.historyLoadFailed", historyError, "Failed to load image history."));
       return [];
     } finally {
       setLoadingHistory(false);
     }
-  }, []);
+  }, [formatImageError]);
 
   useEffect(() => {
     if (!autoLoad) return;
@@ -180,7 +190,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
 
   const addReferenceFile = useCallback((file: File) => {
     if (!canAddImageReference(selectedModel, references.length)) {
-      const message = `This model supports up to ${selectedModel.capabilities.maxReferences} reference images.`;
+      const message = tf("image.errors.referenceLimitReachedWithCount", { count: selectedModel.capabilities.maxReferences });
       setError(message);
       return null;
     }
@@ -188,11 +198,11 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     const localReference = createLocalReference(file);
     setReferences((current) => [...current, localReference]);
     return localReference;
-  }, [references.length, selectedModel]);
+  }, [references.length, selectedModel, tf]);
 
   const uploadReferenceFile = useCallback(async (file: File) => {
     if (!canAddImageReference(selectedModel, references.length)) {
-      const message = `This model supports up to ${selectedModel.capabilities.maxReferences} reference images.`;
+      const message = tf("image.errors.referenceLimitReachedWithCount", { count: selectedModel.capabilities.maxReferences });
       setError(message);
       return null;
     }
@@ -213,12 +223,12 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       setReferences((current) => current.map((item) => (item.id === localReference.id ? nextReference : item)));
       return nextReference;
     } catch (uploadError) {
-      const message = uploadError instanceof Error ? uploadError.message : "Image upload failed.";
+      const message = formatImageError("image.errors.uploadFailed", uploadError, "Image upload failed.");
       setReferences((current) => current.map((item) => (item.id === localReference.id ? { ...item, uploadStatus: "failed", errorMessage: message } : item)));
       setError(message);
       return null;
     }
-  }, [references.length, selectedModel]);
+  }, [formatImageError, references.length, selectedModel, tf]);
 
   const removeReference = useCallback((referenceId: string) => {
     setReferences((current) => current.filter((item) => item.id !== referenceId));
@@ -235,12 +245,12 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       setReferences((current) => current.map((item) => (item.id === referenceId ? { ...uploaded, previewUrl: item.previewUrl || uploaded.previewUrl } : item)));
       return uploaded;
     } catch (uploadError) {
-      const message = uploadError instanceof Error ? uploadError.message : "Image upload failed.";
+      const message = formatImageError("image.errors.uploadFailed", uploadError, "Image upload failed.");
       setReferences((current) => current.map((item) => (item.id === referenceId ? { ...item, uploadStatus: "failed", errorMessage: message } : item)));
       setError(message);
       return null;
     }
-  }, [references]);
+  }, [formatImageError, references]);
 
   const ensureReadyReferences = useCallback(async (items: ImageReferenceItem[]) => {
     const ready: ImageReferenceItem[] = [];
@@ -289,13 +299,12 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       }
       return status;
     } catch (statusError) {
-      const message = statusError instanceof Error ? statusError.message : "Failed to refresh image status.";
-      setError(message);
+      setError(formatImageError("image.errors.statusRefreshFailed", statusError, "Failed to refresh image status."));
       return null;
     } finally {
       setIsPolling(false);
     }
-  }, [recoveredJobId, reloadHistory]);
+  }, [formatImageError, recoveredJobId, reloadHistory]);
 
   useEffect(() => {
     if (!currentJob || !isImageActiveStatus(currentJob.status)) return;
@@ -322,7 +331,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
 
     const effectivePrompt = String(overrides.prompt ?? prompt).trim();
     if (!effectivePrompt) {
-      setError("Prompt is required.");
+      setError(t("image.errors.promptRequired"));
       return null;
     }
 
@@ -349,13 +358,12 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       setLocalJobs((current) => [nextJob, ...current.filter((item) => item.jobId !== nextJob.jobId)].slice(0, 20));
       return nextJob;
     } catch (submitError) {
-      const message = submitError instanceof Error ? submitError.message : "Image generation request failed.";
-      setError(message);
+      setError(formatImageError("image.errors.generationRequestFailed", submitError, "Image generation request failed."));
       return null;
     } finally {
       setIsGenerating(false);
     }
-  }, [ensureReadyReferences, isGenerating, params, prompt, references, selectedModel]);
+  }, [ensureReadyReferences, formatImageError, isGenerating, params, prompt, references, selectedModel, t]);
 
   const recoverPolling = useCallback(() => {
     const recoverable = selectRecoverableImageJob(mergedHistory);
