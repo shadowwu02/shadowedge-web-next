@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingState } from "@/components/common/LoadingState";
 import { AudioToggle } from "@/components/video/AudioToggle";
@@ -102,6 +103,7 @@ const fallbackModels: VideoModel[] = [
 
 type MainPanel = "history" | "guide";
 type WorkspaceMode = "create" | "edit" | "motion" | "remake";
+type VideoWorkspaceTabQuery = "create" | "history" | "remake";
 type RemakeShotQueueMeta = {
   queueIndex?: number;
   queueMode?: RemakeShotQueueMode;
@@ -153,6 +155,12 @@ function createRemakeShotQueueRunId() {
 
 function createRemakeRetryQueueRunId() {
   return `remake_retry_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getVideoWorkspaceTabQuery(value: string | null): VideoWorkspaceTabQuery | null {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "create" || normalized === "history" || normalized === "remake") return normalized;
+  return null;
 }
 
 function normalizeRemakeQueueDraftShotState(state: RemakeShotGenerationState): RemakeShotGenerationState {
@@ -615,6 +623,8 @@ function isSameRemakeSourceVideo(left: RemakeSourceVideo | null, right: RemakeSo
 
 export function VideoWorkspace() {
   const { t, tf } = useI18n();
+  const searchParams = useSearchParams();
+  const tabQuery = getVideoWorkspaceTabQuery(searchParams.get("tab"));
   const [models, setModels] = useState<VideoModel[]>(fallbackModels);
   const [selectedModel, setSelectedModel] = useState<VideoModel>(fallbackModels[0]);
   const [modelLoading, setModelLoading] = useState(true);
@@ -823,6 +833,21 @@ export function VideoWorkspace() {
 
     return () => window.clearTimeout(timer);
   }, [t]);
+
+  useEffect(() => {
+    if (!tabQuery) return;
+    const timer = window.setTimeout(() => {
+      if (tabQuery === "remake") {
+        setWorkspaceMode("remake");
+        return;
+      }
+
+      setWorkspaceMode("create");
+      if (tabQuery === "history") setMainPanel("history");
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [tabQuery]);
 
   useEffect(() => {
     const storyboard = remakeStoryboard;

@@ -8,7 +8,7 @@ import { useI18n } from "@/i18n/useI18n";
 
 const nodeWidth = 230;
 const nodeHeight = 116;
-const minCanvasWidthForDrag = 900;
+const minCanvasWidthForDrag = 640;
 const canvasConnections = [
   { id: "prompt-image", from: "prompt", to: "image" },
   { id: "image-video", from: "image", to: "video" },
@@ -40,14 +40,19 @@ export function CanvasBoard({ onMoveNode, onSelectNode, workflow }: CanvasBoardP
   const { t } = useI18n();
   const stageRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
-  const [stageWidth, setStageWidth] = useState(0);
+  const [stageSize, setStageSize] = useState({ height: 0, width: 0 });
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
-  const canDrag = stageWidth >= minCanvasWidthForDrag;
+  const canDrag = stageSize.width >= minCanvasWidthForDrag;
 
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const updateSize = () => setStageWidth(stage.clientWidth);
+    const updateSize = () => {
+      setStageSize({
+        height: stage.clientHeight,
+        width: stage.clientWidth,
+      });
+    };
     updateSize();
     const observer = new ResizeObserver(updateSize);
     observer.observe(stage);
@@ -55,22 +60,28 @@ export function CanvasBoard({ onMoveNode, onSelectNode, workflow }: CanvasBoardP
   }, []);
 
   const clampPosition = useCallback((position: CanvasPosition): CanvasPosition => {
-    const stage = stageRef.current;
-    if (!stage) return position;
-    const maxX = Math.max(12, stage.clientWidth - nodeWidth - 12);
-    const maxY = Math.max(12, stage.clientHeight - nodeHeight - 12);
+    if (!stageSize.width || !stageSize.height) return position;
+    const maxX = Math.max(12, stageSize.width - nodeWidth - 12);
+    const maxY = Math.max(12, stageSize.height - nodeHeight - 12);
     return {
       x: Math.round(Math.min(maxX, Math.max(12, position.x))),
       y: Math.round(Math.min(maxY, Math.max(12, position.y))),
     };
-  }, []);
+  }, [stageSize.height, stageSize.width]);
+
+  const constrainedPositions = useMemo(() => {
+    if (!canDrag) return workflow.positions;
+    return Object.fromEntries(
+      Object.entries(workflow.positions).map(([nodeId, position]) => [nodeId, clampPosition(position)]),
+    ) as Record<string, CanvasPosition>;
+  }, [canDrag, clampPosition, workflow.positions]);
 
   const handlePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLElement>, nodeId: string) => {
       onSelectNode(nodeId);
       if (!canDrag || event.button !== 0) return;
       const stage = stageRef.current;
-      const position = workflow.positions[nodeId];
+      const position = constrainedPositions[nodeId];
       if (!stage || !position) return;
       const rect = stage.getBoundingClientRect();
       dragRef.current = {
@@ -82,7 +93,7 @@ export function CanvasBoard({ onMoveNode, onSelectNode, workflow }: CanvasBoardP
       event.currentTarget.setPointerCapture?.(event.pointerId);
       event.preventDefault();
     },
-    [canDrag, onSelectNode, workflow.positions],
+    [canDrag, constrainedPositions, onSelectNode],
   );
 
   useEffect(() => {
@@ -120,9 +131,9 @@ export function CanvasBoard({ onMoveNode, onSelectNode, workflow }: CanvasBoardP
     if (!canDrag) return [];
     return canvasConnections.map((connection) => ({
       ...connection,
-      path: buildConnectorPath(workflow.positions[connection.from], workflow.positions[connection.to]),
+      path: buildConnectorPath(constrainedPositions[connection.from], constrainedPositions[connection.to]),
     }));
-  }, [canDrag, workflow.positions]);
+  }, [canDrag, constrainedPositions]);
 
   const nodeLabels = {
     prompt: t("canvas.promptNode"),
@@ -164,6 +175,7 @@ export function CanvasBoard({ onMoveNode, onSelectNode, workflow }: CanvasBoardP
 
       <div
         className="relative grid min-h-[460px] gap-3 overflow-hidden rounded-[26px] border border-[rgba(244,244,244,0.08)] bg-[radial-gradient(circle_at_20%_20%,rgba(255,180,77,.12),transparent_24%),#090b10] p-3 md:min-h-[620px]"
+        data-canvas-stage="workflow"
         ref={stageRef}
       >
         {canDrag ? (
@@ -197,7 +209,7 @@ export function CanvasBoard({ onMoveNode, onSelectNode, workflow }: CanvasBoardP
             nodeTypeLabel={nodeTypeLabels[node.type]}
             onPointerDown={handlePointerDown}
             onSelect={onSelectNode}
-            position={workflow.positions[node.id]}
+            position={constrainedPositions[node.id]}
             readyLabel={t("canvas.ready")}
             selectedLabel={t("canvas.selected")}
           />
