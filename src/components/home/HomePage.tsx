@@ -22,6 +22,14 @@ type ModelLogo = {
   src: string;
 };
 
+type DemoVideo = {
+  bodyKey: DictionaryKey;
+  href: string;
+  poster: string;
+  src: string;
+  titleKey: DictionaryKey;
+};
+
 const heroCtas: CtaItem[] = [
   { href: "/workspace/video", key: "home.createVideo", primary: true },
   { href: "/workspace/image", key: "home.createImage" },
@@ -82,6 +90,23 @@ const modelLogos: ModelLogo[] = [
   { alt: "Grok", src: "/home/grok.png" },
 ];
 
+const demoVideos: DemoVideo[] = [
+  {
+    href: "/workspace/video",
+    src: "/home/home-demo-video-1.mp4",
+    poster: "/home/home-demo-poster-1.webp",
+    titleKey: "home.demo.video1.title",
+    bodyKey: "home.demo.video1.body",
+  },
+  {
+    href: "/workspace/video",
+    src: "/home/home-demo-video-2.mp4",
+    poster: "/home/home-demo-poster-2.webp",
+    titleKey: "home.demo.video2.title",
+    bodyKey: "home.demo.video2.body",
+  },
+];
+
 function HomeCtaRow({ items }: { items: CtaItem[] }) {
   const { t } = useI18n();
 
@@ -123,19 +148,36 @@ function HeroPreview() {
             </span>
           </div>
 
-          <div className="mt-5 grid flex-1 place-items-center rounded-[24px] border border-white/8 bg-[radial-gradient(circle_at_center,rgba(255,180,77,.22),transparent_36%),linear-gradient(145deg,#1d2028,#080a0f)] p-6">
-            <div className="relative aspect-[4/5] w-full max-w-[320px] overflow-hidden rounded-[30px] border border-white/12 bg-[#05070b] shadow-2xl shadow-black/40">
-              <div className="absolute inset-x-7 top-8 h-20 rounded-full bg-[#ffb44d]/24 blur-3xl" />
-              <div className="absolute inset-x-6 bottom-8 h-24 rounded-full bg-[#6fb7c8]/18 blur-3xl" />
-              <div className="relative flex h-full flex-col justify-end p-5">
-                <div className="rounded-[24px] border border-white/12 bg-white/[.055] p-4 backdrop-blur">
+          <div className="mt-5 grid flex-1 gap-3 rounded-[24px] border border-white/8 bg-[radial-gradient(circle_at_center,rgba(255,180,77,.14),transparent_42%),linear-gradient(145deg,#1d2028,#080a0f)] p-3 sm:grid-cols-2">
+            {demoVideos.map((video) => (
+              <Link
+                className="group relative min-h-[300px] overflow-hidden rounded-[24px] border border-white/10 bg-[#05070b] shadow-2xl shadow-black/30 transition hover:border-[#ffb44d]/34"
+                href={video.href}
+                key={video.src}
+              >
+                <video
+                  aria-label={t(video.titleKey)}
+                  autoPlay
+                  className="absolute inset-0 h-full w-full object-cover brightness-[.82] transition duration-300 group-hover:scale-[1.02] group-hover:brightness-95"
+                  loop
+                  muted
+                  playsInline
+                  poster={video.poster}
+                  preload="metadata"
+                  src={video.src}
+                >
+                  {t("home.demoVideoFallback")}
+                </video>
+                <div className="absolute inset-0 bg-gradient-to-t from-[#05070b] via-[#05070b]/22 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 p-4">
                   <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ffcf83]">
                     {t("home.previewShotLabel")}
                   </p>
-                  <p className="mt-2 text-sm leading-6 text-[#f4f4f4]/76">{t("home.previewShotText")}</p>
+                  <h3 className="mt-2 text-lg font-black text-[#f4f4f4]">{t(video.titleKey)}</h3>
+                  <p className="mt-2 text-xs leading-5 text-[#f4f4f4]/72">{t(video.bodyKey)}</p>
                 </div>
-              </div>
-            </div>
+              </Link>
+            ))}
           </div>
         </section>
 
