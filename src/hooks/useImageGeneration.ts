@@ -19,6 +19,12 @@ import {
   getImageModelById,
   normalizeImageGenerationParams,
 } from "@/lib/image/imageModelRules";
+import {
+  clearImageWorkspaceDraft,
+  getImageReferencesFromDraft,
+  readImageWorkspaceDraft,
+  saveImageWorkspaceDraft,
+} from "@/lib/image/imageWorkspaceDraft";
 import type { ImageGenerationParams, ImageHistoryItem, ImageModel, ImageReferenceItem } from "@/types/image";
 
 type UseImageGenerationOptions = {
@@ -80,6 +86,25 @@ function buildCurrentJobFromGenerateResponse(response: Awaited<ReturnType<typeof
   });
 }
 
+function getExactImageModelById(models: ImageModel[], modelId?: string) {
+  const key = String(modelId || "").trim().toLowerCase();
+  if (!key) return null;
+  return (
+    models.find((model) =>
+      [model.id, model.providerModel, model.name, model.label].filter(Boolean).some((value) => String(value).trim().toLowerCase() === key),
+    ) || null
+  );
+}
+
+function getImagePromptFromUrl() {
+  if (typeof window === "undefined") return "";
+  try {
+    return String(new URLSearchParams(window.location.search).get("prompt") || "").slice(0, 2000);
+  } catch {
+    return "";
+  }
+}
+
 export function useImageGeneration(options: UseImageGenerationOptions = {}) {
   const { t, tf } = useI18n();
   const pollingIntervalMs = options.pollingIntervalMs || defaultPollingIntervalMs;
@@ -98,9 +123,16 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
   const [isPolling, setIsPolling] = useState(false);
   const [error, setError] = useState("");
   const [recoveredJobId, setRecoveredJobId] = useState("");
+  const [draftNotice, setDraftNotice] = useState("");
+  const [draftReady, setDraftReady] = useState(false);
   const currentJobRef = useRef<ImageHistoryItem | null>(null);
   const localJobsRef = useRef<ImageHistoryItem[]>([]);
   const historyRef = useRef<ImageHistoryItem[]>([]);
+  const selectedModelIdRef = useRef("");
+  const draftRestoreAttemptedRef = useRef(false);
+  const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipNextDraftSaveRef = useRef(false);
+  const appliedUrlPromptRef = useRef("");
 
   const selectedModel = useMemo(() => getImageModelById(models, selectedModelId), [models, selectedModelId]);
   const mergedHistory = useMemo(() => mergeImageHistory(history, localJobs), [history, localJobs]);
@@ -129,6 +161,10 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     historyRef.current = history;
   }, [history]);
 
+  useEffect(() => {
+    selectedModelIdRef.current = selectedModelId;
+  }, [selectedModelId]);
+
   const loadModels = useCallback(async () => {
     setLoadingModels(true);
     setError("");
@@ -137,8 +173,38 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       const nextModels = await getImageModels();
       const defaultModel = getDefaultImageModel(nextModels);
       setModels(nextModels);
+
+      if (!draftRestoreAttemptedRef.current) {
+        draftRestoreAttemptedRef.current = true;
+        const draftResult = readImageWorkspaceDraft();
+        const draft = draftResult.draft;
+        const nextUrlPrompt = getImagePromptFromUrl().trim();
+        const draftModel = draft ? getExactImageModelById(nextModels, draft.modelId) : null;
+        const nextModel = draftModel || defaultModel;
+        const nextParams = normalizeImageGenerationParams(nextModel, draft || {});
+        const nextReferences = draft ? getImageReferencesFromDraft(draft, nextModel.capabilities.maxReferences) : [];
+        const nextPrompt = nextUrlPrompt || draft?.prompt || "";
+
+        setSelectedModelIdState(nextModel.id);
+        setParams(nextParams);
+        setReferences(nextReferences);
+        setPrompt(nextPrompt);
+        appliedUrlPromptRef.current = nextUrlPrompt;
+
+        if (draftResult.status === "expired") {
+          setDraftNotice(t("image.draftExpired"));
+        } else if (draft && nextReferences.length) {
+          setDraftNotice(tf("image.referencesRestored", { count: nextReferences.length }));
+        } else if (draft) {
+          setDraftNotice(t("image.draftRestored"));
+        }
+
+        setDraftReady(true);
+        return nextModels;
+      }
+
       setSelectedModelIdState((current) => current || defaultModel.id);
-      setParams((current) => normalizeImageGenerationParams(defaultModel, current));
+      setParams((current) => normalizeImageGenerationParams(getImageModelById(nextModels, selectedModelIdRef.current || defaultModel.id), current));
       return nextModels;
     } catch (loadError) {
       setError(formatImageError("image.errors.modelLoadFailed", loadError, "Failed to load image models."));
@@ -146,7 +212,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     } finally {
       setLoadingModels(false);
     }
-  }, [formatImageError]);
+  }, [formatImageError, t, tf]);
 
   const reloadHistory = useCallback(async () => {
     setLoadingHistory(true);
@@ -178,6 +244,45 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
 
     return () => window.clearTimeout(timer);
   }, [autoLoad, loadModels, reloadHistory]);
+
+  useEffect(() => {
+    if (!draftReady) return;
+    const nextPrompt = getImagePromptFromUrl().trim();
+    if (!nextPrompt || appliedUrlPromptRef.current === nextPrompt) return;
+    appliedUrlPromptRef.current = nextPrompt;
+    setPrompt(nextPrompt);
+    setDraftNotice(t("image.draftRestored"));
+  }, [draftReady, t]);
+
+  useEffect(() => {
+    if (!draftReady) return;
+
+    if (skipNextDraftSaveRef.current) {
+      skipNextDraftSaveRef.current = false;
+      return;
+    }
+
+    if (draftSaveTimerRef.current) {
+      clearTimeout(draftSaveTimerRef.current);
+    }
+
+    draftSaveTimerRef.current = setTimeout(() => {
+      draftSaveTimerRef.current = null;
+      saveImageWorkspaceDraft({
+        prompt,
+        modelId: selectedModel.id,
+        params,
+        references,
+      });
+    }, 500);
+
+    return () => {
+      if (draftSaveTimerRef.current) {
+        clearTimeout(draftSaveTimerRef.current);
+        draftSaveTimerRef.current = null;
+      }
+    };
+  }, [draftReady, params, prompt, references, selectedModel]);
 
   const setSelectedModelId = useCallback((modelId: string) => {
     setSelectedModelIdState(modelId);
@@ -378,6 +483,23 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     return job;
   }, []);
 
+  const clearDraft = useCallback(() => {
+    if (draftSaveTimerRef.current) {
+      clearTimeout(draftSaveTimerRef.current);
+      draftSaveTimerRef.current = null;
+    }
+
+    clearImageWorkspaceDraft();
+    skipNextDraftSaveRef.current = true;
+    const defaultModel = getDefaultImageModel(models);
+    setSelectedModelIdState(defaultModel.id);
+    setParams(getDefaultImageParams(defaultModel));
+    setReferences([]);
+    setPrompt("");
+    setDraftNotice(t("image.draftCleared"));
+    setError("");
+  }, [models, t]);
+
   return {
     models,
     loadingModels,
@@ -401,8 +523,10 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     isGenerating,
     isPolling,
     error,
+    draftNotice,
     recoveredJobId,
     estimatedCredits,
+    clearDraft,
     loadModels,
     reloadHistory,
     recoverPolling,

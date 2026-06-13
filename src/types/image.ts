@@ -75,6 +75,9 @@ export type ImageReferenceItem = {
   originalName?: string;
   uploadStatus?: "local" | "uploading" | "ready" | "failed";
   errorMessage?: string;
+  width?: number;
+  height?: number;
+  uploadedAt?: string;
   raw?: unknown;
 };
 

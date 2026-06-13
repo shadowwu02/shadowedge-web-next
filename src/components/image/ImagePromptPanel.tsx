@@ -6,6 +6,7 @@ import { useI18n } from "@/i18n/useI18n";
 import type { ImageGenerationParams, ImageModel, ImageReferenceItem } from "@/types/image";
 
 export function ImagePromptPanel({
+  draftNotice,
   error,
   estimatedCredits,
   isActiveJob,
@@ -18,12 +19,14 @@ export function ImagePromptPanel({
   references,
   selectedModel,
   onGenerate,
+  onClearDraft,
   onPromptChange,
   onRemoveReference,
   onSelectModel,
   onUpdateParams,
   onUploadReference,
 }: {
+  draftNotice?: string;
   error: string;
   estimatedCredits: number;
   isActiveJob?: boolean;
@@ -36,6 +39,7 @@ export function ImagePromptPanel({
   references: ImageReferenceItem[];
   selectedModel: ImageModel | null;
   onGenerate: () => void;
+  onClearDraft: () => void;
   onPromptChange: (value: string) => void;
   onRemoveReference: (referenceId: string) => void;
   onSelectModel: (modelId: string) => void;
@@ -65,6 +69,18 @@ export function ImagePromptPanel({
         <p className="se-eyebrow">{t("image.workspace.studioLabel")}</p>
         <h1 className="mt-2 text-2xl font-black text-[#f4f4f4]">{t("image.workspace.createTitle")}</h1>
         <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/58">{t("image.workspace.createSubtitle")}</p>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          {draftNotice ? (
+            <p className="rounded-full border border-[#ffb44d]/16 bg-[#ffb44d]/8 px-3 py-1.5 text-[11px] font-semibold text-[#ffd08a]/78">
+              {draftNotice}
+            </p>
+          ) : (
+            <span aria-hidden="true" />
+          )}
+          <button className="se-button-ghost min-h-8 rounded-full px-3 text-[11px] font-semibold" onClick={onClearDraft} type="button">
+            {t("image.clearDraft")}
+          </button>
+        </div>
       </div>
 
       <div className="space-y-4">

@@ -46,6 +46,7 @@ export function ImageWorkspace() {
     <div className="se-scrollbar grid h-full min-h-0 gap-4 overflow-y-auto overflow-x-hidden xl:grid-cols-[minmax(300px,360px)_minmax(0,1fr)_minmax(300px,380px)] xl:overflow-hidden">
       <div className="min-h-[760px] overflow-hidden xl:min-h-0">
         <ImagePromptPanel
+          draftNotice={image.draftNotice}
           error={localizedError}
           estimatedCredits={image.estimatedCredits}
           isActiveJob={Boolean(image.currentJob && isImageActiveStatus(image.currentJob.status))}
@@ -54,6 +55,7 @@ export function ImageWorkspace() {
           loadingModels={image.loadingModels}
           models={image.models}
           onGenerate={() => void image.submit()}
+          onClearDraft={image.clearDraft}
           onPromptChange={image.setPrompt}
           onRemoveReference={image.removeReference}
           onSelectModel={image.setSelectedModelId}
