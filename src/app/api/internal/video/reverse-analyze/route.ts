@@ -13,7 +13,57 @@ function getInternalRequestOrigin() {
   return (process.env.INTERNAL_REQUEST_ORIGIN || "https://app.shadowedgeai.com").replace(/\/$/, "");
 }
 
+function getBearerAuthorization(request: Request) {
+  const value = request.headers.get("authorization") || "";
+  return /^Bearer\s+\S+/i.test(value) ? value : "";
+}
+
+async function validateUserAuthorization(authorization: string) {
+  try {
+    const response = await fetch(`${getBackendApiBaseUrl()}/api/auth/me`, {
+      method: "GET",
+      headers: {
+        Authorization: authorization,
+      },
+      cache: "no-store",
+    });
+
+    if (!response.ok) return false;
+
+    const payload = await response.json().catch(() => null);
+    return Boolean(payload && typeof payload === "object" && (payload as { ok?: unknown }).ok === true);
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: Request) {
+  const authorization = getBearerAuthorization(request);
+
+  if (!authorization) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "UNAUTHORIZED",
+        error: "Authentication is required.",
+      },
+      { status: 401 },
+    );
+  }
+
+  const isAuthorized = await validateUserAuthorization(authorization);
+
+  if (!isAuthorized) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "UNAUTHORIZED",
+        error: "Authentication is required.",
+      },
+      { status: 401 },
+    );
+  }
+
   const siteKey = process.env.INTERNAL_VIDEO_SITE_KEY || "";
 
   if (!siteKey) {
@@ -40,6 +90,7 @@ export async function POST(request: Request) {
         "x-shadowedge-client": "shadowedge-web",
         "x-shadowedge-site": "video",
         "x-shadowedge-site-key": siteKey,
+        Authorization: authorization,
       },
       body: JSON.stringify(body),
       cache: "no-store",

@@ -1,4 +1,5 @@
 import { apiRequest } from "@/lib/api";
+import { getStoredAuthToken } from "@/lib/auth";
 import type {
   RemakeMode,
   RemakeSegment,
@@ -94,12 +95,14 @@ function getReverseAnalyzeErrorMessage(payload: unknown) {
 
 export async function reverseAnalyzeVideoRemake(input: VideoRemakeReverseAnalyzeInput): Promise<VideoRemakeReverseAnalyzeResponse> {
   let response: Response;
+  const token = getStoredAuthToken();
 
   try {
     response = await fetch("/api/internal/video/reverse-analyze", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(input),
       cache: "no-store",
