@@ -3,7 +3,7 @@ import { PricingBillingPage } from "@/components/pricing/PricingBillingPage";
 
 export default function PricingPage() {
   return (
-    <AppShell>
+    <AppShell hideSidebar workspaceNav>
       <PricingBillingPage />
     </AppShell>
   );

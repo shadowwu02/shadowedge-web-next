@@ -3,7 +3,7 @@ import { AccountCreditsPage } from "@/components/account/AccountCreditsPage";
 
 export default function AccountPage() {
   return (
-    <AppShell>
+    <AppShell hideSidebar workspaceNav>
       <AccountCreditsPage />
     </AppShell>
   );

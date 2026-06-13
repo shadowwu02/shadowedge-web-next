@@ -21,6 +21,7 @@ export function AppShell({
   const isActiveRoute = (href: string) => {
     if (href === "/workspace/video") return pathname === href || pathname.startsWith(`${href}/`);
     if (href === "/workspace/image") return pathname === href || pathname.startsWith(`${href}/`);
+    if (href === "/workspace/canvas") return pathname === href || pathname.startsWith(`${href}/`);
     return pathname === href;
   };
   const workspaceLinks = [
@@ -30,6 +31,7 @@ export function AppShell({
     { label: t("nav.history"), href: "/history", active: isActiveRoute("/history") },
     { label: t("nav.models"), href: "/models", active: isActiveRoute("/models") },
     { label: t("nav.pricing"), href: "/pricing", active: isActiveRoute("/pricing") },
+    { label: t("nav.account"), href: "/account", active: isActiveRoute("/account") },
   ];
   const userLabels = {
     logout: t("account.logout"),

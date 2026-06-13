@@ -3,7 +3,7 @@ import { ModelLibraryPage } from "@/components/models/ModelLibraryPage";
 
 export default function ModelsPage() {
   return (
-    <AppShell>
+    <AppShell hideSidebar workspaceNav>
       <ModelLibraryPage />
     </AppShell>
   );

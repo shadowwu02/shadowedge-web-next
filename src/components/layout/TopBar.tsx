@@ -59,11 +59,11 @@ export function TopBar({
         </Link>
 
         {workspaceNav ? (
-          <nav className="hidden min-w-0 items-center gap-1 lg:flex">
+          <nav className="se-scrollbar hidden min-w-0 max-w-[56vw] items-center gap-1 overflow-x-auto lg:flex">
             {workspaceLinks.map((item) => (
               <Link
                 className={cn(
-                  "rounded-full px-3 py-2 text-[13px] font-medium transition-colors",
+                  "shrink-0 rounded-full px-3 py-2 text-[13px] font-medium transition-colors",
                   item.active
                     ? "border border-[#ffb44d]/26 bg-[#ffb44d]/10 text-[#ffb44d] shadow-inner shadow-[#ffb44d]/5"
                     : "border border-transparent text-[#b9b9b9]/66 hover:border-[rgba(244,244,244,0.08)] hover:bg-[#1a1c22]/72 hover:text-[#f4f4f4]",

@@ -3,7 +3,7 @@ import { GlobalHistoryPage } from "@/components/history/GlobalHistoryPage";
 
 export default function HistoryPage() {
   return (
-    <AppShell>
+    <AppShell hideSidebar workspaceNav>
       <GlobalHistoryPage />
     </AppShell>
   );
