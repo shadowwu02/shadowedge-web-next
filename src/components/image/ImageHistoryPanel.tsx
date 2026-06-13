@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
+import { getImageUserFacingError } from "@/lib/image/imageErrorDisplay";
 import { isImageActiveStatus, isImageCompletedStatus, isImageFailedStatus } from "@/lib/image/imageHistoryUtils";
 import { getImageHistoryModelLogoLookup } from "@/lib/image/imageModelLogo";
 import { useI18n } from "@/i18n/useI18n";
@@ -112,6 +113,7 @@ export function ImageHistoryPanel({
             const isCompleted = isImageCompletedStatus(status);
             const isFailed = isImageFailedStatus(status);
             const modelLogoLookup = getImageHistoryModelLogoLookup(item);
+            const failedErrorMessage = isFailed ? getImageUserFacingError(item.errorMessage, t) : "";
 
             return (
               <article
@@ -146,8 +148,8 @@ export function ImageHistoryPanel({
                         {tf((item.outputUrls.length || 1) > 1 ? "image.status.outputCountPlural" : "image.status.outputCount", { count: item.outputUrls.length || 1 })}
                       </span>
                     ) : null}
-                    {isFailed && item.errorMessage ? (
-                      <span className="mt-1 block truncate text-[10px] font-semibold text-[#f2b3a1]/72">{item.errorMessage}</span>
+                    {failedErrorMessage ? (
+                      <span className="mt-1 block truncate text-[10px] font-semibold text-[#f2b3a1]/72">{failedErrorMessage}</span>
                     ) : null}
                   </span>
                 </button>

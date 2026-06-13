@@ -7,6 +7,7 @@ import { ImageOutputStage } from "@/components/image/ImageOutputStage";
 import { ImagePromptPanel } from "@/components/image/ImagePromptPanel";
 import { useImageGeneration } from "@/hooks/useImageGeneration";
 import { useI18n } from "@/i18n/useI18n";
+import { getImageUserFacingError } from "@/lib/image/imageErrorDisplay";
 import { isImageActiveStatus } from "@/lib/image/imageHistoryUtils";
 import type { ImageHistoryItem } from "@/types/image";
 
@@ -27,7 +28,7 @@ export function ImageWorkspace() {
     if (normalized.includes("image generation request failed")) return t("image.errors.generationRequestFailed");
     if (normalized.includes("prompt is required")) return t("image.errors.promptRequired");
     if (normalized.includes("upload failed") || normalized.includes("image upload failed")) return t("image.errors.uploadFailed");
-    return message;
+    return getImageUserFacingError(message, t);
   }, [image.error, t]);
 
   const handleHistorySelect = useCallback((item: ImageHistoryItem) => {
