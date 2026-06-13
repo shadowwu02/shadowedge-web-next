@@ -116,7 +116,6 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
           <DetailRow label={t("image.detail.batch")} value={job.batchCount} />
           <DetailRow label={t("image.detail.cost")} value={chargedCredits ? tf("image.failure.cost", { credits: chargedCredits }) : "--"} />
           <DetailRow label={t("image.detail.references")} value={job.referenceCount} />
-          <DetailRow label={t("image.detail.provider")} value={job.provider || job.providerModel || "--"} />
         </div>
 
         {isFailed ? (

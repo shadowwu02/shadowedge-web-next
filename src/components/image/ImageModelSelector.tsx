@@ -70,7 +70,6 @@ export function ImageModelSelector({
             const tags = [
               model.capabilities.imageToImage ? t("image.model.referencesTag") : "",
               model.capabilities.maxBatchCount > 1 ? tf("image.model.batchTag", { count: model.capabilities.maxBatchCount }) : "",
-              model.provider,
             ].filter(Boolean);
 
             return (
