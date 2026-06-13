@@ -87,7 +87,7 @@ export function SignInForm() {
         </label>
 
         <button
-          className="mt-2 h-12 rounded-2xl bg-[#ffb44d] px-5 text-sm font-black text-[#1f2027] transition hover:bg-[#ffc766] focus:outline-none focus:ring-4 focus:ring-[#ffb44d]/20 disabled:cursor-not-allowed disabled:opacity-60"
+          className="se-button-primary mt-2 h-12 rounded-2xl px-5 text-sm font-black focus:outline-none focus:ring-4 focus:ring-[#f6a935]/20"
           disabled={isLoading}
           type="submit"
         >

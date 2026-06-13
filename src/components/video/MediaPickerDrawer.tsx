@@ -626,7 +626,7 @@ export function MediaPickerDrawer({
           </span>
           <div className="flex gap-2">
             <button
-              className="rounded-full bg-[#ffb44d] px-4 py-2 text-xs font-black text-[#1f2027] transition hover:bg-[#ffc766] disabled:cursor-not-allowed disabled:bg-white/12 disabled:text-white/34"
+              className="se-button-primary rounded-full px-4 py-2 text-xs font-black"
               disabled={!selectedCount}
               onClick={addSelected}
               type="button"

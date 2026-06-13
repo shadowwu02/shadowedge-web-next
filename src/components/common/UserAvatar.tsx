@@ -40,7 +40,7 @@ export function UserAvatar({
   if (!email) {
     return (
       <Link
-        className="inline-flex h-10 items-center justify-center rounded-full border border-[#ffb44d]/38 bg-[#ffb44d]/12 px-4 text-[13px] font-semibold text-[#ffd08a] transition-colors hover:border-[#ffb44d]/58 hover:bg-[#ffb44d]/18"
+        className="se-button-primary inline-flex h-10 items-center justify-center rounded-full px-4 text-[13px] font-semibold"
         href={signInHref}
       >
         {labels.signIn}
@@ -59,7 +59,7 @@ export function UserAvatar({
     <div className="relative">
       <button
         aria-expanded={isOpen}
-        className="grid size-10 place-items-center rounded-full border border-[#ffb44d]/40 bg-[#ffb44d]/14 text-sm font-semibold text-[#ffd08a] shadow-lg shadow-black/18 transition-colors hover:border-[#ffb44d]/62 hover:bg-[#ffb44d]/20"
+        className="se-icon-button-primary grid size-10 place-items-center text-sm font-semibold"
         onClick={() => setIsOpen((current) => !current)}
         type="button"
         title={email}

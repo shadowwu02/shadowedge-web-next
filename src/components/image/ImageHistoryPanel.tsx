@@ -77,21 +77,19 @@ export function ImageHistoryPanel({
       </div>
 
       <div className="flex flex-none flex-wrap gap-1.5 border-b border-white/8 px-3 py-2">
-        {(["all", "completed", "failed"] as const).map((item) => (
-          <button
-            className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors ${
-              filter === item
-                ? "border-[#ffb44d]/35 bg-[#ffb44d]/18 text-[#ffd08a]"
-                : "border-white/8 bg-white/[.035] text-[#b9b9b9]/56 hover:border-[#ffb44d]/22 hover:text-[#f4f4f4]"
-            }`}
-            key={item}
-            onClick={() => setFilter(item)}
-            type="button"
-          >
-            {getFilterLabel(item)}
-            <span className="ml-1.5 text-[10px] opacity-60">{counts[item]}</span>
-          </button>
-        ))}
+        <div className="se-segmented flex flex-wrap gap-1.5 rounded-2xl p-1">
+          {(["all", "completed", "failed"] as const).map((item) => (
+            <button
+              className={`se-segmented-item rounded-full px-3 py-1.5 text-[11px] font-semibold ${filter === item ? "se-segmented-item-active" : ""}`}
+              key={item}
+              onClick={() => setFilter(item)}
+              type="button"
+            >
+              {getFilterLabel(item)}
+              <span className="se-segmented-count text-[10px]">{counts[item]}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="se-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto p-3">

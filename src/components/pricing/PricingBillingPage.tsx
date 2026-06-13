@@ -186,7 +186,7 @@ export function PricingBillingPage() {
                 </ul>
 
                 <button
-                  className="mt-auto min-h-11 rounded-[18px] border border-[#ffb44d]/28 bg-[#ffb44d]/14 px-4 text-sm font-black text-[#ffd08a] transition hover:border-[#ffb44d]/42 hover:bg-[#ffb44d]/18"
+                  className="se-button-primary mt-auto min-h-11 rounded-[18px] px-4 text-sm font-black"
                   type="button"
                 >
                   {t(plan.ctaKey)}
