@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { isImageActiveStatus, isImageCompletedStatus, isImageFailedStatus } from "@/lib/image/imageHistoryUtils";
+import { getImageHistoryModelLogoLookup } from "@/lib/image/imageModelLogo";
 import { useI18n } from "@/i18n/useI18n";
 import { formatTime } from "@/lib/utils";
 import type { ImageHistoryItem } from "@/types/image";
@@ -109,6 +111,7 @@ export function ImageHistoryPanel({
             const isActive = isImageActiveStatus(status);
             const isCompleted = isImageCompletedStatus(status);
             const isFailed = isImageFailedStatus(status);
+            const modelLogoLookup = getImageHistoryModelLogoLookup(item);
 
             return (
               <article
@@ -132,8 +135,11 @@ export function ImageHistoryPanel({
                       <span className="truncate text-[10px] text-[#b9b9b9]/42">{formatTime(item.createdAt)}</span>
                     </span>
                     <span className="mt-1.5 block truncate text-xs font-semibold text-[#f4f4f4]/82">{item.prompt || t("image.history.untitled")}</span>
-                    <span className="mt-1 block truncate text-[10px] text-[#b9b9b9]/45">
-                      {item.model || t("image.references.generic")} - {item.ratio || "auto"} {item.resolution ? `- ${item.resolution}` : ""} {item.quality ? `- ${item.quality}` : ""}
+                    <span className="mt-1 flex min-w-0 items-center gap-1.5 truncate text-[10px] text-[#b9b9b9]/45">
+                      <VideoModelLogo label={item.model || t("image.references.generic")} lookup={modelLogoLookup} size="sm" />
+                      <span className="truncate">
+                        {item.model || t("image.references.generic")} - {item.ratio || "auto"} {item.resolution ? `- ${item.resolution}` : ""} {item.quality ? `- ${item.quality}` : ""}
+                      </span>
                     </span>
                     {isCompleted ? (
                       <span className="mt-1 block text-[10px] font-semibold text-[#b8e7ee]/68">

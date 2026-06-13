@@ -1,6 +1,8 @@
 "use client";
 
+import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { isImageActiveStatus, isImageCompletedStatus, isImageFailedStatus } from "@/lib/image/imageHistoryUtils";
+import { getImageHistoryModelLogoLookup } from "@/lib/image/imageModelLogo";
 import { useI18n } from "@/i18n/useI18n";
 import { formatTime } from "@/lib/utils";
 import type { ImageHistoryItem } from "@/types/image";
@@ -70,6 +72,7 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
   const status = String(job.status || "");
   const isFailed = isImageFailedStatus(status);
   const chargedCredits = job.cost || job.creditsCharged || 0;
+  const modelLogoLookup = getImageHistoryModelLogoLookup(job);
   const statusLabel = (() => {
     if (isImageFailedStatus(status)) return t("image.status.failed");
     if (isImageCompletedStatus(status)) return t("image.status.completed");
@@ -82,7 +85,10 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="se-eyebrow">{t("image.detail.title")}</p>
-          <h3 className="mt-1 truncate text-sm font-black text-[#f4f4f4]">{job.model || t("image.detail.imageJob")}</h3>
+          <h3 className="mt-1 inline-flex max-w-full items-center gap-1.5 truncate text-sm font-black text-[#f4f4f4]">
+            <VideoModelLogo label={job.model || t("image.detail.imageJob")} lookup={modelLogoLookup} size="sm" />
+            <span className="truncate">{job.model || t("image.detail.imageJob")}</span>
+          </h3>
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-2">
           <span className={`se-status rounded-full px-2.5 py-1 text-[10px] font-semibold ${statusClass(status)}`}>{statusLabel}</span>

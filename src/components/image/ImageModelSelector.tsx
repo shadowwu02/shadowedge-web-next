@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { useI18n } from "@/i18n/useI18n";
+import { getImageModelLogoLookup } from "@/lib/image/imageModelLogo";
 import type { ImageModel } from "@/types/image";
 
 function ChevronIcon() {
@@ -11,11 +12,6 @@ function ChevronIcon() {
       <path d="m8 10 4 4 4-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
     </svg>
   );
-}
-
-function getImageModelLogoLookup(model: ImageModel | null | undefined) {
-  if (!model) return "";
-  return [model.id, model.providerModel, model.provider, model.label, model.name].filter(Boolean).join(" ");
 }
 
 export function ImageModelSelector({
