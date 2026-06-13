@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useI18n } from "@/i18n/useI18n";
 import { collectHistoryInputMediaAssets } from "@/lib/media-assets";
+import { getVideoUserFacingError } from "@/lib/video/videoErrorDisplay";
 import { getSafeVideoHistoryView, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { VideoTaskRecord } from "@/types/video";
@@ -75,6 +76,11 @@ function getOutputSourceLabel(record: VideoTaskRecord, t: ReturnType<typeof useI
   return t("video.generation.createOutput");
 }
 
+function isRemakeRecord(record: VideoTaskRecord) {
+  const meta = getRecordMeta(record);
+  return meta.source === "remake" || meta.remake === true || meta.remake_source === "storyboard_shot";
+}
+
 export function HistoryPanel({
   error,
   filter,
@@ -115,10 +121,10 @@ export function HistoryPanel({
     if (isVideoActiveStatus(status)) return t("video.status.processing");
     return fallback || t("video.history.status.unknown");
   };
-  const localizeHistoryMessage = (message: string) => {
+  const localizeHistoryMessage = (message: string, record: VideoTaskRecord) => {
     if (message === "Video generation failed. Please try again later or change the media.") return t("video.errors.generationFailed");
     if (message === "Unable to check this job status. It may be expired. Please check History or retry.") return t("video.result.statusExpired");
-    return message;
+    return getVideoUserFacingError(message, t, { context: isRemakeRecord(record) ? "remake" : "video" });
   };
   const localizeRefundNotice = (notice: string) => {
     const amount = notice.match(/^Refunded\s+(.+?)\s+credits\.$/i)?.[1];
@@ -219,7 +225,7 @@ export function HistoryPanel({
                       {isFailed ? (
                         <div className="mt-2">
                           <span className="line-clamp-2 w-full text-[11px] leading-4 text-[#f2b3a1]/62">
-                            {localizeHistoryMessage(view.errorMessage)}
+                            {localizeHistoryMessage(view.errorMessage, item)}
                             {view.refundNotice ? ` ${localizeRefundNotice(view.refundNotice)}` : ""}
                           </span>
                         </div>

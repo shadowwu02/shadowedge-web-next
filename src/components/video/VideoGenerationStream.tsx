@@ -11,6 +11,7 @@ import {
   isVideoStaleActiveRecord,
   preferLatestVideoTask,
 } from "@/lib/video/historyUtils";
+import { getVideoUserFacingError } from "@/lib/video/videoErrorDisplay";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { UploadMediaItem, VideoTaskRecord } from "@/types/video";
 
@@ -81,6 +82,11 @@ function getOutputSourceLabel(record: VideoTaskRecord, t: ReturnType<typeof useI
   }
 
   return t("video.generation.createOutput");
+}
+
+function isRemakeRecord(record: VideoTaskRecord) {
+  const meta = getRecordMeta(record);
+  return meta.source === "remake" || meta.remake === true || meta.remake_source === "storyboard_shot";
 }
 
 function AddReferenceIcon() {
@@ -183,6 +189,7 @@ function VideoGenerationCard({
   const useResultIssue = getUseResultAsReferenceIssue?.(record) || "";
   const modelLogoLookup = getRecordModelLogoLookup(record, view.modelLabel);
   const sourceLabel = getOutputSourceLabel(record, t);
+  const displayErrorMessage = getVideoUserFacingError(view.errorMessage, t, { context: isRemakeRecord(record) ? "remake" : "video" });
   const statusLabel = isStaleActive
     ? t("video.generation.stale")
     : isFailed
@@ -287,7 +294,7 @@ function VideoGenerationCard({
                 <p className="text-lg font-semibold text-[#f2b3a1]">
                   {isStaleActive ? t("video.generation.stale") : sensitiveFailure ? t("video.generation.sensitive") : t("video.generation.failed")}
                 </p>
-                <p className="mx-auto mt-2 line-clamp-2 max-w-lg text-sm leading-6 text-[#f2b3a1]/54">{view.errorMessage}</p>
+                <p className="mx-auto mt-2 line-clamp-2 max-w-lg text-sm leading-6 text-[#f2b3a1]/54">{displayErrorMessage}</p>
                 <div className="mt-5 flex flex-wrap justify-center gap-2">
                   {onFill ? (
                     <button

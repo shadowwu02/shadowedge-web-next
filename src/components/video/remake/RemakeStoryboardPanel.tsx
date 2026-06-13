@@ -2,6 +2,7 @@
 
 import { useI18n } from "@/i18n/useI18n";
 import { getRemakeShotGenerationKey } from "@/components/video/remake/remakeTypes";
+import { getVideoUserFacingError } from "@/lib/video/videoErrorDisplay";
 import type {
   RemakeKeyframe,
   RemakeSegment,
@@ -177,6 +178,10 @@ function RemakeOutputsPanel({
     return output.status || "--";
   }
 
+  function outputErrorMessage(output: RemakeOutputItem) {
+    return getVideoUserFacingError(output.errorMessage, t, { context: "remake" });
+  }
+
   return (
     <section className="se-card-quiet mt-5 rounded-[28px] p-4">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -211,7 +216,7 @@ function RemakeOutputsPanel({
                         </span>
                         {output.statusKind === "processing" ? <span className="mx-auto mt-4 block size-9 animate-pulse rounded-2xl border border-[#ffb44d]/28 bg-[#ffb44d]/12" /> : null}
                         {output.statusKind === "failed" && output.errorMessage ? (
-                          <p className="mx-auto mt-3 line-clamp-3 max-w-xs text-xs leading-5 text-[#f2b3a1]/70">{output.errorMessage}</p>
+                          <p className="mx-auto mt-3 line-clamp-3 max-w-xs text-xs leading-5 text-[#f2b3a1]/70">{outputErrorMessage(output)}</p>
                         ) : null}
                       </div>
                     </div>
@@ -256,7 +261,7 @@ function RemakeOutputsPanel({
 
                   {output.statusKind === "failed" && output.errorMessage ? (
                     <p className="se-status se-status-failed break-words rounded-[14px] p-2 text-xs leading-5">
-                      {output.errorMessage}
+                      {outputErrorMessage(output)}
                     </p>
                   ) : null}
 
@@ -602,7 +607,7 @@ export function RemakeStoryboardPanel({
                   ) : null}
                   {generation?.status === "failed" ? (
                     <p className="se-status se-status-failed break-words rounded-[16px] p-2 text-xs leading-5">
-                      {generation.error || t("video.remake.shotGenerationFailed")}
+                      {getVideoUserFacingError(generation.error, t, { context: "remake" }) || t("video.remake.shotGenerationFailed")}
                     </p>
                   ) : null}
                 </div>

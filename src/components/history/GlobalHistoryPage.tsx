@@ -8,6 +8,7 @@ import { getImageHistoryTime, isImageActiveStatus, isImageCompletedStatus, isIma
 import { getImageHistoryModelLogoLookup } from "@/lib/image/imageModelLogo";
 import { collectHistoryInputMediaAssets } from "@/lib/media-assets";
 import { getVideoHistory } from "@/lib/video-api";
+import { getVideoUserFacingError } from "@/lib/video/videoErrorDisplay";
 import { getSafeVideoHistoryView, getVideoHistoryStableKey, getVideoHistoryTime, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
 import { useI18n } from "@/i18n/useI18n";
 import { formatTime, isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
@@ -162,7 +163,7 @@ function makeVideoHistoryItem(record: VideoTaskRecord, t: ReturnType<typeof useI
       { label: t("history.global.detail.references"), value: referenceCount },
       ...(kind === "remake" && shotNumber ? [{ label: t("history.global.detail.shot"), value: shotNumber }] : []),
     ],
-    errorMessage: status === "failed" ? view.errorMessage : "",
+    errorMessage: status === "failed" ? getVideoUserFacingError(view.errorMessage, t, { context: kind === "remake" ? "remake" : "video" }) : "",
     jobId: view.jobLabel === "--" ? getVideoHistoryStableKey(record, "") : view.jobLabel,
     key: `${kind}:${getVideoHistoryStableKey(record, view.key)}`,
     kind,

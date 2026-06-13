@@ -6,6 +6,7 @@ import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { useI18n } from "@/i18n/useI18n";
 import { collectHistoryInputMediaAssets } from "@/lib/media-assets";
 import { getSafeVideoHistoryView, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
+import { getVideoUserFacingError } from "@/lib/video/videoErrorDisplay";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { UploadMediaItem, VideoTaskRecord } from "@/types/video";
 
@@ -103,6 +104,15 @@ function getRecordModelLogoLookup(record: VideoTaskRecord, modelLabel: string) {
   return [record.modelId, record.model, record.frontendModel, record.providerModel, record.provider, modelLabel].filter(Boolean).join(" ");
 }
 
+function getRecordMeta(record: VideoTaskRecord) {
+  return record.meta && typeof record.meta === "object" && !Array.isArray(record.meta) ? (record.meta as Record<string, unknown>) : {};
+}
+
+function isRemakeRecord(record: VideoTaskRecord) {
+  const meta = getRecordMeta(record);
+  return meta.source === "remake" || meta.remake === true || meta.remake_source === "storyboard_shot";
+}
+
 export function VideoOutputDetailPanel({
   getAddReferenceIssue,
   getUseResultAsReferenceIssue,
@@ -149,6 +159,7 @@ export function VideoOutputDetailPanel({
   const isProcessing = isVideoActiveStatus(view.status) && !isStaleActive;
   const useResultIssue = getUseResultAsReferenceIssue?.(record) || "";
   const modelLogoLookup = getRecordModelLogoLookup(record, view.modelLabel);
+  const displayErrorMessage = getVideoUserFacingError(view.errorMessage, t, { context: isRemakeRecord(record) ? "remake" : "video" });
   const statusLabel = isStaleActive
     ? t("video.generation.stale")
     : isFailed
@@ -262,7 +273,7 @@ export function VideoOutputDetailPanel({
 
         {isFailed || isStaleActive ? (
           <div className="line-clamp-6 rounded-[20px] border border-[#8c4632]/42 bg-[#2a1012] p-3 text-xs leading-5 text-[#f2b3a1]/70">
-            {view.errorMessage}
+            {displayErrorMessage}
             {view.refundNotice ? ` ${view.refundNotice}` : ""}
           </div>
         ) : null}
