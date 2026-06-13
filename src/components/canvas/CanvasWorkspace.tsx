@@ -361,7 +361,7 @@ export function CanvasWorkspace() {
                   {t("canvas.viewHistory")}
                 </button>
               ) : null}
-              <button className="se-button-ghost justify-center rounded-2xl px-4 py-3 text-sm font-semibold" onClick={handleSave} type="button">
+              <button className="se-button-primary justify-center rounded-2xl px-4 py-3 text-sm font-semibold" onClick={handleSave} type="button">
                 {t("canvas.saveWorkflow")}
               </button>
               <button className="se-button-ghost justify-center rounded-2xl px-4 py-3 text-sm font-semibold" onClick={handleReset} type="button">
