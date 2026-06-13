@@ -5,7 +5,7 @@ import { dictionary, type Locale } from "@/i18n/dictionary";
 
 const languageStorageKey = "se_lang";
 const languageChangeEvent = "shadowedge:language-change";
-type DictionaryKey = keyof (typeof dictionary)["en"];
+export type DictionaryKey = keyof (typeof dictionary)["en"];
 
 export function formatI18nText(template: string, values?: Record<string, string | number | null | undefined>) {
   if (!values) return template;
