@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ChangeEvent, KeyboardEvent, MouseEvent as ReactMouseEvent } from "react";
+import { createPortal } from "react-dom";
 import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
 import {
   findPromptMentions,
@@ -31,7 +32,9 @@ type ReplaceRange = {
 
 type MenuPosition = {
   left: number;
+  maxHeight: number;
   top: number;
+  width: number;
 };
 
 type InsertMentionInput = {
@@ -48,15 +51,32 @@ type OpenMentionMenuInput = {
 };
 
 const mentionGroups: UploadMediaType[] = ["image", "video", "audio"];
+const menuSafeGap = 12;
+const menuDesktopMaxHeight = 420;
+const menuMobileMaxHeight = 360;
+const menuMaxWidth = 340;
+const menuMinWidth = 286;
 
-function clampMenuPosition(left: number, top: number) {
-  const menuWidth = 300;
-  const menuHeight = 340;
-  const gap = 12;
+function getMentionMenuPosition(anchor: Pick<DOMRect, "bottom" | "left" | "top">): MenuPosition {
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const isMobile = viewportWidth < 640;
+  const width = Math.min(menuMaxWidth, Math.max(menuMinWidth, viewportWidth - menuSafeGap * 2));
+  const desiredMaxHeight = Math.min(isMobile ? menuMobileMaxHeight : menuDesktopMaxHeight, viewportHeight - menuSafeGap * 2);
+  const belowTop = anchor.bottom + 8;
+  const aboveBottom = anchor.top - 8;
+  const belowSpace = viewportHeight - menuSafeGap - belowTop;
+  const aboveSpace = aboveBottom - menuSafeGap;
+  const shouldOpenUp = belowSpace < Math.min(240, desiredMaxHeight) && aboveSpace > belowSpace;
+  const availableHeight = Math.max(160, shouldOpenUp ? aboveSpace : belowSpace);
+  const maxHeight = Math.min(desiredMaxHeight, availableHeight);
+  const rawTop = shouldOpenUp ? aboveBottom - maxHeight : belowTop;
 
   return {
-    left: Math.max(gap, Math.min(left, window.innerWidth - menuWidth - gap)),
-    top: Math.max(gap, Math.min(top, window.innerHeight - menuHeight - gap)),
+    left: Math.max(menuSafeGap, Math.min(anchor.left, viewportWidth - width - menuSafeGap)),
+    maxHeight,
+    top: Math.max(menuSafeGap, Math.min(rawTop, viewportHeight - maxHeight - menuSafeGap)),
+    width,
   };
 }
 
@@ -92,7 +112,12 @@ function getTextareaCaretClientPosition(textarea: HTMLTextAreaElement, caretInde
 
   const markerRect = marker.getBoundingClientRect();
   const lineHeight = Number.parseFloat(style.lineHeight) || 22;
-  const position = clampMenuPosition(markerRect.left, markerRect.top - textarea.scrollTop + lineHeight + 8);
+  const top = markerRect.top - textarea.scrollTop;
+  const position = getMentionMenuPosition({
+    bottom: top + lineHeight,
+    left: markerRect.left,
+    top,
+  });
 
   mirror.remove();
   return position;
@@ -169,8 +194,11 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
   const { t, tf } = useI18n();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuAnchorRef = useRef<HTMLElement | null>(null);
+  const menuCaretIndexRef = useRef<number | null>(null);
+  const menuRafRef = useRef<number | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<MenuPosition>({ left: 0, top: 0 });
+  const [menuPosition, setMenuPosition] = useState<MenuPosition>({ left: 0, maxHeight: 360, top: 0, width: 286 });
   const [replaceRange, setReplaceRange] = useState<ReplaceRange | null>(null);
 
   const mentionItems = useMemo(() => getReadyMentionableMediaItems(media), [media]);
@@ -180,6 +208,8 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
   );
 
   function openMentionMenu(textarea: HTMLTextAreaElement, caretIndex: number) {
+    menuAnchorRef.current = null;
+    menuCaretIndexRef.current = caretIndex;
     setReplaceRange(findMentionReplaceRange(textarea.value, textarea.selectionStart || caretIndex, textarea.selectionEnd || caretIndex));
     setMenuPosition(getTextareaCaretClientPosition(textarea, caretIndex));
     setIsMenuOpen(true);
@@ -189,15 +219,17 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     const textarea = textareaRef.current;
     const selectionStart = textarea?.selectionStart ?? value.length;
     const selectionEnd = textarea?.selectionEnd ?? selectionStart;
+    menuAnchorRef.current = anchorEl || null;
+    menuCaretIndexRef.current = selectionStart;
     setReplaceRange(textarea ? findMentionReplaceRange(textarea.value, selectionStart, selectionEnd) : { start: value.length, end: value.length });
 
     if (anchorEl) {
       const rect = anchorEl.getBoundingClientRect();
-      setMenuPosition(clampMenuPosition(rect.left, rect.bottom + 10));
+      setMenuPosition(getMentionMenuPosition(rect));
     } else if (textarea) {
       setMenuPosition(getTextareaCaretClientPosition(textarea, selectionStart));
     } else {
-      setMenuPosition(clampMenuPosition(18, 88));
+      setMenuPosition(getMentionMenuPosition({ bottom: 88, left: 18, top: 76 }));
     }
 
     setIsMenuOpen(true);
@@ -210,6 +242,8 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
   function closeMentionMenu() {
     setIsMenuOpen(false);
     setReplaceRange(null);
+    menuAnchorRef.current = null;
+    menuCaretIndexRef.current = null;
   }
 
   function handleChange(event: ChangeEvent<HTMLTextAreaElement>) {
@@ -350,6 +384,44 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
   useEffect(() => {
     if (!isMenuOpen) return;
 
+    function isRectVisible(rect: DOMRect) {
+      return rect.bottom > 0 && rect.right > 0 && rect.top < window.innerHeight && rect.left < window.innerWidth;
+    }
+
+    function updateMenuPosition() {
+      const anchor = menuAnchorRef.current;
+      if (anchor?.isConnected) {
+        const rect = anchor.getBoundingClientRect();
+        if (!isRectVisible(rect)) {
+          closeMentionMenu();
+          return;
+        }
+        setMenuPosition(getMentionMenuPosition(rect));
+        return;
+      }
+
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      const rect = textarea.getBoundingClientRect();
+      if (!isRectVisible(rect)) {
+        closeMentionMenu();
+        return;
+      }
+
+      const caretIndex = textarea.selectionStart ?? menuCaretIndexRef.current ?? value.length;
+      menuCaretIndexRef.current = caretIndex;
+      setMenuPosition(getTextareaCaretClientPosition(textarea, caretIndex));
+    }
+
+    function scheduleMenuPositionUpdate() {
+      if (menuRafRef.current) window.cancelAnimationFrame(menuRafRef.current);
+      menuRafRef.current = window.requestAnimationFrame(() => {
+        menuRafRef.current = null;
+        updateMenuPosition();
+      });
+    }
+
     function handlePointerDown(event: PointerEvent) {
       const target = event.target as Node | null;
       if (!target) return;
@@ -358,19 +430,22 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     }
 
     window.addEventListener("pointerdown", handlePointerDown);
-    window.addEventListener("scroll", closeMentionMenu, true);
-    window.addEventListener("resize", closeMentionMenu);
+    window.addEventListener("scroll", scheduleMenuPositionUpdate, true);
+    window.addEventListener("resize", scheduleMenuPositionUpdate);
 
     return () => {
       window.removeEventListener("pointerdown", handlePointerDown);
-      window.removeEventListener("scroll", closeMentionMenu, true);
-      window.removeEventListener("resize", closeMentionMenu);
+      window.removeEventListener("scroll", scheduleMenuPositionUpdate, true);
+      window.removeEventListener("resize", scheduleMenuPositionUpdate);
+      if (menuRafRef.current) window.cancelAnimationFrame(menuRafRef.current);
     };
-  }, [isMenuOpen]);
+  }, [isMenuOpen, value]);
 
   const menuStyle: CSSProperties = {
     left: menuPosition.left,
+    maxHeight: menuPosition.maxHeight,
     top: menuPosition.top,
+    width: menuPosition.width,
   };
 
   function mentionGroupTitle(type: UploadMediaType) {
@@ -410,9 +485,9 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
         <p className="mt-3 text-xs leading-5 text-white/38">{t("video.prompt.helper")}</p>
       )}
 
-      {isMenuOpen ? (
+      {isMenuOpen ? createPortal(
         <div
-          className="se-scrollbar fixed z-[80] max-h-[320px] w-[286px] overflow-y-auto rounded-2xl border border-[#ffb44d]/22 bg-[#0f141e]/98 p-1.5 shadow-[0_18px_46px_rgba(0,0,0,.38)] backdrop-blur-xl"
+          className="se-scrollbar fixed z-[1200] max-w-[calc(100vw-24px)] touch-pan-y overscroll-contain overflow-y-auto rounded-2xl border border-[#ffb44d]/22 bg-[#0f141e]/98 p-1.5 shadow-[0_18px_46px_rgba(0,0,0,.38)] backdrop-blur-xl"
           onMouseDown={handleMenuMouseDown}
           ref={menuRef}
           style={menuStyle}
@@ -457,7 +532,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
             </div>
           )}
         </div>
-      ) : null}
+        , document.body) : null}
     </section>
   );
 }
