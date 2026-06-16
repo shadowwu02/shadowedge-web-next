@@ -152,6 +152,37 @@ const defaultQualityMultiplier: Partial<Record<VideoQuality, number>> = {
   ultra: 2.4,
 };
 
+const seedance20CreditTable: VideoCreditRules["table"] = {
+  "4": { "480p": 12, "720p": 18, "1080p": 36 },
+  "5": { "480p": 15, "720p": 23, "1080p": 45 },
+  "6": { "480p": 18, "720p": 27, "1080p": 54 },
+  "7": { "480p": 21, "720p": 32, "1080p": 63 },
+  "8": { "480p": 24, "720p": 36, "1080p": 72 },
+  "9": { "480p": 27, "720p": 41, "1080p": 81 },
+  "10": { "480p": 30, "720p": 45, "1080p": 90 },
+  "11": { "480p": 33, "720p": 50, "1080p": 99 },
+  "12": { "480p": 36, "720p": 54, "1080p": 108 },
+  "13": { "480p": 39, "720p": 59, "1080p": 117 },
+  "14": { "480p": 42, "720p": 63, "1080p": 126 },
+  "15": { "480p": 45, "720p": 68, "1080p": 135 },
+};
+
+const kling30CreditTable: VideoCreditRules["table"] = {
+  "3": { "720p": 6, "1080p": 6, "4K": 18 },
+  "4": { "720p": 7, "1080p": 8, "4K": 24 },
+  "5": { "720p": 9, "1080p": 10, "4K": 30 },
+  "6": { "720p": 11, "1080p": 12, "4K": 36 },
+  "7": { "720p": 12, "1080p": 14, "4K": 42 },
+  "8": { "720p": 14, "1080p": 16, "4K": 48 },
+  "9": { "720p": 16, "1080p": 18, "4K": 54 },
+  "10": { "720p": 18, "1080p": 20, "4K": 60 },
+  "11": { "720p": 19, "1080p": 22, "4K": 66 },
+  "12": { "720p": 21, "1080p": 24, "4K": 72 },
+  "13": { "720p": 23, "1080p": 26, "4K": 78 },
+  "14": { "720p": 25, "1080p": 28, "4K": 84 },
+  "15": { "720p": 27, "1080p": 30, "4K": 90 },
+};
+
 const defaultRule: VideoModelRule = {
   modelId: "generic",
   label: "Generic video model",
@@ -183,7 +214,7 @@ const concreteRules: VideoModelRule[] = [
     label: "Seedance 2.0",
     provider: "seedance",
     ratios: seedanceRatios,
-    durations: duration5To15,
+    durations: duration4To15,
     qualities: seedanceQualities,
     uploadSlots: ["media"],
     supportsAudioReference: true,
@@ -193,7 +224,7 @@ const concreteRules: VideoModelRule[] = [
     supportsEndFrame: true,
     supportsGeneratedResultAsReference: false,
     credits: 12,
-    creditRules: withCreditBase(12),
+    creditRules: { baseCredits: 12, table: seedance20CreditTable },
     modes: ["std", "fast"],
     defaultMode: "std",
     mediaMode: "medias",
@@ -205,7 +236,7 @@ const concreteRules: VideoModelRule[] = [
     ],
     notes: [
       "Rules migrated from legacy /api/video/models normalization and backend Higgsfield seedance_2_0 config.",
-      "Unified Seedance service also accepts 4s, but the visible legacy Higgsfield config starts at 5s.",
+      "Credits follow the 2026-06 Seedance 2.0 duration and resolution table.",
     ],
   }),
   makeRule({
@@ -353,19 +384,19 @@ const concreteRules: VideoModelRule[] = [
     supportedMediaTypes: ["image", "video", "audio"],
     uploadSlots: ["media"],
     ratios: ["16:9", "9:16", "1:1"],
-    durations: duration5To15,
-    qualities: ["720p"],
+    durations: duration3To15,
+    qualities: standardQualities,
     supportsAudioReference: true,
     supportsVideoReference: true,
     supportsImageReference: true,
-    credits: 22,
-    creditRules: withCreditBase(22),
+    credits: 6,
+    creditRules: { baseCredits: 6, table: kling30CreditTable },
     modes: ["std", "pro"],
     defaultMode: "std",
     mediaMode: "medias",
     qualityParam: null,
     constraints: ["Legacy guide warns reference video and audio generation should not be mixed randomly."],
-    notes: ["Migrated from HIGGSFIELD_VIDEO_CONFIG.kling3_0."],
+    notes: ["Credits follow the 2026-06 Kling 3.0 duration and resolution table."],
   }),
   makeRule({
     modelId: "kling_3_0_4k",
@@ -383,8 +414,8 @@ const concreteRules: VideoModelRule[] = [
     supportsStartFrame: true,
     supportsEndFrame: true,
     supportsImageReference: true,
-    credits: 22,
-    creditRules: withCreditBase(22),
+    credits: 18,
+    creditRules: { baseCredits: 18, table: kling30CreditTable },
     mediaMode: "input_image",
     constraints: ["WaveSpeed model is image-to-video and accepts optional end image."],
     notes: ["Migrated from wavespeed-video-service Kling 3.0 4K metadata."],
@@ -758,6 +789,18 @@ function coerceDuration(value: unknown) {
   return Number.isFinite(duration) ? duration : undefined;
 }
 
+function lookupCreditTableValue(table: VideoCreditRules["table"], duration: number, quality: string) {
+  const row = table?.[String(duration)];
+  if (!row) return undefined;
+
+  const exact = row[quality as VideoQuality];
+  if (typeof exact === "number") return exact;
+
+  const normalizedQuality = String(quality || "").toLowerCase();
+  const matched = Object.entries(row).find(([key]) => key.toLowerCase() === normalizedQuality);
+  return typeof matched?.[1] === "number" ? matched[1] : undefined;
+}
+
 export function getDefaultVideoModelRule(): VideoModelRule {
   return defaultRule;
 }
@@ -803,6 +846,12 @@ export function estimateVideoCreditsForParams(
   const rule = getVideoModelRule(modelId);
   const normalized = normalizeVideoParamsForModel(modelId, params);
   const creditRules = rule.creditRules || {};
+  const tableCredits = lookupCreditTableValue(creditRules.table, normalized.duration, normalized.quality);
+
+  if (typeof tableCredits === "number") {
+    return Math.max(1, tableCredits);
+  }
+
   const base = Number(creditRules.baseCredits || rule.credits || fallbackCredits || defaultRule.creditRules.baseCredits || 12);
   const durationFactor = creditRules.durationMultiplier === "linear_from_5s"
     ? Math.max(1, normalized.duration / 5)
