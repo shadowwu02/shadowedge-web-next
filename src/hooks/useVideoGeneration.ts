@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/i18n/useI18n";
 import { getCurrentUserProfile } from "@/lib/auth-api";
+import { formatGenerationConcurrencyLimitError } from "@/lib/generationConcurrencyError";
 import { createVideoTask, getVideoHistory, getVideoStatus, saveVideoHistory } from "@/lib/video-api";
 import { buildMediaAwarePrompt, getReadyMentionableMediaItems, toGenerationMediaList } from "@/lib/video-mentions";
 import { estimateVideoCreditsForParams } from "@/lib/video/videoModelRules";
@@ -190,7 +191,7 @@ function markStatusCheckExpired(base: VideoTaskRecord, message: string): VideoTa
 }
 
 export function useVideoGeneration() {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const [task, setTask] = useState<VideoTaskRecord | null>(null);
   const [localHistory, setLocalHistory] = useState<VideoTaskRecord[]>([]);
   const [serverHistory, setServerHistory] = useState<VideoHistoryItem[]>([]);
@@ -275,9 +276,13 @@ export function useVideoGeneration() {
 
     try {
       const currentActiveCount = getActiveTaskCount(visibleHistory);
+      const maxConcurrency = Math.max(1, Math.floor(Number(options.maxConcurrency || 1)));
 
-      if (currentActiveCount > 0) {
-        throw new Error(submitValidationCopy.activeGeneration);
+      if (currentActiveCount >= maxConcurrency) {
+        throw new Error(`${t("generation.errors.concurrencyLimitReached")} ${tf("generation.errors.activeTasks", {
+          active: currentActiveCount,
+          max: maxConcurrency,
+        })}`);
       }
 
       const validationMessage = validateSubmitOptions(options, submitValidationCopy);
@@ -326,14 +331,16 @@ export function useVideoGeneration() {
       void refreshCredits();
       return nextTask;
     } catch (submitError) {
-      const message = submitError instanceof Error ? submitError.message : t("video.errors.generationRequestFailed");
+      const message =
+        formatGenerationConcurrencyLimitError(submitError, t, tf) ||
+        (submitError instanceof Error ? submitError.message : t("video.errors.generationRequestFailed"));
       setError(message);
       options.onSubmitError?.(message);
       return null;
     } finally {
       setIsSubmitting(false);
     }
-  }, [isSubmitting, refreshCredits, submitValidationCopy, t, visibleHistory]);
+  }, [isSubmitting, refreshCredits, submitValidationCopy, t, tf, visibleHistory]);
 
   const refreshTask = useCallback(async (jobId: string) => {
     const currentTask = taskRef.current;

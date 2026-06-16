@@ -269,6 +269,7 @@ export function AccountCreditsPage() {
   const rawProfile = asRecord(profile);
   const creditsBalance = pickNumber(profile?.credits_balance, profile?.credits, rawProfile.creditsBalance, rawProfile.balance, 0) || 0;
   const maxConcurrency = pickNumber(profile?.max_concurrency, profile?.maxConcurrency, profile?.concurrency);
+  const accountPlan = pickString(profile?.plan, rawProfile.plan);
   const accountStatus = pickString(rawProfile.status, rawProfile.accountStatus, rawProfile.account_status) || (isSignedIn ? t("account.statusActive") : t("account.statusSignedOut"));
 
   const kindLabel = (kind: AccountActivityKind) => {
@@ -335,6 +336,7 @@ export function AccountCreditsPage() {
               <div className="se-card-quiet rounded-[26px] p-4">
                 <p className="se-eyebrow">{t("account.accountStatus")}</p>
                 <p className="mt-3 text-lg font-black text-[#f4f4f4]">{accountStatus}</p>
+                {accountPlan ? <p className="mt-2 text-xs text-[#b9b9b9]/52">{tf("account.planValue", { plan: accountPlan })}</p> : null}
                 <p className="mt-2 text-xs text-[#b9b9b9]/52">
                   {maxConcurrency ? tf("account.maxConcurrencyValue", { count: maxConcurrency }) : t("account.maxConcurrencyUnknown")}
                 </p>

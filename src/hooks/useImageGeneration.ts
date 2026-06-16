@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildImageGenerateRequest, generateImage, getImageHistory, getImageModels, getImageStatus, uploadImage } from "@/lib/image-api";
 import { useI18n } from "@/i18n/useI18n";
+import { formatGenerationConcurrencyLimitError } from "@/lib/generationConcurrencyError";
 import {
   isImageActiveStatus,
   isImageTerminalStatus,
@@ -141,6 +142,9 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
 
   const formatImageError = useCallback(
     (labelKey: Parameters<typeof t>[0], error: unknown, fallback: string) => {
+      const concurrencyMessage = formatGenerationConcurrencyLimitError(error, t, tf);
+      if (concurrencyMessage) return concurrencyMessage;
+
       const label = t(labelKey);
       const details = error instanceof Error ? error.message.trim() : "";
       if (!details || details === fallback || details === label) return label;

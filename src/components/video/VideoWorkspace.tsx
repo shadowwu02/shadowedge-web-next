@@ -1189,7 +1189,14 @@ export function VideoWorkspace() {
 
   const isUploadingMedia = isAssetPickerUploading || media.some((item) => item.uploadStatus === "uploading");
   const isCurrentTaskProcessing = Boolean(task && isVideoActiveStatus(task.status) && !isVideoStaleActiveRecord(task));
-  const isProcessing = activeTaskCount > 0 || isCurrentTaskProcessing;
+  const effectiveMaxConcurrency = Math.max(1, Math.floor(Number(maxConcurrency || 1)));
+  const visibleActiveTaskCount = Math.max(activeTaskCount, isCurrentTaskProcessing ? 1 : 0);
+  const isProcessing = visibleActiveTaskCount >= effectiveMaxConcurrency;
+  const concurrencyLabel = tf("generation.errors.activeTasks", {
+    active: visibleActiveTaskCount,
+    max: effectiveMaxConcurrency,
+  });
+  const concurrencyLimitNotice = `${t("generation.errors.concurrencyLimitReached")} ${concurrencyLabel}`;
   const selectedModelRuleId = getVideoModelRuleId(selectedModel);
   const selectedModelRule = useMemo(() => getVideoModelRule(selectedModelRuleId), [selectedModelRuleId]);
   const isAudioSupported = selectedModel.supportsAudio !== false;
@@ -1307,8 +1314,8 @@ export function VideoWorkspace() {
       }
 
       if (isProcessing) {
-        setWorkspaceNotice(t("video.errors.activeGeneration"));
-        failShot(t("video.errors.activeGeneration"));
+        setWorkspaceNotice(concurrencyLimitNotice);
+        failShot(concurrencyLimitNotice);
         return;
       }
 
@@ -1419,6 +1426,7 @@ export function VideoWorkspace() {
     },
     [
       hasEnoughCredits,
+      concurrencyLimitNotice,
       isProcessing,
       isSignedIn,
       isUploadingMedia,
@@ -1834,7 +1842,7 @@ export function VideoWorkspace() {
     if (!remakeStoryboard || !unfinishedRemakeShots.length) return;
 
     if (!canGenerateAllRemakeShots) {
-      setWorkspaceNotice(t("video.errors.activeGeneration"));
+      setWorkspaceNotice(concurrencyLimitNotice);
       return;
     }
 
@@ -1868,7 +1876,7 @@ export function VideoWorkspace() {
       return next;
     });
     setWorkspaceNotice(t("video.remake.queueRunning"));
-  }, [canGenerateAllRemakeShots, remakeStoryboard, t, unfinishedRemakeShots]);
+  }, [canGenerateAllRemakeShots, concurrencyLimitNotice, remakeStoryboard, t, unfinishedRemakeShots]);
 
   const handleRetryAllFailedRemakeShots = useCallback(() => {
     if (!remakeStoryboard) return;
@@ -1879,7 +1887,7 @@ export function VideoWorkspace() {
     }
 
     if (!canRetryAllFailedRemakeShots) {
-      setWorkspaceNotice(t("video.errors.activeGeneration"));
+      setWorkspaceNotice(concurrencyLimitNotice);
       return;
     }
 
@@ -1918,7 +1926,7 @@ export function VideoWorkspace() {
       return next;
     });
     setWorkspaceNotice(t("video.remake.retryingFailedShots"));
-  }, [canRetryAllFailedRemakeShots, displayedRemakeShotGenerations, failedRemakeShots, remakeStoryboard, t]);
+  }, [canRetryAllFailedRemakeShots, concurrencyLimitNotice, displayedRemakeShotGenerations, failedRemakeShots, remakeStoryboard, t]);
 
   const handleCancelRemakeQueue = useCallback(() => {
     const cancelledRunId = remakeShotQueue.queueRunId;
@@ -2153,7 +2161,7 @@ export function VideoWorkspace() {
     }
 
     if (isProcessing) {
-      setWorkspaceNotice(t("video.errors.activeGeneration"));
+      setWorkspaceNotice(concurrencyLimitNotice);
       return;
     }
 
@@ -2179,7 +2187,7 @@ export function VideoWorkspace() {
       media,
       mentionBindings: reconciledMentionBindings,
     });
-  }, [effectiveGenerateAudio, hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, maxConcurrency, media, params, prompt, reconciledMentionBindings, selectedModel, submit, t, token]);
+  }, [concurrencyLimitNotice, effectiveGenerateAudio, hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, maxConcurrency, media, params, prompt, reconciledMentionBindings, selectedModel, submit, t, token]);
 
   const handleRetry = useCallback(
     (record: (typeof history)[number]) => {
@@ -2491,6 +2499,9 @@ export function VideoWorkspace() {
 
         {workspaceMode === "remake" ? null : (
           <div className="shrink-0 border-t border-[rgba(244,244,244,0.08)] p-3.5">
+            {visibleActiveTaskCount > 0 ? (
+              <p className="mb-2 text-xs font-semibold text-[#b9b9b9]/64">{concurrencyLabel}</p>
+            ) : null}
             <GenerateButton
               credits={estimatedCredits}
               disabled={!canGenerate}

@@ -7,6 +7,8 @@ export type ShadowEdgeUser = {
 export type ShadowEdgeProfile = {
   email?: string;
   name?: string;
+  plan?: string;
+  status?: string;
   credits?: number;
   credits_balance?: number;
   max_concurrency?: number;
