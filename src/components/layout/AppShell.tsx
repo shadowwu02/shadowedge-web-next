@@ -36,6 +36,7 @@ export function AppShell({
   const userLabels = {
     logout: t("account.logout"),
     signIn: t("account.signIn"),
+    signUp: t("auth.signUp"),
     signedIn: t("account.signedIn"),
     videoWorkspace: t("account.videoWorkspace"),
   };

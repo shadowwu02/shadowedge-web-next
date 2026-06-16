@@ -8,6 +8,7 @@ import { clearAuthSession } from "@/lib/auth";
 export type UserAvatarLabels = {
   logout: string;
   signIn: string;
+  signUp: string;
   signedIn: string;
   videoWorkspace: string;
 };
@@ -15,6 +16,7 @@ export type UserAvatarLabels = {
 const defaultLabels: UserAvatarLabels = {
   logout: "Logout",
   signIn: "Sign in",
+  signUp: "Sign up",
   signedIn: "Signed in",
   videoWorkspace: "Video workspace",
 };
@@ -36,15 +38,24 @@ export function UserAvatar({
   const initial = label.trim().charAt(0).toUpperCase() || "S";
   const safeSignInNext = signInNext.startsWith("/") && !signInNext.startsWith("//") ? signInNext : "/workspace/video";
   const signInHref = `/sign-in?next=${encodeURIComponent(safeSignInNext)}`;
+  const signUpHref = `/sign-up?next=${encodeURIComponent(safeSignInNext)}`;
 
   if (!email) {
     return (
-      <Link
-        className="se-button-primary inline-flex h-10 items-center justify-center rounded-full px-4 text-[13px] font-semibold"
-        href={signInHref}
-      >
-        {labels.signIn}
-      </Link>
+      <div className="flex items-center gap-2">
+        <Link
+          className="se-button-secondary hidden h-10 items-center justify-center rounded-full px-4 text-[13px] font-semibold sm:inline-flex"
+          href={signInHref}
+        >
+          {labels.signIn}
+        </Link>
+        <Link
+          className="se-button-primary inline-flex h-10 items-center justify-center rounded-full px-4 text-[13px] font-semibold"
+          href={signUpHref}
+        >
+          {labels.signUp}
+        </Link>
+      </div>
     );
   }
 

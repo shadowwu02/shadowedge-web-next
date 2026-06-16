@@ -30,6 +30,20 @@ export type SignInResult = {
   profile: ShadowEdgeProfile | null;
 };
 
+type AuthRegisterPayload = {
+  email?: string;
+  profile?: ShadowEdgeProfile;
+  user?: ShadowEdgeUser;
+  userId?: string;
+};
+
+export type SignUpResult = {
+  email: string;
+  profile: ShadowEdgeProfile | null;
+  user: ShadowEdgeUser | null;
+  userId: string;
+};
+
 export async function getCurrentUserProfile(): Promise<AuthMeResult> {
   const envelope = await apiRequest<AuthMePayload>("/api/auth/me", {
     method: "GET",
@@ -77,6 +91,27 @@ export async function signInWithPassword(email: string, password: string): Promi
   return {
     user: data.user || null,
     profile: data.profile || null,
+  };
+}
+
+export async function registerWithPassword(email: string, password: string): Promise<SignUpResult> {
+  const cleanEmail = email.trim().toLowerCase();
+  const envelope = await apiRequest<AuthRegisterPayload>("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify({
+      email: cleanEmail,
+      password,
+    }),
+    token: "",
+  });
+
+  const data = envelope.data || {};
+
+  return {
+    email: data.email || cleanEmail,
+    profile: data.profile || null,
+    user: data.user || null,
+    userId: data.userId || data.user?.id || "",
   };
 }
 
