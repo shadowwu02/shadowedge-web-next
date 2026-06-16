@@ -1,5 +1,6 @@
 import { apiRequest } from "@/lib/api";
 import { getStoredRefreshToken, saveAuthSession, saveCachedProfile, type AuthSessionPayload } from "@/lib/auth";
+import { ApiError } from "@/types/api";
 import type { ShadowEdgeProfile, ShadowEdgeUser } from "@/types/user";
 
 type AuthMePayload = {
@@ -113,6 +114,15 @@ export async function registerWithPassword(email: string, password: string): Pro
     user: data.user || null,
     userId: data.userId || data.user?.id || "",
   };
+}
+
+export function isAuthRateLimitError(error: unknown) {
+  if (error instanceof ApiError) {
+    return error.status === 429 || error.code === "AUTH_RATE_LIMITED";
+  }
+
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  return message.includes("too many") || message.includes("rate limit");
 }
 
 export async function refreshAuthSession() {

@@ -3,7 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { registerWithPassword, signInWithPassword } from "@/lib/auth-api";
+import { isAuthRateLimitError, registerWithPassword, signInWithPassword } from "@/lib/auth-api";
 import { getSafeAuthNext } from "@/lib/auth-routes";
 import { useI18n } from "@/i18n/useI18n";
 
@@ -69,7 +69,7 @@ export function SignUpForm() {
         router.replace(`/sign-in?registered=1&next=${encodeURIComponent(nextPath)}`);
       }
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : t("auth.registrationFailed"));
+      setStatus(isAuthRateLimitError(error) ? t("auth.tooManyAttempts") : error instanceof Error ? error.message : t("auth.registrationFailed"));
     } finally {
       setIsLoading(false);
     }
