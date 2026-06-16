@@ -15,6 +15,7 @@ export function SignInForm() {
   const signUpHref = `/sign-up?next=${encodeURIComponent(nextPath)}`;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [status, setStatus] = useState(searchParams.get("registered") === "1" ? t("auth.registeredSignInHint") : "");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -65,14 +66,24 @@ export function SignInForm() {
 
         <label className="grid gap-2">
           <span className="text-xs font-bold uppercase tracking-[.16em] text-white/42">{t("auth.password")}</span>
-          <input
-            autoComplete="current-password"
-            className="h-12 rounded-2xl border border-white/10 bg-black/30 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-white/25 focus:border-[#ffb44d]/65 focus:ring-4 focus:ring-[#ffb44d]/10"
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder={t("auth.currentPasswordPlaceholder")}
-            type="password"
-            value={password}
-          />
+          <div className="relative">
+            <input
+              autoComplete="current-password"
+              className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 px-4 pr-20 text-sm font-semibold text-white outline-none transition placeholder:text-white/25 focus:border-[#ffb44d]/65 focus:ring-4 focus:ring-[#ffb44d]/10"
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder={t("auth.currentPasswordPlaceholder")}
+              type={showPassword ? "text" : "password"}
+              value={password}
+            />
+            <button
+              aria-label={showPassword ? t("auth.hidePassword") : t("auth.showPassword")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl border border-white/10 bg-white/[.06] px-3 py-1 text-xs font-black text-[#ffcf83] transition hover:border-[#ffb44d]/50 hover:bg-[#ffb44d]/12 hover:text-[#ffe2ad]"
+              onClick={() => setShowPassword((value) => !value)}
+              type="button"
+            >
+              {showPassword ? t("auth.hidePassword") : t("auth.showPassword")}
+            </button>
+          </div>
         </label>
 
         <button
@@ -97,7 +108,7 @@ export function SignInForm() {
         <Link className="font-bold text-[#ffcf83] hover:text-[#ffc766]" href={signUpHref}>
           {t("auth.dontHaveAccount")} {t("auth.signUp")}
         </Link>
-        <span>{t("auth.next")}: {nextPath}</span>
+        <span>{t("auth.continueAfterSignIn")}</span>
       </div>
     </div>
   );
