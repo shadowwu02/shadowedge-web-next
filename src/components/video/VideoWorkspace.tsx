@@ -60,6 +60,7 @@ import {
 } from "@/lib/video/remakeShotQueueDraft";
 import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
 import { estimateVideoCreditsForParams, getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
+import { VIDEO_PROMPT_FRONTEND_LIMIT } from "@/lib/video/videoPromptLimits";
 import {
   parseMentionBindings,
   reconcileMentionBindings,
@@ -1216,7 +1217,8 @@ export function VideoWorkspace() {
     [effectiveGenerateAudio, params.duration, params.quality, params.ratio, selectedModel.credits, selectedModelRuleId],
   );
   const hasEnoughCredits = credits === null || estimatedCredits <= credits;
-  const canGenerate = Boolean(selectedModel) && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits;
+  const isPromptTooLong = prompt.length > VIDEO_PROMPT_FRONTEND_LIMIT;
+  const canGenerate = Boolean(selectedModel) && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits && !isPromptTooLong;
   const reusableMedia = useMemo(
     () => collectReusableVideoAssets(task ? [task, ...history] : history),
     [history, task],
@@ -1231,6 +1233,7 @@ export function VideoWorkspace() {
       "Some media failed to upload. Remove failed items before generating.": t("video.errors.mediaFailedBeforeGenerate"),
       "Local preview media cannot be used for generation. Please wait for upload to finish.": t("video.errors.localPreviewMedia"),
       "Only uploaded remote media URLs can be used for generation.": t("video.errors.remoteMediaOnly"),
+      "Prompt is too long. Please keep it under 4,000 characters.": tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT }),
       "You already have active generation tasks. Please wait until one finishes.": t("video.errors.activeGeneration"),
       "Video generation request failed.": t("video.errors.generationRequestFailed"),
       "No jobId returned by video API.": t("video.errors.noJobId"),
@@ -1246,9 +1249,12 @@ export function VideoWorkspace() {
     if (message.includes("Reference limit reached")) return t("video.drawer.referenceLimitReached");
     if (message.includes("Type limit reached")) return t("video.drawer.typeLimitReached");
     if (message.includes("Generated results cannot be used as references")) return t("video.drawer.generatedUnsupported");
+    if (message.includes("PROMPT_TOO_LONG") || message.toLowerCase().includes("prompt is too long")) {
+      return tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT });
+    }
 
     return message;
-  }, [error, modelError, t, workspaceNotice]);
+  }, [error, modelError, t, tf, workspaceNotice]);
 
   const generateButtonLabel = useMemo(() => {
     if (isUploadingMedia) return t("video.actions.uploadingMedia");

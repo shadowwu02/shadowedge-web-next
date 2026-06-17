@@ -4,6 +4,7 @@ type VideoErrorKey =
   | "video.errors.generationFailedFriendly"
   | "video.errors.insufficientCredits"
   | "video.errors.invalidPrompt"
+  | "video.errors.promptTooLong"
   | "video.errors.referenceLimitReached"
   | "video.errors.remakeShotFailedFriendly"
   | "video.errors.signInRequired"
@@ -93,6 +94,10 @@ export function getVideoUserFacingError(message: string | null | undefined, t: V
 
   if (normalized.includes("invalid prompt") || normalized.includes("prompt is invalid")) {
     return t("video.errors.invalidPrompt");
+  }
+
+  if (normalized.includes("prompt_too_long") || normalized.includes("prompt is too long") || normalized.includes("prompt too long")) {
+    return t("video.errors.promptTooLong");
   }
 
   if (normalized.includes("reference limit") || normalized.includes("max references") || normalized.includes("too many reference")) {

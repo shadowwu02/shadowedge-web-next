@@ -14,6 +14,7 @@ import {
   findMentionBindingForToken,
   type VideoMentionBinding,
 } from "@/lib/video/videoMentionBindings";
+import { VIDEO_PROMPT_FRONTEND_LIMIT, VIDEO_PROMPT_WARNING_THRESHOLD } from "@/lib/video/videoPromptLimits";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
 import { useI18n } from "@/i18n/useI18n";
 
@@ -332,7 +333,8 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     const before = value.slice(0, range.start);
     const after = value.slice(range.end);
     const trailingSpace = after.length && !/^\s/.test(after) ? " " : "";
-    const nextValue = `${before}${mentionInput.display}${trailingSpace}${after}`.slice(0, 1200);
+    const nextValue = `${before}${mentionInput.display}${trailingSpace}${after}`;
+    if (nextValue.length > VIDEO_PROMPT_FRONTEND_LIMIT) return;
     const nextCaret = Math.min(before.length + mentionInput.display.length + trailingSpace.length, nextValue.length);
 
     onChange(nextValue);
@@ -447,6 +449,9 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     top: menuPosition.top,
     width: menuPosition.width,
   };
+  const promptLength = value.length;
+  const isPromptTooLong = promptLength > VIDEO_PROMPT_FRONTEND_LIMIT;
+  const isPromptNearLimit = promptLength >= VIDEO_PROMPT_WARNING_THRESHOLD;
 
   function mentionGroupTitle(type: UploadMediaType) {
     if (type === "image") return t("video.prompt.group.images");
@@ -458,19 +463,41 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     <section className="se-card rounded-[24px] p-3.5">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-[#f4f4f4]">{t("video.prompt.title")}</h2>
-        <span className="rounded-full border border-[rgba(244,244,244,0.08)] bg-[#05070b]/30 px-2.5 py-1 text-[11px] font-semibold text-[#b9b9b9]/50">
-          {value.length}/1200
+        <span
+          className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+            isPromptTooLong
+              ? "border-[#ef4444]/30 bg-[#ef4444]/10 text-[#fecaca]"
+              : isPromptNearLimit
+                ? "border-[#ffb44d]/26 bg-[#ffb44d]/10 text-[#ffd08a]"
+                : "border-[rgba(244,244,244,0.08)] bg-[#05070b]/30 text-[#b9b9b9]/50"
+          }`}
+        >
+          {tf("video.prompt.characterCount", { count: promptLength, limit: VIDEO_PROMPT_FRONTEND_LIMIT })}
         </span>
       </div>
       <textarea
-        className="se-scrollbar h-40 min-h-36 w-full resize-y rounded-[24px] border border-white/10 bg-[#10141f]/92 px-4 py-3.5 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70"
-        maxLength={1200}
+        className="se-scrollbar h-[180px] min-h-[160px] w-full resize-y rounded-[24px] border border-white/10 bg-[#10141f]/92 px-4 py-3.5 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70 md:h-[220px] md:min-h-[210px]"
+        maxLength={VIDEO_PROMPT_FRONTEND_LIMIT}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         placeholder={t("video.prompt.placeholder")}
         ref={textareaRef}
         value={value}
       />
+
+      <div className="mt-3 grid gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs leading-5 text-white/42">
+          <span>{t("video.prompt.longPromptSupported")}</span>
+          <span className="rounded-full border border-[#ffb44d]/18 bg-[#ffb44d]/7 px-2.5 py-1 font-semibold text-[#ffd08a]/72">
+            {t("video.prompt.resizeHint")}
+          </span>
+        </div>
+        {isPromptTooLong ? (
+          <p className="text-xs font-semibold leading-5 text-[#fecaca]">
+            {tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT })}
+          </p>
+        ) : null}
+      </div>
 
       {missingMentions.length ? (
         <div className="mt-3 inline-flex max-w-full items-start gap-2 rounded-[18px] border border-[#ffb44d]/24 bg-[#ffb44d]/9 px-3 py-2 text-xs font-semibold leading-5 text-[#ffd08a]/88">

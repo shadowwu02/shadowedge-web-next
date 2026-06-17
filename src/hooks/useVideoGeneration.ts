@@ -7,6 +7,7 @@ import { formatGenerationConcurrencyLimitError } from "@/lib/generationConcurren
 import { createVideoTask, getVideoHistory, getVideoStatus, saveVideoHistory } from "@/lib/video-api";
 import { buildMediaAwarePrompt, getReadyMentionableMediaItems, toGenerationMediaList } from "@/lib/video-mentions";
 import { estimateVideoCreditsForParams } from "@/lib/video/videoModelRules";
+import { VIDEO_PROMPT_FRONTEND_LIMIT } from "@/lib/video/videoPromptLimits";
 import {
   getSafeHistoryOutputUrl,
   getVideoHistoryStableKey,
@@ -40,6 +41,7 @@ type SubmitValidationCopy = {
   localPreviewMedia: string;
   mediaFailedBeforeGenerate: string;
   mediaUploading: string;
+  promptTooLong: string;
   promptRequired: string;
   remoteMediaOnly: string;
 };
@@ -51,6 +53,10 @@ function isRemoteUrl(url: string) {
 function validateSubmitOptions(options: SubmitVideoOptions, copy: SubmitValidationCopy) {
   if (!options.prompt.trim()) {
     return copy.promptRequired;
+  }
+
+  if (options.prompt.length > VIDEO_PROMPT_FRONTEND_LIMIT) {
+    return copy.promptTooLong;
   }
 
   if (options.media.some((item) => item.uploadStatus === "uploading")) {
@@ -240,9 +246,10 @@ export function useVideoGeneration() {
     localPreviewMedia: t("video.errors.localPreviewMedia"),
     mediaFailedBeforeGenerate: t("video.errors.mediaFailedBeforeGenerate"),
     mediaUploading: t("video.errors.mediaUploading"),
+    promptTooLong: tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT }),
     promptRequired: t("video.errors.promptRequired"),
     remoteMediaOnly: t("video.errors.remoteMediaOnly"),
-  }), [t]);
+  }), [t, tf]);
 
   const loadHistory = useCallback(async () => {
     setIsHistoryLoading(true);
