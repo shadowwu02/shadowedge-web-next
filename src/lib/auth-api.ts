@@ -45,6 +45,14 @@ export type SignUpResult = {
   userId: string;
 };
 
+type ForgotPasswordPayload = {
+  message?: string;
+};
+
+type ResetPasswordPayload = {
+  message?: string;
+};
+
 export async function getCurrentUserProfile(): Promise<AuthMeResult> {
   const envelope = await apiRequest<AuthMePayload>("/api/auth/me", {
     method: "GET",
@@ -116,6 +124,38 @@ export async function registerWithPassword(email: string, password: string): Pro
   };
 }
 
+export async function requestPasswordReset(email: string) {
+  const envelope = await apiRequest<ForgotPasswordPayload>("/api/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({
+      email: email.trim().toLowerCase(),
+    }),
+    token: "",
+  });
+
+  return envelope.data || {};
+}
+
+export async function resetPassword(input: {
+  password: string;
+  code?: string;
+  accessToken?: string;
+  refreshToken?: string;
+}) {
+  const envelope = await apiRequest<ResetPasswordPayload>("/api/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({
+      password: input.password,
+      code: input.code,
+      access_token: input.accessToken,
+      refresh_token: input.refreshToken,
+    }),
+    token: "",
+  });
+
+  return envelope.data || {};
+}
+
 export function isAuthRateLimitError(error: unknown) {
   if (error instanceof ApiError) {
     return error.status === 429 || error.code === "AUTH_RATE_LIMITED";
@@ -123,6 +163,15 @@ export function isAuthRateLimitError(error: unknown) {
 
   const message = error instanceof Error ? error.message.toLowerCase() : "";
   return message.includes("too many") || message.includes("rate limit");
+}
+
+export function isInvalidResetLinkError(error: unknown) {
+  if (error instanceof ApiError) {
+    return error.status === 401 || error.code === "INVALID_RESET_LINK";
+  }
+
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  return message.includes("invalid") && message.includes("reset");
 }
 
 export async function refreshAuthSession() {

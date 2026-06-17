@@ -5,7 +5,7 @@ import Link from "next/link";
 import { LanguageSwitch } from "@/components/common/LanguageSwitch";
 import { useI18n, type DictionaryKey } from "@/i18n/useI18n";
 
-type AuthPageMode = "signIn" | "signUp";
+type AuthPageMode = "signIn" | "signUp" | "forgotPassword" | "resetPassword";
 
 const copyByMode: Record<AuthPageMode, { eyebrow: DictionaryKey; title: DictionaryKey; body: DictionaryKey }> = {
   signIn: {
@@ -17,6 +17,16 @@ const copyByMode: Record<AuthPageMode, { eyebrow: DictionaryKey; title: Dictiona
     eyebrow: "auth.pageEyebrow",
     title: "auth.signUpHeroTitle",
     body: "auth.signUpHeroBody",
+  },
+  forgotPassword: {
+    eyebrow: "auth.pageEyebrow",
+    title: "auth.forgotPasswordHeroTitle",
+    body: "auth.forgotPasswordHeroBody",
+  },
+  resetPassword: {
+    eyebrow: "auth.pageEyebrow",
+    title: "auth.resetPasswordHeroTitle",
+    body: "auth.resetPasswordHeroBody",
   },
 };
 

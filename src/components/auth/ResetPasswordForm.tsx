@@ -1,43 +1,73 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { PasswordRuleList } from "@/components/auth/PasswordRuleList";
-import { isAuthRateLimitError, registerWithPassword, signInWithPassword } from "@/lib/auth-api";
-import { evaluatePasswordRules } from "@/lib/auth-password";
-import { getSafeAuthNext } from "@/lib/auth-routes";
+import { isAuthRateLimitError, isInvalidResetLinkError, resetPassword } from "@/lib/auth-api";
+import { isStrongAuthPassword } from "@/lib/auth-password";
 import { useI18n } from "@/i18n/useI18n";
 
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+type RecoveryCredential = {
+  code: string;
+  accessToken: string;
+  refreshToken: string;
+};
+
+function readRecoveryCredential(): RecoveryCredential {
+  if (typeof window === "undefined") return { code: "", accessToken: "", refreshToken: "" };
+
+  const query = new URLSearchParams(window.location.search);
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+
+  return {
+    code: query.get("code") || hash.get("code") || "",
+    accessToken: hash.get("access_token") || query.get("access_token") || "",
+    refreshToken: hash.get("refresh_token") || query.get("refresh_token") || "",
+  };
 }
-export function SignUpForm() {
+
+export function ResetPasswordForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { t } = useI18n();
-  const nextPath = useMemo(() => getSafeAuthNext(searchParams.get("next"), "/workspace/image"), [searchParams]);
-  const signInHref = `/sign-in?next=${encodeURIComponent(nextPath)}`;
-  const [email, setEmail] = useState("");
+  const [credential, setCredential] = useState<RecoveryCredential>({ code: "", accessToken: "", refreshToken: "" });
+  const [isCredentialReady, setIsCredentialReady] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const passwordRules = evaluatePasswordRules(password);
-  const isPasswordValid = passwordRules.every((rule) => rule.passed);
-  const isEmailValid = isValidEmail(email.trim());
+  const hasResetCredential = Boolean(credential.code || credential.accessToken);
+  const isPasswordValid = isStrongAuthPassword(password);
   const passwordsMatch = Boolean(confirmPassword) && password === confirmPassword;
-  const canSubmit = isEmailValid && isPasswordValid && passwordsMatch && !isLoading;
+  const canSubmit = hasResetCredential && isPasswordValid && passwordsMatch && !isLoading;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const nextCredential = readRecoveryCredential();
+      setCredential(nextCredential);
+      setIsCredentialReady(true);
+
+      if (nextCredential.code || nextCredential.accessToken || window.location.hash) {
+        window.history.replaceState(null, "", "/reset-password");
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const initialStatus = useMemo(() => {
+    if (!isCredentialReady) return "";
+    return hasResetCredential ? "" : t("auth.invalidResetLink");
+  }, [hasResetCredential, isCredentialReady, t]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatus("");
 
-    const cleanEmail = email.trim();
-    if (!isValidEmail(cleanEmail)) {
-      setStatus(t("auth.invalidEmail"));
+    if (!hasResetCredential) {
+      setStatus(t("auth.invalidResetLink"));
       return;
     }
 
@@ -54,18 +84,22 @@ export function SignUpForm() {
     setIsLoading(true);
 
     try {
-      await registerWithPassword(cleanEmail, password);
-      setStatus(t("auth.signUpSuccess"));
-
-      try {
-        await signInWithPassword(cleanEmail, password);
-        router.replace(nextPath);
-        router.refresh();
-      } catch {
-        router.replace(`/sign-in?registered=1&next=${encodeURIComponent(nextPath)}`);
-      }
+      await resetPassword({
+        password,
+        code: credential.code,
+        accessToken: credential.accessToken,
+        refreshToken: credential.refreshToken,
+      });
+      router.replace("/sign-in?reset=1");
+      router.refresh();
     } catch (error) {
-      setStatus(isAuthRateLimitError(error) ? t("auth.tooManyAttempts") : error instanceof Error ? error.message : t("auth.registrationFailed"));
+      if (isAuthRateLimitError(error)) {
+        setStatus(t("auth.tooManyAttempts"));
+      } else if (isInvalidResetLinkError(error)) {
+        setStatus(t("auth.invalidResetLink"));
+      } else {
+        setStatus(t("auth.resetPasswordFailed"));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -75,29 +109,18 @@ export function SignUpForm() {
     <div className="w-full max-w-md rounded-[28px] border border-white/10 bg-white/[.045] p-6 shadow-2xl shadow-black/35 md:p-8">
       <div className="mb-7">
         <p className="text-xs font-black uppercase tracking-[.22em] text-[#ffcf83]">{t("auth.accountLabel")}</p>
-        <h1 className="mt-3 text-3xl font-black tracking-tight text-white">{t("auth.createAccount")}</h1>
-        <p className="mt-3 text-sm leading-6 text-white/58">{t("auth.signUpIntro")}</p>
+        <h1 className="mt-3 text-3xl font-black tracking-tight text-white">{t("auth.resetPassword")}</h1>
+        <p className="mt-3 text-sm leading-6 text-white/58">{t("auth.resetPasswordIntro")}</p>
       </div>
 
       <form className="grid gap-4" onSubmit={handleSubmit}>
         <label className="grid gap-2">
-          <span className="text-xs font-bold uppercase tracking-[.16em] text-white/42">{t("auth.email")}</span>
-          <input
-            autoComplete="email"
-            className="h-12 rounded-2xl border border-white/10 bg-black/30 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-white/25 focus:border-[#ffb44d]/65 focus:ring-4 focus:ring-[#ffb44d]/10"
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="you@example.com"
-            type="email"
-            value={email}
-          />
-        </label>
-
-        <label className="grid gap-2">
-          <span className="text-xs font-bold uppercase tracking-[.16em] text-white/42">{t("auth.password")}</span>
+          <span className="text-xs font-bold uppercase tracking-[.16em] text-white/42">{t("auth.newPassword")}</span>
           <div className="relative">
             <input
               autoComplete="new-password"
               className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 px-4 pr-20 text-sm font-semibold text-white outline-none transition placeholder:text-white/25 focus:border-[#ffb44d]/65 focus:ring-4 focus:ring-[#ffb44d]/10"
+              disabled={!hasResetCredential}
               onChange={(event) => setPassword(event.target.value)}
               placeholder={t("auth.passwordPlaceholder")}
               type={showPassword ? "text" : "password"}
@@ -106,6 +129,7 @@ export function SignUpForm() {
             <button
               aria-label={showPassword ? t("auth.hidePassword") : t("auth.showPassword")}
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl border border-white/10 bg-white/[.06] px-3 py-1 text-xs font-black text-[#ffcf83] transition hover:border-[#ffb44d]/50 hover:bg-[#ffb44d]/12 hover:text-[#ffe2ad]"
+              disabled={!hasResetCredential}
               onClick={() => setShowPassword((value) => !value)}
               type="button"
             >
@@ -117,11 +141,12 @@ export function SignUpForm() {
         <PasswordRuleList password={password} />
 
         <label className="grid gap-2">
-          <span className="text-xs font-bold uppercase tracking-[.16em] text-white/42">{t("auth.confirmPassword")}</span>
+          <span className="text-xs font-bold uppercase tracking-[.16em] text-white/42">{t("auth.confirmNewPassword")}</span>
           <div className="relative">
             <input
               autoComplete="new-password"
               className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 px-4 pr-20 text-sm font-semibold text-white outline-none transition placeholder:text-white/25 focus:border-[#ffb44d]/65 focus:ring-4 focus:ring-[#ffb44d]/10"
+              disabled={!hasResetCredential}
               onChange={(event) => setConfirmPassword(event.target.value)}
               placeholder={t("auth.confirmPasswordPlaceholder")}
               type={showConfirmPassword ? "text" : "password"}
@@ -130,6 +155,7 @@ export function SignUpForm() {
             <button
               aria-label={showConfirmPassword ? t("auth.hidePassword") : t("auth.showPassword")}
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl border border-white/10 bg-white/[.06] px-3 py-1 text-xs font-black text-[#ffcf83] transition hover:border-[#ffb44d]/50 hover:bg-[#ffb44d]/12 hover:text-[#ffe2ad]"
+              disabled={!hasResetCredential}
               onClick={() => setShowConfirmPassword((value) => !value)}
               type="button"
             >
@@ -138,30 +164,26 @@ export function SignUpForm() {
           </div>
         </label>
 
-        <p className="rounded-2xl border border-white/10 bg-black/24 p-3 text-xs leading-5 text-white/52">
-          {t("auth.termsHint")}
-        </p>
-
         <button
           className="se-button-primary mt-2 h-12 rounded-2xl px-5 text-sm font-black focus:outline-none focus:ring-4 focus:ring-[#f6a935]/20"
           disabled={!canSubmit}
           type="submit"
         >
-          {isLoading ? t("auth.creatingAccount") : t("auth.signUp")}
+          {isLoading ? t("auth.resettingPassword") : t("auth.resetPassword")}
         </button>
       </form>
 
-      {status ? (
+      {status || initialStatus ? (
         <div className="mt-4 rounded-2xl border border-white/10 bg-black/24 p-3 text-sm leading-6 text-white/72">
-          {status}
+          {status || initialStatus}
         </div>
       ) : null}
 
       <div className="mt-6 flex flex-col gap-3 text-sm text-white/48 sm:flex-row sm:items-center sm:justify-between">
-        <Link className="font-bold text-[#ffcf83] hover:text-[#ffc766]" href={signInHref}>
-          {t("auth.alreadyHaveAccount")} {t("auth.signIn")}
+        <Link className="font-bold text-[#ffcf83] hover:text-[#ffc766]" href="/sign-in">
+          {t("auth.backToSignIn")}
         </Link>
-        <span>{t("auth.continueAfterSignIn")}</span>
+        <span>{t("auth.passwordResetSafety")}</span>
       </div>
     </div>
   );

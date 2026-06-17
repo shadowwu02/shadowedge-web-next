@@ -13,10 +13,15 @@ export function SignInForm() {
   const { t } = useI18n();
   const nextPath = useMemo(() => getSafeAuthNext(searchParams.get("next"), "/workspace/video"), [searchParams]);
   const signUpHref = `/sign-up?next=${encodeURIComponent(nextPath)}`;
+  const initialStatus = searchParams.get("reset") === "1"
+    ? t("auth.passwordResetSuccess")
+    : searchParams.get("registered") === "1"
+      ? t("auth.registeredSignInHint")
+      : "";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [status, setStatus] = useState(searchParams.get("registered") === "1" ? t("auth.registeredSignInHint") : "");
+  const [status, setStatus] = useState(initialStatus);
   const [isLoading, setIsLoading] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -85,6 +90,12 @@ export function SignInForm() {
             </button>
           </div>
         </label>
+
+        <div className="flex justify-end">
+          <Link className="text-sm font-bold text-[#ffcf83] hover:text-[#ffc766]" href="/forgot-password">
+            {t("auth.forgotPasswordQuestion")}
+          </Link>
+        </div>
 
         <button
           className="se-button-primary mt-2 h-12 rounded-2xl px-5 text-sm font-black focus:outline-none focus:ring-4 focus:ring-[#f6a935]/20"
