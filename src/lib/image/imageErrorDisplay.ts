@@ -2,6 +2,7 @@ type ImageErrorKey =
   | "image.errors.fileTooLarge"
   | "image.errors.generationFailedFriendly"
   | "image.errors.invalidPrompt"
+  | "image.errors.materialIssueRefunded"
   | "image.errors.notEnoughCredits"
   | "image.errors.promptRequired"
   | "image.errors.referenceLimitReached"
@@ -69,6 +70,15 @@ export function getImageUserFacingError(message: string | null | undefined, t: I
   if (!raw) return "";
 
   const normalized = raw.toLowerCase();
+
+  if (
+    normalized.includes("material_issue") ||
+    normalized.includes("uploaded material could not be processed") ||
+    normalized.includes("material processing issue")
+  ) {
+    return t("image.errors.materialIssueRefunded");
+  }
+
   if (
     normalized.includes("not enough credits") ||
     normalized.includes("not enough credit") ||

@@ -4,6 +4,7 @@ type VideoErrorKey =
   | "video.errors.generationFailedFriendly"
   | "video.errors.insufficientCredits"
   | "video.errors.invalidPrompt"
+  | "video.errors.materialIssueRefunded"
   | "video.errors.promptTooLong"
   | "video.errors.referenceLimitReached"
   | "video.errors.remakeShotFailedFriendly"
@@ -80,6 +81,15 @@ export function getVideoUserFacingError(message: string | null | undefined, t: V
   if (!raw) return "";
 
   const normalized = raw.toLowerCase();
+
+  if (
+    normalized.includes("material_issue") ||
+    normalized.includes("uploaded material could not be processed") ||
+    normalized.includes("material processing issue")
+  ) {
+    return t("video.errors.materialIssueRefunded");
+  }
+
   if (
     normalized.includes("not enough credits") ||
     normalized.includes("not enough credit") ||
