@@ -95,6 +95,15 @@ export function normalizeApiError(status: number, payload: ApiEnvelope<unknown> 
     });
   }
 
+  if (status === 503 && (code === "MAINTENANCE_MODE" || text.includes("maintenance"))) {
+    return new ApiError(message || "ShadowEdge is temporarily under maintenance.", {
+      status,
+      code,
+      payload,
+      kind: "maintenance",
+    });
+  }
+
   return new ApiError(message || "ShadowEdge API request failed", {
     status,
     code,
@@ -151,7 +160,8 @@ async function refreshStoredAuthToken() {
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}) {
   const headers = new Headers(options.headers);
-  const token = options.token || (typeof window !== "undefined" ? getStoredAuthToken() : "");
+  const hasExplicitToken = options.token !== undefined;
+  const token = hasExplicitToken ? options.token : (typeof window !== "undefined" ? getStoredAuthToken() : "");
 
   if (token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`);
@@ -183,7 +193,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
 
   if (
     response.status === 401 &&
-    !options.token &&
+    !hasExplicitToken &&
     typeof window !== "undefined" &&
     !path.includes("/api/auth/login") &&
     !path.includes("/api/auth/refresh")

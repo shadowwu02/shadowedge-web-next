@@ -19,6 +19,7 @@ export function ImageWorkspace() {
     const message = String(image.error || "").trim();
     if (!message) return "";
     const normalized = message.toLowerCase();
+    if (message.includes("MAINTENANCE_MODE") || normalized.includes("under maintenance")) return t("maintenance.errors.generationPaused");
     if (normalized === "network request failed." || normalized === "network request failed") return t("image.errors.networkRequestFailed");
     if (normalized.includes("not enough credits") || normalized.includes("insufficient credits")) return t("image.errors.notEnoughCredits");
     if (normalized.includes("provider unavailable") || normalized.includes("provider is unavailable")) return t("image.errors.providerUnavailable");

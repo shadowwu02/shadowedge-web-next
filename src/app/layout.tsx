@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { MaintenanceGate } from "@/components/maintenance/MaintenanceGate";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,7 +14,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full bg-[#08090d] text-white">{children}</body>
+      <body className="min-h-full bg-[#08090d] text-white">
+        <MaintenanceGate>{children}</MaintenanceGate>
+      </body>
     </html>
   );
 }

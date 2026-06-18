@@ -70,6 +70,7 @@ import {
 } from "@/lib/video/videoMentionBindings";
 import { getReferenceRoleIssue, validateReferenceSelectionForRule } from "@/lib/video/videoReferenceRules";
 import { isVideoActiveStatus, isVideoFailedStatus } from "@/lib/utils";
+import { ApiError } from "@/types/api";
 import type { UploadMediaItem, UploadMediaRole, VideoModel, VideoStatusResponse, VideoTaskRecord } from "@/types/video";
 
 const fallbackModels: VideoModel[] = [
@@ -102,6 +103,10 @@ const fallbackModels: VideoModel[] = [
     uploadSlots: ["image", "last_frame_image"],
   },
 ];
+
+function isMaintenanceApiError(error: unknown) {
+  return error instanceof ApiError && error.kind === "maintenance";
+}
 
 type MainPanel = "history" | "guide";
 type WorkspaceMode = "create" | "edit" | "motion" | "remake";
@@ -1141,10 +1146,13 @@ export function VideoWorkspace() {
           );
         } catch (uploadError) {
           if (remakeSourceRevisionRef.current !== analysisRevision) return;
+          const uploadMessage = isMaintenanceApiError(uploadError)
+            ? t("maintenance.errors.generationPaused")
+            : `${t("video.remake.sourceUploadFailed")} ${
+                uploadError instanceof Error ? uploadError.message : t("video.errors.uploadFailed")
+              }`;
           setRemakeAnalysisError(
-            `${t("video.remake.sourceUploadFailed")} ${
-              uploadError instanceof Error ? uploadError.message : t("video.errors.uploadFailed")
-            }`,
+            uploadMessage,
           );
           return;
         } finally {
@@ -1338,6 +1346,9 @@ export function VideoWorkspace() {
     };
 
     if (exactMessages[message]) return exactMessages[message];
+    if (message.includes("MAINTENANCE_MODE") || message.toLowerCase().includes("under maintenance")) {
+      return t("maintenance.errors.generationPaused");
+    }
     if (message.includes("does not support image references")) return t("video.errors.unsupportedImageReference");
     if (message.includes("does not support video references")) return t("video.errors.unsupportedVideoReference");
     if (message.includes("does not support audio references")) return t("video.errors.unsupportedAudioReference");

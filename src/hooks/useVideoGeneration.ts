@@ -20,6 +20,7 @@ import {
 } from "@/lib/video/historyUtils";
 import { serializeMentionBindings, type VideoMentionBinding } from "@/lib/video/videoMentionBindings";
 import { isVideoActiveStatus } from "@/lib/utils";
+import { ApiError } from "@/types/api";
 import type { UploadMediaItem, VideoGenerationRequest, VideoHistoryItem, VideoModel, VideoStatusResponse, VideoTaskRecord } from "@/types/video";
 
 type SubmitVideoOptions = {
@@ -339,8 +340,10 @@ export function useVideoGeneration() {
       return nextTask;
     } catch (submitError) {
       const message =
-        formatGenerationConcurrencyLimitError(submitError, t, tf) ||
-        (submitError instanceof Error ? submitError.message : t("video.errors.generationRequestFailed"));
+        submitError instanceof ApiError && submitError.kind === "maintenance"
+          ? t("maintenance.errors.generationPaused")
+          : formatGenerationConcurrencyLimitError(submitError, t, tf) ||
+            (submitError instanceof Error ? submitError.message : t("video.errors.generationRequestFailed"));
       setError(message);
       options.onSubmitError?.(message);
       return null;

@@ -27,6 +27,7 @@ import {
   saveImageWorkspaceDraft,
 } from "@/lib/image/imageWorkspaceDraft";
 import type { ImageGenerationParams, ImageHistoryItem, ImageModel, ImageReferenceItem } from "@/types/image";
+import { ApiError } from "@/types/api";
 
 type UseImageGenerationOptions = {
   autoLoad?: boolean;
@@ -144,6 +145,9 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     (labelKey: Parameters<typeof t>[0], error: unknown, fallback: string) => {
       const concurrencyMessage = formatGenerationConcurrencyLimitError(error, t, tf);
       if (concurrencyMessage) return concurrencyMessage;
+      if (error instanceof ApiError && error.kind === "maintenance") {
+        return t("maintenance.errors.generationPaused");
+      }
 
       const label = t(labelKey);
       const details = error instanceof Error ? error.message.trim() : "";
