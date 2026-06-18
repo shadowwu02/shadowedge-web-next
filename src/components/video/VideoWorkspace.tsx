@@ -716,8 +716,12 @@ export function VideoWorkspace() {
   const [isRemakeAnalyzing, setIsRemakeAnalyzing] = useState(false);
   const [isRemakeSourceUploading, setIsRemakeSourceUploading] = useState(false);
   const [remakeAnalysisMeta, setRemakeAnalysisMeta] = useState<{
+    analysisSource?: "fallback" | "vlm";
+    fallbackReason?: string;
+    mock?: boolean;
     segments?: RemakeSegment[];
     sourceVideo?: RemakeSourceVideoMetadata;
+    vlmProvider?: string;
   } | null>(null);
   const [remakeAnalysisError, setRemakeAnalysisError] = useState("");
   const [remakeAnalysisNotice, setRemakeAnalysisNotice] = useState("");
@@ -889,8 +893,12 @@ export function VideoWorkspace() {
       setRemakeSourceVideo(getRemakeSourceVideoFromDraft(draft));
       setRemakeStoryboard(draft.storyboard);
       setRemakeAnalysisMeta({
+        analysisSource: draft.storyboard.analysisSource,
+        fallbackReason: draft.storyboard.fallbackReason,
+        mock: draft.storyboard.mock,
         segments: draft.segments,
         sourceVideo: draft.sourceVideo,
+        vlmProvider: draft.storyboard.vlmProvider,
       });
       setRemakeAnalysisError("");
       setRemakeAnalysisNotice(t("video.remake.restoredDraft"));
@@ -1155,10 +1163,30 @@ export function VideoWorkspace() {
       });
       if (remakeSourceRevisionRef.current !== analysisRevision) return;
 
-      setRemakeStoryboard(result.storyboard);
+      const analysisSource =
+        result.meta?.analysisSource === "vlm"
+          ? "vlm"
+          : result.meta?.analysisSource === "fallback" || result.meta?.mock
+            ? "fallback"
+            : result.meta?.vlmProvider
+              ? "vlm"
+              : undefined;
+      const analyzedStoryboard: RemakeStoryboard = {
+        ...result.storyboard,
+        analysisSource,
+        fallbackReason: result.meta?.fallbackReason,
+        mock: Boolean(result.meta?.mock),
+        vlmProvider: result.meta?.vlmProvider,
+      };
+
+      setRemakeStoryboard(analyzedStoryboard);
       setRemakeAnalysisMeta({
+        analysisSource,
+        fallbackReason: result.meta?.fallbackReason,
+        mock: Boolean(result.meta?.mock),
         segments: result.meta?.segments,
         sourceVideo: result.meta?.sourceVideo,
+        vlmProvider: result.meta?.vlmProvider,
       });
       const draftResult = saveRemakeStoryboardDraft({
         segments: result.meta?.segments,
@@ -1166,18 +1194,18 @@ export function VideoWorkspace() {
         sourceVideo: sourceVideoForAnalyze,
         sourceVideoMetadata: result.meta?.sourceVideo,
         sourceVideoUrl,
-        storyboard: result.storyboard,
+        storyboard: analyzedStoryboard,
       });
       if (!draftResult.ok) {
         setWorkspaceNotice(t("video.remake.draftSaveFailed"));
       }
       setIsRemakeDraftRestored(false);
-      if (result.meta?.vlmFailed || result.meta?.vlmUnavailable) {
+      if (analysisSource === "fallback" || result.meta?.vlmFailed || result.meta?.vlmUnavailable) {
         setRemakeAnalysisNotice(t("video.remake.vlmFallback"));
-      } else if (result.meta?.mock) {
-        setRemakeAnalysisNotice(t("video.remake.analysisDraft"));
       } else if (result.meta?.vlmProvider) {
-        setRemakeAnalysisNotice(tf("video.remake.vlmProvider", { provider: getRemakeVlmProviderLabel(result.meta.vlmProvider) }));
+        setRemakeAnalysisNotice(
+          `${t("video.remake.analysisComplete")} ${tf("video.remake.vlmProvider", { provider: getRemakeVlmProviderLabel(result.meta.vlmProvider) })}`,
+        );
       } else {
         setRemakeAnalysisNotice("");
       }

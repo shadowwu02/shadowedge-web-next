@@ -24,8 +24,12 @@ type RemakeStoryboardPanelProps = {
   hasSourceVideo?: boolean;
   isAnalyzing?: boolean;
   metadata?: {
+    analysisSource?: "fallback" | "vlm";
+    fallbackReason?: string;
+    mock?: boolean;
     segments?: RemakeSegment[];
     sourceVideo?: RemakeSourceVideoMetadata;
+    vlmProvider?: string;
   };
   onCancelQueue?: () => void;
   onClearDraft?: () => void;
@@ -341,6 +345,13 @@ export function RemakeStoryboardPanel({
   const isQueueInterrupted = isQueuePaused && queueWasInterrupted;
   const isRetryQueue = queueIntent === "retry_failed" || queueIntent === "retry_single";
   const hasQueueStatus = queueStatus === "running" || queueStatus === "paused" || queueStatus === "completed" || queueStatus === "cancelled";
+  const analysisSource = metadata?.analysisSource || storyboard?.analysisSource || (metadata?.mock || storyboard?.mock ? "fallback" : "");
+  const analysisSourceLabel =
+    analysisSource === "vlm"
+      ? t("video.remake.analysisSource.vlm")
+      : analysisSource === "fallback"
+        ? t("video.remake.analysisSource.fallback")
+        : "";
   const emptyStateTitle = isAnalyzing
     ? t("video.remake.analyzingSourceVideoTitle")
     : hasSourceVideo
@@ -373,6 +384,22 @@ export function RemakeStoryboardPanel({
           <p className="se-eyebrow">{t("video.remake.storyboard")}</p>
           <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-[#f4f4f4]">{t("video.remake.aiStoryboard")}</h1>
           <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/66">{t("video.remake.storyboardSubtitle")}</p>
+          {analysisSourceLabel ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                  analysisSource === "vlm"
+                    ? "border-emerald-300/24 bg-emerald-400/10 text-emerald-200"
+                    : "border-[#ffb44d]/28 bg-[#ffb44d]/10 text-[#ffd08a]"
+                }`}
+              >
+                {analysisSourceLabel}
+              </span>
+              {analysisSource === "fallback" ? (
+                <span className="text-xs font-medium leading-5 text-[#b9b9b9]/68">{t("video.remake.analysisFallbackHint")}</span>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         <div className="grid gap-2 text-right text-xs text-[#b9b9b9]/58">
           <span className="rounded-full border border-[#ffb44d]/28 bg-[#ffb44d]/10 px-3 py-1.5 font-semibold text-[#ffb44d]">

@@ -92,11 +92,15 @@ export type RemakeShotGenerationState = {
 export type RemakeStoryboard = {
   id: string;
   mode: RemakeMode;
+  analysisSource?: "fallback" | "vlm";
+  fallbackReason?: string;
+  mock?: boolean;
   sourceTitle?: string;
   targetRegion: RemakeTargetRegion;
   characterRules: string;
   sceneStyle: string;
   translateDialogue: boolean;
+  vlmProvider?: string;
   shots: RemakeShot[];
 };
 

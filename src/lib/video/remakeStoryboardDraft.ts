@@ -197,14 +197,18 @@ function sanitizeStoryboard(value: unknown): RemakeStoryboard | null {
   const settings = sanitizeSettings(raw);
 
   return {
+    analysisSource: pickString(raw.analysisSource) === "vlm" ? "vlm" : pickString(raw.analysisSource) === "fallback" ? "fallback" : undefined,
     characterRules: settings.characterRules,
+    fallbackReason: pickString(raw.fallbackReason),
     id,
+    mock: pickBoolean(raw.mock, false),
     mode: settings.mode,
     sceneStyle: settings.sceneStyle,
     shots,
     sourceTitle: pickString(raw.sourceTitle),
     targetRegion: settings.targetRegion,
     translateDialogue: settings.translateDialogue,
+    vlmProvider: pickString(raw.vlmProvider),
   };
 }
 

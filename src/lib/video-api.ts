@@ -35,6 +35,7 @@ export type VideoRemakeReverseAnalyzeInput = {
 export type VideoRemakeReverseAnalyzeResponse = {
   meta?: {
     analysisId?: string;
+    analysisSource?: "fallback" | "vlm";
     estimatedCredits?: number;
     metadataOnly?: boolean;
     mock?: boolean;
