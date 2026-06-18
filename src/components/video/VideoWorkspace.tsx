@@ -19,6 +19,7 @@ import { VideoRemakeWorkspace } from "@/components/video/remake/VideoRemakeWorks
 import { buildMockRemakeStoryboard } from "@/components/video/remake/remakeMockData";
 import { getRemakeShotGenerationKey } from "@/components/video/remake/remakeTypes";
 import type {
+  RemakeKeyframe,
   RemakeMode,
   RemakeSegment,
   RemakeShot,
@@ -294,6 +295,72 @@ function buildRetryMedia(
 
 function isReadyRemoteMedia(item: UploadMediaItem) {
   return Boolean(item.url && /^https?:\/\//i.test(item.url) && !item.url.startsWith("blob:") && !item.url.startsWith("data:"));
+}
+
+function findVideoModelByLookup(modelList: VideoModel[], lookup: string | undefined) {
+  const normalizedLookup = normalizeModelLookup(lookup);
+  if (!normalizedLookup) return null;
+
+  return (
+    modelList.find((model) =>
+      [model.id, model.providerModel, model.label]
+        .map(normalizeModelLookup)
+        .some((candidate) => candidate === normalizedLookup),
+    ) || null
+  );
+}
+
+function findRemakeShotModel(shot: RemakeShot, modelList: VideoModel[], fallbackModel: VideoModel) {
+  const storyboardModelId = shot.generationParams?.modelId || "";
+  return storyboardModelId ? findVideoModelByLookup(modelList, storyboardModelId) : fallbackModel;
+}
+
+function appendPromptPart(parts: string[], value: string | undefined) {
+  const normalizedValue = String(value || "").trim();
+  if (!normalizedValue) return;
+
+  const existing = parts.join(" ").toLowerCase();
+  if (!existing.includes(normalizedValue.toLowerCase())) {
+    parts.push(normalizedValue);
+  }
+}
+
+function buildRemakeShotPrompt(shot: RemakeShot) {
+  const parts: string[] = [];
+  appendPromptPart(parts, shot.prompt);
+  appendPromptPart(parts, shot.camera ? `Camera: ${shot.camera}` : "");
+  appendPromptPart(parts, shot.motion ? `Camera movement: ${shot.motion}` : "");
+  appendPromptPart(parts, shot.position ? `Blocking: ${shot.position}` : "");
+  appendPromptPart(parts, shot.action ? `Action: ${shot.action}` : "");
+  appendPromptPart(parts, shot.emotion ? `Emotion: ${shot.emotion}` : "");
+  appendPromptPart(parts, shot.dialogue ? `Dialogue cue: ${shot.dialogue}` : "");
+  appendPromptPart(parts, shot.audio ? `Audio cue: ${shot.audio}` : "");
+
+  return parts.join("\n").trim();
+}
+
+function getRemoteRemakeKeyframes(shot: RemakeShot): RemakeKeyframe[] {
+  return (shot.keyframes || []).filter((frame) => /^https?:\/\//i.test(String(frame.url || "")));
+}
+
+function buildRemakeShotReferenceMedia(shot: RemakeShot, model: VideoModel): UploadMediaItem[] {
+  const rule = getVideoModelRule(getVideoModelRuleId(model));
+  const imageLimit = Math.max(0, Number(rule.maxReferences?.image || 0));
+  const keyframes = getRemoteRemakeKeyframes(shot).slice(0, imageLimit || 0);
+
+  if (!rule.supportsImageReference || !keyframes.length) return [];
+
+  return keyframes.map((frame, index) => ({
+    id: `remake-keyframe-${shot.shotGroupId}-${shot.shot}-${index + 1}`,
+    mimeType: "image/jpeg",
+    name: `Shot ${shot.shot} keyframe ${index + 1}`,
+    previewUrl: frame.url,
+    role: (index === 0 && rule.supportsStartFrame ? "start_frame" : "reference") as UploadMediaRole,
+    source: "history",
+    type: "image",
+    uploadStatus: "ready",
+    url: frame.url,
+  }));
 }
 
 function getRecordGenerateAudio(record: { meta?: Record<string, unknown>; generate_audio?: unknown; generateAudio?: unknown }) {
@@ -1308,8 +1375,17 @@ export function VideoWorkspace() {
         }));
       };
 
-      if (!shot.prompt.trim()) {
+      const shotPrompt = buildRemakeShotPrompt(shot);
+      if (!shotPrompt) {
         failShot(t("video.errors.promptRequired"));
+        return;
+      }
+
+      const shotModel = findRemakeShotModel(shot, models, selectedModel);
+      if (!shotModel) {
+        const message = t("video.errors.retryModelUnavailable");
+        setWorkspaceNotice(message);
+        failShot(message);
         return;
       }
 
@@ -1338,7 +1414,28 @@ export function VideoWorkspace() {
       }
 
       const startedAt = Date.now();
-      const shotParams = buildParamsForModel(selectedModel, {
+      const shotModelRule = getVideoModelRule(getVideoModelRuleId(shotModel));
+      const remoteKeyframes = getRemoteRemakeKeyframes(shot);
+      if (remoteKeyframes.length && !shotModelRule.supportsImageReference) {
+        const message = t("video.errors.unsupportedImageReference");
+        setWorkspaceNotice(message);
+        failShot(message);
+        return;
+      }
+
+      const shotReferenceMedia = buildRemakeShotReferenceMedia(shot, shotModel);
+      const referenceIssue = validateReferenceSelectionForRule(shotModelRule, [], shotReferenceMedia);
+      const roleIssue = shotReferenceMedia
+        .map((item) => getReferenceRoleIssue(shotModelRule, item.type, item.role || "reference"))
+        .find(Boolean);
+      if (referenceIssue || roleIssue) {
+        const message = referenceIssue || roleIssue || t("video.errors.remoteMediaOnly");
+        setWorkspaceNotice(message);
+        failShot(message);
+        return;
+      }
+
+      const shotParams = buildParamsForModel(shotModel, {
         duration: shot.generationParams.duration,
         generateAudio: effectiveGenerateAudio,
         quality: shot.generationParams.quality,
@@ -1359,13 +1456,13 @@ export function VideoWorkspace() {
 
       let submitFailureMessage = "";
       const nextTask = await submit({
-        prompt: shot.prompt.trim(),
-        model: selectedModel,
+        prompt: shotPrompt,
+        model: shotModel,
         duration: shotParams.duration,
         ratio: shotParams.ratio,
         quality: shotParams.quality,
         generateAudio: shotParams.generateAudio,
-        media: [],
+        media: shotReferenceMedia,
         mentionBindings: [],
         maxConcurrency,
         onSubmitError: (message) => {
@@ -1383,6 +1480,10 @@ export function VideoWorkspace() {
           audio: shot.audio,
           referenceHints: shot.referenceHints,
           generationParams: shot.generationParams,
+          selectedModelId: shotModel.id,
+          selectedModelLabel: shotModel.label,
+          selectedProviderModel: shotModel.providerModel || "",
+          keyframeCount: shotReferenceMedia.length,
           ...(queueMeta?.queueRunId
             ? {
                 queueRunId: queueMeta.queueRunId,
@@ -1438,6 +1539,7 @@ export function VideoWorkspace() {
       isUploadingMedia,
       maxConcurrency,
       effectiveGenerateAudio,
+      models,
       remakeCharacterRules,
       remakeSceneStyle,
       remakeSourceVideo,
