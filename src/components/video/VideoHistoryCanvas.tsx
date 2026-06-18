@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useI18n } from "@/i18n/useI18n";
 import { collectHistoryInputMediaAssets } from "@/lib/media-assets";
+import { getVideoUserFacingError } from "@/lib/video/videoErrorDisplay";
 import { getSafeVideoHistoryView, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { VideoTaskRecord } from "@/types/video";
@@ -76,6 +77,11 @@ function getOutputSourceLabel(record: VideoTaskRecord, t: ReturnType<typeof useI
   }
 
   return t("video.generation.createOutput");
+}
+
+function isRemakeRecord(record: VideoTaskRecord) {
+  const meta = getRecordMeta(record);
+  return meta.source === "remake" || meta.remake === true || meta.remake_source === "storyboard_shot";
 }
 
 export function VideoHistoryCanvas({
@@ -160,6 +166,12 @@ export function VideoHistoryCanvas({
               const sensitiveFailure = isFailed && isSensitiveFailure(view.errorMessage);
               const referenceCount = collectHistoryInputMediaAssets([item]).length;
               const sourceLabel = getOutputSourceLabel(item, t);
+              const displayErrorMessage = getVideoUserFacingError(view.errorMessage, t, {
+                context: isRemakeRecord(item) ? "remake" : "video",
+                errorCode: view.errorCode,
+                refunded: view.refunded,
+                refundStatus: view.refundStatus,
+              });
 
               return (
                 <article className="overflow-hidden rounded-[28px] border border-white/10 bg-black/22" key={view.key}>
@@ -179,7 +191,7 @@ export function VideoHistoryCanvas({
                             <p className="text-lg font-black text-[#f2b3a1]">
                               {sensitiveFailure ? t("video.history.canvas.sensitive") : t("video.history.canvas.failed")}
                             </p>
-                            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#f2b3a1]/58">{view.errorMessage}</p>
+                            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#f2b3a1]/58">{displayErrorMessage}</p>
                             {view.refundNotice ? (
                               <span className="mt-4 inline-flex rounded-full border border-[#ffb44d]/20 bg-[#ffb44d]/10 px-3 py-1 text-xs font-black text-[#ffd08a]">
                                 {t("video.history.canvas.refunded")}
@@ -235,7 +247,7 @@ export function VideoHistoryCanvas({
 
                       {isFailed ? (
                         <p className="rounded-2xl border border-[#8c4632]/30 bg-[#2a1012]/62 px-3 py-2 text-xs leading-5 text-[#f2b3a1]/62">
-                          {view.errorMessage}
+                          {displayErrorMessage}
                         </p>
                       ) : null}
 

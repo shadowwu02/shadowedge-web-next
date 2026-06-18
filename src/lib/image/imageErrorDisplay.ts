@@ -1,15 +1,25 @@
 type ImageErrorKey =
   | "image.errors.fileTooLarge"
+  | "image.errors.generationFailedNoRefund"
   | "image.errors.generationFailedFriendly"
   | "image.errors.invalidPrompt"
+  | "image.errors.materialIssue"
   | "image.errors.materialIssueRefunded"
   | "image.errors.notEnoughCredits"
+  | "image.errors.parameterIssue"
+  | "image.errors.policyOrCopyright"
   | "image.errors.promptRequired"
+  | "image.errors.providerTemporary"
   | "image.errors.referenceLimitReached"
   | "image.errors.signInRequired"
   | "image.errors.unsupportedFormat";
 
 type ImageErrorTranslator = (key: ImageErrorKey) => string;
+type ImageErrorDisplayOptions = {
+  errorCode?: string | null;
+  refunded?: boolean;
+  refundStatus?: string | null;
+};
 
 const providerInternalErrorTerms = [
   "higgsfield",
@@ -65,18 +75,72 @@ export function isProviderInternalImageError(message: string | null | undefined)
   return providerInternalErrorTerms.some((term) => normalized.includes(term)) || rawDumpErrorTerms.some((term) => normalized.includes(term));
 }
 
-export function getImageUserFacingError(message: string | null | undefined, t: ImageErrorTranslator) {
+export function getImageUserFacingError(message: string | null | undefined, t: ImageErrorTranslator, options: ImageErrorDisplayOptions = {}) {
   const raw = normalizeErrorMessage(message);
   if (!raw) return "";
 
   const normalized = raw.toLowerCase();
+  const errorCode = String(options.errorCode || "").toUpperCase();
+  const wasRefunded =
+    options.refunded === true ||
+    String(options.refundStatus || "").toLowerCase().includes("refund") ||
+    normalized.includes("credits have been refunded") ||
+    normalized.includes("credits were refunded") ||
+    normalized.includes("积分已退回");
 
   if (
+    errorCode === "MATERIAL_ISSUE" ||
     normalized.includes("material_issue") ||
     normalized.includes("uploaded material could not be processed") ||
     normalized.includes("material processing issue")
   ) {
-    return t("image.errors.materialIssueRefunded");
+    return wasRefunded ? t("image.errors.materialIssueRefunded") : t("image.errors.materialIssue");
+  }
+
+  if (
+    errorCode === "POLICY_OR_COPYRIGHT" ||
+    normalized.includes("policy_or_copyright") ||
+    normalized.includes("content_policy_rejected") ||
+    normalized.includes("copyright_rejected") ||
+    normalized.includes("copyright_confirmation_required") ||
+    normalized.includes("face_ip_failed") ||
+    normalized.includes("ip detected") ||
+    normalized.includes("nsfw") ||
+    normalized.includes("moderation") ||
+    normalized.includes("content policy")
+  ) {
+    return t("image.errors.policyOrCopyright");
+  }
+
+  if (
+    errorCode === "PARAMETER_ISSUE" ||
+    normalized.includes("parameter_issue") ||
+    normalized.includes("invalid_duration") ||
+    normalized.includes("model_param_unsupported") ||
+    normalized.includes("invalid values") ||
+    normalized.includes("aspect_ratio=auto") ||
+    normalized.includes("unknown parameter") ||
+    normalized.includes("unsupported parameter")
+  ) {
+    return t("image.errors.parameterIssue");
+  }
+
+  if (
+    errorCode === "PROVIDER_TEMPORARY_FAILURE" ||
+    normalized.includes("provider_temporary_failure") ||
+    normalized.includes("server 500") ||
+    normalized.includes("provider timeout") ||
+    normalized.includes("network error") ||
+    normalized.includes("socket hang up") ||
+    normalized.includes("session expired") ||
+    normalized.includes("auth failed") ||
+    normalized.includes("insufficient balance")
+  ) {
+    return t("image.errors.providerTemporary");
+  }
+
+  if (errorCode === "PROVIDER_TASK_FAILED") {
+    return t("image.errors.generationFailedNoRefund");
   }
 
   if (

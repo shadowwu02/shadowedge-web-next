@@ -21,6 +21,9 @@ export type SafeVideoHistoryView = {
   outputUrl: string;
   thumbnailUrl: string;
   errorMessage: string;
+  errorCode: string;
+  refunded: boolean;
+  refundStatus: string;
   refundNotice: string;
 };
 
@@ -414,8 +417,16 @@ export function getSafeVideoHistoryErrorMessage(record: unknown) {
     pickString(
       raw.public_message,
       raw.publicMessage,
+      raw.providerPublicMessage,
+      raw.provider_public_message,
+      raw.providerPublicMessageEn,
+      raw.provider_public_message_en,
       meta.public_message,
       meta.publicMessage,
+      meta.providerPublicMessage,
+      meta.provider_public_message,
+      meta.providerPublicMessageEn,
+      meta.provider_public_message_en,
       raw.error_message,
       raw.errorMessage,
       meta.error_message,
@@ -442,6 +453,19 @@ function getRefundNotice(record: unknown) {
   return amount ? `Refunded ${amount} credits.` : "Credits were refunded for this failed task.";
 }
 
+function getRefundStatus(record: unknown) {
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+  return pickString(raw.refundStatus, raw.refund_status, meta.refundStatus, meta.refund_status) || "";
+}
+
+function isRefunded(record: unknown) {
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+  const refundStatus = getRefundStatus(record).toLowerCase();
+  return Boolean(raw.refunded || meta.refunded || refundStatus.includes("refund"));
+}
+
 export function getSafeVideoHistoryView(record: VideoTaskRecord, fallbackKey = ""): SafeVideoHistoryView {
   const raw = record as HistoryRecordInput;
   const meta = asRecord(raw.meta);
@@ -465,6 +489,9 @@ export function getSafeVideoHistoryView(record: VideoTaskRecord, fallbackKey = "
     outputUrl,
     thumbnailUrl: getSafeHistoryThumbnailUrl(raw),
     errorMessage: getSafeVideoHistoryErrorMessage(raw),
+    errorCode: pickString(raw.errorCode, raw.error_code, meta.errorCode, meta.error_code) || "",
+    refunded: isRefunded(raw),
+    refundStatus: getRefundStatus(raw),
     refundNotice: getRefundNotice(raw),
   };
 }

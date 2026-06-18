@@ -163,7 +163,7 @@ export function normalizeImageHistoryItem(item: unknown): ImageHistoryItem {
     referenceCount: Math.max(0, pickNumber(raw.referenceCount, raw.reference_count, meta.referenceCount, referenceImages.length, 0) || 0),
     cost: Math.max(0, pickNumber(raw.cost, raw.creditsCharged, meta.cost, meta.totalCost, 0) || 0),
     creditsCharged: Math.max(0, pickNumber(raw.creditsCharged, raw.cost, meta.cost, meta.totalCost, 0) || 0),
-    errorMessage: pickString(raw.errorMessage, raw.error_message, raw.error, meta.errorMessage, meta.error_message, meta.error) || "",
+    errorMessage: pickString(raw.errorMessage, raw.error_message, raw.error, meta.providerPublicMessage, meta.provider_public_message, meta.errorMessage, meta.error_message, meta.error) || "",
     errorCode: pickString(raw.errorCode, raw.error_code, meta.errorCode, meta.error_code) || "",
     refunded: Boolean(raw.refunded || meta.refunded),
     refundStatus: pickString(raw.refundStatus, raw.refund_status, meta.refundStatus, meta.refund_status) || "none",

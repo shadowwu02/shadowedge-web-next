@@ -1,11 +1,16 @@
 type VideoErrorKey =
   | "video.errors.durationTooLong"
   | "video.errors.fileTooLarge"
+  | "video.errors.generationFailedNoRefund"
   | "video.errors.generationFailedFriendly"
   | "video.errors.insufficientCredits"
   | "video.errors.invalidPrompt"
+  | "video.errors.materialIssue"
   | "video.errors.materialIssueRefunded"
+  | "video.errors.parameterIssue"
+  | "video.errors.policyOrCopyright"
   | "video.errors.promptTooLong"
+  | "video.errors.providerTemporary"
   | "video.errors.referenceLimitReached"
   | "video.errors.remakeShotFailedFriendly"
   | "video.errors.signInRequired"
@@ -15,6 +20,9 @@ type VideoErrorTranslator = (key: VideoErrorKey) => string;
 
 type VideoErrorDisplayOptions = {
   context?: "remake" | "video";
+  errorCode?: string | null;
+  refunded?: boolean;
+  refundStatus?: string | null;
 };
 
 const providerInternalErrorTerms = [
@@ -81,13 +89,67 @@ export function getVideoUserFacingError(message: string | null | undefined, t: V
   if (!raw) return "";
 
   const normalized = raw.toLowerCase();
+  const errorCode = String(options.errorCode || "").toUpperCase();
+  const wasRefunded =
+    options.refunded === true ||
+    String(options.refundStatus || "").toLowerCase().includes("refund") ||
+    normalized.includes("credits have been refunded") ||
+    normalized.includes("credits were refunded") ||
+    normalized.includes("积分已退回");
 
   if (
+    errorCode === "MATERIAL_ISSUE" ||
     normalized.includes("material_issue") ||
     normalized.includes("uploaded material could not be processed") ||
     normalized.includes("material processing issue")
   ) {
-    return t("video.errors.materialIssueRefunded");
+    return wasRefunded ? t("video.errors.materialIssueRefunded") : t("video.errors.materialIssue");
+  }
+
+  if (
+    errorCode === "POLICY_OR_COPYRIGHT" ||
+    normalized.includes("policy_or_copyright") ||
+    normalized.includes("content_policy_rejected") ||
+    normalized.includes("copyright_rejected") ||
+    normalized.includes("copyright_confirmation_required") ||
+    normalized.includes("face_ip_failed") ||
+    normalized.includes("ip detected") ||
+    normalized.includes("nsfw") ||
+    normalized.includes("moderation") ||
+    normalized.includes("content policy")
+  ) {
+    return t("video.errors.policyOrCopyright");
+  }
+
+  if (
+    errorCode === "PARAMETER_ISSUE" ||
+    normalized.includes("parameter_issue") ||
+    normalized.includes("invalid_duration") ||
+    normalized.includes("model_param_unsupported") ||
+    normalized.includes("invalid values") ||
+    normalized.includes("aspect_ratio=auto") ||
+    normalized.includes("unknown parameter") ||
+    normalized.includes("unsupported parameter")
+  ) {
+    return t("video.errors.parameterIssue");
+  }
+
+  if (
+    errorCode === "PROVIDER_TEMPORARY_FAILURE" ||
+    normalized.includes("provider_temporary_failure") ||
+    normalized.includes("server 500") ||
+    normalized.includes("provider timeout") ||
+    normalized.includes("network error") ||
+    normalized.includes("socket hang up") ||
+    normalized.includes("session expired") ||
+    normalized.includes("auth failed") ||
+    normalized.includes("insufficient balance")
+  ) {
+    return t("video.errors.providerTemporary");
+  }
+
+  if (errorCode === "PROVIDER_TASK_FAILED") {
+    return t("video.errors.generationFailedNoRefund");
   }
 
   if (

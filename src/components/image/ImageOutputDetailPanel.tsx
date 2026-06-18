@@ -74,7 +74,11 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
   const isFailed = isImageFailedStatus(status);
   const chargedCredits = job.cost || job.creditsCharged || 0;
   const modelLogoLookup = getImageHistoryModelLogoLookup(job);
-  const displayedErrorMessage = getImageUserFacingError(job.errorMessage, t);
+  const displayedErrorMessage = getImageUserFacingError(job.errorMessage, t, {
+    errorCode: job.errorCode,
+    refunded: job.refunded,
+    refundStatus: job.refundStatus,
+  });
   const statusLabel = (() => {
     if (isImageFailedStatus(status)) return t("image.status.failed");
     if (isImageCompletedStatus(status)) return t("image.status.completed");

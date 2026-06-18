@@ -166,6 +166,10 @@ export type VideoTaskRecord = {
   uploadAssets?: Record<string, unknown>;
   error_message?: string;
   errorCode?: string;
+  providerPublicMessage?: string;
+  providerPublicMessageEn?: string;
+  providerPublicMessageZh?: string;
+  providerFailureCategory?: string;
   message?: string;
   cost_credits?: number;
   createdAt: number | string;

@@ -189,7 +189,12 @@ function VideoGenerationCard({
   const useResultIssue = getUseResultAsReferenceIssue?.(record) || "";
   const modelLogoLookup = getRecordModelLogoLookup(record, view.modelLabel);
   const sourceLabel = getOutputSourceLabel(record, t);
-  const displayErrorMessage = getVideoUserFacingError(view.errorMessage, t, { context: isRemakeRecord(record) ? "remake" : "video" });
+  const displayErrorMessage = getVideoUserFacingError(view.errorMessage, t, {
+    context: isRemakeRecord(record) ? "remake" : "video",
+    errorCode: view.errorCode,
+    refunded: view.refunded,
+    refundStatus: view.refundStatus,
+  });
   const statusLabel = isStaleActive
     ? t("video.generation.stale")
     : isFailed

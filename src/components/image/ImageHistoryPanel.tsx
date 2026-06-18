@@ -111,7 +111,11 @@ export function ImageHistoryPanel({
             const isCompleted = isImageCompletedStatus(status);
             const isFailed = isImageFailedStatus(status);
             const modelLogoLookup = getImageHistoryModelLogoLookup(item);
-            const failedErrorMessage = isFailed ? getImageUserFacingError(item.errorMessage, t) : "";
+            const failedErrorMessage = isFailed ? getImageUserFacingError(item.errorMessage, t, {
+              errorCode: item.errorCode,
+              refunded: item.refunded,
+              refundStatus: item.refundStatus,
+            }) : "";
 
             return (
               <article

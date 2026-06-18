@@ -159,7 +159,12 @@ export function VideoOutputDetailPanel({
   const isProcessing = isVideoActiveStatus(view.status) && !isStaleActive;
   const useResultIssue = getUseResultAsReferenceIssue?.(record) || "";
   const modelLogoLookup = getRecordModelLogoLookup(record, view.modelLabel);
-  const displayErrorMessage = getVideoUserFacingError(view.errorMessage, t, { context: isRemakeRecord(record) ? "remake" : "video" });
+  const displayErrorMessage = getVideoUserFacingError(view.errorMessage, t, {
+    context: isRemakeRecord(record) ? "remake" : "video",
+    errorCode: view.errorCode,
+    refunded: view.refunded,
+    refundStatus: view.refundStatus,
+  });
   const statusLabel = isStaleActive
     ? t("video.generation.stale")
     : isFailed

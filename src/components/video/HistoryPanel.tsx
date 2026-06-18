@@ -124,7 +124,13 @@ export function HistoryPanel({
   const localizeHistoryMessage = (message: string, record: VideoTaskRecord) => {
     if (message === "Video generation failed. Please try again later or change the media.") return t("video.errors.generationFailed");
     if (message === "Unable to check this job status. It may be expired. Please check History or retry.") return t("video.result.statusExpired");
-    return getVideoUserFacingError(message, t, { context: isRemakeRecord(record) ? "remake" : "video" });
+    const view = getSafeVideoHistoryView(record);
+    return getVideoUserFacingError(message, t, {
+      context: isRemakeRecord(record) ? "remake" : "video",
+      errorCode: view.errorCode,
+      refunded: view.refunded,
+      refundStatus: view.refundStatus,
+    });
   };
   const localizeRefundNotice = (notice: string) => {
     const amount = notice.match(/^Refunded\s+(.+?)\s+credits\.$/i)?.[1];

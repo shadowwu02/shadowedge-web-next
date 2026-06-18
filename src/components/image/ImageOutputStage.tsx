@@ -63,7 +63,11 @@ export function ImageOutputStage({
   const isFailed = Boolean(job && isImageFailedStatus(status));
   const isCompleted = Boolean(job && isImageCompletedStatus(status) && job.outputUrls.length);
   const isRecoveredActiveJob = Boolean(job && recoveredJobId && [job.dbJobId, job.jobId, job.id].filter(Boolean).some((value) => String(value) === String(recoveredJobId)));
-  const displayedErrorMessage = getImageUserFacingError(job?.errorMessage || error, t);
+  const displayedErrorMessage = getImageUserFacingError(job?.errorMessage || error, t, {
+    errorCode: job?.errorCode,
+    refunded: job?.refunded,
+    refundStatus: job?.refundStatus,
+  });
   const localizedStatus = (() => {
     if (!status) return t("image.status.unknown");
     if (isImageFailedStatus(status)) return t("image.status.failed");
