@@ -22,11 +22,13 @@ export function AppShell({
     if (href === "/workspace/video") return pathname === href || pathname.startsWith(`${href}/`);
     if (href === "/workspace/image") return pathname === href || pathname.startsWith(`${href}/`);
     if (href === "/workspace/canvas") return pathname === href || pathname.startsWith(`${href}/`);
+    if (href === "/prompt-studio") return pathname === href || pathname.startsWith(`${href}/`);
     return pathname === href;
   };
   const workspaceLinks = [
     { label: t("nav.video"), href: "/workspace/video", active: isActiveRoute("/workspace/video") },
     { label: t("nav.image"), href: "/workspace/image", active: isActiveRoute("/workspace/image") },
+    { label: t("nav.promptStudio"), href: "/prompt-studio", active: isActiveRoute("/prompt-studio") },
     { label: t("nav.canvas"), href: "/workspace/canvas", active: isActiveRoute("/workspace/canvas") },
     { label: t("nav.history"), href: "/history", active: isActiveRoute("/history") },
     { label: t("nav.models"), href: "/models", active: isActiveRoute("/models") },
