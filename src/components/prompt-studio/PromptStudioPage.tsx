@@ -921,9 +921,14 @@ function StyleCardOutput({
               {result.analysisSource === "vlm" ? (isZh ? "AI 分析完成" : "AI analysis complete") : isZh ? "备用风格卡" : "Fallback style card"}
             </h3>
           </div>
-          <span className="rounded-full border border-[#f6a935]/24 bg-[#f6a935]/12 px-3 py-1.5 text-xs font-black text-[#ffd48a]">
-            {result.analysisSource}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-[#f6a935]/24 bg-[#f6a935]/12 px-3 py-1.5 text-xs font-black text-[#ffd48a]">
+              {result.analysisSource}
+            </span>
+            <span className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/58">
+              Provider: {result.provider || result.vlmProvider || (result.analysisSource === "fallback" ? "fallback" : "AI")}
+            </span>
+          </div>
         </div>
         <p className="mt-3 rounded-2xl border border-white/[.06] bg-black/16 px-3 py-2 text-sm leading-6 text-white/68">
           {result.analysisSource === "vlm"
@@ -941,7 +946,8 @@ function StyleCardOutput({
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {styleCardGroups.map((group) => {
-          const values = result.styleCard[group.key] || [];
+          const rawValues = result.styleCard[group.key];
+          const values = Array.isArray(rawValues) ? rawValues : [];
           if (!values.length) return null;
           return (
             <article className="rounded-[22px] border border-white/[.06] bg-white/[.025] p-3" key={group.key}>

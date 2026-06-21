@@ -172,6 +172,8 @@ export type PromptStudioReferenceStyleCard = {
   mood: string[];
   visualEra?: string[];
   cameraMovementSuggestion?: string[];
+  possibleStyles?: string[];
+  reusableStyleSummary?: string;
 };
 
 export type PromptStudioMatchedLibrary = {
@@ -187,6 +189,7 @@ export type PromptStudioMatchedLibrary = {
 export type PromptStudioReferenceAnalysisResult = {
   analysisSource: "vlm" | "fallback";
   fallbackReason?: string;
+  provider?: "B.AI" | "OpenAI" | "fallback" | string | null;
   vlmProvider?: string | null;
   target?: string;
   engine?: string;
