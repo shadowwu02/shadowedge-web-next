@@ -1,6 +1,6 @@
 "use client";
 
-import { type MouseEvent, type PointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { useI18n } from "@/i18n/useI18n";
@@ -26,9 +26,12 @@ type Target = "video" | "image" | "storyboard";
 type Engine = "seedance" | "higgsfield" | "gpt-image" | "nano-banana";
 type ResultKey = "basicPrompt" | "standardPrompt" | "enhancedPrompt";
 type LibraryKind = "style" | "module";
+type LibraryGroupId = "recommended" | "cinematic" | "camera" | "character" | "scene" | "all";
 type TextMode = Exclude<PromptStudioMode, "all">;
 
 type LibraryItemWithKind = PromptStudioLibraryItem & { libraryKind: LibraryKind };
+
+const characterModuleNames = ["人物形象", "表情神态", "服装造型妆发", "姿态动作", "角色一致性"];
 
 const targetOptions: Array<{ id: Target; labelZh: string; labelEn: string }> = [
   { id: "video", labelZh: "视频", labelEn: "Video" },
@@ -212,6 +215,31 @@ function selectedCountForItems(items: LibraryItemWithKind[], selectedStyles: str
   return items.reduce((count, item) => count + (isLibraryItemSelected(item, selectedStyles, selectedModules) ? 1 : 0), 0);
 }
 
+function itemMatches(item: PromptStudioLibraryItem, pattern: RegExp) {
+  return pattern.test(`${item.nameZh} ${item.category} ${item.categoryId} ${item.path}`);
+}
+
+function uniqueLibraryItems(items: LibraryItemWithKind[]) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = `${item.libraryKind}:${item.id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function sortByPreferredNames(items: LibraryItemWithKind[], preferredNames: string[]) {
+  return [...items].sort((a, b) => {
+    const aIndex = preferredNames.indexOf(a.nameZh);
+    const bIndex = preferredNames.indexOf(b.nameZh);
+    const normalizedA = aIndex === -1 ? Number.MAX_SAFE_INTEGER : aIndex;
+    const normalizedB = bIndex === -1 ? Number.MAX_SAFE_INTEGER : bIndex;
+    if (normalizedA !== normalizedB) return normalizedA - normalizedB;
+    return a.nameZh.localeCompare(b.nameZh, "zh-Hans-CN");
+  });
+}
+
 function SectionLabel({ children }: { children: string }) {
   return <div className="text-[11px] font-black uppercase tracking-[.22em] text-[#f6c66f]/80">{children}</div>;
 }
@@ -375,8 +403,6 @@ function LibrarySection({
   selectedStyles: string[];
   title: string;
 }) {
-  if (!items.length) return null;
-
   return (
     <section className="rounded-[24px] border border-white/[.065] bg-[#0c0e12]/80 p-3">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -390,39 +416,45 @@ function LibrarySection({
           {items.length}
         </span>
       </div>
-      <div className={cx("flex max-h-44 flex-wrap gap-2 overflow-y-auto pr-1", subtleScrollbar)}>
-        {items.map((item) => (
-          <LibraryToggleButton
-            item={item}
-            key={`${item.libraryKind}-${item.id}`}
-            onToggle={onToggle}
-            selected={item.libraryKind === "style" ? selectedStyles.includes(item.id) : selectedModules.includes(item.id)}
-          />
-        ))}
-      </div>
+      {items.length ? (
+        <div className={cx("flex max-h-44 flex-wrap gap-2 overflow-y-auto pr-1", subtleScrollbar)}>
+          {items.map((item) => (
+            <LibraryToggleButton
+              item={item}
+              key={`${item.libraryKind}-${item.id}`}
+              onToggle={onToggle}
+              selected={item.libraryKind === "style" ? selectedStyles.includes(item.id) : selectedModules.includes(item.id)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-white/[.08] bg-white/[.025] px-4 py-6 text-sm font-semibold text-white/42">
+          No items in this category
+        </div>
+      )}
     </section>
   );
 }
 
 function BrowseLibrariesDialog({
-  activeLibraryTab,
+  activeLibraryCategory,
   catalog,
   isOpen,
   onClose,
   onClearSelection,
-  onLibraryTabChange,
+  onLibraryCategoryChange,
   onToggle,
   query,
   selectedModules,
   selectedStyles,
   setQuery,
 }: {
-  activeLibraryTab: string;
+  activeLibraryCategory: LibraryGroupId;
   catalog: PromptStudioCatalog;
   isOpen: boolean;
   onClose: () => void;
   onClearSelection: () => void;
-  onLibraryTabChange: (tabId: string) => void;
+  onLibraryCategoryChange: (categoryId: LibraryGroupId) => void;
   onToggle: (item: LibraryItemWithKind) => void;
   query: string;
   selectedModules: string[];
@@ -441,51 +473,64 @@ function BrowseLibrariesDialog({
     () => catalog.recommendedStyles.map((item) => ({ ...item, libraryKind: "style" as const })),
     [catalog.recommendedStyles],
   );
-  const filteredItems = useMemo(() => filterItems([...styleItems, ...moduleItems], query).slice(0, 80), [moduleItems, query, styleItems]);
+  const allItems = useMemo(() => [...styleItems, ...moduleItems], [moduleItems, styleItems]);
+  const filteredItems = useMemo(() => filterItems(allItems, query).slice(0, 80), [allItems, query]);
   const cameraItems = useMemo(
     () =>
-      moduleItems.filter((item) =>
-        /运镜|镜头|机位|camera|motion|dolly|orbit|push|follow|tracking|shot/i.test(`${item.nameZh} ${item.category} ${item.path}`),
-      ),
-    [moduleItems],
+      uniqueLibraryItems([
+        ...moduleItems.filter(
+          (item) =>
+            item.categoryId === "horizontal" &&
+            itemMatches(item, /运镜|镜头|机位|camera|motion|dolly|orbit|push|follow|tracking|shot/i),
+        ),
+        ...styleItems.filter((item) => item.categoryId === "technical" && itemMatches(item, /镜头|摄影|运镜|camera|motion|dolly|tracking|shot/i)),
+      ]),
+    [moduleItems, styleItems],
   );
   const characterItems = useMemo(
     () =>
-      moduleItems.filter((item) =>
-        item.categoryId === "character" ||
-        /人物|角色|表情|服装|姿态|一致|character|face|costume|expression|pose|identity/i.test(`${item.nameZh} ${item.category} ${item.path}`),
+      sortByPreferredNames(
+        moduleItems.filter(
+          (item) =>
+            item.categoryId === "character" ||
+            item.category === "人物模块" ||
+            characterModuleNames.includes(item.nameZh) ||
+            itemMatches(item, /人物模块|人物形象|表情神态|服装造型妆发|姿态动作|角色一致性|character|face|costume|expression|pose|identity/i),
+        ),
+        characterModuleNames,
       ),
     [moduleItems],
   );
   const sceneItems = useMemo(
     () =>
-      [...styleItems, ...moduleItems].filter((item) =>
-        /场景|拍摄|类型|教堂|室内|城市|genre|scene|location|setting|interior|fantasy|commercial/i.test(`${item.nameZh} ${item.category} ${item.path}`),
+      uniqueLibraryItems(
+        styleItems.filter(
+          (item) =>
+            item.categoryId === "scene" ||
+            item.categoryId === "narrative" ||
+            itemMatches(item, /拍摄场景|叙事类型|片种类型|场景|类型|教堂|室内|城市|genre|scene|location|setting|interior|fantasy|commercial/i),
+        ),
       ),
-    [moduleItems, styleItems],
+    [styleItems],
   );
-  const allItems = useMemo(() => [...styleItems, ...moduleItems], [moduleItems, styleItems]);
   const selectedCount = selectedStyles.length + selectedModules.length;
-  const libraryTabs = [
-    { id: "recommended", label: "Recommended", sublabel: "常用推荐", items: recommendedItems },
-    { id: "styles", label: "Cinematic Styles", sublabel: "电影风格", items: styleItems },
-    { id: "camera", label: "Camera Motion", sublabel: "运镜", items: cameraItems.length ? cameraItems : moduleItems.slice(0, 16) },
-    { id: "character", label: "Character", sublabel: "人物模块", items: characterItems.length ? characterItems : moduleItems.slice(0, 16) },
-    { id: "scene", label: "Scene / Genre", sublabel: "场景类型", items: sceneItems.length ? sceneItems : allItems.slice(0, 24) },
-    { id: "all", label: "All Libraries", sublabel: "全部", items: allItems },
-  ];
-  const activeTab = libraryTabs.find((tab) => tab.id === activeLibraryTab) || libraryTabs[0];
-  const visibleItems = query.trim() ? filteredItems : activeTab.items;
-  const selectLibraryTab = (tabId: string) => {
-    onLibraryTabChange(tabId);
+  const libraryGroups = useMemo<Array<{ id: LibraryGroupId; label: string; sublabel: string; items: LibraryItemWithKind[] }>>(
+    () => [
+      { id: "recommended", label: "Recommended", sublabel: "常用推荐", items: recommendedItems },
+      { id: "cinematic", label: "Cinematic Styles", sublabel: "电影风格", items: styleItems },
+      { id: "camera", label: "Camera Motion", sublabel: "运镜", items: cameraItems },
+      { id: "character", label: "Character", sublabel: "人物模块", items: characterItems },
+      { id: "scene", label: "Scene / Genre", sublabel: "场景类型", items: sceneItems },
+      { id: "all", label: "All Libraries", sublabel: "全部", items: allItems },
+    ],
+    [allItems, cameraItems, characterItems, recommendedItems, sceneItems, styleItems],
+  );
+  const activeGroup = libraryGroups.find((group) => group.id === activeLibraryCategory) || libraryGroups[0];
+  const visibleItems = query.trim() ? filteredItems : activeGroup.items;
+  const selectLibraryCategory = (categoryId: LibraryGroupId) => {
     if (query.trim()) setQuery("");
+    onLibraryCategoryChange(categoryId);
   };
-  const handleLibraryTabSelect =
-    (tabId: string) => (event: MouseEvent<HTMLButtonElement> | PointerEvent<HTMLButtonElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      selectLibraryTab(tabId);
-    };
 
   if (!isOpen) return null;
 
@@ -518,29 +563,27 @@ function BrowseLibrariesDialog({
         <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[260px_minmax(0,1fr)]">
           <aside className="border-b border-white/[.06] bg-[#0c0e12]/54 p-4 lg:border-b-0 lg:border-r">
             <div className="grid gap-2">
-              {libraryTabs.map((tab) => {
-                const tabSelectedCount = selectedCountForItems(tab.items, selectedStyles, selectedModules);
+              {libraryGroups.map((group) => {
+                const tabSelectedCount = selectedCountForItems(group.items, selectedStyles, selectedModules);
                 return (
                   <button
-                    aria-pressed={!query.trim() && activeLibraryTab === tab.id}
+                    aria-pressed={!query.trim() && activeLibraryCategory === group.id}
                     className={cx(
                       "rounded-2xl border px-3 py-3 text-left transition",
-                      !query.trim() && activeLibraryTab === tab.id
+                      !query.trim() && activeLibraryCategory === group.id
                         ? "border-[#f6a935]/34 bg-[#f6a935]/12 shadow-[0_0_26px_rgba(246,169,53,.10)]"
                         : "border-white/[.055] bg-white/[.025] hover:border-[#f6a935]/18 hover:bg-white/[.04]",
                     )}
-                    key={tab.id}
-                    onClick={handleLibraryTabSelect(tab.id)}
-                    onMouseDown={handleLibraryTabSelect(tab.id)}
-                    onPointerDownCapture={handleLibraryTabSelect(tab.id)}
+                    key={group.id}
+                    onClick={() => selectLibraryCategory(group.id)}
                     type="button"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-black text-white/82">{tab.label}</span>
-                      <span className="text-xs font-bold text-white/34">{tab.items.length}</span>
+                      <span className="text-sm font-black text-white/82">{group.label}</span>
+                      <span className="text-xs font-bold text-white/34">{group.items.length}</span>
                     </div>
                     <div className="mt-1 flex items-center justify-between gap-2 text-xs text-white/42">
-                      <span>{tab.sublabel}</span>
+                      <span>{group.sublabel}</span>
                       {tabSelectedCount ? <span className="rounded-full bg-[#f6a935]/14 px-2 py-0.5 text-[#ffd48a]">{tabSelectedCount} selected</span> : null}
                     </div>
                   </button>
@@ -555,7 +598,7 @@ function BrowseLibrariesDialog({
               onToggle={onToggle}
               selectedModules={selectedModules}
               selectedStyles={selectedStyles}
-              title={query.trim() ? `Search results (${filteredItems.length})` : `${activeTab.label} / ${activeTab.sublabel}`}
+              title={query.trim() ? `Search results (${filteredItems.length})` : `${activeGroup.label} / ${activeGroup.sublabel}`}
             />
           </div>
         </div>
@@ -683,7 +726,7 @@ export function PromptStudioPage() {
   const [advancedControls, setAdvancedControls] = useState<PromptStudioAdvancedControls>({});
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [libraryQuery, setLibraryQuery] = useState("");
-  const [activeLibraryTab, setActiveLibraryTab] = useState("recommended");
+  const [activeLibraryCategory, setActiveLibraryCategory] = useState<LibraryGroupId>("recommended");
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
   const [result, setResult] = useState<PromptStudioGenerateResult | null>(null);
@@ -1165,9 +1208,6 @@ export function PromptStudioPage() {
             <button
               className="rounded-[28px] border border-white/[.07] bg-[#101216]/92 p-4 text-left transition hover:border-[#f6a935]/26"
               onClick={() => setIsLibraryOpen(true)}
-              onClickCapture={() => setIsLibraryOpen(true)}
-              onPointerDown={() => setIsLibraryOpen(true)}
-              onPointerDownCapture={() => setIsLibraryOpen(true)}
               type="button"
             >
               <div className="flex items-center justify-between gap-3">
@@ -1602,7 +1642,7 @@ export function PromptStudioPage() {
         </div>
 
         <BrowseLibrariesDialog
-          activeLibraryTab={activeLibraryTab}
+          activeLibraryCategory={activeLibraryCategory}
           catalog={catalog}
           isOpen={isLibraryOpen}
           onClearSelection={() => {
@@ -1610,7 +1650,7 @@ export function PromptStudioPage() {
             setSelectedModules([]);
           }}
           onClose={() => setIsLibraryOpen(false)}
-          onLibraryTabChange={setActiveLibraryTab}
+          onLibraryCategoryChange={setActiveLibraryCategory}
           onToggle={handleLibraryToggle}
           query={libraryQuery}
           selectedModules={selectedModules}
