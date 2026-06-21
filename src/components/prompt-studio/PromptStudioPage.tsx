@@ -105,15 +105,6 @@ function toggleId(list: string[], id: string) {
   return list.includes(id) ? list.filter((item) => item !== id) : [...list, id];
 }
 
-function groupItems(items: PromptStudioLibraryItem[]) {
-  return items.reduce<Record<string, PromptStudioLibraryItem[]>>((groups, item) => {
-    const key = item.category || "Other";
-    groups[key] = groups[key] || [];
-    groups[key].push(item);
-    return groups;
-  }, {});
-}
-
 function itemSearchText(item: PromptStudioLibraryItem) {
   return `${item.nameZh} ${item.category} ${item.categoryId} ${item.path}`.toLowerCase();
 }
@@ -122,6 +113,14 @@ function filterItems(items: LibraryItemWithKind[], query: string) {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return items;
   return items.filter((item) => itemSearchText(item).includes(normalized));
+}
+
+function isLibraryItemSelected(item: LibraryItemWithKind, selectedStyles: string[], selectedModules: string[]) {
+  return item.libraryKind === "style" ? selectedStyles.includes(item.id) : selectedModules.includes(item.id);
+}
+
+function selectedCountForItems(items: LibraryItemWithKind[], selectedStyles: string[], selectedModules: string[]) {
+  return items.reduce((count, item) => count + (isLibraryItemSelected(item, selectedStyles, selectedModules) ? 1 : 0), 0);
 }
 
 function SectionLabel({ children }: { children: string }) {
@@ -188,15 +187,17 @@ function LibraryToggleButton({
   return (
     <button
       className={cx(
-        "rounded-full border px-3 py-1.5 text-xs font-semibold leading-5 transition",
+        "group inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold leading-5 transition",
         selected
-          ? "border-[#f6a935]/34 bg-[#f6a935]/14 text-[#ffd48a]"
+          ? "border-[#f6a935]/55 bg-[linear-gradient(135deg,rgba(246,169,53,.28),rgba(255,195,90,.13))] text-[#fff0c9] shadow-[0_0_22px_rgba(246,169,53,.12)]"
           : "border-white/[.07] bg-white/[.035] text-white/58 hover:border-[#f6a935]/22 hover:text-white/82",
       )}
       onClick={() => onToggle(item)}
       type="button"
     >
+      {selected ? <span className="grid size-4 place-items-center rounded-full bg-[#ffd48a] text-[10px] font-black text-[#100b04]">✓</span> : null}
       {item.nameZh}
+      {selected ? <span className="rounded-full border border-[#ffd48a]/24 bg-black/20 px-1.5 py-0.5 text-[9px] uppercase tracking-[.12em] text-[#ffe4ad]/80">Selected</span> : null}
     </button>
   );
 }
@@ -220,7 +221,14 @@ function LibrarySection({
     <section className="rounded-[24px] border border-white/[.065] bg-[#0c0e12]/80 p-3">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="min-w-0 truncate text-xs font-black uppercase tracking-[.16em] text-[#f6c66f]/78">{title}</h3>
-        <span className="text-xs font-bold text-white/32">{items.length}</span>
+        <span className="flex shrink-0 items-center gap-2 text-xs font-bold text-white/32">
+          {selectedCountForItems(items, selectedStyles, selectedModules) ? (
+            <span className="rounded-full border border-[#f6a935]/22 bg-[#f6a935]/10 px-2 py-0.5 text-[#ffd48a]/80">
+              {selectedCountForItems(items, selectedStyles, selectedModules)} selected
+            </span>
+          ) : null}
+          {items.length}
+        </span>
       </div>
       <div className={cx("flex max-h-44 flex-wrap gap-2 overflow-y-auto pr-1", subtleScrollbar)}>
         {items.map((item) => (
@@ -240,6 +248,7 @@ function BrowseLibrariesDialog({
   catalog,
   isOpen,
   onClose,
+  onClearSelection,
   onToggle,
   query,
   selectedModules,
@@ -249,12 +258,14 @@ function BrowseLibrariesDialog({
   catalog: PromptStudioCatalog;
   isOpen: boolean;
   onClose: () => void;
+  onClearSelection: () => void;
   onToggle: (item: LibraryItemWithKind) => void;
   query: string;
   selectedModules: string[];
   selectedStyles: string[];
   setQuery: (query: string) => void;
 }) {
+  const [activeLibraryTab, setActiveLibraryTab] = useState("recommended");
   const styleItems = useMemo(
     () => catalog.styles.map((item) => ({ ...item, libraryKind: "style" as const })),
     [catalog.styles],
@@ -268,20 +279,51 @@ function BrowseLibrariesDialog({
     [catalog.recommendedStyles],
   );
   const filteredItems = useMemo(() => filterItems([...styleItems, ...moduleItems], query).slice(0, 80), [moduleItems, query, styleItems]);
-  const styleGroups = useMemo(() => groupItems(catalog.styles), [catalog.styles]);
-  const moduleGroups = useMemo(() => groupItems(catalog.modules), [catalog.modules]);
+  const cameraItems = useMemo(
+    () =>
+      moduleItems.filter((item) =>
+        /运镜|镜头|机位|camera|motion|dolly|orbit|push|follow|tracking|shot/i.test(`${item.nameZh} ${item.category} ${item.path}`),
+      ),
+    [moduleItems],
+  );
+  const characterItems = useMemo(
+    () =>
+      moduleItems.filter((item) =>
+        /人物|角色|表情|服装|姿态|一致|character|face|costume|expression|pose|identity/i.test(`${item.nameZh} ${item.category} ${item.path}`),
+      ),
+    [moduleItems],
+  );
+  const sceneItems = useMemo(
+    () =>
+      [...styleItems, ...moduleItems].filter((item) =>
+        /场景|拍摄|类型|教堂|室内|城市|genre|scene|location|setting|interior|fantasy|commercial/i.test(`${item.nameZh} ${item.category} ${item.path}`),
+      ),
+    [moduleItems, styleItems],
+  );
+  const allItems = useMemo(() => [...styleItems, ...moduleItems], [moduleItems, styleItems]);
+  const selectedCount = selectedStyles.length + selectedModules.length;
+  const libraryTabs = [
+    { id: "recommended", label: "Recommended", sublabel: "常用推荐", items: recommendedItems },
+    { id: "styles", label: "Cinematic Styles", sublabel: "电影风格", items: styleItems },
+    { id: "camera", label: "Camera Motion", sublabel: "运镜", items: cameraItems.length ? cameraItems : moduleItems.slice(0, 16) },
+    { id: "character", label: "Character", sublabel: "人物模块", items: characterItems.length ? characterItems : moduleItems.slice(0, 16) },
+    { id: "scene", label: "Scene / Genre", sublabel: "场景类型", items: sceneItems.length ? sceneItems : allItems.slice(0, 24) },
+    { id: "all", label: "All Libraries", sublabel: "全部", items: allItems },
+  ];
+  const activeTab = libraryTabs.find((tab) => tab.id === activeLibraryTab) || libraryTabs[0];
+  const visibleItems = query.trim() ? filteredItems : activeTab.items;
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/68 px-4 py-6 backdrop-blur-sm">
-      <section className="flex max-h-[86vh] w-full max-w-5xl flex-col overflow-hidden rounded-[32px] border border-white/[.08] bg-[#101216] shadow-[0_30px_120px_rgba(0,0,0,.55)]">
-        <div className="shrink-0 border-b border-white/[.07] p-5">
+      <section className="flex max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-[34px] border border-white/[.08] bg-[#101216] shadow-[0_30px_120px_rgba(0,0,0,.55)]">
+        <div className="shrink-0 border-b border-white/[.07] bg-[linear-gradient(180deg,rgba(20,23,28,.98),rgba(16,18,22,.94))] p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <SectionLabel>Browse Libraries</SectionLabel>
-              <h2 className="mt-2 text-2xl font-black text-white">选择风格和知识模块</h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-white/54">搜索或按分类选择，已选内容会作为增强层加入 prompt，不覆盖原始中文意图。</p>
+              <h2 className="mt-2 text-2xl font-black text-white">选择知识库 / Browse Libraries</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-white/54">选择风格、运镜、人物或场景模块来增强 prompt。已选内容会作为增强层加入，不覆盖原始中文意图。</p>
             </div>
             <button
               className="rounded-full border border-white/[.08] bg-white/[.04] px-4 py-2 text-sm font-black text-white/68 hover:text-white"
@@ -294,53 +336,77 @@ function BrowseLibrariesDialog({
           <input
             className="mt-5 w-full rounded-2xl border border-white/[.08] bg-[#0c0e12] px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/28 focus:border-[#f6a935]/38"
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜索：王家卫、A24、广告、运镜、角色一致性..."
+            placeholder="搜索：王家卫、A24、广告、运镜、角色一致性、废弃教堂..."
             value={query}
           />
         </div>
 
-        <div className={cx("min-h-0 flex-1 overflow-y-auto p-5", subtleScrollbar)}>
-          {query.trim() ? (
+        <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[260px_minmax(0,1fr)]">
+          <aside className="border-b border-white/[.06] bg-[#0c0e12]/54 p-4 lg:border-b-0 lg:border-r">
+            <div className="grid gap-2">
+              {libraryTabs.map((tab) => {
+                const tabSelectedCount = selectedCountForItems(tab.items, selectedStyles, selectedModules);
+                return (
+                  <button
+                    className={cx(
+                      "rounded-2xl border px-3 py-3 text-left transition",
+                      !query.trim() && activeLibraryTab === tab.id
+                        ? "border-[#f6a935]/34 bg-[#f6a935]/12 shadow-[0_0_26px_rgba(246,169,53,.10)]"
+                        : "border-white/[.055] bg-white/[.025] hover:border-[#f6a935]/18 hover:bg-white/[.04]",
+                    )}
+                    key={tab.id}
+                    onClick={() => {
+                      setActiveLibraryTab(tab.id);
+                      if (query.trim()) setQuery("");
+                    }}
+                    type="button"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-black text-white/82">{tab.label}</span>
+                      <span className="text-xs font-bold text-white/34">{tab.items.length}</span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between gap-2 text-xs text-white/42">
+                      <span>{tab.sublabel}</span>
+                      {tabSelectedCount ? <span className="rounded-full bg-[#f6a935]/14 px-2 py-0.5 text-[#ffd48a]">{tabSelectedCount} selected</span> : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
+
+          <div className={cx("min-h-0 overflow-y-auto p-5", subtleScrollbar)}>
             <LibrarySection
-              items={filteredItems}
+              items={visibleItems}
               onToggle={onToggle}
               selectedModules={selectedModules}
               selectedStyles={selectedStyles}
-              title={`Search results (${filteredItems.length})`}
+              title={query.trim() ? `Search results (${filteredItems.length})` : `${activeTab.label} / ${activeTab.sublabel}`}
             />
-          ) : (
-            <div className="grid gap-4">
-              <LibrarySection
-                items={recommendedItems}
-                onToggle={onToggle}
-                selectedModules={selectedModules}
-                selectedStyles={selectedStyles}
-                title="Recommended / 常用推荐"
-              />
-              <div className="grid gap-4 lg:grid-cols-2">
-                {Object.entries(styleGroups).map(([category, items]) => (
-                  <LibrarySection
-                    items={items.map((item) => ({ ...item, libraryKind: "style" as const }))}
-                    key={`style-${category}`}
-                    onToggle={onToggle}
-                    selectedModules={selectedModules}
-                    selectedStyles={selectedStyles}
-                    title={category}
-                  />
-                ))}
-                {Object.entries(moduleGroups).map(([category, items]) => (
-                  <LibrarySection
-                    items={items.map((item) => ({ ...item, libraryKind: "module" as const }))}
-                    key={`module-${category}`}
-                    onToggle={onToggle}
-                    selectedModules={selectedModules}
-                    selectedStyles={selectedStyles}
-                    title={category}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+          </div>
+        </div>
+
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-white/[.07] bg-[#0b0d10]/94 p-4">
+          <div className="text-sm font-semibold text-white/64">
+            已选择 <span className="font-black text-[#ffd48a]">{selectedCount}</span> 个 / <span className="text-white/42">Selected {selectedCount}</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="rounded-full border border-white/[.08] bg-white/[.035] px-4 py-2 text-sm font-black text-white/60 disabled:opacity-35"
+              disabled={!selectedCount}
+              onClick={onClearSelection}
+              type="button"
+            >
+              清空选择
+            </button>
+            <button
+              className="rounded-full border border-[#f6a935]/36 bg-gradient-to-r from-[#ffc35a] to-[#c8872e] px-5 py-2 text-sm font-black text-[#0d0903] shadow-[0_12px_34px_rgba(246,169,53,.20)]"
+              onClick={onClose}
+              type="button"
+            >
+              完成 / Done
+            </button>
+          </div>
         </div>
       </section>
     </div>
@@ -382,7 +448,7 @@ function DetectedSignalsPanel({ locale, result }: { locale: string; result: Prom
 
 function EmptyOutputState({ locale }: { locale: string }) {
   return (
-    <div className="grid h-[360px] place-items-center rounded-[24px] border border-dashed border-white/[.08] bg-[#0c0e12]/62 p-8 text-center">
+    <div className="grid h-[460px] place-items-center rounded-[24px] border border-dashed border-white/[.08] bg-[#0c0e12]/62 p-8 text-center">
       <div>
         <div className="mx-auto mb-4 grid size-12 place-items-center rounded-2xl border border-[#f6a935]/18 bg-[#f6a935]/10 text-[#ffd48a]">
           SE
@@ -569,9 +635,9 @@ export function PromptStudioPage() {
         className={cx("h-full overflow-y-auto overflow-x-hidden bg-[radial-gradient(circle_at_16%_0%,rgba(246,169,53,.10),transparent_30%),radial-gradient(circle_at_84%_18%,rgba(255,195,90,.065),transparent_34%),#07080a] text-white", subtleScrollbar)}
         ref={mainRef}
       >
-        <div className="mx-auto grid max-w-[1440px] gap-4 px-4 py-5 md:px-6">
+        <div className="mx-auto grid max-w-[1600px] gap-5 px-4 py-5 md:px-6 xl:px-8">
           <section className="rounded-[34px] border border-white/[.07] bg-[linear-gradient(180deg,rgba(20,23,28,.96),rgba(12,14,18,.98))] p-5 shadow-[0_30px_100px_rgba(0,0,0,.35),inset_0_1px_0_rgba(255,255,255,.035)] md:p-6">
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
               <div>
                 <SectionLabel>Prompt Composer</SectionLabel>
                 <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
@@ -622,9 +688,14 @@ export function PromptStudioPage() {
                 </div>
               </div>
 
-              <aside className="rounded-[26px] border border-[#f6a935]/14 bg-[#f6a935]/[.055] p-4">
-                <SectionLabel>{isZh ? "已选知识" : "Selected Knowledge"}</SectionLabel>
-                <div className="mt-4 flex max-h-40 flex-wrap gap-2 overflow-y-auto pr-1">
+              <aside className="rounded-[28px] border border-[#f6a935]/22 bg-[linear-gradient(180deg,rgba(246,169,53,.085),rgba(20,15,9,.40))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.035)]">
+                <div className="flex items-center justify-between gap-3">
+                  <SectionLabel>{isZh ? "已选知识" : "Selected Knowledge"}</SectionLabel>
+                  <span className="rounded-full border border-[#f6a935]/24 bg-[#f6a935]/12 px-2.5 py-1 text-xs font-black text-[#ffd48a]">
+                    {selectedItems.length}
+                  </span>
+                </div>
+                <div className={cx("mt-4 flex max-h-44 flex-wrap gap-2 overflow-y-auto pr-1", subtleScrollbar)}>
                   {selectedItems.slice(0, 16).map((item) => (
                     <KnowledgeToken
                       key={item.id}
@@ -637,7 +708,11 @@ export function PromptStudioPage() {
                       {item.nameZh}
                     </KnowledgeToken>
                   ))}
-                  {!selectedItems.length ? <span className="text-sm text-white/42">{isZh ? "还没有选择知识库。" : "No library items selected yet."}</span> : null}
+                  {!selectedItems.length ? (
+                    <div className="rounded-2xl border border-dashed border-[#f6a935]/18 bg-black/12 p-3 text-sm leading-6 text-white/46">
+                      {isZh ? "还没有选择知识库。打开 Browse Libraries，选择风格、运镜或场景模块。" : "No library items selected yet. Open Browse Libraries to add styles, camera, or scene modules."}
+                    </div>
+                  ) : null}
                 </div>
                 <p className="mt-4 text-sm leading-6 text-white/54">
                   {isZh ? "已选知识作为增强层，不覆盖原始中文意图。" : "Selected knowledge enhances the prompt without replacing the original idea."}
@@ -646,7 +721,7 @@ export function PromptStudioPage() {
             </div>
           </section>
 
-          <section className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <section className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px]">
             <div className="rounded-[28px] border border-white/[.065] bg-[#101216]/92 p-4">
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <div>
@@ -752,6 +827,11 @@ export function PromptStudioPage() {
                   <span className="text-xs font-bold text-white/36">{card.count}</span>
                 </div>
                 <p className="mt-2 max-h-10 overflow-hidden text-xs leading-5 text-white/50">{card.description}</p>
+                {card.active && selectedItems.length ? (
+                  <div className="mt-3 inline-flex rounded-full border border-[#f6a935]/18 bg-[#f6a935]/10 px-2.5 py-1 text-[11px] font-black text-[#ffd48a]/88">
+                    {selectedItems.length} selected
+                  </div>
+                ) : null}
               </article>
             ))}
           </section>
@@ -760,8 +840,8 @@ export function PromptStudioPage() {
           {notice ? <div className="rounded-2xl border border-[#f6a935]/24 bg-[#f6a935]/10 p-3 text-sm text-[#ffd48a]">{notice}</div> : null}
           {error ? <div className="rounded-2xl border border-red-300/20 bg-red-400/10 p-3 text-sm text-red-100">{error}</div> : null}
 
-          <section className="grid min-h-[470px] gap-4 xl:grid-cols-[minmax(0,1.85fr)_minmax(320px,.95fr)]" ref={outputRef}>
-            <article className="rounded-[34px] border border-white/[.07] bg-[#101216]/92 p-4 shadow-[0_26px_80px_rgba(0,0,0,.28)] md:p-5">
+          <section className="grid min-h-[560px] gap-4 xl:grid-cols-[minmax(0,2.28fr)_minmax(320px,.88fr)]" ref={outputRef}>
+            <article className="rounded-[34px] border border-white/[.07] bg-[#101216]/92 p-4 shadow-[0_26px_80px_rgba(0,0,0,.28)] md:p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <SectionLabel>Prompt Output Editor</SectionLabel>
@@ -769,24 +849,31 @@ export function PromptStudioPage() {
                     {isZh ? activeResultTab.labelZh : activeResultTab.labelEn} Prompt
                   </h2>
                 </div>
-                <div className="flex rounded-full border border-white/[.07] bg-[#0c0e12] p-1">
+                <div className="flex rounded-full border border-white/[.07] bg-[#0c0e12] p-1.5 shadow-inner shadow-black/35">
                   {resultTabs.map((tab) => (
                     <button
                       className={cx(
-                        "rounded-full px-3 py-2 text-xs font-black transition",
-                        activeResult === tab.key ? "border border-[#f6a935]/24 bg-[#f6a935]/14 text-[#ffd48a]" : "text-white/44 hover:text-white/72",
+                        "rounded-full px-4 py-2 text-xs font-black transition active:scale-[.98]",
+                        activeResult === tab.key
+                          ? "border border-[#ffc35a]/45 bg-gradient-to-r from-[#ffc35a] via-[#f6a935] to-[#b87929] text-[#100a03] shadow-[0_10px_30px_rgba(246,169,53,.22)]"
+                          : "text-white/38 hover:bg-white/[.04] hover:text-white/72",
                       )}
                       key={tab.key}
                       onClick={() => setActiveResult(tab.key)}
                       type="button"
                     >
                       {isZh ? tab.labelZh : tab.labelEn}
+                      {activeResult === tab.key ? (
+                        <span className="ml-2 rounded-full bg-black/18 px-1.5 py-0.5 text-[9px] uppercase tracking-[.12em] text-[#211402]/70">
+                          {isZh ? "当前选中" : "Selected"}
+                        </span>
+                      ) : null}
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="mt-4 rounded-[24px] border border-white/[.065] bg-[#0c0e12] p-4">
+              <div className="mt-5 rounded-[26px] border border-white/[.065] bg-[linear-gradient(180deg,rgba(12,14,18,.98),rgba(7,8,10,.98))] p-4 shadow-inner shadow-black/35">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <span className="text-xs font-black uppercase tracking-[.18em] text-white/38">Editable Prompt</span>
                   <button
@@ -801,7 +888,7 @@ export function PromptStudioPage() {
                 {result ? (
                   <pre
                     className={cx(
-                      "h-[360px] overflow-y-auto whitespace-pre-wrap break-words pr-2 font-mono text-[13px] leading-6 text-white/78",
+                      "h-[460px] overflow-y-auto whitespace-pre-wrap break-words pr-2 font-mono text-[13px] leading-6 text-white/80 2xl:h-[520px]",
                       subtleScrollbar,
                     )}
                   >
@@ -895,6 +982,10 @@ export function PromptStudioPage() {
         <BrowseLibrariesDialog
           catalog={catalog}
           isOpen={isLibraryOpen}
+          onClearSelection={() => {
+            setSelectedStyles([]);
+            setSelectedModules([]);
+          }}
           onClose={() => setIsLibraryOpen(false)}
           onToggle={handleLibraryToggle}
           query={libraryQuery}
