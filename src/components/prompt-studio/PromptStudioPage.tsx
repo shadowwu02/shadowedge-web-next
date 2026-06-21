@@ -405,27 +405,30 @@ function LibrarySection({
 }
 
 function BrowseLibrariesDialog({
+  activeLibraryTab,
   catalog,
   isOpen,
   onClose,
   onClearSelection,
+  onLibraryTabChange,
   onToggle,
   query,
   selectedModules,
   selectedStyles,
   setQuery,
 }: {
+  activeLibraryTab: string;
   catalog: PromptStudioCatalog;
   isOpen: boolean;
   onClose: () => void;
   onClearSelection: () => void;
+  onLibraryTabChange: (tabId: string) => void;
   onToggle: (item: LibraryItemWithKind) => void;
   query: string;
   selectedModules: string[];
   selectedStyles: string[];
   setQuery: (query: string) => void;
 }) {
-  const [activeLibraryTab, setActiveLibraryTab] = useState("recommended");
   const styleItems = useMemo(
     () => catalog.styles.map((item) => ({ ...item, libraryKind: "style" as const })),
     [catalog.styles],
@@ -449,6 +452,7 @@ function BrowseLibrariesDialog({
   const characterItems = useMemo(
     () =>
       moduleItems.filter((item) =>
+        item.categoryId === "character" ||
         /人物|角色|表情|服装|姿态|一致|character|face|costume|expression|pose|identity/i.test(`${item.nameZh} ${item.category} ${item.path}`),
       ),
     [moduleItems],
@@ -472,6 +476,10 @@ function BrowseLibrariesDialog({
   ];
   const activeTab = libraryTabs.find((tab) => tab.id === activeLibraryTab) || libraryTabs[0];
   const visibleItems = query.trim() ? filteredItems : activeTab.items;
+  const selectLibraryTab = (tabId: string) => {
+    onLibraryTabChange(tabId);
+    if (query.trim()) setQuery("");
+  };
 
   if (!isOpen) return null;
 
@@ -515,10 +523,10 @@ function BrowseLibrariesDialog({
                         : "border-white/[.055] bg-white/[.025] hover:border-[#f6a935]/18 hover:bg-white/[.04]",
                     )}
                     key={tab.id}
-                    onClick={() => {
-                      setActiveLibraryTab(tab.id);
-                      if (query.trim()) setQuery("");
-                    }}
+                    onClick={() => selectLibraryTab(tab.id)}
+                    onClickCapture={() => selectLibraryTab(tab.id)}
+                    onPointerDown={() => selectLibraryTab(tab.id)}
+                    onPointerDownCapture={() => selectLibraryTab(tab.id)}
                     type="button"
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -669,6 +677,7 @@ export function PromptStudioPage() {
   const [advancedControls, setAdvancedControls] = useState<PromptStudioAdvancedControls>({});
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [libraryQuery, setLibraryQuery] = useState("");
+  const [activeLibraryTab, setActiveLibraryTab] = useState("recommended");
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
   const [result, setResult] = useState<PromptStudioGenerateResult | null>(null);
@@ -1150,6 +1159,9 @@ export function PromptStudioPage() {
             <button
               className="rounded-[28px] border border-white/[.07] bg-[#101216]/92 p-4 text-left transition hover:border-[#f6a935]/26"
               onClick={() => setIsLibraryOpen(true)}
+              onClickCapture={() => setIsLibraryOpen(true)}
+              onPointerDown={() => setIsLibraryOpen(true)}
+              onPointerDownCapture={() => setIsLibraryOpen(true)}
               type="button"
             >
               <div className="flex items-center justify-between gap-3">
@@ -1584,6 +1596,7 @@ export function PromptStudioPage() {
         </div>
 
         <BrowseLibrariesDialog
+          activeLibraryTab={activeLibraryTab}
           catalog={catalog}
           isOpen={isLibraryOpen}
           onClearSelection={() => {
@@ -1591,6 +1604,7 @@ export function PromptStudioPage() {
             setSelectedModules([]);
           }}
           onClose={() => setIsLibraryOpen(false)}
+          onLibraryTabChange={setActiveLibraryTab}
           onToggle={handleLibraryToggle}
           query={libraryQuery}
           selectedModules={selectedModules}
