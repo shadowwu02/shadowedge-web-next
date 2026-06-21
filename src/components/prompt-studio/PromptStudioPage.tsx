@@ -6,6 +6,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { useI18n } from "@/i18n/useI18n";
 import {
   consumeWorkspaceToPromptStudioDraft,
+  getPromptStudioDraftLocale,
   savePromptStudioToImageDraft,
   savePromptStudioToVideoDraft,
 } from "@/lib/prompt-studio-draft-bridge";
@@ -660,7 +661,8 @@ export function PromptStudioPage() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
-  const isZh = locale === "zh";
+  const bridgeLocale = getPromptStudioDraftLocale(locale);
+  const isZh = bridgeLocale === "zh";
 
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0, behavior: "auto" });
@@ -679,9 +681,9 @@ export function PromptStudioPage() {
       setResult(null);
       setError("");
       setNotice(
-        locale === "zh"
-          ? "已从工作区带入当前提示词。你可以在优化模式中调整后再生成文本。"
-          : "Imported the current workspace prompt. You can refine it in Optimize mode before generating text.",
+        getPromptStudioDraftLocale(locale) === "zh"
+          ? "已从工作区带入当前提示词。不会自动生成，请确认后手动点击生成。"
+          : "Current prompt imported from workspace. It will not generate automatically. Please review and generate manually.",
       );
     }, 0);
 
@@ -863,7 +865,11 @@ export function PromptStudioPage() {
       target,
       engine,
     });
-    setNotice(isZh ? "已填入视频工作区草稿。跳转后可继续编辑，不会自动生成。" : "Sent to the video workspace draft. It will not generate automatically.");
+    setNotice(
+      isZh
+        ? "已填入视频工作区草稿。不会自动生成，请确认后手动点击生成。"
+        : "Draft sent to the video workspace. It will not generate automatically. Please review and generate manually.",
+    );
     router.push("/workspace/video?from=prompt-studio");
   }
 
@@ -877,7 +883,11 @@ export function PromptStudioPage() {
       target,
       engine,
     });
-    setNotice(isZh ? "已填入图片工作区草稿。跳转后可继续编辑，不会自动生成。" : "Sent to the image workspace draft. It will not generate automatically.");
+    setNotice(
+      isZh
+        ? "已填入图片工作区草稿。不会自动生成，请确认后手动点击生成。"
+        : "Draft sent to the image workspace. It will not generate automatically. Please review and generate manually.",
+    );
     router.push("/workspace/image?from=prompt-studio");
   }
 

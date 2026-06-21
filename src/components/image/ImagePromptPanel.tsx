@@ -3,6 +3,7 @@
 import { ImageModelSelector } from "@/components/image/ImageModelSelector";
 import { ImageReferenceTray } from "@/components/image/ImageReferenceTray";
 import { useI18n } from "@/i18n/useI18n";
+import { getPromptStudioDraftLocale } from "@/lib/prompt-studio-draft-bridge";
 import type { ImageGenerationParams, ImageModel, ImageReferenceItem } from "@/types/image";
 
 export function ImagePromptPanel({
@@ -55,7 +56,7 @@ export function ImagePromptPanel({
   onUploadReference: (file: File) => void;
 }) {
   const { locale, t, tf } = useI18n();
-  const isZh = locale === "zh";
+  const isZh = getPromptStudioDraftLocale(locale) === "zh";
   const ratios = selectedModel?.capabilities.ratios || [];
   const resolutions = selectedModel?.capabilities.resolutions || [];
   const qualities = selectedModel?.capabilities.qualities || [];

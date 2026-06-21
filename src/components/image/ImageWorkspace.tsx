@@ -12,6 +12,7 @@ import { getImageUserFacingError } from "@/lib/image/imageErrorDisplay";
 import { isImageActiveStatus } from "@/lib/image/imageHistoryUtils";
 import {
   consumePromptStudioToImageDraft,
+  getPromptStudioDraftLocale,
   saveWorkspaceToPromptStudioDraft,
   type PromptStudioBridgeDraft,
 } from "@/lib/prompt-studio-draft-bridge";
@@ -20,7 +21,7 @@ import type { ImageHistoryItem } from "@/types/image";
 export function ImageWorkspace() {
   const { locale, t } = useI18n();
   const router = useRouter();
-  const isZh = locale === "zh";
+  const isZh = getPromptStudioDraftLocale(locale) === "zh";
   const image = useImageGeneration();
   const promptStudioDraftCheckedRef = useRef(false);
   const [pendingPromptStudioDraft, setPendingPromptStudioDraft] = useState<PromptStudioBridgeDraft | null>(null);
@@ -85,8 +86,8 @@ export function ImageWorkspace() {
     setPendingPromptStudioDraft(null);
     setPromptStudioNotice(
       isZh
-        ? "已从 Prompt Studio 导入草稿。不会自动生成。"
-        : "Prompt Studio draft imported. It will not generate automatically.",
+        ? "已从 Prompt Studio 填入草稿。不会自动生成。"
+        : "Draft imported from Prompt Studio. It will not generate automatically.",
     );
   }, [image, isZh, pendingPromptStudioDraft]);
 

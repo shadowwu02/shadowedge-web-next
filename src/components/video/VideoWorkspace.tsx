@@ -40,6 +40,7 @@ import { useI18n } from "@/i18n/useI18n";
 import { collectGeneratedResultMediaAssets, collectHistoryInputMediaAssets, collectReusableVideoAssets, mergeMediaAssets } from "@/lib/media-assets";
 import {
   consumePromptStudioToVideoDraft,
+  getPromptStudioDraftLocale,
   saveWorkspaceToPromptStudioDraft,
   type PromptStudioBridgeDraft,
 } from "@/lib/prompt-studio-draft-bridge";
@@ -703,7 +704,7 @@ export function VideoWorkspace() {
   const { locale, t, tf } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isZh = locale === "zh";
+  const isZh = getPromptStudioDraftLocale(locale) === "zh";
   const tabQuery = getVideoWorkspaceTabQuery(searchParams.get("tab"));
   const [models, setModels] = useState<VideoModel[]>(fallbackModels);
   const [selectedModel, setSelectedModel] = useState<VideoModel>(fallbackModels[0]);
@@ -1331,8 +1332,8 @@ export function VideoWorkspace() {
     setPendingPromptStudioDraft(null);
     setWorkspaceNotice(
       isZh
-        ? "已从 Prompt Studio 导入草稿。不会自动生成。"
-        : "Prompt Studio draft imported. It will not generate automatically.",
+        ? "已从 Prompt Studio 填入草稿。不会自动生成。"
+        : "Draft imported from Prompt Studio. It will not generate automatically.",
     );
   }, [isZh, pendingPromptStudioDraft]);
 

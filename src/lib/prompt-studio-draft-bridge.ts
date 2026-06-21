@@ -3,6 +3,7 @@
 export const PROMPT_STUDIO_TO_VIDEO_DRAFT_KEY = "shadowedge_prompt_studio_to_video_draft_v1";
 export const PROMPT_STUDIO_TO_IMAGE_DRAFT_KEY = "shadowedge_prompt_studio_to_image_draft_v1";
 export const WORKSPACE_TO_PROMPT_STUDIO_DRAFT_KEY = "shadowedge_workspace_to_prompt_studio_v1";
+const LANGUAGE_STORAGE_KEY = "se_lang";
 
 export type PromptStudioDraftTarget = "video" | "image" | "storyboard";
 
@@ -26,6 +27,18 @@ function safeLocalStorage() {
   } catch {
     return null;
   }
+}
+
+export function getPromptStudioDraftLocale(currentLocale?: string) {
+  const storage = safeLocalStorage();
+  try {
+    const stored = storage?.getItem(LANGUAGE_STORAGE_KEY);
+    if (stored === "zh" || stored === "en") return stored;
+  } catch {
+    // Keep the current locale if language storage is unavailable.
+  }
+
+  return currentLocale === "zh" ? "zh" : "en";
 }
 
 function normalizePrompt(value: unknown) {
