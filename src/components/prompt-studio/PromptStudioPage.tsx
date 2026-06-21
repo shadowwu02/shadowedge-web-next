@@ -8,9 +8,13 @@ import { saveImageWorkspaceDraft } from "@/lib/image/imageWorkspaceDraft";
 import {
   fetchPromptStudioCatalog,
   generatePromptStudioPrompt,
+  type PromptStudioAdvancedControls,
+  type PromptStudioAdvancedOption,
   type PromptStudioCatalog,
   type PromptStudioGenerateResult,
   type PromptStudioLibraryItem,
+  type PromptStudioMode,
+  type PromptStudioStoryboardShot,
 } from "@/lib/prompt-studio-api";
 import { saveVideoDraft } from "@/lib/video/videoDraft";
 
@@ -18,6 +22,7 @@ type Target = "video" | "image" | "storyboard";
 type Engine = "seedance" | "higgsfield" | "gpt-image" | "nano-banana";
 type ResultKey = "basicPrompt" | "standardPrompt" | "enhancedPrompt";
 type LibraryKind = "style" | "module";
+type TextMode = Exclude<PromptStudioMode, "all">;
 
 type LibraryItemWithKind = PromptStudioLibraryItem & { libraryKind: LibraryKind };
 
@@ -32,6 +37,59 @@ const engineOptions: Array<{ id: Engine; label: string; target: Target | "both" 
   { id: "higgsfield", label: "Higgsfield", target: "video" },
   { id: "gpt-image", label: "GPT Image", target: "image" },
   { id: "nano-banana", label: "Nano Banana", target: "image" },
+];
+
+const modeOptions: Array<{
+  id: TextMode;
+  labelZh: string;
+  labelEn: string;
+  descriptionZh: string;
+  descriptionEn: string;
+}> = [
+  {
+    id: "generate",
+    labelZh: "生成提示词",
+    labelEn: "Generate",
+    descriptionZh: "从中文想法生成三档英文 prompt",
+    descriptionEn: "Create three English prompt versions from an idea",
+  },
+  {
+    id: "optimize",
+    labelZh: "优化已有 Prompt",
+    labelEn: "Optimize",
+    descriptionZh: "诊断并增强已有 prompt",
+    descriptionEn: "Diagnose and improve an existing prompt",
+  },
+  {
+    id: "convert",
+    labelZh: "转换 Prompt",
+    labelEn: "Convert",
+    descriptionZh: "转换比例、目标或引擎语言",
+    descriptionEn: "Convert target, ratio, or engine language",
+  },
+  {
+    id: "layerEdit",
+    labelZh: "只改一层",
+    labelEn: "Layer Edit",
+    descriptionZh: "只调整光线、色调、构图等一层",
+    descriptionEn: "Change only lighting, color, composition, or style",
+  },
+  {
+    id: "storyboard",
+    labelZh: "分镜流水线",
+    labelEn: "Storyboard",
+    descriptionZh: "生成风格宪法、关键帧和视频 prompt",
+    descriptionEn: "Create a style bible, keyframes, and video prompts",
+  },
+];
+
+const layerEditOptions = [
+  { id: "lighting", labelZh: "光线", labelEn: "Lighting" },
+  { id: "color", labelZh: "色调", labelEn: "Color" },
+  { id: "composition", labelZh: "构图", labelEn: "Composition" },
+  { id: "camera", labelZh: "运镜", labelEn: "Camera" },
+  { id: "mood", labelZh: "情绪", labelEn: "Mood" },
+  { id: "style", labelZh: "风格", labelEn: "Style" },
 ];
 
 const resultTabs: Array<{ key: ResultKey; labelZh: string; labelEn: string }> = [
@@ -85,6 +143,16 @@ const fallbackCatalog: PromptStudioCatalog = {
   aspectRatios: ["9:16", "16:9", "1:1", "4:3", "2.39:1"],
   shotTypes: [],
   cameraMoves: [],
+  advancedControls: {
+    shotSizes: [],
+    cameraAngles: [],
+    cameraMoves: [],
+    lightingOptions: [],
+    colorTones: [],
+    moods: [],
+    timeWeather: [],
+    subjects: [],
+  },
 };
 
 const subtleScrollbar =
@@ -156,15 +224,47 @@ function ControlPill({
   );
 }
 
+function AdvancedOptionGroup({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: PromptStudioAdvancedOption[];
+  value?: string;
+  onChange: (value: string) => void;
+}) {
+  if (!options.length) return null;
+  return (
+    <div>
+      <div className="mb-2 text-[11px] font-black uppercase tracking-[.18em] text-white/36">{label}</div>
+      <div className="flex flex-wrap gap-1.5">
+        {options.slice(0, 10).map((option) => (
+          <ControlPill
+            active={value === option.id}
+            key={option.id}
+            onClick={() => onChange(value === option.id ? "" : option.id)}
+          >
+            {option.labelZh || option.labelEn}
+          </ControlPill>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PrimaryGenerateButton({
   children,
   disabled,
   isLoading,
+  label,
   onClick,
 }: {
   children: string;
   disabled?: boolean;
   isLoading?: boolean;
+  label?: string;
   onClick: () => void;
 }) {
   return (
@@ -189,7 +289,7 @@ function PrimaryGenerateButton({
         {isLoading ? (
           <span className="size-4 rounded-full border-2 border-[#3a2206]/25 border-t-[#3a2206] animate-spin" aria-hidden="true" />
         ) : null}
-        <span>{children}</span>
+        <span>{label || children}</span>
       </span>
     </button>
   );
@@ -503,6 +603,32 @@ function EmptyOutputState({ locale }: { locale: string }) {
   );
 }
 
+function listToText(items?: string[]) {
+  return items?.length ? items.map((item) => `- ${item}`).join("\n") : "";
+}
+
+function styleBibleToText(result: PromptStudioGenerateResult) {
+  const bible = result.styleBible;
+  if (!bible) return "";
+  return [
+    `Visual style: ${bible.visualStyle}`,
+    `Color palette: ${bible.colorPalette}`,
+    `Lighting rules: ${bible.lightingRules}`,
+    `Camera rules: ${bible.cameraRules}`,
+    `Continuity rules: ${bible.continuityRules}`,
+  ].join("\n");
+}
+
+function storyboardToText(shots?: PromptStudioStoryboardShot[]) {
+  if (!shots?.length) return "";
+  return shots
+    .map(
+      (shot) =>
+        `${shot.title}\nPurpose: ${shot.storyPurpose}\nKeyframe: ${shot.keyframeImagePrompt}\nVideo: ${shot.videoPrompt}\nCamera: ${shot.cameraMove}\nContinuity: ${shot.continuityNotes}`,
+    )
+    .join("\n\n");
+}
+
 export function PromptStudioPage() {
   const router = useRouter();
   const { locale } = useI18n();
@@ -510,11 +636,17 @@ export function PromptStudioPage() {
   const outputRef = useRef<HTMLElement | null>(null);
   const [catalog, setCatalog] = useState<PromptStudioCatalog>(fallbackCatalog);
   const [catalogError, setCatalogError] = useState("");
+  const [mode, setMode] = useState<TextMode>("generate");
   const [intent, setIntent] = useState("帮我写一个王家卫风格的雨夜便利店重逢短视频提示词，竖屏，孤独但温柔。");
   const [target, setTarget] = useState<Target>("video");
+  const [existingPrompt, setExistingPrompt] = useState("rainy night, a woman standing outside a store, cinematic");
+  const [transformGoal, setTransformGoal] = useState("更像王家卫电影，增加孤独感、霓虹反光、浅景深，但不要改变主体");
+  const [layerEditType, setLayerEditType] = useState("lighting");
   const [engine, setEngine] = useState<Engine>("seedance");
   const [aspectRatio, setAspectRatio] = useState("9:16");
   const [duration, setDuration] = useState("15s");
+  const [advancedControls, setAdvancedControls] = useState<PromptStudioAdvancedControls>({});
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [libraryQuery, setLibraryQuery] = useState("");
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
@@ -551,12 +683,53 @@ export function PromptStudioPage() {
   }, []);
 
   const selectedItems = useMemo(() => getSelectedItems(catalog, selectedStyles, selectedModules), [catalog, selectedModules, selectedStyles]);
-  const currentPrompt = result?.[activeResult] || "";
+  const currentPrompt = result
+    ? mode === "optimize"
+      ? result.optimizedPrompt || result.standardPrompt || ""
+      : mode === "convert"
+        ? result.convertedPrompt || result.standardPrompt || ""
+          : mode === "layerEdit"
+            ? result.revisedPrompt || result.standardPrompt || ""
+            : mode === "storyboard"
+            ? [styleBibleToText(result), storyboardToText(result.shots), listToText(result.continuityChecklist)].filter(Boolean).join("\n\n") ||
+              result.standardPrompt ||
+              result.enhancedPrompt ||
+              result.basicPrompt ||
+              ""
+            : result[activeResult] || ""
+    : "";
   const activeResultTab = resultTabs.find((tab) => tab.key === activeResult) || resultTabs[1];
   const usageTips = result?.usageTips || [];
-  const knowledgeUsed = result?.selectedKnowledge?.length
-    ? result.selectedKnowledge.map((item) => ({ id: item.id, label: item.nameZh, detail: item.category }))
-    : selectedItems.map((item) => ({ id: item.id, label: item.nameZh, detail: item.category }));
+  const knowledgeUsed: Array<{ id: string; label: string; detail?: string; phrases?: string[] }> = result?.selectedKnowledge?.length
+    ? result.selectedKnowledge.map((item) => ({
+        id: item.id,
+        label: item.nameZh,
+        detail: item.appliedAs || item.category,
+        phrases: item.keyPhrases || [],
+      }))
+    : selectedItems.map((item) => ({ id: item.id, label: item.nameZh, detail: item.category, phrases: [] }));
+  const modeOption = modeOptions.find((item) => item.id === mode) || modeOptions[0];
+  const needsExistingPrompt = mode === "optimize" || mode === "convert" || mode === "layerEdit";
+  const isGenerateDisabled = isLoading || (needsExistingPrompt ? !existingPrompt.trim() : !intent.trim());
+  const generateButtonLabel = isLoading
+    ? isZh
+      ? "生成中..."
+      : "Generating..."
+    : isZh
+      ? {
+          generate: "生成三档 Prompt",
+          optimize: "优化 Prompt",
+          convert: "转换 Prompt",
+          layerEdit: "只改这一层",
+          storyboard: "生成分镜流水线",
+        }[mode]
+      : {
+          generate: "Generate three prompts",
+          optimize: "Optimize prompt",
+          convert: "Convert prompt",
+          layerEdit: "Edit this layer",
+          storyboard: "Generate storyboard pipeline",
+        }[mode];
 
   function scrollToOutput() {
     const main = mainRef.current;
@@ -577,6 +750,25 @@ export function PromptStudioPage() {
     }
   }
 
+  function updateAdvancedControl(key: keyof PromptStudioAdvancedControls, value: string) {
+    setAdvancedControls((current) => ({
+      ...current,
+      [key]: value || undefined,
+    }));
+  }
+
+  function handleModeChange(nextMode: TextMode) {
+    setMode(nextMode);
+    setResult(null);
+    setError("");
+    setNotice("");
+    if (nextMode === "storyboard") {
+      handleTargetChange("storyboard");
+    } else if (target === "storyboard") {
+      handleTargetChange("video");
+    }
+  }
+
   function handleLibraryToggle(item: LibraryItemWithKind) {
     if (item.libraryKind === "style") {
       setSelectedStyles((current) => toggleId(current, item.id));
@@ -586,20 +778,34 @@ export function PromptStudioPage() {
   }
 
   async function handleGenerate() {
+    const needsExistingPrompt = mode === "optimize" || mode === "convert" || mode === "layerEdit";
+    if (needsExistingPrompt && !existingPrompt.trim()) {
+      setError(isZh ? "请先输入已有 Prompt。" : "Please enter an existing prompt first.");
+      return;
+    }
+    if (!needsExistingPrompt && !intent.trim()) {
+      setError(isZh ? "请先输入中文想法。" : "Please enter an idea first.");
+      return;
+    }
     setIsLoading(true);
     setError("");
     setNotice("");
     try {
       const data = await generatePromptStudioPrompt({
-        intent,
-        target,
+        intent: needsExistingPrompt ? `${existingPrompt}\n${transformGoal}` : intent,
+        existingPrompt,
+        target: mode === "storyboard" ? "storyboard" : target,
         engine,
         aspectRatio,
         selectedStyles,
         selectedModules,
         duration,
         language: locale,
-        mode: "all",
+        mode,
+        transformGoal,
+        layerEditType,
+        preserveOriginal: true,
+        advancedControls,
       });
       setResult(data || null);
       setActiveResult("standardPrompt");
@@ -689,8 +895,9 @@ export function PromptStudioPage() {
                     </p>
                   </div>
                   <PrimaryGenerateButton
-                    disabled={isLoading || !intent.trim()}
+                    disabled={isGenerateDisabled}
                     isLoading={isLoading}
+                    label={generateButtonLabel}
                     onClick={() => void handleGenerate()}
                   >
                     {isLoading ? (isZh ? "生成中..." : "Generating...") : isZh ? "生成三档 Prompt" : "Generate three prompts"}
@@ -698,9 +905,82 @@ export function PromptStudioPage() {
                 </div>
 
                 <div className="mt-5 rounded-[26px] border border-white/[.07] bg-[#0c0e12] p-4 shadow-inner shadow-black/35">
+                  <div className="mb-4 grid gap-2 md:grid-cols-5">
+                    {modeOptions.map((item) => (
+                      <button
+                        className={cx(
+                          "rounded-2xl border px-3 py-3 text-left transition",
+                          mode === item.id
+                            ? "border-[#ffc35a]/40 bg-[#f6a935]/14 text-[#ffe4ad] shadow-[0_0_26px_rgba(246,169,53,.10)]"
+                            : "border-white/[.06] bg-white/[.025] text-white/54 hover:border-[#f6a935]/20 hover:text-white/78",
+                        )}
+                        key={item.id}
+                        onClick={() => handleModeChange(item.id)}
+                        type="button"
+                      >
+                        <div className="text-xs font-black">{isZh ? item.labelZh : item.labelEn}</div>
+                        <div className="mt-1 line-clamp-2 text-[11px] leading-4 opacity-70">
+                          {isZh ? item.descriptionZh : item.descriptionEn}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {needsExistingPrompt ? (
+                    <div className="mb-4 grid gap-4">
+                      <label>
+                        <div className="mb-2 text-[11px] font-black uppercase tracking-[.18em] text-white/36">
+                          {isZh ? "已有 Prompt" : "Existing Prompt"}
+                        </div>
+                        <textarea
+                          className={cx("h-36 w-full resize-y rounded-2xl border border-white/[.06] bg-black/18 p-4 text-[14px] leading-6 text-white outline-none placeholder:text-white/30 focus:border-[#f6a935]/28", subtleScrollbar)}
+                          maxLength={6000}
+                          onChange={(event) => setExistingPrompt(event.target.value)}
+                          placeholder="Paste an existing prompt here..."
+                          value={existingPrompt}
+                        />
+                      </label>
+                      {mode === "layerEdit" ? (
+                        <div>
+                          <div className="mb-2 text-[11px] font-black uppercase tracking-[.18em] text-white/36">
+                            {isZh ? "只改哪一层" : "Layer to edit"}
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {layerEditOptions.map((item) => (
+                              <ControlPill active={layerEditType === item.id} key={item.id} onClick={() => setLayerEditType(item.id)}>
+                                {isZh ? item.labelZh : item.labelEn}
+                              </ControlPill>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                      <label>
+                        <div className="mb-2 text-[11px] font-black uppercase tracking-[.18em] text-white/36">
+                          {mode === "optimize"
+                            ? isZh
+                              ? "优化目标"
+                              : "Optimization Goal"
+                            : mode === "convert"
+                              ? isZh
+                                ? "转换目标"
+                                : "Conversion Goal"
+                              : isZh
+                                ? "修改说明"
+                                : "Edit Instruction"}
+                        </div>
+                        <textarea
+                          className={cx("h-24 w-full resize-y rounded-2xl border border-white/[.06] bg-black/18 p-4 text-[14px] leading-6 text-white outline-none placeholder:text-white/30 focus:border-[#f6a935]/28", subtleScrollbar)}
+                          maxLength={2400}
+                          onChange={(event) => setTransformGoal(event.target.value)}
+                          placeholder={isZh ? "例如：保留主体，只增强王家卫雨夜、霓虹反光和孤独感。" : "Example: preserve the subject, add Wong Kar-wai rain-night neon reflections and loneliness."}
+                          value={transformGoal}
+                        />
+                      </label>
+                    </div>
+                  ) : null}
                   <textarea
                     className={cx(
-                      "h-40 w-full resize-y bg-transparent text-[15px] leading-7 text-white outline-none placeholder:text-white/30",
+                      needsExistingPrompt ? "hidden" : "h-40 w-full resize-y bg-transparent text-[15px] leading-7 text-white outline-none placeholder:text-white/30",
                       subtleScrollbar,
                     )}
                     maxLength={2400}
@@ -708,7 +988,7 @@ export function PromptStudioPage() {
                     placeholder={isZh ? "例如：雨夜便利店，旧恋人重逢，竖屏短视频，孤独但温柔。" : "Example: a rainy night convenience store, former lovers reunite, vertical short video, lonely yet gentle."}
                     value={intent}
                   />
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-white/[.06] pt-3">
+                  <div className={cx("mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-white/[.06] pt-3", needsExistingPrompt ? "hidden" : "")}>
                     <div className="flex flex-wrap gap-2">
                       {quickPrompts.map((item) => (
                         <button
@@ -724,6 +1004,11 @@ export function PromptStudioPage() {
                     <span className="text-xs font-semibold text-white/34">{intent.length} / 2400</span>
                   </div>
                 </div>
+                {mode !== "generate" ? (
+                  <span className="rounded-full border border-[#f6a935]/24 bg-[#f6a935]/10 px-3 py-1.5 text-xs font-black text-[#ffd48a]">
+                    {isZh ? modeOption.descriptionZh : modeOption.descriptionEn}
+                  </span>
+                ) : null}
               </div>
 
               <aside className="rounded-[28px] border border-[#f6a935]/22 bg-[linear-gradient(180deg,rgba(246,169,53,.085),rgba(20,15,9,.40))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.035)]">
@@ -829,6 +1114,78 @@ export function PromptStudioPage() {
             </button>
           </section>
 
+          <section className="rounded-[28px] border border-white/[.055] bg-[#101216]/72 p-4">
+            <button
+              className="flex w-full items-center justify-between gap-3 text-left"
+              onClick={() => setIsAdvancedOpen((current) => !current)}
+              type="button"
+            >
+              <div>
+                <SectionLabel>{isZh ? "高级控制" : "Advanced Controls"}</SectionLabel>
+                <p className="mt-2 text-sm leading-6 text-white/48">
+                  {isZh
+                    ? "可选：景别、机位、运镜、光线、色调、情绪、时间天气和主体。默认收起，不影响基础生成。"
+                    : "Optional shot size, angle, movement, lighting, color, mood, time/weather, and subject controls."}
+                </p>
+              </div>
+              <span className="rounded-full border border-white/[.07] bg-white/[.035] px-3 py-1.5 text-xs font-black text-white/58">
+                {isAdvancedOpen ? (isZh ? "收起" : "Collapse") : isZh ? "展开" : "Expand"}
+              </span>
+            </button>
+            {isAdvancedOpen ? (
+              <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <AdvancedOptionGroup
+                  label={isZh ? "景别" : "Shot size"}
+                  options={catalog.advancedControls?.shotSizes || []}
+                  value={advancedControls.shotSize}
+                  onChange={(value) => updateAdvancedControl("shotSize", value)}
+                />
+                <AdvancedOptionGroup
+                  label={isZh ? "机位角度" : "Camera angle"}
+                  options={catalog.advancedControls?.cameraAngles || []}
+                  value={advancedControls.cameraAngle}
+                  onChange={(value) => updateAdvancedControl("cameraAngle", value)}
+                />
+                <AdvancedOptionGroup
+                  label={isZh ? "运镜" : "Camera move"}
+                  options={catalog.advancedControls?.cameraMoves || []}
+                  value={advancedControls.cameraMove}
+                  onChange={(value) => updateAdvancedControl("cameraMove", value)}
+                />
+                <AdvancedOptionGroup
+                  label={isZh ? "光线" : "Lighting"}
+                  options={catalog.advancedControls?.lightingOptions || []}
+                  value={advancedControls.lighting}
+                  onChange={(value) => updateAdvancedControl("lighting", value)}
+                />
+                <AdvancedOptionGroup
+                  label={isZh ? "色调" : "Color tone"}
+                  options={catalog.advancedControls?.colorTones || []}
+                  value={advancedControls.colorTone}
+                  onChange={(value) => updateAdvancedControl("colorTone", value)}
+                />
+                <AdvancedOptionGroup
+                  label={isZh ? "氛围情绪" : "Mood"}
+                  options={catalog.advancedControls?.moods || []}
+                  value={advancedControls.mood}
+                  onChange={(value) => updateAdvancedControl("mood", value)}
+                />
+                <AdvancedOptionGroup
+                  label={isZh ? "时间 / 天气" : "Time / weather"}
+                  options={catalog.advancedControls?.timeWeather || []}
+                  value={advancedControls.timeWeather}
+                  onChange={(value) => updateAdvancedControl("timeWeather", value)}
+                />
+                <AdvancedOptionGroup
+                  label={isZh ? "主体" : "Subject"}
+                  options={catalog.advancedControls?.subjects || []}
+                  value={advancedControls.subject}
+                  onChange={(value) => updateAdvancedControl("subject", value)}
+                />
+              </div>
+            ) : null}
+          </section>
+
           <section className="grid gap-3 lg:grid-cols-4">
             {[
               {
@@ -884,10 +1241,14 @@ export function PromptStudioPage() {
                 <div>
                   <SectionLabel>Prompt Output Editor</SectionLabel>
                   <h2 className="mt-2 text-xl font-black text-white">
-                    {isZh ? activeResultTab.labelZh : activeResultTab.labelEn} Prompt
+                    {mode === "generate"
+                      ? `${isZh ? activeResultTab.labelZh : activeResultTab.labelEn} Prompt`
+                      : isZh
+                        ? modeOption.labelZh
+                        : modeOption.labelEn}
                   </h2>
                 </div>
-                <div className="flex rounded-full border border-white/[.07] bg-[#0c0e12] p-1.5 shadow-inner shadow-black/35">
+                <div className={cx("flex rounded-full border border-white/[.07] bg-[#0c0e12] p-1.5 shadow-inner shadow-black/35", mode !== "generate" ? "hidden" : "")}>
                   {resultTabs.map((tab) => (
                     <button
                       className={cx(
@@ -909,6 +1270,11 @@ export function PromptStudioPage() {
                     </button>
                   ))}
                 </div>
+                {mode !== "generate" ? (
+                  <span className="rounded-full border border-[#f6a935]/24 bg-[#f6a935]/10 px-3 py-1.5 text-xs font-black text-[#ffd48a]">
+                    {isZh ? modeOption.descriptionZh : modeOption.descriptionEn}
+                  </span>
+                ) : null}
               </div>
 
               <div className="mt-5 rounded-[26px] border border-white/[.065] bg-[linear-gradient(180deg,rgba(12,14,18,.98),rgba(7,8,10,.98))] p-4 shadow-inner shadow-black/35">
@@ -936,6 +1302,120 @@ export function PromptStudioPage() {
                   <EmptyOutputState locale={locale} />
                 )}
               </div>
+
+              {result && mode === "optimize" ? (
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <section className="rounded-[22px] border border-white/[.06] bg-white/[.025] p-4">
+                    <div className="text-xs font-black uppercase tracking-[.18em] text-[#ffd48a]/72">Diagnosis</div>
+                    <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/62">
+                      {(result.diagnosis || []).map((item) => (
+                        <li key={item}>- {item}</li>
+                      ))}
+                    </ul>
+                  </section>
+                  <section className="rounded-[22px] border border-white/[.06] bg-white/[.025] p-4">
+                    <div className="text-xs font-black uppercase tracking-[.18em] text-[#ffd48a]/72">Changes</div>
+                    <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/62">
+                      {(result.changes || []).map((item) => (
+                        <li key={item}>- {item}</li>
+                      ))}
+                    </ul>
+                  </section>
+                </div>
+              ) : null}
+
+              {result && mode === "convert" ? (
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <section className="rounded-[22px] border border-white/[.06] bg-white/[.025] p-4">
+                    <div className="text-xs font-black uppercase tracking-[.18em] text-[#ffd48a]/72">Preserved</div>
+                    <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/62">
+                      {(result.preservedElements || []).map((item) => (
+                        <li key={item}>- {item}</li>
+                      ))}
+                    </ul>
+                  </section>
+                  <section className="rounded-[22px] border border-white/[.06] bg-white/[.025] p-4">
+                    <div className="text-xs font-black uppercase tracking-[.18em] text-[#ffd48a]/72">Changed</div>
+                    <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/62">
+                      {(result.changedElements || []).map((item) => (
+                        <li key={item}>- {item}</li>
+                      ))}
+                    </ul>
+                  </section>
+                </div>
+              ) : null}
+
+              {result && mode === "layerEdit" ? (
+                <div className="mt-4 grid gap-3 md:grid-cols-[1fr_.7fr]">
+                  <section className="rounded-[22px] border border-white/[.06] bg-white/[.025] p-4">
+                    <div className="text-xs font-black uppercase tracking-[.18em] text-[#ffd48a]/72">Unchanged Elements</div>
+                    <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/62">
+                      {(result.unchangedElements || []).map((item) => (
+                        <li key={item}>- {item}</li>
+                      ))}
+                    </ul>
+                  </section>
+                  <section className="rounded-[22px] border border-[#f6a935]/18 bg-[#f6a935]/8 p-4">
+                    <div className="text-xs font-black uppercase tracking-[.18em] text-[#ffd48a]/72">Edited Layer</div>
+                    <div className="mt-3 text-sm font-black text-white/82">{result.editedLayer?.type || layerEditType}</div>
+                    <p className="mt-2 text-sm leading-6 text-white/58">{result.editedLayer?.instruction || transformGoal}</p>
+                  </section>
+                </div>
+              ) : null}
+
+              {result && mode === "storyboard" ? (
+                <div className="mt-4 grid gap-3">
+                  {result.styleBible ? (
+                    <section className="rounded-[22px] border border-[#f6a935]/18 bg-[#f6a935]/8 p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div className="text-xs font-black uppercase tracking-[.18em] text-[#ffd48a]/72">Style Bible</div>
+                        <button
+                          className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/72"
+                          onClick={() => void copyPrompt(styleBibleToText(result))}
+                          type="button"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                      <pre className="whitespace-pre-wrap break-words text-sm leading-6 text-white/68">{styleBibleToText(result)}</pre>
+                    </section>
+                  ) : null}
+                  <div className="grid gap-3">
+                    {(result.shots || []).map((shot) => (
+                      <section className="rounded-[22px] border border-white/[.06] bg-white/[.025] p-4" key={shot.shotNumber}>
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <div className="text-xs font-black uppercase tracking-[.18em] text-[#ffd48a]/72">
+                              Shot {shot.shotNumber}
+                            </div>
+                            <h3 className="mt-1 text-base font-black text-white">{shot.title}</h3>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/72" onClick={() => void copyPrompt(shot.keyframeImagePrompt)} type="button">
+                              Copy keyframe
+                            </button>
+                            <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/72" onClick={() => void copyPrompt(shot.videoPrompt)} type="button">
+                              Copy video
+                            </button>
+                          </div>
+                        </div>
+                        <p className="mt-3 text-sm leading-6 text-white/58">{shot.storyPurpose}</p>
+                        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                          <div className="rounded-2xl border border-white/[.05] bg-black/16 p-3">
+                            <div className="mb-2 text-[11px] font-black uppercase tracking-[.16em] text-white/36">Keyframe Prompt</div>
+                            <p className="text-sm leading-6 text-white/64">{shot.keyframeImagePrompt}</p>
+                          </div>
+                          <div className="rounded-2xl border border-white/[.05] bg-black/16 p-3">
+                            <div className="mb-2 text-[11px] font-black uppercase tracking-[.16em] text-white/36">Video Prompt</div>
+                            <p className="text-sm leading-6 text-white/64">{shot.videoPrompt}</p>
+                          </div>
+                        </div>
+                        <p className="mt-3 text-xs leading-5 text-white/42">{shot.continuityNotes}</p>
+                      </section>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
               <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
                 <button
@@ -982,6 +1462,15 @@ export function PromptStudioPage() {
                       <div className="rounded-2xl border border-white/[.06] bg-white/[.025] px-3 py-2" key={`${item.id}-${item.label}`}>
                         <div className="text-sm font-semibold text-white/70">{item.label}</div>
                         {item.detail ? <div className="mt-0.5 text-[11px] text-white/34">{item.detail}</div> : null}
+                        {item.phrases?.length ? (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {item.phrases.slice(0, 5).map((phrase) => (
+                              <span className="rounded-full border border-[#f6a935]/14 bg-[#f6a935]/8 px-2 py-0.5 text-[10px] font-semibold text-[#ffd48a]/70" key={phrase}>
+                                {phrase}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                     ))
                   ) : (
