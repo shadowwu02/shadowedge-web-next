@@ -156,6 +156,45 @@ function ControlPill({
   );
 }
 
+function PrimaryGenerateButton({
+  children,
+  disabled,
+  isLoading,
+  onClick,
+}: {
+  children: string;
+  disabled?: boolean;
+  isLoading?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={cx(
+        "group relative inline-flex min-h-12 items-center justify-center overflow-hidden rounded-2xl border px-6 text-sm font-black text-[#0a0805] outline-none transition duration-200 ease-out",
+        "border-[#ffd48a]/42 bg-[linear-gradient(110deg,#ffe08d_0%,#ffc35a_30%,#f6a935_56%,#c8872e_100%)] shadow-[0_18px_46px_rgba(246,169,53,.28),inset_0_1px_0_rgba(255,255,255,.42)]",
+        "hover:-translate-y-0.5 hover:border-[#ffe4ad]/70 hover:bg-[linear-gradient(110deg,#fff0b7_0%,#ffd36f_28%,#ffb845_58%,#d99534_100%)] hover:shadow-[0_24px_62px_rgba(246,169,53,.42),0_0_30px_rgba(255,195,90,.18),inset_0_1px_0_rgba(255,255,255,.55)]",
+        "active:translate-y-px active:scale-[.985] active:shadow-[0_10px_28px_rgba(246,169,53,.24),inset_0_2px_8px_rgba(68,38,6,.24)]",
+        "focus-visible:ring-2 focus-visible:ring-[#ffe4ad]/85 focus-visible:ring-offset-2 focus-visible:ring-offset-[#07080a]",
+        disabled
+          ? "cursor-not-allowed opacity-70 hover:translate-y-0 hover:border-[#ffd48a]/42 hover:bg-[linear-gradient(110deg,#ffe08d_0%,#ffc35a_30%,#f6a935_56%,#c8872e_100%)] hover:shadow-[0_18px_46px_rgba(246,169,53,.22),inset_0_1px_0_rgba(255,255,255,.34)] active:scale-100 active:translate-y-0"
+          : "",
+      )}
+      disabled={disabled}
+      onClick={onClick}
+      type="button"
+    >
+      <span className="pointer-events-none absolute inset-0 -translate-x-full bg-[linear-gradient(110deg,transparent_0%,rgba(255,255,255,.44)_45%,transparent_62%)] opacity-0 transition duration-700 group-hover:translate-x-full group-hover:opacity-100" />
+      <span className="pointer-events-none absolute inset-x-3 top-0 h-px bg-white/55" />
+      <span className="relative z-10 inline-flex items-center gap-2">
+        {isLoading ? (
+          <span className="size-4 rounded-full border-2 border-[#3a2206]/25 border-t-[#3a2206] animate-spin" aria-hidden="true" />
+        ) : null}
+        <span>{children}</span>
+      </span>
+    </button>
+  );
+}
+
 function KnowledgeToken({ children, onRemove }: { children: string; onRemove?: () => void }) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-[#f6a935]/18 bg-[#f6a935]/10 px-3 py-1.5 text-xs font-bold text-[#ffd48a]/90">
@@ -649,14 +688,13 @@ export function PromptStudioPage() {
                         : "Turn Chinese ideas into professional English prompts. No image or video generation. No credits used."}
                     </p>
                   </div>
-                  <button
-                    className="min-h-12 rounded-2xl bg-gradient-to-r from-[#ffc35a] via-[#f6a935] to-[#b87929] px-6 text-sm font-black text-[#0a0805] shadow-[0_18px_46px_rgba(246,169,53,.28)] disabled:cursor-not-allowed disabled:opacity-55"
+                  <PrimaryGenerateButton
                     disabled={isLoading || !intent.trim()}
+                    isLoading={isLoading}
                     onClick={() => void handleGenerate()}
-                    type="button"
                   >
                     {isLoading ? (isZh ? "生成中..." : "Generating...") : isZh ? "生成三档 Prompt" : "Generate three prompts"}
-                  </button>
+                  </PrimaryGenerateButton>
                 </div>
 
                 <div className="mt-5 rounded-[26px] border border-white/[.07] bg-[#0c0e12] p-4 shadow-inner shadow-black/35">
