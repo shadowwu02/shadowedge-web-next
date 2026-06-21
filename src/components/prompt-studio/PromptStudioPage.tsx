@@ -115,6 +115,23 @@ const signalGroups: Array<{
   { key: "subjects", labelZh: "主体", labelEn: "Subject" },
 ];
 
+const knowledgeProfileGroups: Array<{
+  key: keyof NonNullable<PromptStudioGenerateResult["selectedKnowledge"][number]["knowledgeProfile"]>;
+  label: string;
+}> = [
+  { key: "visualLanguage", label: "Visual" },
+  { key: "cinematography", label: "Cinematography" },
+  { key: "lighting", label: "Lighting" },
+  { key: "composition", label: "Composition" },
+  { key: "colorGrading", label: "Color" },
+  { key: "textureAndMedium", label: "Texture" },
+  { key: "cameraMovement", label: "Camera" },
+  { key: "characterDirection", label: "Character" },
+  { key: "continuityRules", label: "Continuity" },
+  { key: "negativeConstraints", label: "Negative" },
+  { key: "usageTips", label: "Tips" },
+];
+
 const quickPrompts = [
   {
     label: "旧房改造广告",
@@ -727,12 +744,19 @@ export function PromptStudioPage() {
     : "";
   const activeResultTab = resultTabs.find((tab) => tab.key === activeResult) || resultTabs[1];
   const usageTips = result?.usageTips || [];
-  const knowledgeUsed: Array<{ id: string; label: string; detail?: string; phrases?: string[] }> = result?.selectedKnowledge?.length
+  const knowledgeUsed: Array<{
+    id: string;
+    label: string;
+    detail?: string;
+    phrases?: string[];
+    profile?: PromptStudioGenerateResult["selectedKnowledge"][number]["knowledgeProfile"];
+  }> = result?.selectedKnowledge?.length
     ? result.selectedKnowledge.map((item) => ({
         id: item.id,
         label: item.nameZh,
         detail: item.appliedAs || item.category,
         phrases: item.keyPhrases || [],
+        profile: item.knowledgeProfile,
       }))
     : selectedItems.map((item) => ({ id: item.id, label: item.nameZh, detail: item.category, phrases: [] }));
   const modeOption = modeOptions.find((item) => item.id === mode) || modeOptions[0];
@@ -1494,6 +1518,35 @@ export function PromptStudioPage() {
                               </span>
                             ))}
                           </div>
+                        ) : null}
+                        {item.profile &&
+                        knowledgeProfileGroups.some((group) => (item.profile?.[group.key] || []).length) ? (
+                          <details className="mt-2 rounded-xl border border-white/[.05] bg-black/15 px-2.5 py-2">
+                            <summary className="cursor-pointer text-[11px] font-black uppercase tracking-[.14em] text-white/38">
+                              Applied layers
+                            </summary>
+                            <div className="mt-2 grid gap-2">
+                              {knowledgeProfileGroups.map((group) => {
+                                const values = item.profile?.[group.key] || [];
+                                if (!values.length) return null;
+                                return (
+                                  <div key={group.key}>
+                                    <div className="text-[10px] font-black uppercase tracking-[.16em] text-[#ffd48a]/52">{group.label}</div>
+                                    <div className="mt-1 flex flex-wrap gap-1.5">
+                                      {values.slice(0, 4).map((value) => (
+                                        <span
+                                          className="rounded-full border border-white/[.06] bg-white/[.035] px-2 py-0.5 text-[10px] leading-4 text-white/48"
+                                          key={value}
+                                        >
+                                          {value}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </details>
                         ) : null}
                       </div>
                     ))

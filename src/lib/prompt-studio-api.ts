@@ -123,6 +123,7 @@ export type PromptStudioGenerateResult = {
     summary: string;
     keyPhrases?: string[];
     appliedAs?: string;
+    knowledgeProfile?: PromptStudioKnowledgeProfile;
   }>;
   warnings: string[];
   mode?: PromptStudioMode;
@@ -143,6 +144,20 @@ export type PromptStudioGenerateResult = {
   styleBible?: PromptStudioStyleBible;
   shots?: PromptStudioStoryboardShot[];
   continuityChecklist?: string[];
+};
+
+export type PromptStudioKnowledgeProfile = {
+  visualLanguage?: string[];
+  cinematography?: string[];
+  lighting?: string[];
+  composition?: string[];
+  colorGrading?: string[];
+  textureAndMedium?: string[];
+  cameraMovement?: string[];
+  characterDirection?: string[];
+  continuityRules?: string[];
+  negativeConstraints?: string[];
+  usageTips?: string[];
 };
 
 export async function fetchPromptStudioCatalog() {
