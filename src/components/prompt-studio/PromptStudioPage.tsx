@@ -17,6 +17,7 @@ import { saveVideoDraft } from "@/lib/video/videoDraft";
 type Target = "video" | "image" | "storyboard";
 type Engine = "seedance" | "higgsfield" | "gpt-image" | "nano-banana";
 type ResultKey = "basicPrompt" | "standardPrompt" | "enhancedPrompt";
+type LibraryKind = "style" | "module";
 
 const targetOptions: Array<{ id: Target; label: string }> = [
   { id: "video", label: "视频 Video" },
@@ -71,6 +72,9 @@ function cx(...classes: Array<false | null | string | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
+const subtleScrollbar =
+  "[scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.18)_transparent] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20";
+
 function toggleId(list: string[], id: string) {
   return list.includes(id) ? list.filter((item) => item !== id) : [...list, id];
 }
@@ -93,10 +97,6 @@ function filterItems(items: PromptStudioLibraryItem[], query: string) {
   });
 }
 
-function getPreferredPrompt(result: PromptStudioGenerateResult | null) {
-  return result?.enhancedPrompt || result?.standardPrompt || result?.basicPrompt || "";
-}
-
 function ResultCard({
   active,
   label,
@@ -111,17 +111,17 @@ function ResultCard({
   return (
     <section
       className={cx(
-        "rounded-[24px] border bg-[#101216]/86 p-4 shadow-inner shadow-black/20",
-        active ? "border-[#ffb44d]/34" : "border-white/8",
+        "rounded-[22px] border bg-[#101216]/82 p-3.5 shadow-inner shadow-black/20",
+        active ? "border-[#ffb44d]/30" : "border-white/8",
       )}
     >
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="text-sm font-black text-white">{label}</h3>
-        <button className="se-button-secondary rounded-full px-3 py-1.5 text-xs font-semibold" onClick={onCopy} type="button">
+      <div className="mb-3 flex items-center justify-between gap-4">
+        <h3 className="min-w-0 text-sm font-black text-white">{label}</h3>
+        <button className="se-button-secondary shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold" onClick={onCopy} type="button">
           复制 Copy
         </button>
       </div>
-      <pre className="se-scrollbar max-h-60 whitespace-pre-wrap rounded-[18px] border border-white/8 bg-[#07080b] p-3 text-[12px] leading-6 text-[#f4f4f4]/82">
+      <pre className={cx("se-scrollbar max-h-[430px] min-h-[360px] overflow-y-auto whitespace-pre-wrap break-words rounded-[18px] border border-white/[.06] bg-[#07080b] p-3.5 pr-4 font-mono text-[12px] leading-6 text-[#f4f4f4]/82", subtleScrollbar)}>
         {prompt || "Generate a prompt to see this version."}
       </pre>
     </section>
@@ -129,37 +129,117 @@ function ResultCard({
 }
 
 function LibraryGroup({
+  expanded = true,
   items,
+  itemLimit = 40,
+  onToggleExpanded,
   selected,
+  selectedCount = 0,
   title,
   onToggle,
 }: {
+  expanded?: boolean;
   items: PromptStudioLibraryItem[];
+  itemLimit?: number;
+  onToggleExpanded?: () => void;
   selected: string[];
+  selectedCount?: number;
   title: string;
   onToggle: (id: string) => void;
 }) {
   if (!items.length) return null;
 
   return (
-    <section className="rounded-[22px] border border-white/8 bg-[#0d0f13]/72 p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="text-xs font-black uppercase tracking-[.14em] text-[#ffcf83]/78">{title}</h3>
-        <span className="text-[11px] text-white/36">{items.length}</span>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {items.slice(0, 32).map((item) => {
+    <section className="rounded-[20px] border border-white/[.065] bg-[#0d0f13]/70 p-2.5">
+      <button
+        className={cx(
+          "flex w-full items-center justify-between gap-2 rounded-2xl px-1 py-1 text-left",
+          onToggleExpanded ? "cursor-pointer" : "cursor-default",
+        )}
+        onClick={onToggleExpanded}
+        type="button"
+      >
+        <h3 className="min-w-0 truncate text-[11px] font-black uppercase tracking-[.14em] text-[#ffcf83]/78">{title}</h3>
+        <span className="flex shrink-0 items-center gap-1.5 text-[11px] font-semibold text-white/36">
+          {selectedCount ? <span className="rounded-full border border-[#ffb44d]/20 bg-[#ffb44d]/8 px-1.5 py-0.5 text-[#ffd08a]/88">{selectedCount} selected</span> : null}
+          <span>{items.length}</span>
+          {onToggleExpanded ? <span className="text-white/32">{expanded ? "−" : "+"}</span> : null}
+        </span>
+      </button>
+      {expanded ? (
+      <div className={cx("se-scrollbar mt-2 flex max-h-40 flex-wrap gap-1.5 overflow-y-auto pr-1", subtleScrollbar)}>
+        {items.slice(0, itemLimit).map((item) => {
           const isSelected = selected.includes(item.id);
           return (
             <button
               className={cx(
-                "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                "rounded-full border px-2.5 py-1 text-[11px] font-semibold leading-5 transition",
                 isSelected
-                  ? "border-[#ffb44d]/48 bg-[#ffb44d]/16 text-[#ffd08a]"
-                  : "border-white/8 bg-white/[.035] text-white/58 hover:border-[#ffb44d]/28 hover:text-white/82",
+                  ? "border-[#ffb44d]/42 bg-[#ffb44d]/13 text-[#ffd08a]"
+                  : "border-white/[.07] bg-white/[.03] text-white/58 hover:border-[#ffb44d]/24 hover:text-white/82",
               )}
               key={item.id}
               onClick={() => onToggle(item.id)}
+              type="button"
+            >
+              {item.nameZh}
+            </button>
+          );
+        })}
+      </div>
+      ) : null}
+    </section>
+  );
+}
+
+function LibrarySearchResults({
+  modules,
+  onToggleModule,
+  onToggleStyle,
+  selectedModules,
+  selectedStyles,
+  styles,
+}: {
+  modules: PromptStudioLibraryItem[];
+  onToggleModule: (id: string) => void;
+  onToggleStyle: (id: string) => void;
+  selectedModules: string[];
+  selectedStyles: string[];
+  styles: PromptStudioLibraryItem[];
+}) {
+  const combined: Array<PromptStudioLibraryItem & { libraryKind: LibraryKind }> = [
+    ...styles.map((item) => ({ ...item, libraryKind: "style" as const })),
+    ...modules.map((item) => ({ ...item, libraryKind: "module" as const })),
+  ].slice(0, 30);
+
+  if (!combined.length) {
+    return (
+      <section className="rounded-[20px] border border-white/[.065] bg-[#0d0f13]/70 p-3 text-sm text-white/42">
+        No matching prompt library items.
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-[20px] border border-white/[.065] bg-[#0d0f13]/70 p-2.5">
+      <div className="mb-2 flex items-center justify-between gap-2 px-1 py-1">
+        <h3 className="min-w-0 truncate text-[11px] font-black uppercase tracking-[.14em] text-[#ffcf83]/78">Search results</h3>
+        <span className="text-[11px] text-white/36">{combined.length}</span>
+      </div>
+      <div className={cx("se-scrollbar flex max-h-44 flex-wrap gap-1.5 overflow-y-auto pr-1", subtleScrollbar)}>
+        {combined.map((item) => {
+          const isStyle = item.libraryKind === "style";
+          const isSelected = isStyle ? selectedStyles.includes(item.id) : selectedModules.includes(item.id);
+          return (
+            <button
+              className={cx(
+                "rounded-full border px-2.5 py-1 text-[11px] font-semibold leading-5 transition",
+                isSelected
+                  ? "border-[#ffb44d]/42 bg-[#ffb44d]/13 text-[#ffd08a]"
+                  : "border-white/[.07] bg-white/[.03] text-white/58 hover:border-[#ffb44d]/24 hover:text-white/82",
+              )}
+              key={`${item.libraryKind}-${item.id}`}
+              onClick={() => (isStyle ? onToggleStyle(item.id) : onToggleModule(item.id))}
               type="button"
             >
               {item.nameZh}
@@ -175,8 +255,10 @@ function DetectedSignalsCard({ result }: { result: PromptStudioGenerateResult | 
   const signals = result?.detectedSignals;
   const hasSignals = Boolean(signals && signalGroups.some((group) => signals[group.key]?.length));
 
+  if (!hasSignals) return null;
+
   return (
-    <section className="rounded-[24px] border border-white/8 bg-[#101216]/78 p-4 lg:col-span-2">
+    <section className="rounded-[22px] border border-white/[.065] bg-[#101216]/76 p-3.5 lg:col-span-2">
       <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
         <div>
           <p className="se-eyebrow">Detected intent signals</p>
@@ -185,16 +267,16 @@ function DetectedSignalsCard({ result }: { result: PromptStudioGenerateResult | 
         <span className="text-[11px] font-semibold text-white/36">scene / action / style / lighting / mood / subject</span>
       </div>
       {hasSignals ? (
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className={cx("se-scrollbar grid max-h-36 gap-2 overflow-y-auto pr-1 md:grid-cols-2", subtleScrollbar)}>
           {signalGroups.map((group) => {
             const values = signals?.[group.key] || [];
             if (!values.length) return null;
             return (
-              <div className="rounded-2xl border border-white/8 bg-white/[.025] p-3" key={group.key}>
-                <div className="mb-2 text-[11px] font-black uppercase tracking-[.14em] text-[#ffcf83]/78">{group.label}</div>
-                <div className="flex flex-wrap gap-2">
+              <div className="rounded-2xl border border-white/[.065] bg-white/[.022] p-2" key={group.key}>
+                <div className="mb-1.5 text-[10px] font-black uppercase tracking-[.12em] text-[#ffcf83]/72">{group.label}</div>
+                <div className="flex flex-wrap gap-1">
                   {values.map((value) => (
-                    <span className="rounded-full border border-[#ffb44d]/18 bg-[#ffb44d]/8 px-3 py-1.5 text-[11px] font-semibold leading-5 text-[#ffd08a]/88" key={value}>
+                    <span className="rounded-full border border-[#ffb44d]/14 bg-[#ffb44d]/7 px-2 py-0.5 text-[10px] font-semibold leading-5 text-[#ffd08a]/84" key={value}>
                       {value}
                     </span>
                   ))}
@@ -223,6 +305,7 @@ export function PromptStudioPage() {
   const [styleQuery, setStyleQuery] = useState("");
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
+  const [expandedLibraryGroups, setExpandedLibraryGroups] = useState<string[]>(["recommended"]);
   const [result, setResult] = useState<PromptStudioGenerateResult | null>(null);
   const [activeResult, setActiveResult] = useState<ResultKey>("standardPrompt");
   const [isLoading, setIsLoading] = useState(false);
@@ -248,11 +331,22 @@ export function PromptStudioPage() {
     };
   }, []);
 
-  const visibleStyles = useMemo(() => filterItems(catalog.styles, styleQuery), [catalog.styles, styleQuery]);
-  const styleGroups = useMemo(() => groupItems(visibleStyles), [visibleStyles]);
-  const moduleGroups = useMemo(() => groupItems(filterItems(catalog.modules, styleQuery)), [catalog.modules, styleQuery]);
+  const normalizedStyleQuery = styleQuery.trim();
+  const searchStyles = useMemo(() => filterItems(catalog.styles, styleQuery), [catalog.styles, styleQuery]);
+  const searchModules = useMemo(() => filterItems(catalog.modules, styleQuery), [catalog.modules, styleQuery]);
+  const styleGroups = useMemo(() => groupItems(catalog.styles), [catalog.styles]);
+  const moduleGroups = useMemo(() => groupItems(catalog.modules), [catalog.modules]);
   const selectedKnowledgeCount = selectedStyles.length + selectedModules.length;
   const currentPrompt = result?.[activeResult] || "";
+  const activeResultTab = resultTabs.find((tab) => tab.key === activeResult) || resultTabs[1];
+
+  function toggleLibraryGroup(groupId: string) {
+    setExpandedLibraryGroups((current) => toggleId(current, groupId));
+  }
+
+  function getSelectedCount(items: PromptStudioLibraryItem[], selected: string[]) {
+    return items.reduce((count, item) => count + (selected.includes(item.id) ? 1 : 0), 0);
+  }
 
   async function handleGenerate() {
     setIsLoading(true);
@@ -291,7 +385,7 @@ export function PromptStudioPage() {
   }
 
   function saveForVideo() {
-    const prompt = getPreferredPrompt(result);
+    const prompt = currentPrompt;
     if (!prompt) return;
     saveVideoDraft({
       prompt,
@@ -312,7 +406,7 @@ export function PromptStudioPage() {
   }
 
   function saveForImage() {
-    const prompt = getPreferredPrompt(result);
+    const prompt = currentPrompt;
     if (!prompt) return;
     saveImageWorkspaceDraft({
       prompt,
@@ -331,8 +425,9 @@ export function PromptStudioPage() {
 
   return (
     <AppShell hideSidebar workspaceNav>
-      <div className="grid h-full min-h-0 gap-3 overflow-hidden xl:grid-cols-[minmax(360px,0.86fr)_minmax(0,1.14fr)]">
-        <section className="se-card-quiet se-scrollbar min-h-0 overflow-y-auto rounded-[30px] p-4 shadow-2xl shadow-black/20">
+      <div className="grid h-full min-h-0 grid-rows-[minmax(0,0.95fr)_minmax(0,1.05fr)] gap-3 overflow-hidden xl:grid-cols-[minmax(340px,370px)_minmax(0,1fr)] xl:grid-rows-none 2xl:grid-cols-[380px_minmax(0,1fr)]">
+        <section className="se-card-quiet flex min-h-0 flex-col overflow-hidden rounded-[30px] shadow-2xl shadow-black/20">
+          <div className={cx("se-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24", subtleScrollbar)}>
           <div className="mb-5">
             <p className="se-eyebrow">ShadowEdge Prompt Studio</p>
             <h1 className="mt-2 text-2xl font-black text-white">影视提示词工作室</h1>
@@ -344,7 +439,7 @@ export function PromptStudioPage() {
           <label className="grid gap-2">
             <span className="text-xs font-black uppercase tracking-[.14em] text-[#ffcf83]/78">用户想法</span>
             <textarea
-              className="se-scrollbar min-h-36 resize-y rounded-[22px] border border-white/8 bg-[#0f1116] p-4 text-sm leading-6 text-white outline-none transition focus:border-[#ffb44d]/44"
+              className="se-scrollbar h-32 min-h-28 max-h-40 resize-y rounded-[22px] border border-white/8 bg-[#0f1116] p-3.5 text-sm leading-6 text-white outline-none transition focus:border-[#ffb44d]/44"
               maxLength={2400}
               onChange={(event) => setIntent(event.target.value)}
               placeholder="例如：帮我写一个赛博朋克雨夜街头追逐镜头，竖屏，紧张、有速度感。"
@@ -429,16 +524,66 @@ export function PromptStudioPage() {
 
           {catalogError ? <div className="mt-3 rounded-2xl border border-red-300/20 bg-red-400/10 p-3 text-sm text-red-100">{catalogError}</div> : null}
 
-          <div className="mt-4 grid gap-3">
-            {Object.entries(styleGroups).map(([category, items]) => (
-              <LibraryGroup items={items} key={category} onToggle={(id) => setSelectedStyles((current) => toggleId(current, id))} selected={selectedStyles} title={category} />
-            ))}
-            {Object.entries(moduleGroups).map(([category, items]) => (
-              <LibraryGroup items={items} key={category} onToggle={(id) => setSelectedModules((current) => toggleId(current, id))} selected={selectedModules} title={category} />
-            ))}
+          <div className={cx("se-scrollbar mt-4 grid max-h-[280px] gap-2.5 overflow-y-auto overflow-x-hidden pr-1", subtleScrollbar)}>
+            {normalizedStyleQuery ? (
+              <LibrarySearchResults
+                modules={searchModules}
+                onToggleModule={(id) => setSelectedModules((current) => toggleId(current, id))}
+                onToggleStyle={(id) => setSelectedStyles((current) => toggleId(current, id))}
+                selectedModules={selectedModules}
+                selectedStyles={selectedStyles}
+                styles={searchStyles}
+              />
+            ) : (
+              <>
+                <LibraryGroup
+                  expanded={expandedLibraryGroups.includes("recommended")}
+                  itemLimit={30}
+                  items={catalog.recommendedStyles}
+                  key="recommended"
+                  onToggle={(id) => setSelectedStyles((current) => toggleId(current, id))}
+                  onToggleExpanded={() => toggleLibraryGroup("recommended")}
+                  selected={selectedStyles}
+                  selectedCount={getSelectedCount(catalog.recommendedStyles, selectedStyles)}
+                  title="常用推荐 Recommended"
+                />
+                {Object.entries(styleGroups).map(([category, items]) => {
+                  const groupId = `style:${category}`;
+                  return (
+                    <LibraryGroup
+                      expanded={expandedLibraryGroups.includes(groupId)}
+                      items={items}
+                      key={groupId}
+                      onToggle={(id) => setSelectedStyles((current) => toggleId(current, id))}
+                      onToggleExpanded={() => toggleLibraryGroup(groupId)}
+                      selected={selectedStyles}
+                      selectedCount={getSelectedCount(items, selectedStyles)}
+                      title={category}
+                    />
+                  );
+                })}
+                {Object.entries(moduleGroups).map(([category, items]) => {
+                  const groupId = `module:${category}`;
+                  return (
+                    <LibraryGroup
+                      expanded={expandedLibraryGroups.includes(groupId)}
+                      items={items}
+                      key={groupId}
+                      onToggle={(id) => setSelectedModules((current) => toggleId(current, id))}
+                      onToggleExpanded={() => toggleLibraryGroup(groupId)}
+                      selected={selectedModules}
+                      selectedCount={getSelectedCount(items, selectedModules)}
+                      title={category}
+                    />
+                  );
+                })}
+              </>
+            )}
           </div>
 
-          <div className="sticky bottom-0 mt-5 border-t border-white/8 bg-[#08090d]/96 pt-4 backdrop-blur">
+          </div>
+
+          <div className="shrink-0 border-t border-white/[.07] bg-[linear-gradient(180deg,rgba(8,9,13,0.76),rgba(8,9,13,0.98))] p-4 shadow-[0_-18px_42px_rgba(0,0,0,0.34)] backdrop-blur">
             <button
               className="se-button-primary flex min-h-12 w-full items-center justify-center rounded-2xl px-5 text-sm font-black disabled:cursor-not-allowed disabled:opacity-55"
               disabled={isLoading || !intent.trim()}
@@ -450,7 +595,8 @@ export function PromptStudioPage() {
           </div>
         </section>
 
-        <section className="se-card-quiet se-scrollbar min-h-0 overflow-y-auto rounded-[30px] p-4 shadow-2xl shadow-black/20">
+        <section className="se-card-quiet flex min-h-0 flex-col overflow-hidden rounded-[30px] shadow-2xl shadow-black/20">
+          <div className="shrink-0 border-b border-white/[.06] p-4 pb-3">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="se-eyebrow">Prompt Output</p>
@@ -474,31 +620,29 @@ export function PromptStudioPage() {
 
           {notice ? <div className="mb-3 rounded-2xl border border-[#ffb44d]/24 bg-[#ffb44d]/10 p-3 text-sm text-[#ffd08a]">{notice}</div> : null}
           {error ? <div className="mb-3 rounded-2xl border border-red-300/20 bg-red-400/10 p-3 text-sm text-red-100">{error}</div> : null}
-
-          <div className="grid gap-3">
-            {resultTabs.map((tab) => (
-              <ResultCard active={activeResult === tab.key} key={tab.key} label={tab.label} onCopy={() => void copyPrompt(result?.[tab.key] || "")} prompt={result?.[tab.key] || ""} />
-            ))}
           </div>
 
-          <div className="mt-4 grid gap-3 lg:grid-cols-2">
-            <button className="se-button-secondary min-h-11 rounded-2xl px-4 text-sm font-black" disabled={!currentPrompt} onClick={() => void copyPrompt(currentPrompt)} type="button">
+          <div className={cx("se-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pt-3", subtleScrollbar)}>
+          <ResultCard active label={activeResultTab.label} onCopy={() => void copyPrompt(currentPrompt)} prompt={currentPrompt} />
+
+          <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
+            <button className="se-button-secondary min-h-11 rounded-2xl px-4 text-xs font-black sm:text-sm" disabled={!currentPrompt} onClick={() => void copyPrompt(currentPrompt)} type="button">
               复制当前版本
             </button>
-            <button className="se-button-secondary min-h-11 rounded-2xl px-4 text-sm font-black" disabled={!result} onClick={saveForVideo} type="button">
+            <button className="se-button-secondary min-h-11 rounded-2xl px-4 text-xs font-black sm:text-sm" disabled={!result} onClick={saveForVideo} type="button">
               保存到视频工作区草稿
             </button>
-            <button className="se-button-secondary min-h-11 rounded-2xl px-4 text-sm font-black" disabled={!result} onClick={saveForImage} type="button">
+            <button className="se-button-secondary min-h-11 rounded-2xl px-4 text-xs font-black sm:text-sm" disabled={!result} onClick={saveForImage} type="button">
               保存到图片工作区草稿
             </button>
-            <button className="se-button-secondary min-h-11 rounded-2xl px-4 text-sm font-black" onClick={() => setResult(null)} type="button">
+            <button className="se-button-secondary min-h-11 rounded-2xl px-4 text-xs font-black sm:text-sm" onClick={() => setResult(null)} type="button">
               清空结果
             </button>
           </div>
 
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
             <DetectedSignalsCard result={result} />
-            <section className="rounded-[24px] border border-white/8 bg-[#101216]/78 p-4">
+            <section className="rounded-[22px] border border-white/[.065] bg-[#101216]/72 p-3.5">
               <h3 className="text-sm font-black text-white">使用建议</h3>
               <ul className="mt-3 grid gap-2 text-sm leading-6 text-[#b9b9b9]/72">
                 {(result?.usageTips?.length ? result.usageTips : ["选择风格库后点击生成。", "Prompt Studio 不提交生成任务，也不扣费。"]).map((tip) => (
@@ -506,11 +650,11 @@ export function PromptStudioPage() {
                 ))}
               </ul>
             </section>
-            <section className="rounded-[24px] border border-white/8 bg-[#101216]/78 p-4">
+            <section className="rounded-[22px] border border-white/[.065] bg-[#101216]/72 p-3.5">
               <h3 className="text-sm font-black text-white">已选知识</h3>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className={cx("se-scrollbar mt-3 flex max-h-32 flex-wrap gap-1.5 overflow-y-auto pr-1", subtleScrollbar)}>
                 {(result?.selectedKnowledge?.length ? result.selectedKnowledge : []).map((item) => (
-                  <span className="rounded-full border border-white/8 bg-white/[.04] px-3 py-1.5 text-xs font-semibold text-white/64" key={item.id}>
+                  <span className="rounded-full border border-white/[.07] bg-white/[.035] px-2.5 py-1 text-[11px] font-semibold text-white/64" key={item.id}>
                     {item.nameZh}
                   </span>
                 ))}
@@ -520,7 +664,7 @@ export function PromptStudioPage() {
           </div>
 
           {result?.warnings?.length ? (
-            <section className="mt-4 rounded-[24px] border border-[#ffb44d]/18 bg-[#ffb44d]/8 p-4">
+            <section className="mt-4 rounded-[22px] border border-[#ffb44d]/16 bg-[#ffb44d]/7 p-3.5">
               <h3 className="text-sm font-black text-[#ffd08a]">Warnings</h3>
               <ul className="mt-2 grid gap-1 text-sm leading-6 text-[#ffd08a]/74">
                 {result.warnings.map((warning) => (
@@ -529,6 +673,7 @@ export function PromptStudioPage() {
               </ul>
             </section>
           ) : null}
+          </div>
         </section>
       </div>
     </AppShell>
