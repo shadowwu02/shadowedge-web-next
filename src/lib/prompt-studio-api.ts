@@ -52,7 +52,7 @@ export type PromptStudioAdvancedControlSets = {
   subjects?: PromptStudioAdvancedOption[];
 };
 
-export type PromptStudioMode = "generate" | "optimize" | "convert" | "layerEdit" | "storyboard" | "all";
+export type PromptStudioMode = "generate" | "optimize" | "convert" | "layerEdit" | "storyboard" | "styleCard" | "all";
 
 export type PromptStudioAdvancedControls = {
   shotSize?: string;
@@ -160,6 +160,66 @@ export type PromptStudioKnowledgeProfile = {
   usageTips?: string[];
 };
 
+export type PromptStudioReferenceStyleCard = {
+  subjectMatter: string[];
+  composition: string[];
+  shotSize: string[];
+  cameraAngle: string[];
+  depthOfField: string[];
+  lighting: string[];
+  colorPalette: string[];
+  textureAndMedium: string[];
+  mood: string[];
+  visualEra?: string[];
+  cameraMovementSuggestion?: string[];
+};
+
+export type PromptStudioMatchedLibrary = {
+  id: string;
+  nameZh: string;
+  nameEn?: string;
+  category: string;
+  confidence: number;
+  reason: string;
+  kind?: "style" | "module" | string;
+};
+
+export type PromptStudioReferenceAnalysisResult = {
+  analysisSource: "vlm" | "fallback";
+  fallbackReason?: string;
+  vlmProvider?: string | null;
+  target?: string;
+  engine?: string;
+  image?: {
+    fileName?: string;
+    mimeType?: string;
+    size?: number;
+  };
+  styleCard: PromptStudioReferenceStyleCard;
+  matchedLibraries: PromptStudioMatchedLibrary[];
+  reusablePrompt: {
+    imagePrompt: string;
+    videoPrompt: string;
+    enhancedPrompt: string;
+    negativePrompt?: string;
+  };
+  detectedSignals: {
+    scene: string[];
+    subject: string[];
+    lighting: string[];
+    color: string[];
+    mood: string[];
+    composition: string[];
+    texture: string[];
+  };
+  safety: {
+    containsPerson?: boolean;
+    containsFace?: boolean;
+    caution?: string[];
+  };
+  usageTips: string[];
+};
+
 export async function fetchPromptStudioCatalog() {
   const payload = await apiRequest<PromptStudioCatalog>("/api/prompt-studio/catalog", {
     token: "",
@@ -172,6 +232,26 @@ export async function generatePromptStudioPrompt(input: PromptStudioGenerateRequ
     method: "POST",
     token: "",
     body: JSON.stringify(input),
+  });
+  return payload.data;
+}
+
+export async function analyzePromptStudioReference(input: {
+  image: File;
+  target?: PromptStudioGenerateRequest["target"];
+  engine?: PromptStudioGenerateRequest["engine"];
+  language?: "zh" | "en";
+}) {
+  const formData = new FormData();
+  formData.append("image", input.image);
+  if (input.target) formData.append("target", input.target);
+  if (input.engine) formData.append("engine", input.engine);
+  if (input.language) formData.append("language", input.language);
+
+  const payload = await apiRequest<PromptStudioReferenceAnalysisResult>("/api/prompt-studio/analyze-reference", {
+    method: "POST",
+    token: "",
+    body: formData,
   });
   return payload.data;
 }
