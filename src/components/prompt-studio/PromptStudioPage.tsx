@@ -4,7 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { useI18n } from "@/i18n/useI18n";
-import { saveImageWorkspaceDraft } from "@/lib/image/imageWorkspaceDraft";
+import {
+  consumeWorkspaceToPromptStudioDraft,
+  savePromptStudioToImageDraft,
+  savePromptStudioToVideoDraft,
+} from "@/lib/prompt-studio-draft-bridge";
 import {
   fetchPromptStudioCatalog,
   generatePromptStudioPrompt,
@@ -16,7 +20,6 @@ import {
   type PromptStudioMode,
   type PromptStudioStoryboardShot,
 } from "@/lib/prompt-studio-api";
-import { saveVideoDraft } from "@/lib/video/videoDraft";
 
 type Target = "video" | "image" | "storyboard";
 type Engine = "seedance" | "higgsfield" | "gpt-image" | "nano-banana";
@@ -664,6 +667,28 @@ export function PromptStudioPage() {
   }, []);
 
   useEffect(() => {
+    const draft = consumeWorkspaceToPromptStudioDraft();
+    if (!draft?.prompt) return;
+
+    const timer = window.setTimeout(() => {
+      setMode("optimize");
+      setExistingPrompt(draft.prompt);
+      setIntent(draft.prompt);
+      setTarget(draft.target === "image" ? "image" : "video");
+      setEngine(draft.target === "image" ? "gpt-image" : "seedance");
+      setResult(null);
+      setError("");
+      setNotice(
+        locale === "zh"
+          ? "已从工作区带入当前提示词。你可以在优化模式中调整后再生成文本。"
+          : "Imported the current workspace prompt. You can refine it in Optimize mode before generating text.",
+      );
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [locale]);
+
+  useEffect(() => {
     let active = true;
     fetchPromptStudioCatalog()
       .then((data) => {
@@ -831,39 +856,28 @@ export function PromptStudioPage() {
   function saveForVideo() {
     const prompt = currentPrompt;
     if (!prompt) return;
-    saveVideoDraft({
+    savePromptStudioToVideoDraft({
       prompt,
-      modelId: "seedance_2_0",
-      providerModel: "seedance_2_0",
-      modelLabel: "Seedance 2.0",
-      params: {
-        duration: Number.parseInt(duration, 10) || 15,
-        ratio: aspectRatio,
-        quality: "1080p",
-        generateAudio: false,
-      },
-      referenceMedia: [],
-      mentionBindings: [],
+      source: "prompt-studio",
+      mode,
+      target,
+      engine,
     });
-    setNotice(isZh ? "已保存到视频工作区草稿。跳转后可继续编辑，不会自动生成。" : "Saved to the video workspace draft. It will not generate automatically.");
+    setNotice(isZh ? "已填入视频工作区草稿。跳转后可继续编辑，不会自动生成。" : "Sent to the video workspace draft. It will not generate automatically.");
     router.push("/workspace/video?from=prompt-studio");
   }
 
   function saveForImage() {
     const prompt = currentPrompt;
     if (!prompt) return;
-    saveImageWorkspaceDraft({
+    savePromptStudioToImageDraft({
       prompt,
-      modelId: "image_auto",
-      params: {
-        ratio: aspectRatio,
-        resolution: "1024",
-        quality: "standard",
-        batchCount: 1,
-      },
-      references: [],
+      source: "prompt-studio",
+      mode,
+      target,
+      engine,
     });
-    setNotice(isZh ? "已保存到图片工作区草稿。跳转后可继续编辑，不会自动生成。" : "Saved to the image workspace draft. It will not generate automatically.");
+    setNotice(isZh ? "已填入图片工作区草稿。跳转后可继续编辑，不会自动生成。" : "Sent to the image workspace draft. It will not generate automatically.");
     router.push("/workspace/image?from=prompt-studio");
   }
 
@@ -1432,7 +1446,7 @@ export function PromptStudioPage() {
                   onClick={saveForVideo}
                   type="button"
                 >
-                  {isZh ? "保存到视频工作区草稿" : "Save to Video Draft"}
+                  {isZh ? "填入视频工作区" : "Fill Video Workspace"}
                 </button>
                 <button
                   className="min-h-11 rounded-2xl border border-white/[.07] bg-white/[.035] px-4 text-sm font-black text-white/68 disabled:opacity-35"
@@ -1440,7 +1454,7 @@ export function PromptStudioPage() {
                   onClick={saveForImage}
                   type="button"
                 >
-                  {isZh ? "保存到图片工作区草稿" : "Save to Image Draft"}
+                  {isZh ? "填入图片工作区" : "Fill Image Workspace"}
                 </button>
                 <button
                   className="min-h-11 rounded-2xl border border-white/[.07] bg-white/[.035] px-4 text-sm font-black text-white/68"

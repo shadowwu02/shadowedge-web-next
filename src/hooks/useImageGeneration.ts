@@ -532,6 +532,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     isPolling,
     error,
     draftNotice,
+    draftReady,
     recoveredJobId,
     estimatedCredits,
     clearDraft,

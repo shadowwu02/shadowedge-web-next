@@ -16,10 +16,14 @@ export function ImagePromptPanel({
   models,
   params,
   prompt,
+  promptStudioDraftPending,
   references,
   selectedModel,
   onGenerate,
   onClearDraft,
+  onIgnorePromptStudioDraft,
+  onImportPromptStudioDraft,
+  onOptimizeInPromptStudio,
   onPromptChange,
   onRemoveReference,
   onSelectModel,
@@ -36,17 +40,22 @@ export function ImagePromptPanel({
   models: ImageModel[];
   params: ImageGenerationParams;
   prompt: string;
+  promptStudioDraftPending?: boolean;
   references: ImageReferenceItem[];
   selectedModel: ImageModel | null;
   onGenerate: () => void;
   onClearDraft: () => void;
+  onIgnorePromptStudioDraft?: () => void;
+  onImportPromptStudioDraft?: () => void;
+  onOptimizeInPromptStudio?: () => void;
   onPromptChange: (value: string) => void;
   onRemoveReference: (referenceId: string) => void;
   onSelectModel: (modelId: string) => void;
   onUpdateParams: (params: Partial<ImageGenerationParams>) => void;
   onUploadReference: (file: File) => void;
 }) {
-  const { t, tf } = useI18n();
+  const { locale, t, tf } = useI18n();
+  const isZh = locale === "zh";
   const ratios = selectedModel?.capabilities.ratios || [];
   const resolutions = selectedModel?.capabilities.resolutions || [];
   const qualities = selectedModel?.capabilities.qualities || [];
@@ -101,6 +110,39 @@ export function ImagePromptPanel({
               {t("image.prompt.required")}
             </p>
           ) : null}
+          {promptStudioDraftPending ? (
+            <div className="mt-3 rounded-[18px] border border-[#ffb44d]/24 bg-[#ffb44d]/8 p-3 text-xs leading-5 text-[#ffd08a]/82">
+              <p className="font-semibold">
+                {isZh
+                  ? "检测到 Prompt Studio 草稿。当前提示词不为空，是否导入并替换？"
+                  : "Prompt Studio draft detected. Your current prompt is not empty. Import and replace it?"}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  className="rounded-full border border-[#ffb44d]/30 bg-[#ffb44d]/14 px-3 py-1.5 text-[11px] font-semibold text-[#ffe0a3] hover:bg-[#ffb44d]/20"
+                  onClick={onImportPromptStudioDraft}
+                  type="button"
+                >
+                  {isZh ? "导入" : "Import"}
+                </button>
+                <button
+                  className="rounded-full border border-white/10 bg-white/[.04] px-3 py-1.5 text-[11px] font-semibold text-white/62 hover:text-white"
+                  onClick={onIgnorePromptStudioDraft}
+                  type="button"
+                >
+                  {isZh ? "忽略" : "Ignore"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+          <button
+            className="mt-3 flex min-h-9 w-full items-center justify-between gap-3 rounded-[16px] border border-[#ffb44d]/18 bg-[#ffb44d]/8 px-3 py-2 text-left text-xs font-semibold text-[#ffd08a]/86 transition hover:border-[#ffcc86]/34 hover:bg-[#ffb44d]/12"
+            onClick={onOptimizeInPromptStudio}
+            type="button"
+          >
+            <span>{isZh ? "用 Prompt Studio 优化" : "Optimize in Prompt Studio"}</span>
+            <span className="text-[#ffd08a]/50">↗</span>
+          </button>
         </section>
 
         <ImageModelSelector disabled={loadingModels || isGenerating} models={models} onChange={onSelectModel} selectedModel={selectedModel} />

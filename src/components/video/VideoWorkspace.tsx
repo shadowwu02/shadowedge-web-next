@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ErrorState } from "@/components/common/ErrorState";
 import { LoadingState } from "@/components/common/LoadingState";
 import { AudioToggle } from "@/components/video/AudioToggle";
@@ -38,6 +38,11 @@ import { useCredits } from "@/hooks/useCredits";
 import { useVideoGeneration } from "@/hooks/useVideoGeneration";
 import { useI18n } from "@/i18n/useI18n";
 import { collectGeneratedResultMediaAssets, collectHistoryInputMediaAssets, collectReusableVideoAssets, mergeMediaAssets } from "@/lib/media-assets";
+import {
+  consumePromptStudioToVideoDraft,
+  saveWorkspaceToPromptStudioDraft,
+  type PromptStudioBridgeDraft,
+} from "@/lib/prompt-studio-draft-bridge";
 import { getVideoModels, getVideoStatus, reverseAnalyzeVideoRemake, uploadMedia } from "@/lib/video-api";
 import {
   getSafeHistoryOutputUrl,
@@ -695,8 +700,10 @@ function isSameRemakeSourceVideo(left: RemakeSourceVideo | null, right: RemakeSo
 }
 
 export function VideoWorkspace() {
-  const { t, tf } = useI18n();
+  const { locale, t, tf } = useI18n();
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const isZh = locale === "zh";
   const tabQuery = getVideoWorkspaceTabQuery(searchParams.get("tab"));
   const [models, setModels] = useState<VideoModel[]>(fallbackModels);
   const [selectedModel, setSelectedModel] = useState<VideoModel>(fallbackModels[0]);
@@ -768,6 +775,8 @@ export function VideoWorkspace() {
     [profile?.email, profile?.name],
   );
   const [workspaceNotice, setWorkspaceNotice] = useState("");
+  const [pendingPromptStudioDraft, setPendingPromptStudioDraft] = useState<PromptStudioBridgeDraft | null>(null);
+  const promptStudioDraftCheckedRef = useRef(false);
   const reconciledMentionBindings = useMemo(
     () => serializeMentionBindings(stripReconciledMentionBindings(reconcileMentionBindings(mentionBindings, media))),
     [media, mentionBindings],
@@ -824,6 +833,31 @@ export function VideoWorkspace() {
       cancelled = true;
     };
   }, [t]);
+
+  useEffect(() => {
+    if (!draftReady || promptStudioDraftCheckedRef.current) return;
+    promptStudioDraftCheckedRef.current = true;
+
+    const draft = consumePromptStudioToVideoDraft();
+    if (!draft?.prompt) return;
+
+    const nextPrompt = draft.prompt.slice(0, VIDEO_PROMPT_FRONTEND_LIMIT);
+    const timer = window.setTimeout(() => {
+      if (prompt.trim()) {
+        setPendingPromptStudioDraft({ ...draft, prompt: nextPrompt });
+        return;
+      }
+
+      setPrompt(nextPrompt);
+      setWorkspaceNotice(
+        isZh
+          ? "已从 Prompt Studio 填入草稿。不会自动生成。"
+          : "Draft imported from Prompt Studio. It will not generate automatically.",
+      );
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [draftReady, isZh, prompt]);
 
   useEffect(() => {
     if (!draftReady) return;
@@ -1290,6 +1324,39 @@ export function VideoWorkspace() {
     },
     [t],
   );
+
+  const handleImportPromptStudioDraft = useCallback(() => {
+    if (!pendingPromptStudioDraft?.prompt) return;
+    setPrompt(pendingPromptStudioDraft.prompt.slice(0, VIDEO_PROMPT_FRONTEND_LIMIT));
+    setPendingPromptStudioDraft(null);
+    setWorkspaceNotice(
+      isZh
+        ? "已从 Prompt Studio 导入草稿。不会自动生成。"
+        : "Prompt Studio draft imported. It will not generate automatically.",
+    );
+  }, [isZh, pendingPromptStudioDraft]);
+
+  const handleIgnorePromptStudioDraft = useCallback(() => {
+    setPendingPromptStudioDraft(null);
+    setWorkspaceNotice(isZh ? "已忽略 Prompt Studio 草稿。" : "Prompt Studio draft ignored.");
+  }, [isZh]);
+
+  const handleOpenPromptStudio = useCallback(() => {
+    const currentPrompt = prompt.trim();
+    if (!currentPrompt) {
+      setWorkspaceNotice(isZh ? "请先输入提示词，再用 Prompt Studio 优化。" : "Enter a prompt before optimizing in Prompt Studio.");
+      return;
+    }
+
+    saveWorkspaceToPromptStudioDraft({
+      prompt: currentPrompt,
+      source: "video-workspace",
+      target: "video",
+      engine: selectedModel.id || selectedModel.providerModel || "seedance",
+      mode: "optimize",
+    });
+    router.push("/prompt-studio?from=video-workspace");
+  }, [isZh, prompt, router, selectedModel.id, selectedModel.providerModel]);
 
   const isUploadingMedia = isAssetPickerUploading || media.some((item) => item.uploadStatus === "uploading");
   const isCurrentTaskProcessing = Boolean(task && isVideoActiveStatus(task.status) && !isVideoStaleActiveRecord(task));
@@ -2591,6 +2658,39 @@ export function VideoWorkspace() {
                 onMentionBindingsChange={setMentionBindings}
                 value={prompt}
               />
+              {pendingPromptStudioDraft ? (
+                <div className="rounded-[20px] border border-[#ffb44d]/24 bg-[#ffb44d]/8 p-3 text-xs leading-5 text-[#ffd08a]/82">
+                  <p className="font-semibold">
+                    {isZh
+                      ? "检测到 Prompt Studio 草稿。当前提示词不为空，是否导入并替换？"
+                      : "Prompt Studio draft detected. Your current prompt is not empty. Import and replace it?"}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      className="rounded-full border border-[#ffb44d]/30 bg-[#ffb44d]/14 px-3 py-1.5 text-[11px] font-semibold text-[#ffe0a3] hover:bg-[#ffb44d]/20"
+                      onClick={handleImportPromptStudioDraft}
+                      type="button"
+                    >
+                      {isZh ? "导入" : "Import"}
+                    </button>
+                    <button
+                      className="rounded-full border border-white/10 bg-white/[.04] px-3 py-1.5 text-[11px] font-semibold text-white/62 hover:text-white"
+                      onClick={handleIgnorePromptStudioDraft}
+                      type="button"
+                    >
+                      {isZh ? "忽略" : "Ignore"}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              <button
+                className="group flex min-h-10 items-center justify-between gap-3 rounded-[18px] border border-[#ffb44d]/18 bg-[#ffb44d]/8 px-3 py-2 text-left text-xs font-semibold text-[#ffd08a]/86 transition hover:border-[#ffcc86]/34 hover:bg-[#ffb44d]/12"
+                onClick={handleOpenPromptStudio}
+                type="button"
+              >
+                <span>{isZh ? "用 Prompt Studio 优化" : "Optimize in Prompt Studio"}</span>
+                <span className="text-[#ffd08a]/50 transition group-hover:text-[#ffd08a]">↗</span>
+              </button>
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                 <button
                   className="se-control group flex min-h-[54px] items-center justify-between gap-3 rounded-[18px] px-3 py-2 text-left text-xs font-semibold text-[#f4f4f4]/78"
