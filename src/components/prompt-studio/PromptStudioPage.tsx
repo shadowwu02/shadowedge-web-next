@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type MouseEvent, type PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { useI18n } from "@/i18n/useI18n";
@@ -480,6 +480,12 @@ function BrowseLibrariesDialog({
     onLibraryTabChange(tabId);
     if (query.trim()) setQuery("");
   };
+  const handleLibraryTabSelect =
+    (tabId: string) => (event: MouseEvent<HTMLButtonElement> | PointerEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      selectLibraryTab(tabId);
+    };
 
   if (!isOpen) return null;
 
@@ -516,6 +522,7 @@ function BrowseLibrariesDialog({
                 const tabSelectedCount = selectedCountForItems(tab.items, selectedStyles, selectedModules);
                 return (
                   <button
+                    aria-pressed={!query.trim() && activeLibraryTab === tab.id}
                     className={cx(
                       "rounded-2xl border px-3 py-3 text-left transition",
                       !query.trim() && activeLibraryTab === tab.id
@@ -523,10 +530,9 @@ function BrowseLibrariesDialog({
                         : "border-white/[.055] bg-white/[.025] hover:border-[#f6a935]/18 hover:bg-white/[.04]",
                     )}
                     key={tab.id}
-                    onClick={() => selectLibraryTab(tab.id)}
-                    onClickCapture={() => selectLibraryTab(tab.id)}
-                    onPointerDown={() => selectLibraryTab(tab.id)}
-                    onPointerDownCapture={() => selectLibraryTab(tab.id)}
+                    onClick={handleLibraryTabSelect(tab.id)}
+                    onMouseDown={handleLibraryTabSelect(tab.id)}
+                    onPointerDownCapture={handleLibraryTabSelect(tab.id)}
                     type="button"
                   >
                     <div className="flex items-center justify-between gap-2">
