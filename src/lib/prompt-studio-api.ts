@@ -360,9 +360,78 @@ export type PromptStudioProjectPlanResult = {
   exportText: string;
 };
 
+export type PromptStudioProjectSavePayload = {
+  title?: string;
+  projectType?: PromptStudioProjectType | string;
+  brief?: string;
+  target?: "video" | "storyboard" | string;
+  engine?: PromptStudioGenerateRequest["engine"] | string;
+  aspectRatio?: string;
+  selectedStyles?: string[];
+  selectedModules?: string[];
+  projectData: PromptStudioProjectPlanResult;
+};
+
+export type PromptStudioSavedProjectSummary = {
+  id: string;
+  title: string;
+  projectType?: PromptStudioProjectType | string;
+  brief?: string;
+  target?: string;
+  engine?: string;
+  aspectRatio?: string;
+  shotCount?: number;
+  assetCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type PromptStudioSavedProject = PromptStudioSavedProjectSummary & {
+  selectedStyles?: string[];
+  selectedModules?: string[];
+  projectData: PromptStudioProjectPlanResult;
+};
+
 export async function fetchPromptStudioCatalog() {
   const payload = await apiRequest<PromptStudioCatalog>("/api/prompt-studio/catalog", {
     token: "",
+  });
+  return payload.data;
+}
+
+export async function savePromptStudioProject(input: PromptStudioProjectSavePayload) {
+  const payload = await apiRequest<PromptStudioSavedProject>("/api/prompt-studio/projects", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  return payload.data;
+}
+
+export async function fetchPromptStudioProjects() {
+  const payload = await apiRequest<PromptStudioSavedProjectSummary[]>("/api/prompt-studio/projects", {
+    method: "GET",
+  });
+  return payload.data || [];
+}
+
+export async function fetchPromptStudioProject(id: string) {
+  const payload = await apiRequest<PromptStudioSavedProject>(`/api/prompt-studio/projects/${encodeURIComponent(id)}`, {
+    method: "GET",
+  });
+  return payload.data;
+}
+
+export async function updatePromptStudioProject(id: string, input: Partial<PromptStudioProjectSavePayload>) {
+  const payload = await apiRequest<PromptStudioSavedProject>(`/api/prompt-studio/projects/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+  return payload.data;
+}
+
+export async function deletePromptStudioProject(id: string) {
+  const payload = await apiRequest<{ id: string; deleted: boolean }>(`/api/prompt-studio/projects/${encodeURIComponent(id)}`, {
+    method: "DELETE",
   });
   return payload.data;
 }

@@ -12,10 +12,14 @@ import {
 } from "@/lib/prompt-studio-draft-bridge";
 import {
   analyzePromptStudioReference,
+  deletePromptStudioProject,
+  fetchPromptStudioProject,
+  fetchPromptStudioProjects,
   fetchPromptStudioCatalog,
   generatePromptStudioProjectPlan,
   generatePromptStudioPrompt,
   generatePromptStudioReferenceStylePrompt,
+  savePromptStudioProject,
   type PromptStudioAdvancedControls,
   type PromptStudioAdvancedOption,
   type PromptStudioCatalog,
@@ -29,7 +33,9 @@ import {
   type PromptStudioReferenceStyleMode,
   type PromptStudioReferenceStylePromptResult,
   type PromptStudioReferenceStyleCard,
+  type PromptStudioSavedProjectSummary,
   type PromptStudioStoryboardShot,
+  updatePromptStudioProject,
 } from "@/lib/prompt-studio-api";
 
 type Target = "video" | "image" | "storyboard";
@@ -1357,16 +1363,24 @@ function ProjectPlanOutput({
   isZh,
   onClear,
   onCopy,
+  onOpenHistory,
+  onSaveProject,
   onSaveAssetImage,
   onSaveShotVideo,
   result,
+  savedProjectId,
+  isSavingProject,
 }: {
   isZh: boolean;
   onClear: () => void;
   onCopy: (prompt: string) => void;
+  onOpenHistory: () => void;
+  onSaveProject: () => void;
   onSaveAssetImage: (prompt: string) => void;
   onSaveShotVideo: (prompt: string) => void;
   result: PromptStudioProjectPlanResult;
+  savedProjectId?: string;
+  isSavingProject: boolean;
 }) {
   const styleSections = [
     { title: "Visual Style", items: result.styleConstitution.visualStyle },
@@ -1389,6 +1403,21 @@ function ProjectPlanOutput({
             <p className="mt-2 max-w-3xl text-sm leading-6 text-white/62">{result.projectLogline}</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button
+              className="rounded-full border border-[#f6a935]/24 bg-[#f6a935]/12 px-3 py-1.5 text-xs font-black text-[#ffd48a] disabled:cursor-not-allowed disabled:opacity-45"
+              disabled={isSavingProject}
+              onClick={onSaveProject}
+              type="button"
+            >
+              {isSavingProject ? (isZh ? "保存中..." : "Saving...") : savedProjectId ? (isZh ? "更新项目" : "Update Project") : (isZh ? "保存项目" : "Save Project")}
+            </button>
+            <button
+              className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70 hover:text-white"
+              onClick={onOpenHistory}
+              type="button"
+            >
+              {isZh ? "项目历史" : "Project History"}
+            </button>
             <span className="rounded-full border border-[#f6a935]/24 bg-[#f6a935]/12 px-3 py-1.5 text-xs font-black text-[#ffd48a]">
               {result.projectType || "project"}
             </span>
@@ -1705,6 +1734,112 @@ function ProjectPlanOutput({
   );
 }
 
+function formatProjectDate(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function ProjectHistoryDrawer({
+  error,
+  isLoading,
+  isOpen,
+  isZh,
+  onClose,
+  onCopy,
+  onDelete,
+  onOpen,
+  onRefresh,
+  projects,
+}: {
+  error: string;
+  isLoading: boolean;
+  isOpen: boolean;
+  isZh: boolean;
+  onClose: () => void;
+  onCopy: (project: PromptStudioSavedProjectSummary) => void;
+  onDelete: (project: PromptStudioSavedProjectSummary) => void;
+  onOpen: (project: PromptStudioSavedProjectSummary) => void;
+  onRefresh: () => void;
+  projects: PromptStudioSavedProjectSummary[];
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/62 backdrop-blur-sm">
+      <button aria-label="Close Project History" className="absolute inset-0 cursor-default" onClick={onClose} type="button" />
+      <aside className={cx("relative z-10 flex h-full w-full max-w-[460px] flex-col border-l border-white/[.08] bg-[#0b0d10] shadow-[-24px_0_80px_rgba(0,0,0,.45)]", subtleScrollbar)}>
+        <div className="border-b border-white/[.07] p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <SectionLabel>{isZh ? "项目历史" : "Project History"}</SectionLabel>
+              <h2 className="mt-2 text-2xl font-black text-white">{isZh ? "已保存项目" : "Saved Projects"}</h2>
+              <p className="mt-2 text-sm leading-6 text-white/52">
+                {isZh ? "只保存文本项目包，不生成图片/视频，不扣积分。" : "Text-only project packs. No media generation or credits."}
+              </p>
+            </div>
+            <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/68" onClick={onClose} type="button">
+              Close
+            </button>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <button
+              className="rounded-full border border-[#f6a935]/20 bg-[#f6a935]/10 px-3 py-1.5 text-xs font-black text-[#ffd48a]"
+              onClick={onRefresh}
+              type="button"
+            >
+              {isLoading ? (isZh ? "加载中..." : "Loading...") : isZh ? "刷新" : "Refresh"}
+            </button>
+          </div>
+          {error ? <div className="mt-3 rounded-2xl border border-red-300/20 bg-red-400/10 p-3 text-sm text-red-100">{error}</div> : null}
+        </div>
+        <div className={cx("grid flex-1 content-start gap-3 overflow-y-auto p-5", subtleScrollbar)}>
+          {!isLoading && !projects.length ? (
+            <div className="rounded-[22px] border border-white/[.06] bg-white/[.03] p-4 text-sm leading-6 text-white/52">
+              {isZh ? "还没有保存项目。生成项目制作方案后点击保存项目。" : "No saved projects yet. Generate a Project Studio plan, then save it."}
+            </div>
+          ) : null}
+          {projects.map((project) => (
+            <article className="rounded-[22px] border border-white/[.06] bg-white/[.035] p-4" key={project.id}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-black text-white">{project.title || "Untitled Project"}</h3>
+                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-white/48">{project.brief}</p>
+                </div>
+                <span className="rounded-full border border-[#f6a935]/18 bg-[#f6a935]/10 px-2.5 py-1 text-[11px] font-black text-[#ffd48a]/86">
+                  {project.projectType || "project"}
+                </span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-white/42">
+                <span>{project.shotCount || 0} shots</span>
+                <span>{project.assetCount || 0} assets</span>
+                <span>{formatProjectDate(project.updatedAt || project.createdAt)}</span>
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <button className="rounded-2xl border border-[#f6a935]/20 bg-[#f6a935]/10 px-2 py-2 text-xs font-black text-[#ffd48a]" onClick={() => onOpen(project)} type="button">
+                  {isZh ? "打开" : "Open"}
+                </button>
+                <button className="rounded-2xl border border-white/[.08] bg-white/[.04] px-2 py-2 text-xs font-black text-white/66" onClick={() => onCopy(project)} type="button">
+                  {isZh ? "复制" : "Copy"}
+                </button>
+                <button className="rounded-2xl border border-red-300/20 bg-red-400/10 px-2 py-2 text-xs font-black text-red-100/82" onClick={() => onDelete(project)} type="button">
+                  {isZh ? "删除" : "Delete"}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
 export function PromptStudioPage() {
   const router = useRouter();
   const { locale } = useI18n();
@@ -1730,6 +1865,12 @@ export function PromptStudioPage() {
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
   const [result, setResult] = useState<PromptStudioGenerateResult | null>(null);
   const [projectResult, setProjectResult] = useState<PromptStudioProjectPlanResult | null>(null);
+  const [savedProjectId, setSavedProjectId] = useState<string | undefined>();
+  const [projectHistory, setProjectHistory] = useState<PromptStudioSavedProjectSummary[]>([]);
+  const [isProjectSaving, setIsProjectSaving] = useState(false);
+  const [isProjectHistoryOpen, setIsProjectHistoryOpen] = useState(false);
+  const [isProjectHistoryLoading, setIsProjectHistoryLoading] = useState(false);
+  const [projectHistoryError, setProjectHistoryError] = useState("");
   const [styleCardResult, setStyleCardResult] = useState<PromptStudioReferenceAnalysisResult | null>(null);
   const [referenceStyleResult, setReferenceStyleResult] = useState<PromptStudioReferenceStylePromptResult | null>(null);
   const [referenceImageFile, setReferenceImageFile] = useState<File | null>(null);
@@ -1973,6 +2114,7 @@ export function PromptStudioPage() {
     setStyleCardResult(null);
     setReferenceStyleResult(null);
     setProjectResult(null);
+    setSavedProjectId(undefined);
     setResult(null);
     setError("");
     setNotice("");
@@ -2006,6 +2148,7 @@ export function PromptStudioPage() {
       setStyleCardResult(data || null);
       setResult(null);
       setProjectResult(null);
+      setSavedProjectId(undefined);
       setNotice(
         isZh
           ? "已生成参考图风格卡。未提交图片/视频生成任务，也不会扣积分。"
@@ -2047,6 +2190,7 @@ export function PromptStudioPage() {
       setReferenceStyleResult(data || null);
       setResult(null);
       setProjectResult(null);
+      setSavedProjectId(undefined);
       setNotice(
         isZh
           ? "已生成垫图 + 风格文本 prompt。未提交图片/视频生成任务，也不会扣积分。"
@@ -2083,6 +2227,7 @@ export function PromptStudioPage() {
         language: locale === "en" ? "en" : "zh",
       });
       setProjectResult(data || null);
+      setSavedProjectId(undefined);
       setResult(null);
       setNotice(
         isZh
@@ -2125,6 +2270,7 @@ export function PromptStudioPage() {
     setMode(nextMode);
     setResult(null);
     setProjectResult(null);
+    setSavedProjectId(undefined);
     setReferenceStyleResult(null);
     setError("");
     setNotice("");
@@ -2177,6 +2323,7 @@ export function PromptStudioPage() {
       });
       setResult(data || null);
       setProjectResult(null);
+      setSavedProjectId(undefined);
       setActiveResult("standardPrompt");
       setNotice(isZh ? "已生成三档英文提示词。未提交生成任务，也不会扣积分。" : "Generated three prompt versions. No generation job was submitted and no credits were used.");
       window.requestAnimationFrame(scrollToOutput);
@@ -2194,6 +2341,117 @@ export function PromptStudioPage() {
       setNotice(isZh ? "已复制当前版本。" : "Current version copied.");
     } catch {
       setNotice(isZh ? "复制失败，请手动选择文本复制。" : "Copy failed. Please select and copy the text manually.");
+    }
+  }
+
+  function buildProjectSavePayload(projectData: PromptStudioProjectPlanResult) {
+    return {
+      title: projectData.projectTitle || "Untitled Project",
+      projectType: projectData.projectType || projectType,
+      brief: intent,
+      target: projectData.target || (target === "storyboard" ? "storyboard" : "video"),
+      engine: projectData.engine || engine,
+      aspectRatio: projectData.aspectRatio || aspectRatio,
+      selectedStyles,
+      selectedModules,
+      projectData,
+    };
+  }
+
+  async function loadProjectHistory() {
+    setIsProjectHistoryLoading(true);
+    setProjectHistoryError("");
+    try {
+      const projects = await fetchPromptStudioProjects();
+      setProjectHistory(projects);
+    } catch (historyError) {
+      setProjectHistoryError(historyError instanceof Error ? historyError.message : isZh ? "项目历史加载失败。" : "Unable to load project history.");
+    } finally {
+      setIsProjectHistoryLoading(false);
+    }
+  }
+
+  function openProjectHistory() {
+    setIsProjectHistoryOpen(true);
+    void loadProjectHistory();
+  }
+
+  async function saveCurrentProject() {
+    if (!projectResult) return;
+    setIsProjectSaving(true);
+    setError("");
+    try {
+      const payload = buildProjectSavePayload(projectResult);
+      const saved = savedProjectId
+        ? await updatePromptStudioProject(savedProjectId, payload)
+        : await savePromptStudioProject(payload);
+      setSavedProjectId(saved?.id);
+      setNotice(isZh ? "项目已保存。" : "Project saved.");
+      if (isProjectHistoryOpen) void loadProjectHistory();
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : "";
+      setError(
+        /sign in|auth|unauthorized|401/i.test(message)
+          ? isZh
+            ? "请先登录后保存项目。"
+            : "Please sign in before saving projects."
+          : message || (isZh ? "项目保存失败。" : "Unable to save project."),
+      );
+    } finally {
+      setIsProjectSaving(false);
+    }
+  }
+
+  async function openSavedProject(project: PromptStudioSavedProjectSummary) {
+    setProjectHistoryError("");
+    try {
+      const detail = await fetchPromptStudioProject(project.id);
+      const data = detail?.projectData;
+      if (!data) throw new Error("Project data is missing.");
+      setMode("project");
+      setProjectResult(data);
+      setResult(null);
+      setStyleCardResult(null);
+      setReferenceStyleResult(null);
+      setSavedProjectId(detail.id);
+      setIntent(detail.brief || data.projectLogline || data.projectTitle || "");
+      setProjectType((detail.projectType || data.projectType || "short-film") as PromptStudioProjectType);
+      setTarget(detail.target === "storyboard" ? "storyboard" : "video");
+      setEngine((detail.engine || data.engine || "seedance") as Engine);
+      setAspectRatio(detail.aspectRatio || data.aspectRatio || "9:16");
+      setProjectShotCount(Number(data.shotCount || data.shotPlan?.length || 5));
+      setSelectedStyles(detail.selectedStyles || []);
+      setSelectedModules(detail.selectedModules || []);
+      setIsProjectHistoryOpen(false);
+      setNotice(isZh ? "已打开保存项目。不会自动生成。" : "Saved project opened. It will not generate automatically.");
+      window.requestAnimationFrame(scrollToOutput);
+    } catch (openError) {
+      setProjectHistoryError(openError instanceof Error ? openError.message : isZh ? "项目打开失败。" : "Unable to open project.");
+    }
+  }
+
+  async function copySavedProject(project: PromptStudioSavedProjectSummary) {
+    setProjectHistoryError("");
+    try {
+      const detail = await fetchPromptStudioProject(project.id);
+      if (!detail) throw new Error("Project data is missing.");
+      await copyPrompt(detail.projectData?.exportText || detail.title || "");
+    } catch (copyError) {
+      setProjectHistoryError(copyError instanceof Error ? copyError.message : isZh ? "项目包复制失败。" : "Unable to copy project pack.");
+    }
+  }
+
+  async function deleteSavedProject(project: PromptStudioSavedProjectSummary) {
+    const ok = window.confirm(isZh ? `删除项目「${project.title}」？` : `Delete "${project.title}"?`);
+    if (!ok) return;
+    setProjectHistoryError("");
+    try {
+      await deletePromptStudioProject(project.id);
+      setProjectHistory((current) => current.filter((item) => item.id !== project.id));
+      if (savedProjectId === project.id) setSavedProjectId(undefined);
+      setNotice(isZh ? "项目已删除。" : "Project deleted.");
+    } catch (deleteError) {
+      setProjectHistoryError(deleteError instanceof Error ? deleteError.message : isZh ? "项目删除失败。" : "Unable to delete project.");
     }
   }
 
@@ -2276,6 +2534,7 @@ export function PromptStudioPage() {
   function clearResult() {
     setResult(null);
     setProjectResult(null);
+    setSavedProjectId(undefined);
     setStyleCardResult(null);
     setReferenceStyleResult(null);
     setNotice("");
@@ -2411,6 +2670,13 @@ export function PromptStudioPage() {
                           ? "Project Studio 只生成项目提示词方案、资产 prompt 和分镜 prompt，不生成图片/视频，不扣积分。"
                           : "Project Studio only creates planning text, asset prompts, and shot prompts. It does not generate media or use credits."}
                       </p>
+                      <button
+                        className="w-fit rounded-full border border-white/[.08] bg-white/[.04] px-4 py-2 text-sm font-black text-white/70 transition hover:border-[#f6a935]/24 hover:bg-[#f6a935]/10 hover:text-[#ffd48a]"
+                        onClick={openProjectHistory}
+                        type="button"
+                      >
+                        {isZh ? "项目历史" : "Project History"}
+                      </button>
                     </div>
                   ) : isReferenceImageMode ? (
                     <div className="grid gap-4">
@@ -2903,9 +3169,13 @@ export function PromptStudioPage() {
                     isZh={isZh}
                     onClear={clearResult}
                     onCopy={(prompt) => void copyPrompt(prompt)}
+                    onOpenHistory={openProjectHistory}
+                    onSaveProject={() => void saveCurrentProject()}
                     onSaveAssetImage={saveProjectAssetForImage}
                     onSaveShotVideo={saveProjectShotForVideo}
                     result={projectResult}
+                    savedProjectId={savedProjectId}
+                    isSavingProject={isProjectSaving}
                   />
                 ) : (
                   <div className="mt-5">
@@ -3191,6 +3461,18 @@ export function PromptStudioPage() {
           selectedModules={selectedModules}
           selectedStyles={selectedStyles}
           setQuery={setLibraryQuery}
+        />
+        <ProjectHistoryDrawer
+          error={projectHistoryError}
+          isLoading={isProjectHistoryLoading}
+          isOpen={isProjectHistoryOpen}
+          isZh={isZh}
+          onClose={() => setIsProjectHistoryOpen(false)}
+          onCopy={(project) => void copySavedProject(project)}
+          onDelete={(project) => void deleteSavedProject(project)}
+          onOpen={(project) => void openSavedProject(project)}
+          onRefresh={() => void loadProjectHistory()}
+          projects={projectHistory}
         />
       </main>
     </AppShell>
