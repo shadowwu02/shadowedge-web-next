@@ -1282,12 +1282,20 @@ export function PromptStudioPage() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
-  const bridgeLocale = getPromptStudioDraftLocale(locale);
+  const [bridgeLocale, setBridgeLocale] = useState<"zh" | "en">(locale === "zh" ? "zh" : "en");
   const isZh = bridgeLocale === "zh";
 
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0, behavior: "auto" });
   }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setBridgeLocale(getPromptStudioDraftLocale(locale));
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [locale]);
 
   useEffect(() => {
     const draft = consumeWorkspaceToPromptStudioDraft();
