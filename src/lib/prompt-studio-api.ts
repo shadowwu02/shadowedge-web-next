@@ -52,7 +52,7 @@ export type PromptStudioAdvancedControlSets = {
   subjects?: PromptStudioAdvancedOption[];
 };
 
-export type PromptStudioMode = "generate" | "optimize" | "convert" | "layerEdit" | "storyboard" | "styleCard" | "referenceStyle" | "all";
+export type PromptStudioMode = "generate" | "optimize" | "convert" | "layerEdit" | "storyboard" | "styleCard" | "referenceStyle" | "project" | "all";
 
 export type PromptStudioAdvancedControls = {
   shotSize?: string;
@@ -266,6 +266,78 @@ export type PromptStudioReferenceStylePromptResult = {
   };
 };
 
+export type PromptStudioProjectType = "short-film" | "short-drama" | "commercial" | "music-video" | "storyboard";
+
+export type PromptStudioProjectPlanResult = {
+  projectTitle: string;
+  projectLogline: string;
+  projectType?: PromptStudioProjectType | string;
+  target?: "video" | "storyboard" | string;
+  engine?: string;
+  aspectRatio?: string;
+  shotCount?: number;
+  styleConstitution: {
+    visualStyle: string[];
+    colorPalette: string[];
+    lightingRules: string[];
+    cameraRules: string[];
+    compositionRules: string[];
+    textureAndMedium?: string[];
+    negativeRules?: string[];
+    continuityRules: string[];
+  };
+  assetPlan: {
+    characters: Array<{
+      assetTag: string;
+      name: string;
+      role?: string;
+      description: string;
+      consistencyRules: string[];
+      threeViewPrompt: string;
+      portraitPrompt: string;
+    }>;
+    locations: Array<{
+      assetTag: string;
+      name: string;
+      description: string;
+      environmentPrompt: string;
+      continuityRules: string[];
+    }>;
+    props: Array<{
+      assetTag: string;
+      name: string;
+      description: string;
+      propDesignPrompt: string;
+      continuityRules: string[];
+    }>;
+  };
+  shotPlan: Array<{
+    shotNumber: number;
+    title: string;
+    storyPurpose: string;
+    assetReferences: string[];
+    keyframeImagePrompt: string;
+    videoPrompt: string;
+    cameraMove: string;
+    durationHint: string;
+    continuityNotes: string[];
+  }>;
+  assetReferenceGuide: string[];
+  continuityChecklist: string[];
+  productionTips: string[];
+  selectedKnowledge?: Array<{
+    id: string;
+    nameZh: string;
+    category: string;
+    path: string;
+    keyPhrases?: string[];
+    appliedAs?: string;
+    knowledgeProfile?: PromptStudioKnowledgeProfile;
+  }>;
+  warnings?: string[];
+  exportText: string;
+};
+
 export async function fetchPromptStudioCatalog() {
   const payload = await apiRequest<PromptStudioCatalog>("/api/prompt-studio/catalog", {
     token: "",
@@ -338,6 +410,28 @@ export async function generatePromptStudioReferenceStylePrompt(input: {
     method: "POST",
     token: "",
     body: formData,
+  });
+  return payload.data;
+}
+
+export async function generatePromptStudioProjectPlan(input: {
+  projectBrief: string;
+  projectType: PromptStudioProjectType;
+  target: "video" | "storyboard";
+  engine: PromptStudioGenerateRequest["engine"];
+  aspectRatio?: string;
+  episodeOrSceneCount?: number;
+  shotCount?: number;
+  selectedStyles?: string[];
+  selectedModules?: string[];
+  styleCard?: PromptStudioReferenceStyleCard | null;
+  referenceStylePrompt?: string;
+  language?: "zh" | "en";
+}) {
+  const payload = await apiRequest<PromptStudioProjectPlanResult>("/api/prompt-studio/project-plan", {
+    method: "POST",
+    token: "",
+    body: JSON.stringify(input),
   });
   return payload.data;
 }

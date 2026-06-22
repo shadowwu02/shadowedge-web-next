@@ -13,6 +13,7 @@ import {
 import {
   analyzePromptStudioReference,
   fetchPromptStudioCatalog,
+  generatePromptStudioProjectPlan,
   generatePromptStudioPrompt,
   generatePromptStudioReferenceStylePrompt,
   type PromptStudioAdvancedControls,
@@ -21,6 +22,8 @@ import {
   type PromptStudioGenerateResult,
   type PromptStudioLibraryItem,
   type PromptStudioMode,
+  type PromptStudioProjectPlanResult,
+  type PromptStudioProjectType,
   type PromptStudioReferenceAnalysisResult,
   type PromptStudioReferencePreserveMode,
   type PromptStudioReferenceStyleMode,
@@ -109,6 +112,13 @@ const modeOptions: Array<{
     descriptionZh: "保留参考图构图/主体/姿态，再叠加风格生成文本 prompt",
     descriptionEn: "Preserve a reference image layer, then apply a style prompt layer",
   },
+  {
+    id: "project",
+    labelZh: "项目制作",
+    labelEn: "Project Studio",
+    descriptionZh: "生成风格宪法、资产清单和分镜 prompt 包",
+    descriptionEn: "Plan style constitution, assets, and shot prompt packs",
+  },
 ];
 
 const layerEditOptions = [
@@ -134,6 +144,16 @@ const referenceStyleOptions: Array<{ id: PromptStudioReferenceStyleMode; labelZh
   { id: "styleCard", labelZh: "使用风格卡", labelEn: "Use Style Card" },
   { id: "manual", labelZh: "手写风格说明", labelEn: "Manual style instruction" },
 ];
+
+const projectTypeOptions: Array<{ id: PromptStudioProjectType; labelZh: string; labelEn: string }> = [
+  { id: "short-film", labelZh: "短片", labelEn: "Short Film" },
+  { id: "short-drama", labelZh: "短剧", labelEn: "Short Drama" },
+  { id: "commercial", labelZh: "广告", labelEn: "Commercial" },
+  { id: "music-video", labelZh: "MV", labelEn: "Music Video" },
+  { id: "storyboard", labelZh: "分镜", labelEn: "Storyboard" },
+];
+
+const projectShotCountOptions = [3, 5, 8];
 
 const resultTabs: Array<{ key: ResultKey; labelZh: string; labelEn: string }> = [
   { key: "basicPrompt", labelZh: "基础版", labelEn: "Basic" },
@@ -1244,6 +1264,244 @@ function ReferenceStyleOutput({
   );
 }
 
+function ProjectMiniList({ items, title }: { items?: string[]; title: string }) {
+  const values = items || [];
+  if (!values.length) return null;
+  return (
+    <section className="rounded-[22px] border border-white/[.06] bg-white/[.025] p-3">
+      <div className="mb-2 text-[11px] font-black uppercase tracking-[.16em] text-[#ffd48a]/70">{title}</div>
+      <ul className="grid gap-1.5 text-sm leading-6 text-white/62">
+        {values.slice(0, 8).map((item) => (
+          <li key={item}>- {item}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function ProjectPromptBlock({
+  prompt,
+  title,
+  onCopy,
+}: {
+  prompt?: string;
+  title: string;
+  onCopy: (prompt: string) => void;
+}) {
+  if (!prompt) return null;
+  return (
+    <article className="rounded-[20px] border border-white/[.055] bg-black/18 p-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="text-[11px] font-black uppercase tracking-[.16em] text-white/36">{title}</div>
+        <button
+          className="rounded-full border border-white/[.08] bg-white/[.04] px-2.5 py-1 text-[11px] font-black text-white/66 hover:text-white"
+          onClick={() => onCopy(prompt)}
+          type="button"
+        >
+          Copy
+        </button>
+      </div>
+      <p className="text-sm leading-6 text-white/64">{prompt}</p>
+    </article>
+  );
+}
+
+function ProjectPlanOutput({
+  isZh,
+  onClear,
+  onCopy,
+  onSaveShotVideo,
+  result,
+}: {
+  isZh: boolean;
+  onClear: () => void;
+  onCopy: (prompt: string) => void;
+  onSaveShotVideo: (prompt: string) => void;
+  result: PromptStudioProjectPlanResult;
+}) {
+  const styleSections = [
+    { title: "Visual Style", items: result.styleConstitution.visualStyle },
+    { title: "Color Palette", items: result.styleConstitution.colorPalette },
+    { title: "Lighting Rules", items: result.styleConstitution.lightingRules },
+    { title: "Camera Rules", items: result.styleConstitution.cameraRules },
+    { title: "Composition Rules", items: result.styleConstitution.compositionRules },
+    { title: "Texture / Medium", items: result.styleConstitution.textureAndMedium },
+    { title: "Continuity Rules", items: result.styleConstitution.continuityRules },
+    { title: "Negative Rules", items: result.styleConstitution.negativeRules },
+  ];
+
+  return (
+    <div className="mt-5 grid gap-4">
+      <section className="rounded-[26px] border border-[#f6a935]/18 bg-[#f6a935]/[.06] p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <SectionLabel>{isZh ? "项目制作方案" : "Project Studio Plan"}</SectionLabel>
+            <h3 className="mt-2 text-2xl font-black text-white">{result.projectTitle}</h3>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-white/62">{result.projectLogline}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full border border-[#f6a935]/24 bg-[#f6a935]/12 px-3 py-1.5 text-xs font-black text-[#ffd48a]">
+              {result.projectType || "project"}
+            </span>
+            <span className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/58">
+              {result.shotCount || result.shotPlan.length} shots
+            </span>
+            <span className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/58">
+              {result.aspectRatio || "9:16"}
+            </span>
+          </div>
+        </div>
+        <p className="mt-3 rounded-2xl border border-white/[.06] bg-black/16 px-3 py-2 text-sm leading-6 text-white/64">
+          {isZh
+            ? "这里只生成文本项目包，不生成图片/视频，不提交 provider，也不会扣积分。"
+            : "This creates a text-only project prompt pack. It does not generate media, submit providers, or use credits."}
+        </p>
+      </section>
+
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {styleSections.map((section) => (
+          <ProjectMiniList items={section.items} key={section.title} title={section.title} />
+        ))}
+      </section>
+
+      <section className="rounded-[24px] border border-white/[.06] bg-white/[.025] p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <SectionLabel>{isZh ? "资产清单" : "Asset Plan"}</SectionLabel>
+          <span className="text-xs font-bold text-white/38">
+            {result.assetPlan.characters.length + result.assetPlan.locations.length + result.assetPlan.props.length}
+          </span>
+        </div>
+        <div className="grid gap-3">
+          {result.assetPlan.characters.map((item) => (
+            <article className="rounded-[22px] border border-white/[.06] bg-[#0c0e12] p-4" key={item.assetTag}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs font-black text-[#ffd48a]">{item.assetTag}</div>
+                  <h4 className="mt-1 text-base font-black text-white">{item.name}</h4>
+                  <p className="mt-2 text-sm leading-6 text-white/58">{item.description}</p>
+                </div>
+                <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70" onClick={() => onCopy(item.threeViewPrompt)} type="button">
+                  Copy three-view
+                </button>
+              </div>
+              <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                <ProjectPromptBlock onCopy={onCopy} prompt={item.threeViewPrompt} title="Three-view prompt" />
+                <ProjectPromptBlock onCopy={onCopy} prompt={item.portraitPrompt} title="Portrait prompt" />
+              </div>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {item.consistencyRules.slice(0, 8).map((rule) => (
+                  <span className="rounded-full border border-[#f6a935]/14 bg-[#f6a935]/8 px-2.5 py-1 text-[11px] font-semibold text-[#ffd48a]/72" key={rule}>
+                    {rule}
+                  </span>
+                ))}
+              </div>
+            </article>
+          ))}
+          {result.assetPlan.locations.map((item) => (
+            <article className="rounded-[22px] border border-white/[.06] bg-[#0c0e12] p-4" key={item.assetTag}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs font-black text-[#ffd48a]">{item.assetTag}</div>
+                  <h4 className="mt-1 text-base font-black text-white">{item.name}</h4>
+                  <p className="mt-2 text-sm leading-6 text-white/58">{item.description}</p>
+                </div>
+                <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70" onClick={() => onCopy(item.environmentPrompt)} type="button">
+                  Copy environment
+                </button>
+              </div>
+              <ProjectPromptBlock onCopy={onCopy} prompt={item.environmentPrompt} title="Environment prompt" />
+            </article>
+          ))}
+          {result.assetPlan.props.map((item) => (
+            <article className="rounded-[22px] border border-white/[.06] bg-[#0c0e12] p-4" key={item.assetTag}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs font-black text-[#ffd48a]">{item.assetTag}</div>
+                  <h4 className="mt-1 text-base font-black text-white">{item.name}</h4>
+                  <p className="mt-2 text-sm leading-6 text-white/58">{item.description}</p>
+                </div>
+                <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70" onClick={() => onCopy(item.propDesignPrompt)} type="button">
+                  Copy prop
+                </button>
+              </div>
+              <ProjectPromptBlock onCopy={onCopy} prompt={item.propDesignPrompt} title="Prop design prompt" />
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="grid gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SectionLabel>{isZh ? "分镜计划" : "Shot Plan"}</SectionLabel>
+          <span className="text-xs font-bold text-white/38">{result.shotPlan.length} shots</span>
+        </div>
+        {result.shotPlan.map((shot) => (
+          <article className="rounded-[24px] border border-white/[.06] bg-white/[.025] p-4" key={shot.shotNumber}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[.18em] text-[#ffd48a]/72">Shot {shot.shotNumber}</div>
+                <h4 className="mt-1 text-lg font-black text-white">{shot.title}</h4>
+                <p className="mt-2 text-sm leading-6 text-white/58">{shot.storyPurpose}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70" onClick={() => onCopy(shot.keyframeImagePrompt)} type="button">
+                  Copy keyframe
+                </button>
+                <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70" onClick={() => onCopy(shot.videoPrompt)} type="button">
+                  Copy video
+                </button>
+                <button className="rounded-full border border-[#f6a935]/20 bg-[#f6a935]/12 px-3 py-1.5 text-xs font-black text-[#ffd48a]" onClick={() => onSaveShotVideo(shot.videoPrompt)} type="button">
+                  Fill Video Draft
+                </button>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {shot.assetReferences.map((asset) => (
+                <span className="rounded-full border border-[#f6a935]/18 bg-[#f6a935]/10 px-2.5 py-1 text-[11px] font-black text-[#ffd48a]/82" key={asset}>
+                  {asset}
+                </span>
+              ))}
+            </div>
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              <ProjectPromptBlock onCopy={onCopy} prompt={shot.keyframeImagePrompt} title="Keyframe image prompt" />
+              <ProjectPromptBlock onCopy={onCopy} prompt={shot.videoPrompt} title="Video prompt" />
+            </div>
+            <div className="mt-3 text-xs leading-5 text-white/42">
+              {shot.cameraMove} / {shot.durationHint}
+            </div>
+            <ul className="mt-2 grid gap-1 text-xs leading-5 text-white/42">
+              {shot.continuityNotes.slice(0, 6).map((note) => (
+                <li key={note}>- {note}</li>
+              ))}
+            </ul>
+          </article>
+        ))}
+      </section>
+
+      <section className="grid gap-3 md:grid-cols-2">
+        <ProjectMiniList items={result.assetReferenceGuide} title="Asset Reference Guide" />
+        <ProjectMiniList items={result.continuityChecklist} title="Continuity Checklist" />
+      </section>
+
+      <section className="rounded-[24px] border border-white/[.06] bg-[#0c0e12] p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <SectionLabel>{isZh ? "导出项目提示词包" : "Export Project Pack"}</SectionLabel>
+          <button className="rounded-full border border-[#f6a935]/20 bg-[#f6a935]/12 px-3 py-1.5 text-xs font-black text-[#ffd48a]" onClick={() => onCopy(result.exportText)} type="button">
+            {isZh ? "复制完整项目包" : "Copy full pack"}
+          </button>
+        </div>
+        <pre className={cx("max-h-72 overflow-y-auto whitespace-pre-wrap break-words pr-2 font-mono text-[12px] leading-6 text-white/66", subtleScrollbar)}>
+          {result.exportText}
+        </pre>
+      </section>
+
+      <button className="min-h-11 rounded-2xl border border-white/[.07] bg-white/[.035] px-4 text-sm font-black text-white/68" onClick={onClear} type="button">
+        {isZh ? "清空项目方案" : "Clear project plan"}
+      </button>
+    </div>
+  );
+}
+
 export function PromptStudioPage() {
   const router = useRouter();
   const { locale } = useI18n();
@@ -1268,6 +1526,7 @@ export function PromptStudioPage() {
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
   const [result, setResult] = useState<PromptStudioGenerateResult | null>(null);
+  const [projectResult, setProjectResult] = useState<PromptStudioProjectPlanResult | null>(null);
   const [styleCardResult, setStyleCardResult] = useState<PromptStudioReferenceAnalysisResult | null>(null);
   const [referenceStyleResult, setReferenceStyleResult] = useState<PromptStudioReferenceStylePromptResult | null>(null);
   const [referenceImageFile, setReferenceImageFile] = useState<File | null>(null);
@@ -1275,6 +1534,10 @@ export function PromptStudioPage() {
   const [referencePreserveMode, setReferencePreserveMode] = useState<PromptStudioReferencePreserveMode>("composition");
   const [referenceStyleMode, setReferenceStyleMode] = useState<PromptStudioReferenceStyleMode>("selectedLibraries");
   const [referenceStyleInstruction, setReferenceStyleInstruction] = useState("high-end cinematic style, refined lighting, premium texture");
+  const [projectType, setProjectType] = useState<PromptStudioProjectType>("short-film");
+  const [projectShotCount, setProjectShotCount] = useState(5);
+  const [useStyleCardForProject, setUseStyleCardForProject] = useState(false);
+  const [useReferenceStyleForProject, setUseReferenceStyleForProject] = useState(false);
   const [activeResult, setActiveResult] = useState<ResultKey>("standardPrompt");
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -1351,10 +1614,13 @@ export function PromptStudioPage() {
   const referenceStylePrompt = referenceStyleResult
     ? referenceStyleResult.prompts.imageToVideoPrompt || referenceStyleResult.prompts.enhancedPrompt || referenceStyleResult.prompts.imageToImagePrompt || ""
     : "";
+  const projectPrompt = projectResult?.exportText || "";
   const currentPrompt = mode === "styleCard"
     ? styleCardPrompt
     : mode === "referenceStyle"
       ? referenceStylePrompt
+      : mode === "project"
+        ? projectPrompt
     : result
     ? mode === "optimize"
       ? result.optimizedPrompt || result.standardPrompt || ""
@@ -1375,6 +1641,8 @@ export function PromptStudioPage() {
     ? styleCardResult?.usageTips || []
     : mode === "referenceStyle"
       ? referenceStyleResult?.usageTips || []
+      : mode === "project"
+        ? projectResult?.productionTips || []
       : result?.usageTips || [];
   const knowledgeUsed: Array<{
     id: string;
@@ -1388,6 +1656,14 @@ export function PromptStudioPage() {
         label: item.nameZh,
         detail: `${item.category} · ${Math.round((item.confidence || 0) * 100)}%`,
         phrases: [item.reason],
+      }))
+    : mode === "project" && projectResult?.selectedKnowledge?.length
+      ? projectResult.selectedKnowledge.map((item) => ({
+        id: item.id,
+        label: item.nameZh,
+        detail: item.appliedAs || item.category,
+        phrases: item.keyPhrases || [],
+        profile: item.knowledgeProfile,
       }))
     : mode === "styleCard" && styleCardResult?.matchedLibraries?.length
     ? styleCardResult.matchedLibraries.map((item) => ({
@@ -1409,6 +1685,7 @@ export function PromptStudioPage() {
   const needsExistingPrompt = mode === "optimize" || mode === "convert" || mode === "layerEdit";
   const isStyleCardMode = mode === "styleCard";
   const isReferenceStyleMode = mode === "referenceStyle";
+  const isProjectMode = mode === "project";
   const isReferenceImageMode = isStyleCardMode || isReferenceStyleMode;
   const isBusy = isLoading || isReferenceLoading;
   const isGenerateDisabled = isBusy || (isReferenceImageMode ? !referenceImageFile : needsExistingPrompt ? !existingPrompt.trim() : !intent.trim());
@@ -1426,6 +1703,7 @@ export function PromptStudioPage() {
           layerEdit: "只改这一层",
           storyboard: "生成分镜流水线",
           styleCard: "生成风格卡",
+          project: "生成项目制作方案",
         }[mode === "referenceStyle" ? "styleCard" : mode]
       : {
           generate: "Generate three prompts",
@@ -1434,9 +1712,14 @@ export function PromptStudioPage() {
           layerEdit: "Edit this layer",
           storyboard: "Generate storyboard pipeline",
           styleCard: "Generate style card",
+          project: "Generate Project Plan",
         }[mode === "referenceStyle" ? "styleCard" : mode];
   const resolvedGenerateButtonLabel =
-    mode === "referenceStyle" && !isBusy
+    mode === "project" && !isBusy
+      ? isZh
+        ? "生成项目制作方案"
+        : "Generate Project Plan"
+      : mode === "referenceStyle" && !isBusy
       ? isZh
         ? "生成垫图风格 Prompt"
         : "Generate reference style prompt"
@@ -1486,6 +1769,7 @@ export function PromptStudioPage() {
     });
     setStyleCardResult(null);
     setReferenceStyleResult(null);
+    setProjectResult(null);
     setResult(null);
     setError("");
     setNotice("");
@@ -1518,6 +1802,7 @@ export function PromptStudioPage() {
       });
       setStyleCardResult(data || null);
       setResult(null);
+      setProjectResult(null);
       setNotice(
         isZh
           ? "已生成参考图风格卡。未提交图片/视频生成任务，也不会扣积分。"
@@ -1558,6 +1843,7 @@ export function PromptStudioPage() {
       });
       setReferenceStyleResult(data || null);
       setResult(null);
+      setProjectResult(null);
       setNotice(
         isZh
           ? "已生成垫图 + 风格文本 prompt。未提交图片/视频生成任务，也不会扣积分。"
@@ -1568,6 +1854,43 @@ export function PromptStudioPage() {
       setError(referenceError instanceof Error ? referenceError.message : isZh ? "垫图风格 prompt 生成失败，请稍后重试。" : "Unable to create reference style prompts. Please try again.");
     } finally {
       setIsReferenceLoading(false);
+    }
+  }
+
+  async function handleGenerateProject() {
+    if (!intent.trim()) {
+      setError(isZh ? "请先输入项目想法。" : "Please enter a project brief first.");
+      return;
+    }
+    setIsLoading(true);
+    setError("");
+    setNotice("");
+    try {
+      const data = await generatePromptStudioProjectPlan({
+        projectBrief: intent,
+        projectType,
+        target: target === "storyboard" ? "storyboard" : "video",
+        engine,
+        aspectRatio,
+        shotCount: projectShotCount,
+        selectedStyles,
+        selectedModules,
+        styleCard: useStyleCardForProject ? styleCardResult?.styleCard || null : null,
+        referenceStylePrompt: useReferenceStyleForProject ? referenceStylePrompt : "",
+        language: locale === "en" ? "en" : "zh",
+      });
+      setProjectResult(data || null);
+      setResult(null);
+      setNotice(
+        isZh
+          ? "已生成项目制作提示词包。不会生成图片/视频，不会提交 provider，也不会扣积分。"
+          : "Project prompt pack created. No media generation, provider submit, or credits were used.",
+      );
+      window.requestAnimationFrame(scrollToOutput);
+    } catch (projectError) {
+      setError(projectError instanceof Error ? projectError.message : isZh ? "项目制作方案生成失败，请稍后重试。" : "Unable to create the project plan. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -1598,11 +1921,14 @@ export function PromptStudioPage() {
   function handleModeChange(nextMode: TextMode) {
     setMode(nextMode);
     setResult(null);
+    setProjectResult(null);
     setReferenceStyleResult(null);
     setError("");
     setNotice("");
     if (nextMode === "storyboard") {
       handleTargetChange("storyboard");
+    } else if (nextMode === "project" && target === "image") {
+      handleTargetChange("video");
     } else if (target === "storyboard") {
       handleTargetChange("video");
     }
@@ -1647,6 +1973,7 @@ export function PromptStudioPage() {
         advancedControls,
       });
       setResult(data || null);
+      setProjectResult(null);
       setActiveResult("standardPrompt");
       setNotice(isZh ? "已生成三档英文提示词。未提交生成任务，也不会扣积分。" : "Generated three prompt versions. No generation job was submitted and no credits were used.");
       window.requestAnimationFrame(scrollToOutput);
@@ -1689,6 +2016,23 @@ export function PromptStudioPage() {
     router.push("/workspace/video?from=prompt-studio");
   }
 
+  function saveProjectShotForVideo(prompt: string) {
+    if (!prompt) return;
+    savePromptStudioToVideoDraft({
+      prompt,
+      source: "prompt-studio",
+      mode: "project",
+      target: "video",
+      engine,
+    });
+    setNotice(
+      isZh
+        ? "已填入该镜头的视频工作区草稿。不会自动生成，请确认后手动点击生成。"
+        : "This shot was sent to the video workspace draft. It will not generate automatically.",
+    );
+    router.push("/workspace/video?from=prompt-studio");
+  }
+
   function saveForImage() {
     const prompt = mode === "styleCard"
       ? styleCardResult?.reusablePrompt.imagePrompt || styleCardResult?.reusablePrompt.enhancedPrompt || ""
@@ -1713,6 +2057,7 @@ export function PromptStudioPage() {
 
   function clearResult() {
     setResult(null);
+    setProjectResult(null);
     setStyleCardResult(null);
     setReferenceStyleResult(null);
     setNotice("");
@@ -1744,7 +2089,7 @@ export function PromptStudioPage() {
                     disabled={isGenerateDisabled}
                     isLoading={isBusy}
                     label={resolvedGenerateButtonLabel}
-                    onClick={() => void (isStyleCardMode ? handleAnalyzeReference() : isReferenceStyleMode ? handleGenerateReferenceStyle() : handleGenerate())}
+                    onClick={() => void (isStyleCardMode ? handleAnalyzeReference() : isReferenceStyleMode ? handleGenerateReferenceStyle() : isProjectMode ? handleGenerateProject() : handleGenerate())}
                   >
                     {generateButtonLabel || (isZh ? "生成三档 Prompt" : "Generate three prompts")}
                   </PrimaryGenerateButton>
@@ -1772,7 +2117,84 @@ export function PromptStudioPage() {
                     ))}
                   </div>
 
-                  {isReferenceImageMode ? (
+                  {isProjectMode ? (
+                    <div className="grid gap-4 rounded-[24px] border border-white/[.06] bg-black/16 p-4">
+                      <label>
+                        <div className="mb-2 text-[11px] font-black uppercase tracking-[.18em] text-white/36">
+                          {isZh ? "项目想法 / Project Brief" : "Project Brief"}
+                        </div>
+                        <textarea
+                          className={cx("h-40 w-full resize-y rounded-2xl border border-white/[.06] bg-black/18 p-4 text-[14px] leading-6 text-white outline-none placeholder:text-white/30 focus:border-[#f6a935]/28", subtleScrollbar)}
+                          maxLength={3200}
+                          onChange={(event) => setIntent(event.target.value)}
+                          placeholder={isZh ? "例如：我要做一部中世纪黑暗奇幻短片第二幕，主角进入废弃教堂，发现核心道具。" : "Example: a medieval dark fantasy short film act two, the protagonist enters an abandoned cathedral and discovers a key relic."}
+                          value={intent}
+                        />
+                        <div className="mt-2 text-right text-xs font-semibold text-white/34">{intent.length} / 3200</div>
+                      </label>
+                      <div className="grid gap-4 lg:grid-cols-2">
+                        <div>
+                          <div className="mb-2 text-[11px] font-black uppercase tracking-[.18em] text-white/36">
+                            {isZh ? "项目类型" : "Project Type"}
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {projectTypeOptions.map((item) => (
+                              <ControlPill active={projectType === item.id} key={item.id} onClick={() => setProjectType(item.id)}>
+                                {isZh ? item.labelZh : item.labelEn}
+                              </ControlPill>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="mb-2 text-[11px] font-black uppercase tracking-[.18em] text-white/36">
+                            {isZh ? "Shot 数量" : "Shot Count"}
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {projectShotCountOptions.map((count) => (
+                              <ControlPill active={projectShotCount === count} key={count} onClick={() => setProjectShotCount(count)}>
+                                {String(count)}
+                              </ControlPill>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        <button
+                          className={cx(
+                            "rounded-2xl border px-3 py-2 text-left text-xs font-bold transition",
+                            useStyleCardForProject
+                              ? "border-[#f6a935]/32 bg-[#f6a935]/12 text-[#ffd48a]"
+                              : "border-white/[.07] bg-white/[.035] text-white/54 hover:border-[#f6a935]/22",
+                            !styleCardResult ? "cursor-not-allowed opacity-45" : "",
+                          )}
+                          disabled={!styleCardResult}
+                          onClick={() => setUseStyleCardForProject((current) => !current)}
+                          type="button"
+                        >
+                          {isZh ? "套用当前 Style Card" : "Use current Style Card"}
+                        </button>
+                        <button
+                          className={cx(
+                            "rounded-2xl border px-3 py-2 text-left text-xs font-bold transition",
+                            useReferenceStyleForProject
+                              ? "border-[#f6a935]/32 bg-[#f6a935]/12 text-[#ffd48a]"
+                              : "border-white/[.07] bg-white/[.035] text-white/54 hover:border-[#f6a935]/22",
+                            !referenceStyleResult ? "cursor-not-allowed opacity-45" : "",
+                          )}
+                          disabled={!referenceStyleResult}
+                          onClick={() => setUseReferenceStyleForProject((current) => !current)}
+                          type="button"
+                        >
+                          {isZh ? "套用当前垫图风格 prompt" : "Use current Reference + Style prompt"}
+                        </button>
+                      </div>
+                      <p className="rounded-2xl border border-[#f6a935]/18 bg-[#f6a935]/8 px-3 py-2 text-sm leading-6 text-[#ffd48a]/76">
+                        {isZh
+                          ? "Project Studio 只生成项目提示词方案、资产 prompt 和分镜 prompt，不生成图片/视频，不扣积分。"
+                          : "Project Studio only creates planning text, asset prompts, and shot prompts. It does not generate media or use credits."}
+                      </p>
+                    </div>
+                  ) : isReferenceImageMode ? (
                     <div className="grid gap-4">
                       <ReferenceUploadCard
                         file={referenceImageFile}
@@ -1909,7 +2331,7 @@ export function PromptStudioPage() {
                   ) : null}
                   <textarea
                     className={cx(
-                      needsExistingPrompt || isReferenceImageMode ? "hidden" : "h-40 w-full resize-y bg-transparent text-[15px] leading-7 text-white outline-none placeholder:text-white/30",
+                      needsExistingPrompt || isReferenceImageMode || isProjectMode ? "hidden" : "h-40 w-full resize-y bg-transparent text-[15px] leading-7 text-white outline-none placeholder:text-white/30",
                       subtleScrollbar,
                     )}
                     maxLength={2400}
@@ -1917,7 +2339,7 @@ export function PromptStudioPage() {
                     placeholder={isZh ? "例如：雨夜便利店，旧恋人重逢，竖屏短视频，孤独但温柔。" : "Example: a rainy night convenience store, former lovers reunite, vertical short video, lonely yet gentle."}
                     value={intent}
                   />
-                  <div className={cx("mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-white/[.06] pt-3", needsExistingPrompt || isReferenceImageMode ? "hidden" : "")}>
+                  <div className={cx("mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-white/[.06] pt-3", needsExistingPrompt || isReferenceImageMode || isProjectMode ? "hidden" : "")}>
                     <div className="flex flex-wrap gap-2">
                       {quickPrompts.map((item) => (
                         <button
@@ -1979,11 +2401,14 @@ export function PromptStudioPage() {
                 <div>
                   <div className="mb-2 text-[11px] font-black uppercase tracking-[.18em] text-white/36">Target</div>
                   <div className="flex flex-wrap gap-1.5">
-                    {targetOptions.map((item) => (
-                      <ControlPill active={target === item.id} key={item.id} onClick={() => handleTargetChange(item.id)}>
-                        {isZh ? item.labelZh : item.labelEn}
-                      </ControlPill>
-                    ))}
+                    {targetOptions.map((item) => {
+                      const disabled = isProjectMode && item.id === "image";
+                      return (
+                        <ControlPill active={target === item.id} disabled={disabled} key={item.id} onClick={() => handleTargetChange(item.id)}>
+                          {isZh ? item.labelZh : item.labelEn}
+                        </ControlPill>
+                      );
+                    })}
                   </div>
                 </div>
                 <div>
@@ -2178,6 +2603,10 @@ export function PromptStudioPage() {
                         ? isZh
                           ? "垫图 + 风格 Prompt"
                           : "Reference + Style Prompt"
+                      : mode === "project"
+                        ? isZh
+                          ? "项目制作方案"
+                          : "Project Studio Plan"
                       : mode === "generate"
                       ? `${isZh ? activeResultTab.labelZh : activeResultTab.labelEn} Prompt`
                       : isZh
@@ -2250,7 +2679,23 @@ export function PromptStudioPage() {
                 )
               ) : null}
 
-              <div className={cx("mt-5 rounded-[26px] border border-white/[.065] bg-[linear-gradient(180deg,rgba(12,14,18,.98),rgba(7,8,10,.98))] p-4 shadow-inner shadow-black/35", isReferenceImageMode ? "hidden" : "")}>
+              {isProjectMode ? (
+                projectResult ? (
+                  <ProjectPlanOutput
+                    isZh={isZh}
+                    onClear={clearResult}
+                    onCopy={(prompt) => void copyPrompt(prompt)}
+                    onSaveShotVideo={saveProjectShotForVideo}
+                    result={projectResult}
+                  />
+                ) : (
+                  <div className="mt-5">
+                    <EmptyOutputState locale={locale} />
+                  </div>
+                )
+              ) : null}
+
+              <div className={cx("mt-5 rounded-[26px] border border-white/[.065] bg-[linear-gradient(180deg,rgba(12,14,18,.98),rgba(7,8,10,.98))] p-4 shadow-inner shadow-black/35", isReferenceImageMode || isProjectMode ? "hidden" : "")}>
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <span className="text-xs font-black uppercase tracking-[.18em] text-white/38">Editable Prompt</span>
                   <button
@@ -2390,7 +2835,7 @@ export function PromptStudioPage() {
                 </div>
               ) : null}
 
-              <div className={cx("mt-4 grid gap-2.5 sm:grid-cols-2", isReferenceImageMode ? "hidden" : "")}>
+              <div className={cx("mt-4 grid gap-2.5 sm:grid-cols-2", isReferenceImageMode || isProjectMode ? "hidden" : "")}>
                 <button
                   className="min-h-11 rounded-2xl border border-[#f6a935]/20 bg-[#f6a935]/12 px-4 text-sm font-black text-[#ffd48a] disabled:opacity-35"
                   disabled={!currentPrompt}
