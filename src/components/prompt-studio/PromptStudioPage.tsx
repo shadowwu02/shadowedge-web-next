@@ -14,6 +14,7 @@ import {
   analyzePromptStudioReference,
   fetchPromptStudioCatalog,
   generatePromptStudioPrompt,
+  generatePromptStudioReferenceStylePrompt,
   type PromptStudioAdvancedControls,
   type PromptStudioAdvancedOption,
   type PromptStudioCatalog,
@@ -21,6 +22,9 @@ import {
   type PromptStudioLibraryItem,
   type PromptStudioMode,
   type PromptStudioReferenceAnalysisResult,
+  type PromptStudioReferencePreserveMode,
+  type PromptStudioReferenceStyleMode,
+  type PromptStudioReferenceStylePromptResult,
   type PromptStudioReferenceStyleCard,
   type PromptStudioStoryboardShot,
 } from "@/lib/prompt-studio-api";
@@ -98,6 +102,13 @@ const modeOptions: Array<{
     descriptionZh: "上传参考图，反推出风格卡和可复用 prompt",
     descriptionEn: "Analyze a reference image into a reusable style card",
   },
+  {
+    id: "referenceStyle",
+    labelZh: "垫图 + 风格",
+    labelEn: "Reference + Style",
+    descriptionZh: "保留参考图构图/主体/姿态，再叠加风格生成文本 prompt",
+    descriptionEn: "Preserve a reference image layer, then apply a style prompt layer",
+  },
 ];
 
 const layerEditOptions = [
@@ -107,6 +118,21 @@ const layerEditOptions = [
   { id: "camera", labelZh: "运镜", labelEn: "Camera" },
   { id: "mood", labelZh: "情绪", labelEn: "Mood" },
   { id: "style", labelZh: "风格", labelEn: "Style" },
+];
+
+const referencePreserveOptions: Array<{ id: PromptStudioReferencePreserveMode; labelZh: string; labelEn: string }> = [
+  { id: "composition", labelZh: "保留构图", labelEn: "Preserve composition" },
+  { id: "subject", labelZh: "保留主体", labelEn: "Preserve subject" },
+  { id: "pose", labelZh: "保留姿态", labelEn: "Preserve pose" },
+  { id: "scene", labelZh: "保留场景", labelEn: "Preserve scene" },
+  { id: "firstFrame", labelZh: "作为视频首帧", labelEn: "Use as video first frame" },
+  { id: "fullReference", labelZh: "尽量保留整张参考", labelEn: "Preserve full reference" },
+];
+
+const referenceStyleOptions: Array<{ id: PromptStudioReferenceStyleMode; labelZh: string; labelEn: string }> = [
+  { id: "selectedLibraries", labelZh: "使用已选知识库", labelEn: "Use selected libraries" },
+  { id: "styleCard", labelZh: "使用风格卡", labelEn: "Use Style Card" },
+  { id: "manual", labelZh: "手写风格说明", labelEn: "Manual style instruction" },
 ];
 
 const resultTabs: Array<{ key: ResultKey; labelZh: string; labelEn: string }> = [
@@ -158,6 +184,21 @@ const styleCardGroups: Array<{
   { key: "mood", labelZh: "氛围", labelEn: "Mood" },
   { key: "visualEra", labelZh: "视觉年代", labelEn: "Visual Era" },
   { key: "cameraMovementSuggestion", labelZh: "运镜建议", labelEn: "Camera Movement" },
+];
+
+const referenceSummaryGroups: Array<{
+  key: keyof PromptStudioReferenceStylePromptResult["referenceSummary"];
+  labelZh: string;
+  labelEn: string;
+}> = [
+  { key: "subject", labelZh: "主体", labelEn: "Subject" },
+  { key: "composition", labelZh: "构图", labelEn: "Composition" },
+  { key: "spatialLayout", labelZh: "空间布局", labelEn: "Spatial Layout" },
+  { key: "poseOrAction", labelZh: "姿态/动作", labelEn: "Pose / Action" },
+  { key: "cameraAngle", labelZh: "机位", labelEn: "Camera Angle" },
+  { key: "lighting", labelZh: "光线", labelEn: "Lighting" },
+  { key: "colorPalette", labelZh: "色彩", labelEn: "Color Palette" },
+  { key: "sceneElements", labelZh: "场景元素", labelEn: "Scene Elements" },
 ];
 
 const knowledgeProfileGroups: Array<{
@@ -894,6 +935,7 @@ function StyleCardOutput({
   onCopy,
   onSaveImage,
   onSaveVideo,
+  onUseAsReferenceStyle,
   result,
 }: {
   isZh: boolean;
@@ -902,6 +944,7 @@ function StyleCardOutput({
   onCopy: (prompt: string) => void;
   onSaveImage: () => void;
   onSaveVideo: () => void;
+  onUseAsReferenceStyle?: () => void;
   result: PromptStudioReferenceAnalysisResult;
 }) {
   const promptCards = [
@@ -1021,6 +1064,11 @@ function StyleCardOutput({
       ) : null}
 
       <div className="grid gap-2.5 sm:grid-cols-2">
+        {onUseAsReferenceStyle ? (
+          <button className="min-h-11 rounded-2xl border border-[#f6a935]/20 bg-[#f6a935]/12 px-4 text-sm font-black text-[#ffd48a]" onClick={onUseAsReferenceStyle} type="button">
+            {isZh ? "用作垫图 + 风格" : "Use as Reference + Style"}
+          </button>
+        ) : null}
         <button className="min-h-11 rounded-2xl border border-[#f6a935]/20 bg-[#f6a935]/12 px-4 text-sm font-black text-[#ffd48a]" onClick={onApply} type="button">
           {isZh ? "套用到 Generate 模式" : "Apply to Generate"}
         </button>
@@ -1032,6 +1080,164 @@ function StyleCardOutput({
         </button>
         <button className="min-h-11 rounded-2xl border border-white/[.07] bg-white/[.035] px-4 text-sm font-black text-white/68" onClick={onClear} type="button">
           {isZh ? "清空风格卡" : "Clear style card"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ReferenceStyleOutput({
+  isZh,
+  onClear,
+  onCopy,
+  onSaveImage,
+  onSaveVideo,
+  result,
+}: {
+  isZh: boolean;
+  onClear: () => void;
+  onCopy: (prompt: string) => void;
+  onSaveImage: () => void;
+  onSaveVideo: () => void;
+  result: PromptStudioReferenceStylePromptResult;
+}) {
+  const promptCards = [
+    { key: "imageToImagePrompt", title: "Image-to-Image Prompt", prompt: result.prompts.imageToImagePrompt },
+    { key: "imageToVideoPrompt", title: "Image-to-Video Prompt", prompt: result.prompts.imageToVideoPrompt },
+    { key: "enhancedPrompt", title: "Enhanced Reference Prompt", prompt: result.prompts.enhancedPrompt },
+    { key: "negativePrompt", title: "Negative Prompt", prompt: result.prompts.negativePrompt || "" },
+  ].filter((item) => item.prompt);
+
+  return (
+    <div className="mt-5 grid gap-4">
+      <section className="rounded-[26px] border border-[#f6a935]/18 bg-[#f6a935]/[.06] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <SectionLabel>{isZh ? "垫图 + 风格 Prompt" : "Reference + Style Prompt"}</SectionLabel>
+            <h3 className="mt-2 text-xl font-black text-white">
+              {result.analysisSource === "vlm" ? (isZh ? "AI 视觉分析完成" : "AI vision analysis completed") : isZh ? "模板参考分析" : "Template reference analysis"}
+            </h3>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-[#f6a935]/24 bg-[#f6a935]/12 px-3 py-1.5 text-xs font-black text-[#ffd48a]">
+              {result.analysisSource}
+            </span>
+            <span className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/58">
+              Provider: {result.provider || (result.analysisSource === "fallback" ? "fallback" : "AI")}
+            </span>
+            <span className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/58">
+              {result.preserveMode} / {result.styleMode}
+            </span>
+          </div>
+        </div>
+        {result.fallbackReason ? (
+          <p className="mt-3 rounded-2xl border border-white/[.06] bg-black/16 px-3 py-2 text-sm leading-6 text-white/62">{result.fallbackReason}</p>
+        ) : null}
+      </section>
+
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {referenceSummaryGroups.map((group) => {
+          const values = result.referenceSummary[group.key] || [];
+          if (!values.length) return null;
+          return (
+            <article className="rounded-[22px] border border-white/[.06] bg-white/[.025] p-3" key={group.key}>
+              <div className="text-[11px] font-black uppercase tracking-[.16em] text-[#ffd48a]/70">
+                {isZh ? group.labelZh : group.labelEn}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {values.slice(0, 8).map((value) => (
+                  <span className="rounded-full border border-white/[.07] bg-black/18 px-2.5 py-1 text-[11px] font-semibold text-white/62" key={value}>
+                    {value}
+                  </span>
+                ))}
+              </div>
+            </article>
+          );
+        })}
+      </section>
+
+      <section className="grid gap-3 md:grid-cols-2">
+        <article className="rounded-[24px] border border-white/[.06] bg-white/[.025] p-4">
+          <SectionLabel>{isZh ? "保留指令" : "Preserve Directives"}</SectionLabel>
+          <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/62">
+            {result.preserveDirectives.map((item) => (
+              <li key={item}>- {item}</li>
+            ))}
+          </ul>
+        </article>
+        <article className="rounded-[24px] border border-white/[.06] bg-white/[.025] p-4">
+          <SectionLabel>{isZh ? "风格指令" : "Style Directives"}</SectionLabel>
+          <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/62">
+            {result.styleDirectives.map((item) => (
+              <li key={item}>- {item}</li>
+            ))}
+          </ul>
+        </article>
+      </section>
+
+      {result.matchedLibraries.length ? (
+        <section className="rounded-[24px] border border-white/[.06] bg-white/[.025] p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <SectionLabel>{isZh ? "匹配/使用的知识库" : "Matched / Used Libraries"}</SectionLabel>
+            <span className="text-xs font-bold text-white/38">{result.matchedLibraries.length}</span>
+          </div>
+          <div className="grid gap-2 md:grid-cols-2">
+            {result.matchedLibraries.slice(0, 10).map((item) => (
+              <div className="rounded-2xl border border-white/[.06] bg-black/16 p-3" key={item.id}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-black text-white/78">{item.nameZh}</div>
+                  <span className="rounded-full border border-[#f6a935]/18 bg-[#f6a935]/10 px-2 py-0.5 text-[10px] font-black text-[#ffd48a]">
+                    {Math.round((item.confidence || 0) * 100)}%
+                  </span>
+                </div>
+                <div className="mt-1 text-[11px] text-white/34">{item.category}</div>
+                <p className="mt-2 text-xs leading-5 text-white/50">{item.reason}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="grid gap-3">
+        {promptCards.map((item) => (
+          <article className="rounded-[24px] border border-white/[.06] bg-[#0c0e12] p-4" key={item.key}>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="text-xs font-black uppercase tracking-[.18em] text-[#ffd48a]/72">{item.title}</div>
+              <button
+                className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70 hover:text-white"
+                onClick={() => onCopy(item.prompt)}
+                type="button"
+              >
+                Copy
+              </button>
+            </div>
+            <pre className={cx("max-h-56 overflow-y-auto whitespace-pre-wrap break-words pr-2 font-mono text-[13px] leading-6 text-white/72", subtleScrollbar)}>
+              {item.prompt}
+            </pre>
+          </article>
+        ))}
+      </section>
+
+      {result.safety?.caution?.length ? (
+        <section className="rounded-[24px] border border-[#f6a935]/18 bg-[#f6a935]/8 p-4">
+          <SectionLabel>{isZh ? "安全提示" : "Safety"}</SectionLabel>
+          <ul className="mt-3 grid gap-2 text-sm leading-6 text-[#ffd48a]/78">
+            {result.safety.caution.map((item) => (
+              <li key={item}>- {item}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      <div className="grid gap-2.5 sm:grid-cols-3">
+        <button className="min-h-11 rounded-2xl border border-white/[.07] bg-white/[.035] px-4 text-sm font-black text-white/68" onClick={onSaveVideo} type="button">
+          {isZh ? "填入视频工作区草稿" : "Fill Video Draft"}
+        </button>
+        <button className="min-h-11 rounded-2xl border border-white/[.07] bg-white/[.035] px-4 text-sm font-black text-white/68" onClick={onSaveImage} type="button">
+          {isZh ? "填入图片工作区草稿" : "Fill Image Draft"}
+        </button>
+        <button className="min-h-11 rounded-2xl border border-white/[.07] bg-white/[.035] px-4 text-sm font-black text-white/68" onClick={onClear} type="button">
+          {isZh ? "清空结果" : "Clear result"}
         </button>
       </div>
     </div>
@@ -1063,8 +1269,12 @@ export function PromptStudioPage() {
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
   const [result, setResult] = useState<PromptStudioGenerateResult | null>(null);
   const [styleCardResult, setStyleCardResult] = useState<PromptStudioReferenceAnalysisResult | null>(null);
+  const [referenceStyleResult, setReferenceStyleResult] = useState<PromptStudioReferenceStylePromptResult | null>(null);
   const [referenceImageFile, setReferenceImageFile] = useState<File | null>(null);
   const [referenceImagePreview, setReferenceImagePreview] = useState("");
+  const [referencePreserveMode, setReferencePreserveMode] = useState<PromptStudioReferencePreserveMode>("composition");
+  const [referenceStyleMode, setReferenceStyleMode] = useState<PromptStudioReferenceStyleMode>("selectedLibraries");
+  const [referenceStyleInstruction, setReferenceStyleInstruction] = useState("high-end cinematic style, refined lighting, premium texture");
   const [activeResult, setActiveResult] = useState<ResultKey>("standardPrompt");
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -1130,8 +1340,13 @@ export function PromptStudioPage() {
   const styleCardPrompt = styleCardResult
     ? styleCardResult.reusablePrompt.videoPrompt || styleCardResult.reusablePrompt.enhancedPrompt || styleCardResult.reusablePrompt.imagePrompt || ""
     : "";
+  const referenceStylePrompt = referenceStyleResult
+    ? referenceStyleResult.prompts.imageToVideoPrompt || referenceStyleResult.prompts.enhancedPrompt || referenceStyleResult.prompts.imageToImagePrompt || ""
+    : "";
   const currentPrompt = mode === "styleCard"
     ? styleCardPrompt
+    : mode === "referenceStyle"
+      ? referenceStylePrompt
     : result
     ? mode === "optimize"
       ? result.optimizedPrompt || result.standardPrompt || ""
@@ -1148,14 +1363,25 @@ export function PromptStudioPage() {
             : result[activeResult] || ""
     : "";
   const activeResultTab = resultTabs.find((tab) => tab.key === activeResult) || resultTabs[1];
-  const usageTips = mode === "styleCard" ? styleCardResult?.usageTips || [] : result?.usageTips || [];
+  const usageTips = mode === "styleCard"
+    ? styleCardResult?.usageTips || []
+    : mode === "referenceStyle"
+      ? referenceStyleResult?.usageTips || []
+      : result?.usageTips || [];
   const knowledgeUsed: Array<{
     id: string;
     label: string;
     detail?: string;
     phrases?: string[];
     profile?: PromptStudioGenerateResult["selectedKnowledge"][number]["knowledgeProfile"];
-  }> = mode === "styleCard" && styleCardResult?.matchedLibraries?.length
+  }> = mode === "referenceStyle" && referenceStyleResult?.matchedLibraries?.length
+    ? referenceStyleResult.matchedLibraries.map((item) => ({
+        id: item.id,
+        label: item.nameZh,
+        detail: `${item.category} · ${Math.round((item.confidence || 0) * 100)}%`,
+        phrases: [item.reason],
+      }))
+    : mode === "styleCard" && styleCardResult?.matchedLibraries?.length
     ? styleCardResult.matchedLibraries.map((item) => ({
         id: item.id,
         label: item.nameZh,
@@ -1174,12 +1400,14 @@ export function PromptStudioPage() {
   const modeOption = modeOptions.find((item) => item.id === mode) || modeOptions[0];
   const needsExistingPrompt = mode === "optimize" || mode === "convert" || mode === "layerEdit";
   const isStyleCardMode = mode === "styleCard";
+  const isReferenceStyleMode = mode === "referenceStyle";
+  const isReferenceImageMode = isStyleCardMode || isReferenceStyleMode;
   const isBusy = isLoading || isReferenceLoading;
-  const isGenerateDisabled = isBusy || (isStyleCardMode ? !referenceImageFile : needsExistingPrompt ? !existingPrompt.trim() : !intent.trim());
+  const isGenerateDisabled = isBusy || (isReferenceImageMode ? !referenceImageFile : needsExistingPrompt ? !existingPrompt.trim() : !intent.trim());
   const generateButtonLabel = isBusy
     ? isZh
       ? "生成中..."
-      : isStyleCardMode
+      : isReferenceImageMode
         ? "Analyzing..."
         : "Generating..."
     : isZh
@@ -1190,7 +1418,7 @@ export function PromptStudioPage() {
           layerEdit: "只改这一层",
           storyboard: "生成分镜流水线",
           styleCard: "生成风格卡",
-        }[mode]
+        }[mode === "referenceStyle" ? "styleCard" : mode]
       : {
           generate: "Generate three prompts",
           optimize: "Optimize prompt",
@@ -1198,7 +1426,13 @@ export function PromptStudioPage() {
           layerEdit: "Edit this layer",
           storyboard: "Generate storyboard pipeline",
           styleCard: "Generate style card",
-        }[mode];
+        }[mode === "referenceStyle" ? "styleCard" : mode];
+  const resolvedGenerateButtonLabel =
+    mode === "referenceStyle" && !isBusy
+      ? isZh
+        ? "生成垫图风格 Prompt"
+        : "Generate reference style prompt"
+      : generateButtonLabel;
 
   function scrollToOutput() {
     const main = mainRef.current;
@@ -1243,6 +1477,7 @@ export function PromptStudioPage() {
       return URL.createObjectURL(file);
     });
     setStyleCardResult(null);
+    setReferenceStyleResult(null);
     setResult(null);
     setError("");
     setNotice("");
@@ -1288,6 +1523,55 @@ export function PromptStudioPage() {
     }
   }
 
+  async function handleGenerateReferenceStyle() {
+    if (!referenceImageFile) {
+      setError(isZh ? "请先上传一张参考图。" : "Please upload a reference image first.");
+      return;
+    }
+    setIsReferenceLoading(true);
+    setError("");
+    setNotice("");
+    try {
+      const data = await generatePromptStudioReferenceStylePrompt({
+        image: referenceImageFile,
+        intent,
+        target: target === "image" ? "image" : "video",
+        engine,
+        aspectRatio,
+        duration,
+        language: locale === "en" ? "en" : "zh",
+        preserveMode: referencePreserveMode,
+        styleMode: referenceStyleMode,
+        selectedStyles,
+        selectedModules,
+        styleCard: referenceStyleMode === "styleCard" ? styleCardResult?.styleCard || null : null,
+        styleInstruction: referenceStyleInstruction,
+        advancedControls,
+      });
+      setReferenceStyleResult(data || null);
+      setResult(null);
+      setNotice(
+        isZh
+          ? "已生成垫图 + 风格文本 prompt。未提交图片/视频生成任务，也不会扣积分。"
+          : "Reference + Style prompts created. No image or video generation job was submitted and no credits were used.",
+      );
+      window.requestAnimationFrame(scrollToOutput);
+    } catch (referenceError) {
+      setError(referenceError instanceof Error ? referenceError.message : isZh ? "垫图风格 prompt 生成失败，请稍后重试。" : "Unable to create reference style prompts. Please try again.");
+    } finally {
+      setIsReferenceLoading(false);
+    }
+  }
+
+  function useStyleCardAsReferenceStyle() {
+    if (!styleCardResult) return;
+    setReferenceStyleMode("styleCard");
+    setMode("referenceStyle");
+    setReferenceStyleResult(null);
+    setNotice(isZh ? "已切换到垫图 + 风格模式。请确认参考图和保留方式后手动生成 prompt。" : "Switched to Reference + Style. Review the reference and preservation mode, then generate prompts manually.");
+    mainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   function applyStyleCardToGenerate() {
     if (!styleCardResult) return;
     const styleIds = new Set(catalog.styles.map((item) => item.id));
@@ -1306,6 +1590,7 @@ export function PromptStudioPage() {
   function handleModeChange(nextMode: TextMode) {
     setMode(nextMode);
     setResult(null);
+    setReferenceStyleResult(null);
     setError("");
     setNotice("");
     if (nextMode === "storyboard") {
@@ -1377,6 +1662,8 @@ export function PromptStudioPage() {
   function saveForVideo() {
     const prompt = mode === "styleCard"
       ? styleCardResult?.reusablePrompt.videoPrompt || styleCardResult?.reusablePrompt.enhancedPrompt || ""
+      : mode === "referenceStyle"
+        ? referenceStyleResult?.prompts.imageToVideoPrompt || referenceStyleResult?.prompts.enhancedPrompt || ""
       : currentPrompt;
     if (!prompt) return;
     savePromptStudioToVideoDraft({
@@ -1397,6 +1684,8 @@ export function PromptStudioPage() {
   function saveForImage() {
     const prompt = mode === "styleCard"
       ? styleCardResult?.reusablePrompt.imagePrompt || styleCardResult?.reusablePrompt.enhancedPrompt || ""
+      : mode === "referenceStyle"
+        ? referenceStyleResult?.prompts.imageToImagePrompt || referenceStyleResult?.prompts.enhancedPrompt || ""
       : currentPrompt;
     if (!prompt) return;
     savePromptStudioToImageDraft({
@@ -1417,6 +1706,7 @@ export function PromptStudioPage() {
   function clearResult() {
     setResult(null);
     setStyleCardResult(null);
+    setReferenceStyleResult(null);
     setNotice("");
     setError("");
     setActiveResult("standardPrompt");
@@ -1445,8 +1735,8 @@ export function PromptStudioPage() {
                   <PrimaryGenerateButton
                     disabled={isGenerateDisabled}
                     isLoading={isBusy}
-                    label={generateButtonLabel}
-                    onClick={() => void (isStyleCardMode ? handleAnalyzeReference() : handleGenerate())}
+                    label={resolvedGenerateButtonLabel}
+                    onClick={() => void (isStyleCardMode ? handleAnalyzeReference() : isReferenceStyleMode ? handleGenerateReferenceStyle() : handleGenerate())}
                   >
                     {generateButtonLabel || (isZh ? "生成三档 Prompt" : "Generate three prompts")}
                   </PrimaryGenerateButton>
@@ -1474,25 +1764,89 @@ export function PromptStudioPage() {
                     ))}
                   </div>
 
-                  {isStyleCardMode ? (
-                    <ReferenceUploadCard
-                      file={referenceImageFile}
-                      inputRef={referenceInputRef}
-                      isZh={isZh}
-                      onClear={() => {
-                        setReferenceImageFile(null);
-                        setReferenceImagePreview((current) => {
-                          if (current) URL.revokeObjectURL(current);
-                          return "";
-                        });
-                        setStyleCardResult(null);
-                        setError("");
-                        setNotice("");
-                      }}
-                      onDrop={handleReferenceDrop}
-                      onInput={handleReferenceInput}
-                      preview={referenceImagePreview}
-                    />
+                  {isReferenceImageMode ? (
+                    <div className="grid gap-4">
+                      <ReferenceUploadCard
+                        file={referenceImageFile}
+                        inputRef={referenceInputRef}
+                        isZh={isZh}
+                        onClear={() => {
+                          setReferenceImageFile(null);
+                          setReferenceImagePreview((current) => {
+                            if (current) URL.revokeObjectURL(current);
+                            return "";
+                          });
+                          setStyleCardResult(null);
+                          setReferenceStyleResult(null);
+                          setError("");
+                          setNotice("");
+                        }}
+                        onDrop={handleReferenceDrop}
+                        onInput={handleReferenceInput}
+                        preview={referenceImagePreview}
+                      />
+                      {isReferenceStyleMode ? (
+                        <div className="grid gap-4 rounded-[24px] border border-white/[.06] bg-black/16 p-4">
+                          <div className="grid gap-4 lg:grid-cols-2">
+                            <div>
+                              <div className="mb-2 text-[11px] font-black uppercase tracking-[.18em] text-white/36">
+                                {isZh ? "保留模式" : "Preserve Mode"}
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {referencePreserveOptions.map((item) => (
+                                  <ControlPill active={referencePreserveMode === item.id} key={item.id} onClick={() => setReferencePreserveMode(item.id)}>
+                                    {isZh ? item.labelZh : item.labelEn}
+                                  </ControlPill>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="mb-2 text-[11px] font-black uppercase tracking-[.18em] text-white/36">
+                                {isZh ? "风格来源" : "Style Source"}
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {referenceStyleOptions.map((item) => (
+                                  <ControlPill active={referenceStyleMode === item.id} key={item.id} onClick={() => setReferenceStyleMode(item.id)}>
+                                    {isZh ? item.labelZh : item.labelEn}
+                                  </ControlPill>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                          {referenceStyleMode === "manual" ? (
+                            <label>
+                              <div className="mb-2 text-[11px] font-black uppercase tracking-[.18em] text-white/36">
+                                {isZh ? "手写风格说明" : "Manual Style Instruction"}
+                              </div>
+                              <textarea
+                                className={cx("h-24 w-full resize-y rounded-2xl border border-white/[.06] bg-black/18 p-4 text-[14px] leading-6 text-white outline-none placeholder:text-white/30 focus:border-[#f6a935]/28", subtleScrollbar)}
+                                maxLength={1600}
+                                onChange={(event) => setReferenceStyleInstruction(event.target.value)}
+                                placeholder={isZh ? "例如：高端室内设计广告、现代极简、暖色自然光" : "Example: high-end interior design commercial, modern minimalist, warm natural light"}
+                                value={referenceStyleInstruction}
+                              />
+                            </label>
+                          ) : null}
+                          {referenceStyleMode === "styleCard" && !styleCardResult ? (
+                            <p className="rounded-2xl border border-[#f6a935]/18 bg-[#f6a935]/8 px-3 py-2 text-sm leading-6 text-[#ffd48a]/78">
+                              {isZh ? "当前没有可复用的 Style Card。你可以先生成参考图风格卡，或切换到手写风格说明。" : "No Style Card is available yet. Generate a Style Card first, or switch to manual style instruction."}
+                            </p>
+                          ) : null}
+                          <label>
+                            <div className="mb-2 text-[11px] font-black uppercase tracking-[.18em] text-white/36">
+                              {isZh ? "创作意图（可选）" : "Creative Intent (optional)"}
+                            </div>
+                            <textarea
+                              className={cx("h-24 w-full resize-y rounded-2xl border border-white/[.06] bg-black/18 p-4 text-[14px] leading-6 text-white outline-none placeholder:text-white/30 focus:border-[#f6a935]/28", subtleScrollbar)}
+                              maxLength={2400}
+                              onChange={(event) => setIntent(event.target.value)}
+                              placeholder={isZh ? "例如：保留室内空间构图，改成高端改造广告视觉。" : "Example: preserve the interior layout and transform it into a premium renovation commercial."}
+                              value={intent}
+                            />
+                          </label>
+                        </div>
+                      ) : null}
+                    </div>
                   ) : needsExistingPrompt ? (
                     <div className="mb-4 grid gap-4">
                       <label>
@@ -1547,7 +1901,7 @@ export function PromptStudioPage() {
                   ) : null}
                   <textarea
                     className={cx(
-                      needsExistingPrompt || isStyleCardMode ? "hidden" : "h-40 w-full resize-y bg-transparent text-[15px] leading-7 text-white outline-none placeholder:text-white/30",
+                      needsExistingPrompt || isReferenceImageMode ? "hidden" : "h-40 w-full resize-y bg-transparent text-[15px] leading-7 text-white outline-none placeholder:text-white/30",
                       subtleScrollbar,
                     )}
                     maxLength={2400}
@@ -1555,7 +1909,7 @@ export function PromptStudioPage() {
                     placeholder={isZh ? "例如：雨夜便利店，旧恋人重逢，竖屏短视频，孤独但温柔。" : "Example: a rainy night convenience store, former lovers reunite, vertical short video, lonely yet gentle."}
                     value={intent}
                   />
-                  <div className={cx("mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-white/[.06] pt-3", needsExistingPrompt || isStyleCardMode ? "hidden" : "")}>
+                  <div className={cx("mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-white/[.06] pt-3", needsExistingPrompt || isReferenceImageMode ? "hidden" : "")}>
                     <div className="flex flex-wrap gap-2">
                       {quickPrompts.map((item) => (
                         <button
@@ -1812,6 +2166,10 @@ export function PromptStudioPage() {
                       ? isZh
                         ? "参考图风格卡"
                         : "Reference Style Card"
+                      : mode === "referenceStyle"
+                        ? isZh
+                          ? "垫图 + 风格 Prompt"
+                          : "Reference + Style Prompt"
                       : mode === "generate"
                       ? `${isZh ? activeResultTab.labelZh : activeResultTab.labelEn} Prompt`
                       : isZh
@@ -1857,6 +2215,7 @@ export function PromptStudioPage() {
                     onCopy={(prompt) => void copyPrompt(prompt)}
                     onSaveImage={saveForImage}
                     onSaveVideo={saveForVideo}
+                    onUseAsReferenceStyle={useStyleCardAsReferenceStyle}
                     result={styleCardResult}
                   />
                 ) : (
@@ -1866,7 +2225,24 @@ export function PromptStudioPage() {
                 )
               ) : null}
 
-              <div className={cx("mt-5 rounded-[26px] border border-white/[.065] bg-[linear-gradient(180deg,rgba(12,14,18,.98),rgba(7,8,10,.98))] p-4 shadow-inner shadow-black/35", isStyleCardMode ? "hidden" : "")}>
+              {isReferenceStyleMode ? (
+                referenceStyleResult ? (
+                  <ReferenceStyleOutput
+                    isZh={isZh}
+                    onClear={clearResult}
+                    onCopy={(prompt) => void copyPrompt(prompt)}
+                    onSaveImage={saveForImage}
+                    onSaveVideo={saveForVideo}
+                    result={referenceStyleResult}
+                  />
+                ) : (
+                  <div className="mt-5">
+                    <EmptyOutputState locale={locale} />
+                  </div>
+                )
+              ) : null}
+
+              <div className={cx("mt-5 rounded-[26px] border border-white/[.065] bg-[linear-gradient(180deg,rgba(12,14,18,.98),rgba(7,8,10,.98))] p-4 shadow-inner shadow-black/35", isReferenceImageMode ? "hidden" : "")}>
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <span className="text-xs font-black uppercase tracking-[.18em] text-white/38">Editable Prompt</span>
                   <button
@@ -2006,7 +2382,7 @@ export function PromptStudioPage() {
                 </div>
               ) : null}
 
-              <div className={cx("mt-4 grid gap-2.5 sm:grid-cols-2", isStyleCardMode ? "hidden" : "")}>
+              <div className={cx("mt-4 grid gap-2.5 sm:grid-cols-2", isReferenceImageMode ? "hidden" : "")}>
                 <button
                   className="min-h-11 rounded-2xl border border-[#f6a935]/20 bg-[#f6a935]/12 px-4 text-sm font-black text-[#ffd48a] disabled:opacity-35"
                   disabled={!currentPrompt}

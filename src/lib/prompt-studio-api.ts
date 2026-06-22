@@ -52,7 +52,7 @@ export type PromptStudioAdvancedControlSets = {
   subjects?: PromptStudioAdvancedOption[];
 };
 
-export type PromptStudioMode = "generate" | "optimize" | "convert" | "layerEdit" | "storyboard" | "styleCard" | "all";
+export type PromptStudioMode = "generate" | "optimize" | "convert" | "layerEdit" | "storyboard" | "styleCard" | "referenceStyle" | "all";
 
 export type PromptStudioAdvancedControls = {
   shotSize?: string;
@@ -223,6 +223,49 @@ export type PromptStudioReferenceAnalysisResult = {
   usageTips: string[];
 };
 
+export type PromptStudioReferencePreserveMode = "composition" | "subject" | "pose" | "scene" | "firstFrame" | "fullReference";
+export type PromptStudioReferenceStyleMode = "selectedLibraries" | "styleCard" | "manual";
+
+export type PromptStudioReferenceStylePromptResult = {
+  analysisSource: "vlm" | "fallback";
+  provider?: "B.AI" | "OpenAI" | "fallback" | string | null;
+  fallbackReason?: string;
+  target?: "video" | "image" | string;
+  engine?: string;
+  preserveMode: PromptStudioReferencePreserveMode;
+  styleMode: PromptStudioReferenceStyleMode;
+  image?: {
+    fileName?: string;
+    mimeType?: string;
+    size?: number;
+  };
+  referenceSummary: {
+    subject: string[];
+    composition: string[];
+    spatialLayout: string[];
+    poseOrAction: string[];
+    cameraAngle: string[];
+    lighting: string[];
+    colorPalette: string[];
+    sceneElements: string[];
+  };
+  preserveDirectives: string[];
+  styleDirectives: string[];
+  matchedLibraries: PromptStudioMatchedLibrary[];
+  prompts: {
+    imageToImagePrompt: string;
+    imageToVideoPrompt: string;
+    enhancedPrompt: string;
+    negativePrompt?: string;
+  };
+  usageTips: string[];
+  safety: {
+    containsPerson?: boolean;
+    containsFace?: boolean;
+    caution?: string[];
+  };
+};
+
 export async function fetchPromptStudioCatalog() {
   const payload = await apiRequest<PromptStudioCatalog>("/api/prompt-studio/catalog", {
     token: "",
@@ -252,6 +295,46 @@ export async function analyzePromptStudioReference(input: {
   if (input.language) formData.append("language", input.language);
 
   const payload = await apiRequest<PromptStudioReferenceAnalysisResult>("/api/prompt-studio/analyze-reference", {
+    method: "POST",
+    token: "",
+    body: formData,
+  });
+  return payload.data;
+}
+
+export async function generatePromptStudioReferenceStylePrompt(input: {
+  image: File;
+  intent?: string;
+  target?: "video" | "image";
+  engine?: PromptStudioGenerateRequest["engine"];
+  aspectRatio?: string;
+  duration?: string;
+  language?: "zh" | "en";
+  preserveMode?: PromptStudioReferencePreserveMode;
+  styleMode?: PromptStudioReferenceStyleMode;
+  selectedStyles?: string[];
+  selectedModules?: string[];
+  styleCard?: PromptStudioReferenceStyleCard | null;
+  styleInstruction?: string;
+  advancedControls?: PromptStudioAdvancedControls;
+}) {
+  const formData = new FormData();
+  formData.append("image", input.image);
+  if (input.intent) formData.append("intent", input.intent);
+  if (input.target) formData.append("target", input.target);
+  if (input.engine) formData.append("engine", input.engine);
+  if (input.aspectRatio) formData.append("aspectRatio", input.aspectRatio);
+  if (input.duration) formData.append("duration", input.duration);
+  if (input.language) formData.append("language", input.language);
+  if (input.preserveMode) formData.append("preserveMode", input.preserveMode);
+  if (input.styleMode) formData.append("styleMode", input.styleMode);
+  if (input.selectedStyles) formData.append("selectedStyles", JSON.stringify(input.selectedStyles));
+  if (input.selectedModules) formData.append("selectedModules", JSON.stringify(input.selectedModules));
+  if (input.styleCard) formData.append("styleCard", JSON.stringify(input.styleCard));
+  if (input.styleInstruction) formData.append("styleInstruction", input.styleInstruction);
+  if (input.advancedControls) formData.append("advancedControls", JSON.stringify(input.advancedControls));
+
+  const payload = await apiRequest<PromptStudioReferenceStylePromptResult>("/api/prompt-studio/reference-style-prompt", {
     method: "POST",
     token: "",
     body: formData,
