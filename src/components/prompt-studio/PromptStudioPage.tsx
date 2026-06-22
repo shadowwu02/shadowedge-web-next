@@ -1301,8 +1301,55 @@ function ProjectPromptBlock({
           Copy
         </button>
       </div>
-      <p className="text-sm leading-6 text-white/64">{prompt}</p>
+      <p className={cx("max-h-44 overflow-y-auto whitespace-pre-wrap break-words pr-1 text-sm leading-6 text-white/64", subtleScrollbar)}>{prompt}</p>
     </article>
+  );
+}
+
+function ProjectTokenList({ items }: { items?: string[] }) {
+  const values = (items || []).filter(Boolean).slice(0, 10);
+  if (!values.length) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {values.map((item) => (
+        <span className="rounded-full border border-[#f6a935]/14 bg-[#f6a935]/8 px-2.5 py-1 text-[11px] font-semibold text-[#ffd48a]/72" key={item}>
+          {item}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function ProjectIdentityLock({
+  identityLock,
+}: {
+  identityLock?: PromptStudioProjectPlanResult["assetPlan"]["characters"][number]["identityLock"];
+}) {
+  if (!identityLock) return null;
+  const groups = [
+    { key: "face", label: "Face" },
+    { key: "hair", label: "Hair" },
+    { key: "costume", label: "Costume" },
+    { key: "body", label: "Body" },
+    { key: "signatureDetails", label: "Signature" },
+  ] as const;
+  return (
+    <div className="grid gap-2 rounded-[18px] border border-white/[.055] bg-white/[.025] p-3 md:grid-cols-2 xl:grid-cols-5">
+      {groups.map((group) => {
+        const values = identityLock[group.key] || [];
+        if (!values.length) return null;
+        return (
+          <div key={group.key}>
+            <div className="mb-1 text-[10px] font-black uppercase tracking-[.16em] text-white/32">{group.label}</div>
+            <ul className="grid gap-1 text-[11px] leading-4 text-white/54">
+              {values.slice(0, 4).map((value) => (
+                <li key={value}>- {value}</li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -1310,12 +1357,14 @@ function ProjectPlanOutput({
   isZh,
   onClear,
   onCopy,
+  onSaveAssetImage,
   onSaveShotVideo,
   result,
 }: {
   isZh: boolean;
   onClear: () => void;
   onCopy: (prompt: string) => void;
+  onSaveAssetImage: (prompt: string) => void;
   onSaveShotVideo: (prompt: string) => void;
   result: PromptStudioProjectPlanResult;
 }) {
@@ -1362,6 +1411,147 @@ function ProjectPlanOutput({
         {styleSections.map((section) => (
           <ProjectMiniList items={section.items} key={section.title} title={section.title} />
         ))}
+      </section>
+
+      <section className="rounded-[24px] border border-[#f6a935]/14 bg-[#f6a935]/[.045] p-4">
+        <SectionLabel>@Asset Reference Notes</SectionLabel>
+        <p className="mt-2 max-w-5xl text-sm leading-6 text-white/64">
+          @assets are text references used to lock characters, locations, and props inside prompts. This beta does not bind real image files automatically. Generate asset master images first, then reuse them for continuity.
+        </p>
+      </section>
+
+      <section className="rounded-[24px] border border-white/[.06] bg-white/[.025] p-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <SectionLabel>Project Asset Drafts</SectionLabel>
+          <span className="text-xs font-bold text-white/38">
+            {result.assetPlan.characters.length + result.assetPlan.locations.length + result.assetPlan.props.length} drafts
+          </span>
+        </div>
+        <div className="grid gap-5">
+          {result.assetPlan.characters.length ? (
+            <div className="grid gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="text-sm font-black text-white">Characters</h4>
+                <span className="text-xs font-bold text-white/34">{result.assetPlan.characters.length}</span>
+              </div>
+              {result.assetPlan.characters.map((item) => (
+                <article className="rounded-[22px] border border-white/[.06] bg-[#0c0e12] p-4" key={item.assetTag}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-black text-[#ffd48a]">{item.assetTag}</div>
+                      <h4 className="mt-1 text-base font-black text-white">{item.name}</h4>
+                      <p className="mt-2 text-sm leading-6 text-white/58">{item.description}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70" onClick={() => onCopy(item.imageWorkspacePrompt || item.threeViewPrompt)} type="button">
+                        Copy Asset Prompt
+                      </button>
+                      <button className="rounded-full border border-[#f6a935]/20 bg-[#f6a935]/12 px-3 py-1.5 text-xs font-black text-[#ffd48a]" onClick={() => onSaveAssetImage(item.imageWorkspacePrompt || item.threeViewPrompt)} type="button">
+                        Fill Image Draft
+                      </button>
+                      {item.negativePrompt ? (
+                        <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70" onClick={() => onCopy(item.negativePrompt || "")} type="button">
+                          Copy Negative
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                    <ProjectPromptBlock onCopy={onCopy} prompt={item.imageWorkspacePrompt || item.threeViewPrompt} title="Image Workspace Prompt" />
+                    <ProjectPromptBlock onCopy={onCopy} prompt={item.negativePrompt} title="Negative Prompt" />
+                    <ProjectPromptBlock onCopy={onCopy} prompt={item.threeViewPrompt} title="Three-view Prompt" />
+                    <ProjectPromptBlock onCopy={onCopy} prompt={item.portraitPrompt} title="Portrait Prompt" />
+                  </div>
+                  <div className="mt-3 grid gap-3">
+                    <ProjectIdentityLock identityLock={item.identityLock} />
+                    <ProjectTokenList items={item.consistencyRules} />
+                    {item.usageNotes?.length ? <ProjectMiniList items={item.usageNotes} title="Usage Notes" /> : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : null}
+
+          {result.assetPlan.locations.length ? (
+            <div className="grid gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="text-sm font-black text-white">Locations</h4>
+                <span className="text-xs font-bold text-white/34">{result.assetPlan.locations.length}</span>
+              </div>
+              {result.assetPlan.locations.map((item) => (
+                <article className="rounded-[22px] border border-white/[.06] bg-[#0c0e12] p-4" key={item.assetTag}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-black text-[#ffd48a]">{item.assetTag}</div>
+                      <h4 className="mt-1 text-base font-black text-white">{item.name}</h4>
+                      <p className="mt-2 text-sm leading-6 text-white/58">{item.description}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70" onClick={() => onCopy(item.imageWorkspacePrompt || item.environmentPrompt)} type="button">
+                        Copy Asset Prompt
+                      </button>
+                      <button className="rounded-full border border-[#f6a935]/20 bg-[#f6a935]/12 px-3 py-1.5 text-xs font-black text-[#ffd48a]" onClick={() => onSaveAssetImage(item.imageWorkspacePrompt || item.environmentPrompt)} type="button">
+                        Fill Image Draft
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                    <ProjectPromptBlock onCopy={onCopy} prompt={item.imageWorkspacePrompt || item.environmentPrompt} title="Image Workspace Prompt" />
+                    <ProjectPromptBlock onCopy={onCopy} prompt={item.environmentPrompt} title="Environment Prompt" />
+                  </div>
+                  <div className="mt-3 grid gap-3">
+                    <ProjectTokenList items={item.keyVisualElements} />
+                    <ProjectTokenList items={item.continuityRules} />
+                    {item.usageNotes?.length ? <ProjectMiniList items={item.usageNotes} title="Usage Notes" /> : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : null}
+
+          {result.assetPlan.props.length ? (
+            <div className="grid gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="text-sm font-black text-white">Props</h4>
+                <span className="text-xs font-bold text-white/34">{result.assetPlan.props.length}</span>
+              </div>
+              {result.assetPlan.props.map((item) => (
+                <article className="rounded-[22px] border border-white/[.06] bg-[#0c0e12] p-4" key={item.assetTag}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-black text-[#ffd48a]">{item.assetTag}</div>
+                      <h4 className="mt-1 text-base font-black text-white">{item.name}</h4>
+                      <p className="mt-2 text-sm leading-6 text-white/58">{item.description}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70" onClick={() => onCopy(item.imageWorkspacePrompt || item.propDesignPrompt)} type="button">
+                        Copy Asset Prompt
+                      </button>
+                      <button className="rounded-full border border-[#f6a935]/20 bg-[#f6a935]/12 px-3 py-1.5 text-xs font-black text-[#ffd48a]" onClick={() => onSaveAssetImage(item.imageWorkspacePrompt || item.propDesignPrompt)} type="button">
+                        Fill Image Draft
+                      </button>
+                      {item.negativePrompt ? (
+                        <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70" onClick={() => onCopy(item.negativePrompt || "")} type="button">
+                          Copy Negative
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                    <ProjectPromptBlock onCopy={onCopy} prompt={item.imageWorkspacePrompt || item.propDesignPrompt} title="Image Workspace Prompt" />
+                    <ProjectPromptBlock onCopy={onCopy} prompt={item.propDesignPrompt} title="Prop Design Prompt" />
+                    <ProjectPromptBlock onCopy={onCopy} prompt={item.negativePrompt} title="Negative Prompt" />
+                  </div>
+                  <div className="mt-3 grid gap-3">
+                    <ProjectTokenList items={item.keyDesignElements} />
+                    <ProjectTokenList items={item.continuityRules} />
+                    {item.usageNotes?.length ? <ProjectMiniList items={item.usageNotes} title="Usage Notes" /> : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </section>
 
       <section className="rounded-[24px] border border-white/[.06] bg-white/[.025] p-4">
@@ -1462,6 +1652,19 @@ function ProjectPlanOutput({
                 </span>
               ))}
             </div>
+            {shot.requiredAssets?.length ? (
+              <div className="mt-3 grid gap-2 rounded-[18px] border border-white/[.055] bg-black/18 p-3">
+                <div className="text-[11px] font-black uppercase tracking-[.16em] text-white/36">Required Assets</div>
+                <div className="flex flex-wrap gap-2">
+                  {shot.requiredAssets.map((asset) => (
+                    <span className="rounded-full border border-white/[.07] bg-white/[.035] px-2.5 py-1 text-[11px] font-semibold text-white/58" key={`${shot.shotNumber}-${asset.assetTag}-${asset.usage}`}>
+                      <strong className="text-[#ffd48a]/78">{asset.assetTag}</strong> · {asset.usage}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            <ProjectPromptBlock onCopy={onCopy} prompt={shot.assetContinuityPrompt} title="Asset continuity prompt" />
             <div className="mt-3 grid gap-3 lg:grid-cols-2">
               <ProjectPromptBlock onCopy={onCopy} prompt={shot.keyframeImagePrompt} title="Keyframe image prompt" />
               <ProjectPromptBlock onCopy={onCopy} prompt={shot.videoPrompt} title="Video prompt" />
@@ -2031,6 +2234,21 @@ export function PromptStudioPage() {
         : "This shot was sent to the video workspace draft. It will not generate automatically.",
     );
     router.push("/workspace/video?from=prompt-studio");
+  }
+
+  function saveProjectAssetForImage(prompt: string) {
+    if (!prompt) return;
+    savePromptStudioToImageDraft({
+      prompt,
+      source: "prompt-studio",
+      mode: "project",
+      target: "image",
+      engine,
+    });
+    setNotice(isZh
+      ? "已填入资产图片工作区草稿。不会自动生成，请确认后手动点击生成。"
+      : "This asset prompt was sent to the image workspace draft. It will not generate automatically.");
+    router.push("/workspace/image?from=prompt-studio");
   }
 
   function saveForImage() {
@@ -2685,6 +2903,7 @@ export function PromptStudioPage() {
                     isZh={isZh}
                     onClear={clearResult}
                     onCopy={(prompt) => void copyPrompt(prompt)}
+                    onSaveAssetImage={saveProjectAssetForImage}
                     onSaveShotVideo={saveProjectShotForVideo}
                     result={projectResult}
                   />

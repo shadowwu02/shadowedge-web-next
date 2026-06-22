@@ -292,23 +292,40 @@ export type PromptStudioProjectPlanResult = {
       name: string;
       role?: string;
       description: string;
+      identityLock?: {
+        face?: string[];
+        hair?: string[];
+        costume?: string[];
+        body?: string[];
+        signatureDetails?: string[];
+      };
       consistencyRules: string[];
       threeViewPrompt: string;
       portraitPrompt: string;
+      imageWorkspacePrompt?: string;
+      negativePrompt?: string;
+      usageNotes?: string[];
     }>;
     locations: Array<{
       assetTag: string;
       name: string;
       description: string;
       environmentPrompt: string;
+      imageWorkspacePrompt?: string;
       continuityRules: string[];
+      keyVisualElements?: string[];
+      usageNotes?: string[];
     }>;
     props: Array<{
       assetTag: string;
       name: string;
       description: string;
       propDesignPrompt: string;
+      imageWorkspacePrompt?: string;
       continuityRules: string[];
+      keyDesignElements?: string[];
+      negativePrompt?: string;
+      usageNotes?: string[];
     }>;
   };
   shotPlan: Array<{
@@ -316,6 +333,11 @@ export type PromptStudioProjectPlanResult = {
     title: string;
     storyPurpose: string;
     assetReferences: string[];
+    requiredAssets?: Array<{
+      assetTag: string;
+      usage: string;
+    }>;
+    assetContinuityPrompt?: string;
     keyframeImagePrompt: string;
     videoPrompt: string;
     cameraMove: string;
