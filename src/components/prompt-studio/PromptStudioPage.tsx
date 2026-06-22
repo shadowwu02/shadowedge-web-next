@@ -2144,6 +2144,78 @@ function ProjectHistoryDrawerV2({
   );
 }
 
+function ProjectDeleteConfirmModal({
+  error,
+  isDeleting,
+  isZh,
+  onCancel,
+  onConfirm,
+  project,
+}: {
+  error: string;
+  isDeleting: boolean;
+  isZh: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+  project: PromptStudioSavedProjectSummary | null;
+}) {
+  if (!project) return null;
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+      <div className="w-full max-w-[460px] rounded-[28px] border border-white/[.08] bg-[#101216] p-5 shadow-[0_28px_90px_rgba(0,0,0,.55)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <SectionLabel>{isZh ? "删除确认" : "Delete confirmation"}</SectionLabel>
+            <h2 className="mt-2 text-2xl font-black text-white">{isZh ? "删除项目？" : "Delete project?"}</h2>
+          </div>
+          <span className="rounded-full border border-red-300/20 bg-red-400/10 px-2.5 py-1 text-[11px] font-black uppercase tracking-[.16em] text-red-100/80">
+            {isZh ? "危险操作" : "Destructive"}
+          </span>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-white/[.06] bg-black/20 p-3">
+          <div className="text-sm font-black text-white">{project.title || "Untitled Project"}</div>
+          <div className="mt-1 text-xs font-bold text-white/45">
+            {project.shotCount || 0} shots · {project.assetCount || 0} assets
+          </div>
+        </div>
+
+        <p className="mt-4 text-sm leading-6 text-white/58">
+          {isZh
+            ? "此操作会从 Project History 中删除该项目。不会影响已经生成的图片或视频，但删除后无法从项目历史恢复。"
+            : "This will remove the project from Project History. It will not affect generated images or videos, but the project cannot be restored from history."}
+        </p>
+
+        {error ? (
+          <div className="mt-4 rounded-2xl border border-red-300/20 bg-red-400/10 p-3 text-sm leading-6 text-red-100">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          <button
+            className="rounded-2xl border border-white/[.08] bg-white/[.04] px-4 py-3 text-sm font-black text-white/72 transition hover:bg-white/[.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+            disabled={isDeleting}
+            onClick={onCancel}
+            type="button"
+          >
+            {isZh ? "取消" : "Cancel"}
+          </button>
+          <button
+            className="rounded-2xl border border-red-300/24 bg-red-500/18 px-4 py-3 text-sm font-black text-red-50 shadow-[0_14px_34px_rgba(248,113,113,.14)] transition hover:bg-red-500/24 disabled:cursor-not-allowed disabled:opacity-55"
+            disabled={isDeleting}
+            onClick={onConfirm}
+            type="button"
+          >
+            {isDeleting ? (isZh ? "删除中..." : "Deleting...") : isZh ? "确认删除" : "Delete project"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PromptStudioPage() {
   const router = useRouter();
   const { locale } = useI18n();
@@ -2177,6 +2249,9 @@ export function PromptStudioPage() {
   const [isProjectHistoryOpen, setIsProjectHistoryOpen] = useState(false);
   const [isProjectHistoryLoading, setIsProjectHistoryLoading] = useState(false);
   const [projectHistoryError, setProjectHistoryError] = useState("");
+  const [projectPendingDelete, setProjectPendingDelete] = useState<PromptStudioSavedProjectSummary | null>(null);
+  const [deletingProjectId, setDeletingProjectId] = useState("");
+  const [deleteProjectError, setDeleteProjectError] = useState("");
   const [styleCardResult, setStyleCardResult] = useState<PromptStudioReferenceAnalysisResult | null>(null);
   const [referenceStyleResult, setReferenceStyleResult] = useState<PromptStudioReferenceStylePromptResult | null>(null);
   const [referenceImageFile, setReferenceImageFile] = useState<File | null>(null);
@@ -2762,22 +2837,35 @@ export function PromptStudioPage() {
     }
   }
 
-  async function deleteSavedProject(project: PromptStudioSavedProjectSummary) {
-    const ok = window.confirm(
-      isZh
-        ? `确认删除项目「${project.title}」？此操作只删除保存的文本项目包，不影响已生成的历史记录。`
-        : `Delete "${project.title}"? This only removes the saved text project pack and will not affect generation history.`,
-    );
-    if (!ok) return;
+  function requestDeleteProject(project: PromptStudioSavedProjectSummary) {
+    setProjectPendingDelete(project);
+    setDeleteProjectError("");
+    setProjectHistoryError("");
+  }
+
+  function cancelDeleteProject() {
+    if (deletingProjectId) return;
+    setProjectPendingDelete(null);
+    setDeleteProjectError("");
+  }
+
+  async function confirmDeleteProject() {
+    const project = projectPendingDelete;
+    if (!project || deletingProjectId) return;
+    setDeletingProjectId(project.id);
+    setDeleteProjectError("");
     setProjectHistoryError("");
     try {
       await deletePromptStudioProject(project.id);
       setProjectHistory((current) => current.filter((item) => item.id !== project.id));
       if (savedProjectId === project.id) setSavedProjectId(undefined);
       if (selectedHistoryProject?.id === project.id) setSelectedHistoryProject(null);
-      setNotice(isZh ? "项目已删除。" : "Project deleted.");
+      setProjectPendingDelete(null);
+      setNotice(isZh ? "\u9879\u76ee\u5df2\u5220\u9664\u3002" : "Project deleted.");
     } catch (deleteError) {
-      setProjectHistoryError(deleteError instanceof Error ? deleteError.message : isZh ? "项目删除失败。" : "Unable to delete project.");
+      setDeleteProjectError(deleteError instanceof Error ? deleteError.message : isZh ? "\u9879\u76ee\u5220\u9664\u5931\u8d25\u3002" : "Unable to delete project.");
+    } finally {
+      setDeletingProjectId("");
     }
   }
 
@@ -3814,13 +3902,21 @@ export function PromptStudioPage() {
           isZh={isZh}
           onClose={() => setIsProjectHistoryOpen(false)}
           onCopy={(project) => void copySavedProject(project)}
-          onDelete={(project) => void deleteSavedProject(project)}
+          onDelete={requestDeleteProject}
           onOpen={(project) => void openSavedProject(project)}
           onRefresh={() => void loadProjectHistory()}
           onSelect={(project) => void selectSavedProject(project)}
           onSendFirstShot={sendSavedProjectFirstShot}
           projects={projectHistory}
           selectedProject={selectedHistoryProject}
+        />
+        <ProjectDeleteConfirmModal
+          error={deleteProjectError}
+          isDeleting={Boolean(deletingProjectId)}
+          isZh={isZh}
+          onCancel={cancelDeleteProject}
+          onConfirm={() => void confirmDeleteProject()}
+          project={projectPendingDelete}
         />
       </main>
     </AppShell>
