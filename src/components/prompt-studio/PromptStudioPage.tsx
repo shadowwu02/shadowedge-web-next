@@ -33,6 +33,7 @@ import {
   type PromptStudioReferenceStyleMode,
   type PromptStudioReferenceStylePromptResult,
   type PromptStudioReferenceStyleCard,
+  type PromptStudioSavedProject,
   type PromptStudioSavedProjectSummary,
   type PromptStudioStoryboardShot,
   updatePromptStudioProject,
@@ -1746,6 +1747,49 @@ function formatProjectDate(value?: string) {
   });
 }
 
+function compactProjectItems(items?: string[], limit = 4) {
+  return (items || []).filter(Boolean).slice(0, limit);
+}
+
+function projectPackText(projectData?: PromptStudioProjectPlanResult) {
+  if (!projectData) return "";
+  if (projectData.exportText) return projectData.exportText;
+
+  const style = projectData.styleConstitution;
+  const assets = projectData.assetPlan;
+  const lines = [
+    `# ${projectData.projectTitle || "Untitled Project"}`,
+    "",
+    `Logline: ${projectData.projectLogline || ""}`,
+    "",
+    "## Style Constitution",
+    `Visual Style: ${(style?.visualStyle || []).join("; ")}`,
+    `Color Palette: ${(style?.colorPalette || []).join("; ")}`,
+    `Lighting Rules: ${(style?.lightingRules || []).join("; ")}`,
+    `Continuity Rules: ${(style?.continuityRules || []).join("; ")}`,
+    "",
+    "## Asset Plan",
+    ...(assets?.characters || []).map((asset) => `Character ${asset.assetTag}: ${asset.description}`),
+    ...(assets?.locations || []).map((asset) => `Location ${asset.assetTag}: ${asset.description}`),
+    ...(assets?.props || []).map((asset) => `Prop ${asset.assetTag}: ${asset.description}`),
+    "",
+    "## Shot Plan",
+    ...(projectData.shotPlan || []).map((shot) => (
+      `Shot ${shot.shotNumber}: ${shot.title}\nAssets: ${(shot.assetReferences || []).join(", ")}\n${shot.videoPrompt}`
+    )),
+    "",
+    "## Continuity Checklist",
+    ...(projectData.continuityChecklist || []).map((item) => `- ${item}`),
+  ];
+
+  return lines.filter(Boolean).join("\n");
+}
+
+function firstProjectShotPrompt(project?: PromptStudioSavedProject | null) {
+  return project?.projectData?.shotPlan?.[0]?.videoPrompt || "";
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ProjectHistoryDrawer({
   error,
   isLoading,
@@ -1840,6 +1884,266 @@ function ProjectHistoryDrawer({
   );
 }
 
+function ProjectHistoryDrawerV2({
+  error,
+  isDetailLoading,
+  isLoading,
+  isOpen,
+  isZh,
+  onClose,
+  onCopy,
+  onDelete,
+  onOpen,
+  onRefresh,
+  onSelect,
+  onSendFirstShot,
+  projects,
+  selectedProject,
+}: {
+  error: string;
+  isDetailLoading: boolean;
+  isLoading: boolean;
+  isOpen: boolean;
+  isZh: boolean;
+  onClose: () => void;
+  onCopy: (project: PromptStudioSavedProjectSummary) => void;
+  onDelete: (project: PromptStudioSavedProjectSummary) => void;
+  onOpen: (project: PromptStudioSavedProjectSummary) => void;
+  onRefresh: () => void;
+  onSelect: (project: PromptStudioSavedProjectSummary) => void;
+  onSendFirstShot: (project: PromptStudioSavedProject) => void;
+  projects: PromptStudioSavedProjectSummary[];
+  selectedProject: PromptStudioSavedProject | null;
+}) {
+  if (!isOpen) return null;
+
+  const detail = selectedProject?.projectData;
+  const style = detail?.styleConstitution;
+  const assets = detail?.assetPlan;
+  const selectedAssetCount =
+    (assets?.characters?.length || selectedProject?.characterCount || 0) +
+    (assets?.locations?.length || selectedProject?.locationCount || 0) +
+    (assets?.props?.length || selectedProject?.propCount || 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end overflow-hidden bg-black/62 backdrop-blur-sm">
+      <button aria-label="Close Project History" className="absolute inset-0 cursor-default" onClick={onClose} type="button" />
+      <aside className={cx("relative z-10 flex h-full w-full max-w-[900px] flex-col border-l border-white/[.08] bg-[#0b0d10] shadow-[-24px_0_80px_rgba(0,0,0,.45)]", subtleScrollbar)}>
+        <div className="border-b border-white/[.07] p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <SectionLabel>{isZh ? "项目历史" : "Project History"}</SectionLabel>
+              <h2 className="mt-2 text-2xl font-black text-white">{isZh ? "项目库" : "Project Library"}</h2>
+              <p className="mt-2 text-sm leading-6 text-white/52">
+                {isZh
+                  ? "保存文本项目包、资产草稿和分镜 prompt。不会生成图片/视频，不扣积分。"
+                  : "Saved text project packs, asset drafts, and shot prompts. No media generation or credits."}
+              </p>
+            </div>
+            <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/68 hover:text-white" onClick={onClose} type="button">
+              Close
+            </button>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <button
+              className="rounded-full border border-[#f6a935]/20 bg-[#f6a935]/10 px-3 py-1.5 text-xs font-black text-[#ffd48a]"
+              onClick={onRefresh}
+              type="button"
+            >
+              {isLoading ? (isZh ? "加载中..." : "Loading...") : isZh ? "刷新" : "Refresh"}
+            </button>
+          </div>
+          {error ? <div className="mt-3 rounded-2xl border border-red-300/20 bg-red-400/10 p-3 text-sm text-red-100">{error}</div> : null}
+        </div>
+
+        <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className={cx("min-h-0 overflow-y-auto p-5", subtleScrollbar)}>
+            {!isLoading && !projects.length ? (
+              <div className="rounded-[28px] border border-white/[.06] bg-white/[.03] p-6 text-sm leading-6 text-white/56">
+                {isZh
+                  ? "还没有保存的项目。生成项目制作方案后，可以保存到这里继续编辑。"
+                  : "No saved projects yet. Save a Project Studio plan to continue editing later."}
+              </div>
+            ) : null}
+
+            <div className="grid gap-4 xl:grid-cols-2">
+              {projects.map((project) => {
+                const active = selectedProject?.id === project.id;
+                const styleChips = compactProjectItems(project.styleSummary, 3);
+                const assetTags = compactProjectItems(project.primaryAssetTags, 3);
+
+                return (
+                  <article
+                    className={cx(
+                      "overflow-hidden rounded-[28px] border bg-[#111318] shadow-[0_18px_60px_rgba(0,0,0,.22)] transition",
+                      active ? "border-[#f6a935]/38 ring-1 ring-[#f6a935]/18" : "border-white/[.07] hover:border-white/[.14]",
+                    )}
+                    key={project.id}
+                  >
+                    <button className="block w-full text-left" onClick={() => onSelect(project)} type="button">
+                      <div className="relative min-h-[118px] overflow-hidden border-b border-white/[.06] bg-[radial-gradient(circle_at_20%_20%,rgba(246,169,53,.22),transparent_34%),linear-gradient(135deg,#161922,#090a0d)] p-4">
+                        <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[#111318] to-transparent" />
+                        <div className="relative flex items-start justify-between gap-3">
+                          <span className="rounded-full border border-[#f6a935]/24 bg-[#f6a935]/12 px-2.5 py-1 text-[11px] font-black uppercase tracking-[.16em] text-[#ffd48a]">
+                            {project.projectType || "project"}
+                          </span>
+                          <span className="rounded-full border border-white/[.08] bg-black/24 px-2.5 py-1 text-[11px] font-bold text-white/58">
+                            {project.aspectRatio || "9:16"}
+                          </span>
+                        </div>
+                        <p className="relative mt-7 line-clamp-2 text-sm font-black leading-6 text-white">
+                          {project.coverSummary || project.title || "Prompt Studio Project"}
+                        </p>
+                      </div>
+
+                      <div className="p-4">
+                        <h3 className="line-clamp-2 text-base font-black leading-6 text-white">{project.title || "Untitled Project"}</h3>
+                        <p className="mt-2 line-clamp-2 text-xs leading-5 text-white/50">{project.previewLogline || project.brief}</p>
+                        <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-white/48">
+                          <span>{project.shotCount || 0} shots</span>
+                          <span>{project.assetCount || 0} assets</span>
+                          <span>{formatProjectDate(project.updatedAt || project.createdAt)}</span>
+                        </div>
+                        {assetTags.length ? (
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {assetTags.map((tag) => (
+                              <span className="rounded-full border border-white/[.07] bg-white/[.04] px-2 py-1 text-[11px] font-bold text-white/56" key={tag}>
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                        {styleChips.length ? (
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {styleChips.map((chip) => (
+                              <span className="rounded-full border border-[#f6a935]/14 bg-[#f6a935]/8 px-2 py-1 text-[11px] font-bold text-[#ffd48a]/76" key={chip}>
+                                {chip}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </button>
+
+                    <div className="grid grid-cols-4 gap-2 border-t border-white/[.06] p-3">
+                      <button className="rounded-2xl border border-[#f6a935]/20 bg-[#f6a935]/10 px-2 py-2 text-xs font-black text-[#ffd48a]" onClick={() => onSelect(project)} type="button">
+                        {isZh ? "打开" : "Open"}
+                      </button>
+                      <button className="rounded-2xl border border-white/[.08] bg-white/[.045] px-2 py-2 text-xs font-black text-white/68 hover:text-white" onClick={() => onOpen(project)} type="button">
+                        {isZh ? "继续" : "Continue"}
+                      </button>
+                      <button className="rounded-2xl border border-white/[.08] bg-white/[.035] px-2 py-2 text-xs font-black text-white/62 hover:text-white" onClick={() => onCopy(project)} type="button">
+                        {isZh ? "复制包" : "Copy Pack"}
+                      </button>
+                      <button className="rounded-2xl border border-red-300/20 bg-red-400/10 px-2 py-2 text-xs font-black text-red-100/82" onClick={() => onDelete(project)} type="button">
+                        {isZh ? "删除" : "Delete"}
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+
+          <section className={cx("min-h-0 overflow-y-auto border-t border-white/[.07] bg-[#090b0e] p-5 lg:border-l lg:border-t-0", subtleScrollbar)}>
+            {isDetailLoading ? (
+              <div className="rounded-[24px] border border-white/[.06] bg-white/[.03] p-5 text-sm text-white/52">
+                {isZh ? "正在加载项目详情..." : "Loading project details..."}
+              </div>
+            ) : selectedProject && detail ? (
+              <div className="space-y-5">
+                <div>
+                  <SectionLabel>{isZh ? "项目详情" : "Project Detail"}</SectionLabel>
+                  <h3 className="mt-2 text-2xl font-black leading-8 text-white">{detail.projectTitle || selectedProject.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-white/56">{detail.projectLogline || selectedProject.previewLogline || selectedProject.brief}</p>
+                  <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-white/44">
+                    <span>{detail.shotPlan?.length || selectedProject.shotCount || 0} shots</span>
+                    <span>{selectedAssetCount} assets</span>
+                    <span>{formatProjectDate(selectedProject.updatedAt || selectedProject.createdAt)}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button className="rounded-2xl border border-[#f6a935]/22 bg-[#f6a935]/12 px-3 py-2 text-xs font-black text-[#ffd48a]" onClick={() => onOpen(selectedProject)} type="button">
+                    {isZh ? "加载到项目制作" : "Load into Project Studio"}
+                  </button>
+                  <button className="rounded-2xl border border-white/[.08] bg-white/[.04] px-3 py-2 text-xs font-black text-white/68" onClick={() => onCopy(selectedProject)} type="button">
+                    {isZh ? "复制项目包" : "Copy Project Pack"}
+                  </button>
+                  <button
+                    className="rounded-2xl border border-white/[.08] bg-white/[.035] px-3 py-2 text-xs font-black text-white/62 disabled:cursor-not-allowed disabled:opacity-40"
+                    disabled={!firstProjectShotPrompt(selectedProject)}
+                    onClick={() => onSendFirstShot(selectedProject)}
+                    type="button"
+                  >
+                    {isZh ? "填入第一镜头草稿" : "Fill first shot draft"}
+                  </button>
+                  <button className="rounded-2xl border border-red-300/20 bg-red-400/10 px-3 py-2 text-xs font-black text-red-100/82" onClick={() => onDelete(selectedProject)} type="button">
+                    {isZh ? "删除" : "Delete"}
+                  </button>
+                </div>
+
+                <div className="rounded-[22px] border border-white/[.06] bg-white/[.03] p-4">
+                  <h4 className="text-sm font-black text-white">{isZh ? "风格宪法摘要" : "Style Constitution"}</h4>
+                  <div className="mt-3 space-y-3 text-xs leading-5 text-white/54">
+                    <div><b className="text-white/78">Visual:</b> {compactProjectItems(style?.visualStyle, 3).join("; ") || "-"}</div>
+                    <div><b className="text-white/78">Color:</b> {compactProjectItems(style?.colorPalette, 3).join("; ") || "-"}</div>
+                    <div><b className="text-white/78">Lighting:</b> {compactProjectItems(style?.lightingRules, 3).join("; ") || "-"}</div>
+                    <div><b className="text-white/78">Continuity:</b> {compactProjectItems(style?.continuityRules, 3).join("; ") || "-"}</div>
+                  </div>
+                </div>
+
+                <div className="rounded-[22px] border border-white/[.06] bg-white/[.03] p-4">
+                  <h4 className="text-sm font-black text-white">{isZh ? "资产概览" : "Assets"}</h4>
+                  <div className="mt-3 grid gap-2 text-xs text-white/56">
+                    <div><b className="text-white/78">Characters:</b> {(assets?.characters || []).map((item) => item.assetTag).join(", ") || "-"}</div>
+                    <div><b className="text-white/78">Locations:</b> {(assets?.locations || []).map((item) => item.assetTag).join(", ") || "-"}</div>
+                    <div><b className="text-white/78">Props:</b> {(assets?.props || []).map((item) => item.assetTag).join(", ") || "-"}</div>
+                  </div>
+                </div>
+
+                <div className="rounded-[22px] border border-white/[.06] bg-white/[.03] p-4">
+                  <h4 className="text-sm font-black text-white">{isZh ? "分镜概览" : "Shot Plan"}</h4>
+                  <div className="mt-3 grid gap-3">
+                    {(detail.shotPlan || []).slice(0, 6).map((shot) => (
+                      <div className="rounded-2xl border border-white/[.05] bg-black/18 p-3" key={`${shot.shotNumber}-${shot.title}`}>
+                        <div className="text-xs font-black text-[#ffd48a]">Shot {shot.shotNumber}</div>
+                        <div className="mt-1 text-sm font-black text-white/82">{shot.title}</div>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {(shot.assetReferences || []).map((tag) => (
+                            <span className="rounded-full border border-white/[.07] bg-white/[.04] px-2 py-1 text-[11px] font-bold text-white/56" key={tag}>
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[22px] border border-white/[.06] bg-white/[.03] p-4">
+                  <h4 className="text-sm font-black text-white">{isZh ? "连续性检查" : "Continuity Checklist"}</h4>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {(detail.continuityChecklist || []).slice(0, 10).map((item) => (
+                      <span className="rounded-full border border-[#f6a935]/14 bg-[#f6a935]/8 px-2 py-1 text-[11px] font-bold text-[#ffd48a]/76" key={item}>
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-[24px] border border-white/[.06] bg-white/[.03] p-5 text-sm leading-6 text-white/52">
+                {isZh ? "选择一个项目卡片查看详情。" : "Select a project card to view details."}
+              </div>
+            )}
+          </section>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
 export function PromptStudioPage() {
   const router = useRouter();
   const { locale } = useI18n();
@@ -1867,6 +2171,8 @@ export function PromptStudioPage() {
   const [projectResult, setProjectResult] = useState<PromptStudioProjectPlanResult | null>(null);
   const [savedProjectId, setSavedProjectId] = useState<string | undefined>();
   const [projectHistory, setProjectHistory] = useState<PromptStudioSavedProjectSummary[]>([]);
+  const [selectedHistoryProject, setSelectedHistoryProject] = useState<PromptStudioSavedProject | null>(null);
+  const [isProjectDetailLoading, setIsProjectDetailLoading] = useState(false);
   const [isProjectSaving, setIsProjectSaving] = useState(false);
   const [isProjectHistoryOpen, setIsProjectHistoryOpen] = useState(false);
   const [isProjectHistoryLoading, setIsProjectHistoryLoading] = useState(false);
@@ -2376,6 +2682,20 @@ export function PromptStudioPage() {
     void loadProjectHistory();
   }
 
+  async function selectSavedProject(project: PromptStudioSavedProjectSummary) {
+    setProjectHistoryError("");
+    setIsProjectDetailLoading(true);
+    try {
+      const detail = await fetchPromptStudioProject(project.id);
+      if (!detail?.projectData) throw new Error("Project data is missing.");
+      setSelectedHistoryProject(detail);
+    } catch (detailError) {
+      setProjectHistoryError(detailError instanceof Error ? detailError.message : isZh ? "项目详情加载失败。" : "Unable to load project details.");
+    } finally {
+      setIsProjectDetailLoading(false);
+    }
+  }
+
   async function saveCurrentProject() {
     if (!projectResult) return;
     setIsProjectSaving(true);
@@ -2423,7 +2743,7 @@ export function PromptStudioPage() {
       setSelectedStyles(detail.selectedStyles || []);
       setSelectedModules(detail.selectedModules || []);
       setIsProjectHistoryOpen(false);
-      setNotice(isZh ? "已打开保存项目。不会自动生成。" : "Saved project opened. It will not generate automatically.");
+      setNotice(isZh ? "已加载保存的项目，可以继续编辑或更新。" : "Saved project loaded. You can continue editing or update it.");
       window.requestAnimationFrame(scrollToOutput);
     } catch (openError) {
       setProjectHistoryError(openError instanceof Error ? openError.message : isZh ? "项目打开失败。" : "Unable to open project.");
@@ -2435,24 +2755,48 @@ export function PromptStudioPage() {
     try {
       const detail = await fetchPromptStudioProject(project.id);
       if (!detail) throw new Error("Project data is missing.");
-      await copyPrompt(detail.projectData?.exportText || detail.title || "");
+      await copyPrompt(projectPackText(detail.projectData) || detail.title || "");
+      setNotice(isZh ? "项目包已复制。" : "Project pack copied.");
     } catch (copyError) {
       setProjectHistoryError(copyError instanceof Error ? copyError.message : isZh ? "项目包复制失败。" : "Unable to copy project pack.");
     }
   }
 
   async function deleteSavedProject(project: PromptStudioSavedProjectSummary) {
-    const ok = window.confirm(isZh ? `删除项目「${project.title}」？` : `Delete "${project.title}"?`);
+    const ok = window.confirm(
+      isZh
+        ? `确认删除项目「${project.title}」？此操作只删除保存的文本项目包，不影响已生成的历史记录。`
+        : `Delete "${project.title}"? This only removes the saved text project pack and will not affect generation history.`,
+    );
     if (!ok) return;
     setProjectHistoryError("");
     try {
       await deletePromptStudioProject(project.id);
       setProjectHistory((current) => current.filter((item) => item.id !== project.id));
       if (savedProjectId === project.id) setSavedProjectId(undefined);
+      if (selectedHistoryProject?.id === project.id) setSelectedHistoryProject(null);
       setNotice(isZh ? "项目已删除。" : "Project deleted.");
     } catch (deleteError) {
       setProjectHistoryError(deleteError instanceof Error ? deleteError.message : isZh ? "项目删除失败。" : "Unable to delete project.");
     }
+  }
+
+  function sendSavedProjectFirstShot(project: PromptStudioSavedProject) {
+    const prompt = firstProjectShotPrompt(project);
+    if (!prompt) return;
+    savePromptStudioToVideoDraft({
+      prompt,
+      source: "prompt-studio",
+      mode: "project",
+      target: "video",
+      engine,
+    });
+    setNotice(
+      isZh
+        ? "已填入第一镜头的视频工作区草稿。不会自动生成，请确认后手动点击生成。"
+        : "First shot sent to the video workspace draft. It will not generate automatically.",
+    );
+    router.push("/workspace/video?from=prompt-studio");
   }
 
   function saveForVideo() {
@@ -3462,8 +3806,9 @@ export function PromptStudioPage() {
           selectedStyles={selectedStyles}
           setQuery={setLibraryQuery}
         />
-        <ProjectHistoryDrawer
+        <ProjectHistoryDrawerV2
           error={projectHistoryError}
+          isDetailLoading={isProjectDetailLoading}
           isLoading={isProjectHistoryLoading}
           isOpen={isProjectHistoryOpen}
           isZh={isZh}
@@ -3472,7 +3817,10 @@ export function PromptStudioPage() {
           onDelete={(project) => void deleteSavedProject(project)}
           onOpen={(project) => void openSavedProject(project)}
           onRefresh={() => void loadProjectHistory()}
+          onSelect={(project) => void selectSavedProject(project)}
+          onSendFirstShot={sendSavedProjectFirstShot}
           projects={projectHistory}
+          selectedProject={selectedHistoryProject}
         />
       </main>
     </AppShell>

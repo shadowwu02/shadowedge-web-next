@@ -382,6 +382,13 @@ export type PromptStudioSavedProjectSummary = {
   aspectRatio?: string;
   shotCount?: number;
   assetCount?: number;
+  characterCount?: number;
+  locationCount?: number;
+  propCount?: number;
+  styleSummary?: string[];
+  coverSummary?: string;
+  primaryAssetTags?: string[];
+  previewLogline?: string;
   createdAt?: string;
   updatedAt?: string;
 };
