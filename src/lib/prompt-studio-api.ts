@@ -279,6 +279,7 @@ export type PromptStudioAssetReferenceImage = {
   height?: number;
   uploadedAt?: string;
   source?: "upload" | string;
+  provider?: "local" | "r2" | "s3" | string;
 };
 
 export type PromptStudioProjectPlanResult = {

@@ -11,11 +11,13 @@ export type PromptStudioDraftReferenceImage = {
   id: string;
   name: string;
   url: string;
+  storagePath?: string;
   mimeType?: string;
   sizeBytes?: number;
   width?: number;
   height?: number;
   uploadedAt?: string;
+  provider?: string;
 };
 
 export type PromptStudioBridgeDraft = {
@@ -74,18 +76,22 @@ function normalizeReferenceImage(value: unknown): PromptStudioDraftReferenceImag
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const reference = value as Record<string, unknown>;
   const url = typeof reference.url === "string" ? reference.url.trim() : "";
-  if (!url || isUnsafeReferenceImageUrl(url)) return null;
+  const storagePath = typeof reference.storagePath === "string" ? reference.storagePath.trim() : "";
+  if (!url || isUnsafeReferenceImageUrl(url) || isUnsafeReferenceImageUrl(storagePath)) return null;
   const name = typeof reference.name === "string" && reference.name.trim() ? reference.name.trim() : "Reference image";
+  const provider = typeof reference.provider === "string" ? reference.provider.trim().slice(0, 64) : "";
 
   return {
     id: typeof reference.id === "string" && reference.id.trim() ? reference.id.trim() : url,
     name,
     url,
+    storagePath: storagePath || undefined,
     mimeType: typeof reference.mimeType === "string" ? reference.mimeType : undefined,
     sizeBytes: Number.isFinite(Number(reference.sizeBytes)) ? Number(reference.sizeBytes) : undefined,
     width: Number.isFinite(Number(reference.width)) ? Number(reference.width) : undefined,
     height: Number.isFinite(Number(reference.height)) ? Number(reference.height) : undefined,
     uploadedAt: typeof reference.uploadedAt === "string" ? reference.uploadedAt : undefined,
+    provider: provider || undefined,
   };
 }
 

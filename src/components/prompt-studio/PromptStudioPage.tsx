@@ -1444,11 +1444,13 @@ function assetReferenceToDraftReference(asset: ProjectAssetItem): BridgeReferenc
     id: image.id || image.url,
     name: image.fileName || `${asset.assetTag} reference`,
     url: image.url,
+    storagePath: image.storagePath,
     mimeType: image.mimeType,
     sizeBytes: image.sizeBytes,
     width: image.width,
     height: image.height,
     uploadedAt: image.uploadedAt,
+    provider: image.provider,
   };
 }
 
@@ -1460,6 +1462,7 @@ function formatAssetFileMeta(image: PromptStudioAssetReferenceImage) {
   const parts = [
     image.fileName || "Reference image",
     image.sizeBytes ? `${Math.round(image.sizeBytes / 1024)} KB` : "",
+    image.provider ? image.provider : "",
     image.uploadedAt ? formatProjectDate(image.uploadedAt) : "",
   ].filter(Boolean);
   return parts.join(" / ");
