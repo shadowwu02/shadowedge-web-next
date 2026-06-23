@@ -251,6 +251,23 @@ function findDraftModel(draft: VideoWorkspaceDraft | null, modelList: VideoModel
   );
 }
 
+function getPromptStudioVideoReferences(draft: PromptStudioBridgeDraft | null): UploadMediaItem[] {
+  return (draft?.referenceImages || [])
+    .filter((reference) => reference.url)
+    .map((reference) => ({
+      id: reference.id || reference.url,
+      type: "image" as const,
+      role: "reference" as const,
+      source: "reference_selected" as const,
+      name: reference.name || "Prompt Studio reference",
+      previewUrl: reference.url,
+      url: reference.url,
+      size: reference.sizeBytes,
+      mimeType: reference.mimeType,
+      uploadStatus: "ready" as const,
+    }));
+}
+
 function writeVideoDraft(snapshot: {
   media: UploadMediaItem[];
   mentionBindings: VideoMentionBinding[];
@@ -850,6 +867,10 @@ export function VideoWorkspace() {
       }
 
       setPrompt(nextPrompt);
+      const nextReferences = getPromptStudioVideoReferences(draft);
+      if (nextReferences.length) {
+        setMedia((current) => mergeMediaAssets(current, nextReferences));
+      }
       setWorkspaceNotice(
         isZh
           ? "已从 Prompt Studio 填入草稿。不会自动生成。"
@@ -1329,6 +1350,10 @@ export function VideoWorkspace() {
   const handleImportPromptStudioDraft = useCallback(() => {
     if (!pendingPromptStudioDraft?.prompt) return;
     setPrompt(pendingPromptStudioDraft.prompt.slice(0, VIDEO_PROMPT_FRONTEND_LIMIT));
+    const nextReferences = getPromptStudioVideoReferences(pendingPromptStudioDraft);
+    if (nextReferences.length) {
+      setMedia((current) => mergeMediaAssets(current, nextReferences));
+    }
     setPendingPromptStudioDraft(null);
     setWorkspaceNotice(
       isZh

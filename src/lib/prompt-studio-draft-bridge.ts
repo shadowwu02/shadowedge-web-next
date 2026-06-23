@@ -7,12 +7,24 @@ const LANGUAGE_STORAGE_KEY = "se_lang";
 
 export type PromptStudioDraftTarget = "video" | "image" | "storyboard";
 
+export type PromptStudioDraftReferenceImage = {
+  id: string;
+  name: string;
+  url: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  width?: number;
+  height?: number;
+  uploadedAt?: string;
+};
+
 export type PromptStudioBridgeDraft = {
   prompt: string;
   source: "prompt-studio" | "video-workspace" | "image-workspace";
   mode?: string;
   target?: PromptStudioDraftTarget;
   engine?: string;
+  referenceImages?: PromptStudioDraftReferenceImage[];
   createdAt: string;
 };
 
@@ -45,6 +57,25 @@ function normalizePrompt(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function normalizeReferenceImage(value: unknown): PromptStudioDraftReferenceImage | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const reference = value as Record<string, unknown>;
+  const url = typeof reference.url === "string" ? reference.url.trim() : "";
+  if (!url || url.startsWith("data:") || url.startsWith("blob:")) return null;
+  const name = typeof reference.name === "string" && reference.name.trim() ? reference.name.trim() : "Reference image";
+
+  return {
+    id: typeof reference.id === "string" && reference.id.trim() ? reference.id.trim() : url,
+    name,
+    url,
+    mimeType: typeof reference.mimeType === "string" ? reference.mimeType : undefined,
+    sizeBytes: Number.isFinite(Number(reference.sizeBytes)) ? Number(reference.sizeBytes) : undefined,
+    width: Number.isFinite(Number(reference.width)) ? Number(reference.width) : undefined,
+    height: Number.isFinite(Number(reference.height)) ? Number(reference.height) : undefined,
+    uploadedAt: typeof reference.uploadedAt === "string" ? reference.uploadedAt : undefined,
+  };
+}
+
 function normalizeDraft(value: unknown): PromptStudioBridgeDraft | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
@@ -53,6 +84,13 @@ function normalizeDraft(value: unknown): PromptStudioBridgeDraft | null {
 
   const source = String(record.source || "");
   const target = String(record.target || "");
+  const referenceImages: PromptStudioDraftReferenceImage[] | undefined = Array.isArray(record.referenceImages)
+    ? record.referenceImages.reduce<PromptStudioDraftReferenceImage[]>((items, item) => {
+        const normalized = normalizeReferenceImage(item);
+        if (normalized) items.push(normalized);
+        return items;
+      }, []).slice(0, 10)
+    : undefined;
 
   return {
     prompt,
@@ -63,6 +101,7 @@ function normalizeDraft(value: unknown): PromptStudioBridgeDraft | null {
     mode: typeof record.mode === "string" ? record.mode : undefined,
     target: target === "video" || target === "image" || target === "storyboard" ? target : undefined,
     engine: typeof record.engine === "string" ? record.engine : undefined,
+    referenceImages,
     createdAt: typeof record.createdAt === "string" ? record.createdAt : new Date().toISOString(),
   };
 }

@@ -16,7 +16,31 @@ import {
   saveWorkspaceToPromptStudioDraft,
   type PromptStudioBridgeDraft,
 } from "@/lib/prompt-studio-draft-bridge";
-import type { ImageHistoryItem } from "@/types/image";
+import type { ImageHistoryItem, ImageReferenceItem } from "@/types/image";
+
+function getPromptStudioImageReferences(draft: PromptStudioBridgeDraft | null): ImageReferenceItem[] {
+  return (draft?.referenceImages || [])
+    .filter((reference) => reference.url)
+    .map((reference) => ({
+      id: reference.id || reference.url,
+      type: "image" as const,
+      name: reference.name || "Prompt Studio reference",
+      url: reference.url,
+      previewUrl: reference.url,
+      size: reference.sizeBytes,
+      mimeType: reference.mimeType,
+      width: reference.width,
+      height: reference.height,
+      uploadedAt: reference.uploadedAt,
+      uploadStatus: "ready" as const,
+    }));
+}
+
+function mergeImageReferences(current: ImageReferenceItem[], next: ImageReferenceItem[]) {
+  if (!next.length) return current;
+  const existing = new Set(current.map((item) => item.url || item.id));
+  return [...current, ...next.filter((item) => !existing.has(item.url || item.id))];
+}
 
 export function ImageWorkspace() {
   const { locale, t } = useI18n();
@@ -70,6 +94,10 @@ export function ImageWorkspace() {
       }
 
       image.setPrompt(nextPrompt);
+      const nextReferences = getPromptStudioImageReferences(draft);
+      if (nextReferences.length) {
+        image.setReferences((current) => mergeImageReferences(current, nextReferences));
+      }
       setPromptStudioNotice(
         isZh
           ? "已从 Prompt Studio 填入草稿。不会自动生成。"
@@ -83,6 +111,10 @@ export function ImageWorkspace() {
   const handleImportPromptStudioDraft = useCallback(() => {
     if (!pendingPromptStudioDraft?.prompt) return;
     image.setPrompt(pendingPromptStudioDraft.prompt.slice(0, 2000));
+    const nextReferences = getPromptStudioImageReferences(pendingPromptStudioDraft);
+    if (nextReferences.length) {
+      image.setReferences((current) => mergeImageReferences(current, nextReferences));
+    }
     setPendingPromptStudioDraft(null);
     setPromptStudioNotice(
       isZh

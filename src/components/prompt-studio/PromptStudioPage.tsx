@@ -26,6 +26,7 @@ import {
   type PromptStudioGenerateResult,
   type PromptStudioLibraryItem,
   type PromptStudioMode,
+  type PromptStudioAssetReferenceImage,
   type PromptStudioProjectPlanResult,
   type PromptStudioProjectType,
   type PromptStudioReferenceAnalysisResult,
@@ -37,6 +38,7 @@ import {
   type PromptStudioSavedProjectSummary,
   type PromptStudioStoryboardShot,
   updatePromptStudioProject,
+  uploadPromptStudioAssetImage,
 } from "@/lib/prompt-studio-api";
 
 type Target = "video" | "image" | "storyboard";
@@ -45,6 +47,12 @@ type ResultKey = "basicPrompt" | "standardPrompt" | "enhancedPrompt";
 type LibraryKind = "style" | "module";
 type LibraryGroupId = "recommended" | "cinematic" | "camera" | "character" | "scene" | "all";
 type TextMode = Exclude<PromptStudioMode, "all">;
+type ProjectAssetKind = "characters" | "locations" | "props";
+type ProjectAssetItem =
+  | PromptStudioProjectPlanResult["assetPlan"]["characters"][number]
+  | PromptStudioProjectPlanResult["assetPlan"]["locations"][number]
+  | PromptStudioProjectPlanResult["assetPlan"]["props"][number];
+type BridgeReferenceImage = NonNullable<Parameters<typeof savePromptStudioToImageDraft>[0]["referenceImages"]>[number];
 
 type LibraryItemWithKind = PromptStudioLibraryItem & { libraryKind: LibraryKind };
 
@@ -1360,6 +1368,145 @@ function ProjectIdentityLock({
   );
 }
 
+function getProjectAssetPrompt(asset: ProjectAssetItem) {
+  if ("threeViewPrompt" in asset) return asset.imageWorkspacePrompt || asset.threeViewPrompt || asset.portraitPrompt || "";
+  if ("environmentPrompt" in asset) return asset.imageWorkspacePrompt || asset.environmentPrompt || "";
+  return asset.imageWorkspacePrompt || asset.propDesignPrompt || "";
+}
+
+function getProjectAssetReferenceImage(asset?: ProjectAssetItem | null) {
+  return asset?.assetReferenceImage || null;
+}
+
+function getAssetUploadKey(kind: ProjectAssetKind, assetTag: string) {
+  return `${kind}:${assetTag}`;
+}
+
+function countProjectAssetReferenceImages(projectData?: PromptStudioProjectPlanResult | null) {
+  if (!projectData) return 0;
+  return [
+    ...projectData.assetPlan.characters,
+    ...projectData.assetPlan.locations,
+    ...projectData.assetPlan.props,
+  ].filter((asset) => Boolean(getProjectAssetReferenceImage(asset)?.url)).length;
+}
+
+function assetReferenceToDraftReference(asset: ProjectAssetItem): BridgeReferenceImage | null {
+  const image = getProjectAssetReferenceImage(asset);
+  if (!image?.url) return null;
+  return {
+    id: image.id || image.url,
+    name: image.fileName || `${asset.assetTag} reference`,
+    url: image.url,
+    mimeType: image.mimeType,
+    sizeBytes: image.sizeBytes,
+    width: image.width,
+    height: image.height,
+    uploadedAt: image.uploadedAt,
+  };
+}
+
+function isBridgeReferenceImage(value: BridgeReferenceImage | null): value is BridgeReferenceImage {
+  return Boolean(value?.url);
+}
+
+function formatAssetFileMeta(image: PromptStudioAssetReferenceImage) {
+  const parts = [
+    image.fileName || "Reference image",
+    image.sizeBytes ? `${Math.round(image.sizeBytes / 1024)} KB` : "",
+    image.uploadedAt ? formatProjectDate(image.uploadedAt) : "",
+  ].filter(Boolean);
+  return parts.join(" / ");
+}
+
+function ProjectAssetReferencePanel({
+  asset,
+  error,
+  isUploading,
+  isZh,
+  kind,
+  onRemove,
+  onSaveImage,
+  onSaveVideo,
+  onUpload,
+}: {
+  asset: ProjectAssetItem;
+  error?: string;
+  isUploading: boolean;
+  isZh: boolean;
+  kind: ProjectAssetKind;
+  onRemove: (kind: ProjectAssetKind, assetTag: string) => void;
+  onSaveImage: (asset: ProjectAssetItem) => void;
+  onSaveVideo: (asset: ProjectAssetItem) => void;
+  onUpload: (kind: ProjectAssetKind, assetTag: string, file: File) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const image = getProjectAssetReferenceImage(asset);
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) onUpload(kind, asset.assetTag, file);
+  }
+
+  return (
+    <section className="mt-3 rounded-[20px] border border-[#f6a935]/12 bg-[#f6a935]/[.045] p-3">
+      <input accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleFileChange} ref={inputRef} type="file" />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-[11px] font-black uppercase tracking-[.16em] text-[#ffd48a]/70">
+            {isZh ? "参考图绑定" : "Reference image"}
+          </div>
+          <p className="mt-1 text-xs leading-5 text-white/48">
+            {isZh
+              ? "绑定到该资产草稿。只保存图片链接，不会自动生成。"
+              : "Bound to this asset draft. Stores an image URL only; it will not generate automatically."}
+          </p>
+        </div>
+        <button
+          className="rounded-full border border-[#f6a935]/22 bg-[#f6a935]/12 px-3 py-1.5 text-xs font-black text-[#ffd48a] disabled:cursor-not-allowed disabled:opacity-45"
+          disabled={isUploading}
+          onClick={() => inputRef.current?.click()}
+          type="button"
+        >
+          {isUploading ? (isZh ? "上传中..." : "Uploading...") : image?.url ? (isZh ? "替换图片" : "Replace image") : (isZh ? "上传参考图" : "Upload reference")}
+        </button>
+      </div>
+
+      {image?.url ? (
+        <div className="mt-3 grid gap-3 md:grid-cols-[120px_minmax(0,1fr)]">
+          <img
+            alt={`${asset.assetTag} reference`}
+            className="h-28 w-full rounded-2xl border border-white/[.08] object-cover"
+            src={image.url}
+          />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-black text-white/82">{image.fileName || `${asset.assetTag} reference`}</div>
+            <div className="mt-1 text-xs text-white/42">{formatAssetFileMeta(image)}</div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70 hover:text-white" onClick={() => onSaveImage(asset)} type="button">
+                {isZh ? "填入图片草稿" : "Use in Image Draft"}
+              </button>
+              <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70 hover:text-white" onClick={() => onSaveVideo(asset)} type="button">
+                {isZh ? "填入视频草稿" : "Use in Video Draft"}
+              </button>
+              <button className="rounded-full border border-red-300/18 bg-red-400/10 px-3 py-1.5 text-xs font-black text-red-100/80" onClick={() => onRemove(kind, asset.assetTag)} type="button">
+                {isZh ? "移除绑定" : "Remove image"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 rounded-2xl border border-dashed border-white/[.08] bg-black/16 p-3 text-xs leading-5 text-white/42">
+          {isZh ? "还没有为该资产绑定参考图。" : "No reference image is bound to this asset yet."}
+        </div>
+      )}
+
+      {error ? <div className="mt-3 rounded-2xl border border-red-300/20 bg-red-400/10 p-3 text-xs leading-5 text-red-100">{error}</div> : null}
+    </section>
+  );
+}
+
 function ProjectPlanOutput({
   isZh,
   onClear,
@@ -1367,21 +1514,31 @@ function ProjectPlanOutput({
   onOpenHistory,
   onSaveProject,
   onSaveAssetImage,
+  onSaveAssetVideo,
   onSaveShotVideo,
+  onRemoveAssetReference,
+  onUploadAssetReference,
   result,
   savedProjectId,
   isSavingProject,
+  assetUploadErrors,
+  assetUploadingKey,
 }: {
   isZh: boolean;
   onClear: () => void;
   onCopy: (prompt: string) => void;
   onOpenHistory: () => void;
   onSaveProject: () => void;
-  onSaveAssetImage: (prompt: string) => void;
+  onSaveAssetImage: (asset: ProjectAssetItem) => void;
+  onSaveAssetVideo: (asset: ProjectAssetItem) => void;
   onSaveShotVideo: (prompt: string) => void;
+  onRemoveAssetReference: (kind: ProjectAssetKind, assetTag: string) => void;
+  onUploadAssetReference: (kind: ProjectAssetKind, assetTag: string, file: File) => void;
   result: PromptStudioProjectPlanResult;
   savedProjectId?: string;
   isSavingProject: boolean;
+  assetUploadErrors: Record<string, string>;
+  assetUploadingKey: string;
 }) {
   const styleSections = [
     { title: "Visual Style", items: result.styleConstitution.visualStyle },
@@ -1454,7 +1611,7 @@ function ProjectPlanOutput({
         <div className="mb-4 flex items-center justify-between gap-3">
           <SectionLabel>Project Asset Drafts</SectionLabel>
           <span className="text-xs font-bold text-white/38">
-            {result.assetPlan.characters.length + result.assetPlan.locations.length + result.assetPlan.props.length} drafts
+            {result.assetPlan.characters.length + result.assetPlan.locations.length + result.assetPlan.props.length} drafts / {countProjectAssetReferenceImages(result)} references attached
           </span>
         </div>
         <div className="grid gap-5">
@@ -1473,10 +1630,10 @@ function ProjectPlanOutput({
                       <p className="mt-2 text-sm leading-6 text-white/58">{item.description}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70" onClick={() => onCopy(item.imageWorkspacePrompt || item.threeViewPrompt)} type="button">
+                      <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70" onClick={() => onCopy(getProjectAssetPrompt(item))} type="button">
                         Copy Asset Prompt
                       </button>
-                      <button className="rounded-full border border-[#f6a935]/20 bg-[#f6a935]/12 px-3 py-1.5 text-xs font-black text-[#ffd48a]" onClick={() => onSaveAssetImage(item.imageWorkspacePrompt || item.threeViewPrompt)} type="button">
+                      <button className="rounded-full border border-[#f6a935]/20 bg-[#f6a935]/12 px-3 py-1.5 text-xs font-black text-[#ffd48a]" onClick={() => onSaveAssetImage(item)} type="button">
                         Fill Image Draft
                       </button>
                       {item.negativePrompt ? (
@@ -1486,6 +1643,17 @@ function ProjectPlanOutput({
                       ) : null}
                     </div>
                   </div>
+                  <ProjectAssetReferencePanel
+                    asset={item}
+                    error={assetUploadErrors[getAssetUploadKey("characters", item.assetTag)]}
+                    isUploading={assetUploadingKey === getAssetUploadKey("characters", item.assetTag)}
+                    isZh={isZh}
+                    kind="characters"
+                    onRemove={onRemoveAssetReference}
+                    onSaveImage={onSaveAssetImage}
+                    onSaveVideo={onSaveAssetVideo}
+                    onUpload={onUploadAssetReference}
+                  />
                   <div className="mt-3 grid gap-3 lg:grid-cols-2">
                     <ProjectPromptBlock onCopy={onCopy} prompt={item.imageWorkspacePrompt || item.threeViewPrompt} title="Image Workspace Prompt" />
                     <ProjectPromptBlock onCopy={onCopy} prompt={item.negativePrompt} title="Negative Prompt" />
@@ -1517,14 +1685,25 @@ function ProjectPlanOutput({
                       <p className="mt-2 text-sm leading-6 text-white/58">{item.description}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70" onClick={() => onCopy(item.imageWorkspacePrompt || item.environmentPrompt)} type="button">
+                      <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70" onClick={() => onCopy(getProjectAssetPrompt(item))} type="button">
                         Copy Asset Prompt
                       </button>
-                      <button className="rounded-full border border-[#f6a935]/20 bg-[#f6a935]/12 px-3 py-1.5 text-xs font-black text-[#ffd48a]" onClick={() => onSaveAssetImage(item.imageWorkspacePrompt || item.environmentPrompt)} type="button">
+                      <button className="rounded-full border border-[#f6a935]/20 bg-[#f6a935]/12 px-3 py-1.5 text-xs font-black text-[#ffd48a]" onClick={() => onSaveAssetImage(item)} type="button">
                         Fill Image Draft
                       </button>
                     </div>
                   </div>
+                  <ProjectAssetReferencePanel
+                    asset={item}
+                    error={assetUploadErrors[getAssetUploadKey("locations", item.assetTag)]}
+                    isUploading={assetUploadingKey === getAssetUploadKey("locations", item.assetTag)}
+                    isZh={isZh}
+                    kind="locations"
+                    onRemove={onRemoveAssetReference}
+                    onSaveImage={onSaveAssetImage}
+                    onSaveVideo={onSaveAssetVideo}
+                    onUpload={onUploadAssetReference}
+                  />
                   <div className="mt-3 grid gap-3 lg:grid-cols-2">
                     <ProjectPromptBlock onCopy={onCopy} prompt={item.imageWorkspacePrompt || item.environmentPrompt} title="Image Workspace Prompt" />
                     <ProjectPromptBlock onCopy={onCopy} prompt={item.environmentPrompt} title="Environment Prompt" />
@@ -1554,10 +1733,10 @@ function ProjectPlanOutput({
                       <p className="mt-2 text-sm leading-6 text-white/58">{item.description}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70" onClick={() => onCopy(item.imageWorkspacePrompt || item.propDesignPrompt)} type="button">
+                      <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70" onClick={() => onCopy(getProjectAssetPrompt(item))} type="button">
                         Copy Asset Prompt
                       </button>
-                      <button className="rounded-full border border-[#f6a935]/20 bg-[#f6a935]/12 px-3 py-1.5 text-xs font-black text-[#ffd48a]" onClick={() => onSaveAssetImage(item.imageWorkspacePrompt || item.propDesignPrompt)} type="button">
+                      <button className="rounded-full border border-[#f6a935]/20 bg-[#f6a935]/12 px-3 py-1.5 text-xs font-black text-[#ffd48a]" onClick={() => onSaveAssetImage(item)} type="button">
                         Fill Image Draft
                       </button>
                       {item.negativePrompt ? (
@@ -1567,6 +1746,17 @@ function ProjectPlanOutput({
                       ) : null}
                     </div>
                   </div>
+                  <ProjectAssetReferencePanel
+                    asset={item}
+                    error={assetUploadErrors[getAssetUploadKey("props", item.assetTag)]}
+                    isUploading={assetUploadingKey === getAssetUploadKey("props", item.assetTag)}
+                    isZh={isZh}
+                    kind="props"
+                    onRemove={onRemoveAssetReference}
+                    onSaveImage={onSaveAssetImage}
+                    onSaveVideo={onSaveAssetVideo}
+                    onUpload={onUploadAssetReference}
+                  />
                   <div className="mt-3 grid gap-3 lg:grid-cols-2">
                     <ProjectPromptBlock onCopy={onCopy} prompt={item.imageWorkspacePrompt || item.propDesignPrompt} title="Image Workspace Prompt" />
                     <ProjectPromptBlock onCopy={onCopy} prompt={item.propDesignPrompt} title="Prop Design Prompt" />
@@ -2002,6 +2192,7 @@ function ProjectHistoryDrawerV2({
                         <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-white/48">
                           <span>{project.shotCount || 0} shots</span>
                           <span>{project.assetCount || 0} assets</span>
+                          {project.assetWithImagesCount ? <span>{project.assetWithImagesCount} references attached</span> : null}
                           <span>{formatProjectDate(project.updatedAt || project.createdAt)}</span>
                         </div>
                         {assetTags.length ? (
@@ -2059,6 +2250,7 @@ function ProjectHistoryDrawerV2({
                   <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-white/44">
                     <span>{detail.shotPlan?.length || selectedProject.shotCount || 0} shots</span>
                     <span>{selectedAssetCount} assets</span>
+                    <span>{countProjectAssetReferenceImages(detail)} references attached</span>
                     <span>{formatProjectDate(selectedProject.updatedAt || selectedProject.createdAt)}</span>
                   </div>
                 </div>
@@ -2096,9 +2288,9 @@ function ProjectHistoryDrawerV2({
                 <div className="rounded-[22px] border border-white/[.06] bg-white/[.03] p-4">
                   <h4 className="text-sm font-black text-white">{isZh ? "资产概览" : "Assets"}</h4>
                   <div className="mt-3 grid gap-2 text-xs text-white/56">
-                    <div><b className="text-white/78">Characters:</b> {(assets?.characters || []).map((item) => item.assetTag).join(", ") || "-"}</div>
-                    <div><b className="text-white/78">Locations:</b> {(assets?.locations || []).map((item) => item.assetTag).join(", ") || "-"}</div>
-                    <div><b className="text-white/78">Props:</b> {(assets?.props || []).map((item) => item.assetTag).join(", ") || "-"}</div>
+                    <div><b className="text-white/78">Characters:</b> {(assets?.characters || []).map((item) => `${item.assetTag}${item.assetReferenceImage?.url ? " (image)" : ""}`).join(", ") || "-"}</div>
+                    <div><b className="text-white/78">Locations:</b> {(assets?.locations || []).map((item) => `${item.assetTag}${item.assetReferenceImage?.url ? " (image)" : ""}`).join(", ") || "-"}</div>
+                    <div><b className="text-white/78">Props:</b> {(assets?.props || []).map((item) => `${item.assetTag}${item.assetReferenceImage?.url ? " (image)" : ""}`).join(", ") || "-"}</div>
                   </div>
                 </div>
 
@@ -2252,6 +2444,8 @@ export function PromptStudioPage() {
   const [projectPendingDelete, setProjectPendingDelete] = useState<PromptStudioSavedProjectSummary | null>(null);
   const [deletingProjectId, setDeletingProjectId] = useState("");
   const [deleteProjectError, setDeleteProjectError] = useState("");
+  const [assetUploadingKey, setAssetUploadingKey] = useState("");
+  const [assetUploadErrors, setAssetUploadErrors] = useState<Record<string, string>>({});
   const [styleCardResult, setStyleCardResult] = useState<PromptStudioReferenceAnalysisResult | null>(null);
   const [referenceStyleResult, setReferenceStyleResult] = useState<PromptStudioReferenceStylePromptResult | null>(null);
   const [referenceImageFile, setReferenceImageFile] = useState<File | null>(null);
@@ -2739,6 +2933,93 @@ export function PromptStudioPage() {
     };
   }
 
+  function updateProjectAssetReference(kind: ProjectAssetKind, assetTag: string, assetReferenceImage?: PromptStudioAssetReferenceImage | null) {
+    setProjectResult((current) => {
+      if (!current) return current;
+      const updateList = <T extends ProjectAssetItem>(items: T[]) =>
+        items.map((item) =>
+          item.assetTag === assetTag
+            ? ({
+                ...item,
+                assetReferenceImage: assetReferenceImage || undefined,
+              } as T)
+            : item,
+        );
+
+      return {
+        ...current,
+        assetPlan: {
+          ...current.assetPlan,
+          [kind]: updateList(current.assetPlan[kind] as ProjectAssetItem[]),
+        },
+      } as PromptStudioProjectPlanResult;
+    });
+
+    setSelectedHistoryProject((current) => {
+      if (!current?.projectData || current.id !== savedProjectId) return current;
+      const updateList = <T extends ProjectAssetItem>(items: T[]) =>
+        items.map((item) =>
+          item.assetTag === assetTag
+            ? ({
+                ...item,
+                assetReferenceImage: assetReferenceImage || undefined,
+              } as T)
+            : item,
+        );
+      return {
+        ...current,
+        projectData: {
+          ...current.projectData,
+          assetPlan: {
+            ...current.projectData.assetPlan,
+            [kind]: updateList(current.projectData.assetPlan[kind] as ProjectAssetItem[]),
+          },
+        } as PromptStudioProjectPlanResult,
+      };
+    });
+  }
+
+  async function uploadAssetReferenceImage(kind: ProjectAssetKind, assetTag: string, file: File) {
+    const key = getAssetUploadKey(kind, assetTag);
+    const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
+    if (!allowedTypes.has(file.type)) {
+      setAssetUploadErrors((current) => ({
+        ...current,
+        [key]: isZh ? "只支持 PNG、JPEG 或 WebP 图片。" : "Only PNG, JPEG, or WebP images are supported.",
+      }));
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setAssetUploadErrors((current) => ({
+        ...current,
+        [key]: isZh ? "参考图不能超过 10MB。" : "Reference image must be 10MB or smaller.",
+      }));
+      return;
+    }
+
+    setAssetUploadingKey(key);
+    setAssetUploadErrors((current) => ({ ...current, [key]: "" }));
+    try {
+      const image = await uploadPromptStudioAssetImage(file);
+      if (!image?.url) throw new Error("Upload did not return an image URL.");
+      updateProjectAssetReference(kind, assetTag, image);
+      setNotice(isZh ? "参考图已绑定。点击更新项目即可保存到项目历史。" : "Reference image bound. Click Update Project to save it to Project History.");
+    } catch (uploadError) {
+      setAssetUploadErrors((current) => ({
+        ...current,
+        [key]: uploadError instanceof Error ? uploadError.message : isZh ? "参考图上传失败。" : "Reference image upload failed.",
+      }));
+    } finally {
+      setAssetUploadingKey("");
+    }
+  }
+
+  function removeAssetReferenceImage(kind: ProjectAssetKind, assetTag: string) {
+    updateProjectAssetReference(kind, assetTag, null);
+    setAssetUploadErrors((current) => ({ ...current, [getAssetUploadKey(kind, assetTag)]: "" }));
+    setNotice(isZh ? "已移除该资产的参考图绑定。点击更新项目即可保存。" : "Reference image removed from this asset. Click Update Project to save.");
+  }
+
   async function loadProjectHistory() {
     setIsProjectHistoryLoading(true);
     setProjectHistoryError("");
@@ -2926,19 +3207,42 @@ export function PromptStudioPage() {
     router.push("/workspace/video?from=prompt-studio");
   }
 
-  function saveProjectAssetForImage(prompt: string) {
+  function saveProjectAssetForImage(asset: ProjectAssetItem) {
+    const prompt = getProjectAssetPrompt(asset);
     if (!prompt) return;
+    const referenceImages = [assetReferenceToDraftReference(asset)].filter(isBridgeReferenceImage);
     savePromptStudioToImageDraft({
       prompt,
       source: "prompt-studio",
       mode: "project",
       target: "image",
       engine,
+      referenceImages,
     });
     setNotice(isZh
       ? "已填入资产图片工作区草稿。不会自动生成，请确认后手动点击生成。"
       : "This asset prompt was sent to the image workspace draft. It will not generate automatically.");
     router.push("/workspace/image?from=prompt-studio");
+  }
+
+  function saveProjectAssetForVideo(asset: ProjectAssetItem) {
+    const prompt = getProjectAssetPrompt(asset);
+    if (!prompt) return;
+    const referenceImages = [assetReferenceToDraftReference(asset)].filter(isBridgeReferenceImage);
+    savePromptStudioToVideoDraft({
+      prompt,
+      source: "prompt-studio",
+      mode: "project",
+      target: "video",
+      engine,
+      referenceImages,
+    });
+    setNotice(
+      isZh
+        ? "资产提示词已填入视频工作区草稿。不会自动生成，请确认后手动点击生成。"
+        : "This asset prompt was sent to the video workspace draft. It will not generate automatically.",
+    );
+    router.push("/workspace/video?from=prompt-studio");
   }
 
   function saveForImage() {
@@ -3602,13 +3906,18 @@ export function PromptStudioPage() {
                     onClear={clearResult}
                     onCopy={(prompt) => void copyPrompt(prompt)}
                     onOpenHistory={openProjectHistory}
-                    onSaveProject={() => void saveCurrentProject()}
-                    onSaveAssetImage={saveProjectAssetForImage}
-                    onSaveShotVideo={saveProjectShotForVideo}
-                    result={projectResult}
-                    savedProjectId={savedProjectId}
-                    isSavingProject={isProjectSaving}
-                  />
+                  onSaveProject={() => void saveCurrentProject()}
+                  onSaveAssetImage={saveProjectAssetForImage}
+                  onSaveAssetVideo={saveProjectAssetForVideo}
+                  onSaveShotVideo={saveProjectShotForVideo}
+                  onRemoveAssetReference={removeAssetReferenceImage}
+                  onUploadAssetReference={(kind, assetTag, file) => void uploadAssetReferenceImage(kind, assetTag, file)}
+                  result={projectResult}
+                  savedProjectId={savedProjectId}
+                  isSavingProject={isProjectSaving}
+                  assetUploadErrors={assetUploadErrors}
+                  assetUploadingKey={assetUploadingKey}
+                />
                 ) : (
                   <div className="mt-5">
                     <EmptyOutputState locale={locale} />

@@ -268,6 +268,19 @@ export type PromptStudioReferenceStylePromptResult = {
 
 export type PromptStudioProjectType = "short-film" | "short-drama" | "commercial" | "music-video" | "storyboard";
 
+export type PromptStudioAssetReferenceImage = {
+  id: string;
+  url: string;
+  storagePath?: string;
+  fileName?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  width?: number;
+  height?: number;
+  uploadedAt?: string;
+  source?: "upload" | string;
+};
+
 export type PromptStudioProjectPlanResult = {
   projectTitle: string;
   projectLogline: string;
@@ -305,6 +318,7 @@ export type PromptStudioProjectPlanResult = {
       imageWorkspacePrompt?: string;
       negativePrompt?: string;
       usageNotes?: string[];
+      assetReferenceImage?: PromptStudioAssetReferenceImage | null;
     }>;
     locations: Array<{
       assetTag: string;
@@ -315,6 +329,7 @@ export type PromptStudioProjectPlanResult = {
       continuityRules: string[];
       keyVisualElements?: string[];
       usageNotes?: string[];
+      assetReferenceImage?: PromptStudioAssetReferenceImage | null;
     }>;
     props: Array<{
       assetTag: string;
@@ -326,6 +341,7 @@ export type PromptStudioProjectPlanResult = {
       keyDesignElements?: string[];
       negativePrompt?: string;
       usageNotes?: string[];
+      assetReferenceImage?: PromptStudioAssetReferenceImage | null;
     }>;
   };
   shotPlan: Array<{
@@ -382,6 +398,7 @@ export type PromptStudioSavedProjectSummary = {
   aspectRatio?: string;
   shotCount?: number;
   assetCount?: number;
+  assetWithImagesCount?: number;
   characterCount?: number;
   locationCount?: number;
   propCount?: number;
@@ -441,6 +458,18 @@ export async function deletePromptStudioProject(id: string) {
     method: "DELETE",
   });
   return payload.data;
+}
+
+export async function uploadPromptStudioAssetImage(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const payload = await apiRequest<{ assetImage: PromptStudioAssetReferenceImage }>("/api/prompt-studio/assets/upload", {
+    method: "POST",
+    body: formData,
+  });
+
+  return payload.data?.assetImage;
 }
 
 export async function generatePromptStudioPrompt(input: PromptStudioGenerateRequest) {
