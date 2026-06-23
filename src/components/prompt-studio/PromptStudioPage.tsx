@@ -50,6 +50,8 @@ type LibraryKind = "style" | "module";
 type LibraryGroupId = "recommended" | "cinematic" | "camera" | "character" | "scene" | "all";
 type TextMode = Exclude<PromptStudioMode, "all">;
 type ProjectAssetKind = "characters" | "locations" | "props";
+type ProjectLibraryFilter = "all" | "withReferences" | "noReferences" | "recent";
+type ProjectLibrarySort = "updatedNewest" | "createdNewest" | "mostShots" | "mostAssets";
 type ProjectAssetItem =
   | PromptStudioProjectPlanResult["assetPlan"]["characters"][number]
   | PromptStudioProjectPlanResult["assetPlan"]["locations"][number]
@@ -1404,6 +1406,13 @@ function isUnsafeAssetReferenceUrl(value?: string | null) {
   );
 }
 
+function isSafeDisplayImageUrl(value?: string | null) {
+  const normalized = String(value || "").trim();
+  const lower = normalized.toLowerCase();
+  if (!normalized || isUnsafeAssetReferenceUrl(normalized)) return false;
+  return lower.startsWith("https://") || lower.startsWith("http://");
+}
+
 function isSafeAssetReferenceImage(image?: PromptStudioAssetReferenceImage | null) {
   if (!image) return false;
   const url = typeof image.url === "string" ? image.url.trim() : "";
@@ -1433,10 +1442,30 @@ function countProjectAssetReferenceImages(projectData?: PromptStudioProjectPlanR
   ].filter((asset) => Boolean(getProjectAssetReferenceImage(asset)?.url)).length;
 }
 
-function formatProjectAssetReferenceSuffix(asset: ProjectAssetItem) {
-  if (getProjectAssetReferenceImage(asset)?.url) return " (image)";
-  if (getUnsafeProjectAssetReferenceImage(asset)) return " (invalid)";
-  return "";
+function getProjectAssets(projectData?: PromptStudioProjectPlanResult | null): ProjectAssetItem[] {
+  if (!projectData) return [];
+  return [
+    ...projectData.assetPlan.characters,
+    ...projectData.assetPlan.locations,
+    ...projectData.assetPlan.props,
+  ];
+}
+
+function getProjectCoverImage(projectData?: PromptStudioProjectPlanResult | null) {
+  const asset = getProjectAssets(projectData).find((item) => {
+    const image = getProjectAssetReferenceImage(item);
+    return isSafeDisplayImageUrl(image?.url);
+  });
+  return asset ? getProjectAssetReferenceImage(asset) : null;
+}
+
+function getProjectReferenceCount(project: PromptStudioSavedProjectSummary, detail?: PromptStudioProjectPlanResult | null) {
+  return detail ? countProjectAssetReferenceImages(detail) : project.assetWithImagesCount || 0;
+}
+
+function getProjectAssetCount(project: PromptStudioSavedProjectSummary, detail?: PromptStudioProjectPlanResult | null) {
+  if (detail) return getProjectAssets(detail).length;
+  return project.assetCount || (project.characterCount || 0) + (project.locationCount || 0) + (project.propCount || 0);
 }
 
 function assetReferenceToDraftReference(asset: ProjectAssetItem): BridgeReferenceImage | null {
@@ -2045,6 +2074,82 @@ function compactProjectItems(items?: string[], limit = 4) {
   return (items || []).filter(Boolean).slice(0, limit);
 }
 
+function projectTimeValue(value?: string) {
+  if (!value) return 0;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+function projectMatchesSearch(
+  project: PromptStudioSavedProjectSummary,
+  query: string,
+  detail?: PromptStudioProjectPlanResult | null,
+) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return true;
+  const assetTags = detail ? getProjectAssets(detail).map((asset) => asset.assetTag) : project.primaryAssetTags || [];
+  const detailText = detail
+    ? [
+        detail.projectTitle,
+        detail.projectLogline,
+        detail.projectType,
+        detail.target,
+        detail.engine,
+        detail.aspectRatio,
+        ...assetTags,
+        ...(detail.styleConstitution?.visualStyle || []),
+        ...(detail.styleConstitution?.colorPalette || []),
+        ...(detail.styleConstitution?.lightingRules || []),
+      ]
+    : [];
+  return [
+    project.title,
+    project.previewLogline,
+    project.brief,
+    project.projectType,
+    project.target,
+    project.engine,
+    project.aspectRatio,
+    project.coverSummary,
+    ...(project.styleSummary || []),
+    ...(project.primaryAssetTags || []),
+    ...detailText,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .includes(normalized);
+}
+
+function projectMatchesFilter(
+  project: PromptStudioSavedProjectSummary,
+  filter: ProjectLibraryFilter,
+  detail?: PromptStudioProjectPlanResult | null,
+) {
+  const referenceCount = getProjectReferenceCount(project, detail);
+  if (filter === "withReferences") return referenceCount > 0;
+  if (filter === "noReferences") return referenceCount === 0;
+  if (filter === "recent") {
+    const updated = projectTimeValue(project.updatedAt || project.createdAt);
+    if (!updated) return false;
+    return Date.now() - updated <= 7 * 24 * 60 * 60 * 1000;
+  }
+  return true;
+}
+
+function sortProjectLibraryItems(
+  projects: PromptStudioSavedProjectSummary[],
+  sort: ProjectLibrarySort,
+  details: Record<string, PromptStudioSavedProject>,
+) {
+  return [...projects].sort((a, b) => {
+    if (sort === "createdNewest") return projectTimeValue(b.createdAt) - projectTimeValue(a.createdAt);
+    if (sort === "mostShots") return (b.shotCount || details[b.id]?.projectData?.shotPlan?.length || 0) - (a.shotCount || details[a.id]?.projectData?.shotPlan?.length || 0);
+    if (sort === "mostAssets") return getProjectAssetCount(b, details[b.id]?.projectData) - getProjectAssetCount(a, details[a.id]?.projectData);
+    return projectTimeValue(b.updatedAt || b.createdAt) - projectTimeValue(a.updatedAt || a.createdAt);
+  });
+}
+
 function projectPackText(projectData?: PromptStudioProjectPlanResult) {
   if (!projectData) return "";
   if (projectData.exportText) return projectData.exportText;
@@ -2081,6 +2186,91 @@ function projectPackText(projectData?: PromptStudioProjectPlanResult) {
 
 function firstProjectShotPrompt(project?: PromptStudioSavedProject | null) {
   return project?.projectData?.shotPlan?.[0]?.videoPrompt || "";
+}
+
+function ProjectCover({
+  aspect = "aspect-[16/9]",
+  image,
+  isZh,
+  project,
+}: {
+  aspect?: string;
+  image?: PromptStudioAssetReferenceImage | null;
+  isZh: boolean;
+  project: PromptStudioSavedProjectSummary;
+}) {
+  const [failedImageUrl, setFailedImageUrl] = useState("");
+  const safeImageUrl = isSafeDisplayImageUrl(image?.url) ? image?.url || "" : "";
+  const imageUrl = safeImageUrl && failedImageUrl !== safeImageUrl ? safeImageUrl : "";
+  const styleChips = compactProjectItems(project.styleSummary, 3);
+
+  return (
+    <div className={cx("relative overflow-hidden border-b border-white/[.06] bg-[radial-gradient(circle_at_20%_20%,rgba(246,169,53,.22),transparent_34%),linear-gradient(135deg,#161922,#090a0d)]", aspect)}>
+      {imageUrl ? (
+        <img
+          alt={`${project.title || "Project"} cover`}
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={() => setFailedImageUrl(imageUrl)}
+          src={imageUrl}
+        />
+      ) : null}
+      <div className={cx("absolute inset-0", imageUrl ? "bg-gradient-to-t from-[#111318] via-[#111318]/42 to-black/10" : "bg-[radial-gradient(circle_at_78%_18%,rgba(255,195,90,.24),transparent_28%)]")} />
+      <div className="relative flex h-full flex-col justify-between p-4">
+        <div className="flex items-start justify-between gap-3">
+          <span className="rounded-full border border-[#f6a935]/24 bg-[#f6a935]/14 px-2.5 py-1 text-[11px] font-black uppercase tracking-[.16em] text-[#ffd48a] shadow-[0_8px_22px_rgba(0,0,0,.24)]">
+            {project.projectType || "project"}
+          </span>
+          <span className="rounded-full border border-white/[.08] bg-black/36 px-2.5 py-1 text-[11px] font-bold text-white/70">
+            {project.aspectRatio || "9:16"}
+          </span>
+        </div>
+        <div>
+          <p className="line-clamp-2 text-sm font-black leading-6 text-white drop-shadow-[0_2px_16px_rgba(0,0,0,.42)]">
+            {project.coverSummary || project.previewLogline || project.title || (isZh ? "\u9879\u76ee\u5c01\u9762" : "Project cover")}
+          </p>
+          {!imageUrl && styleChips.length ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {styleChips.map((chip) => (
+                <span className="rounded-full border border-white/[.07] bg-white/[.06] px-2 py-1 text-[11px] font-bold text-white/58" key={chip}>
+                  {chip}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProjectReferencePreviewModal({
+  image,
+  isZh,
+  onClose,
+}: {
+  image: PromptStudioAssetReferenceImage | null;
+  isZh: boolean;
+  onClose: () => void;
+}) {
+  if (!image?.url || !isSafeDisplayImageUrl(image.url)) return null;
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/78 px-4 backdrop-blur-sm">
+      <button aria-label="Close image preview" className="absolute inset-0 cursor-default" onClick={onClose} type="button" />
+      <div className="relative z-10 w-full max-w-4xl rounded-[28px] border border-white/[.08] bg-[#101216] p-4 shadow-[0_28px_90px_rgba(0,0,0,.58)]">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <SectionLabel>{isZh ? "\u53c2\u8003\u56fe\u9884\u89c8" : "Reference preview"}</SectionLabel>
+            <div className="mt-1 truncate text-sm font-black text-white/82">{image.fileName || "Reference image"}</div>
+          </div>
+          <button className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/68 hover:text-white" onClick={onClose} type="button">
+            Close
+          </button>
+        </div>
+        <img alt={image.fileName || "Project reference"} className="max-h-[72vh] w-full rounded-[22px] border border-white/[.08] object-contain" src={image.url} />
+      </div>
+    </div>
+  );
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -2209,21 +2399,89 @@ function ProjectHistoryDrawerV2({
   projects: PromptStudioSavedProjectSummary[];
   selectedProject: PromptStudioSavedProject | null;
 }) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState<ProjectLibraryFilter>("all");
+  const [sortMode, setSortMode] = useState<ProjectLibrarySort>("updatedNewest");
+  const [coverDetails, setCoverDetails] = useState<Record<string, PromptStudioSavedProject>>({});
+  const [previewImage, setPreviewImage] = useState<PromptStudioAssetReferenceImage | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const missing = projects
+      .filter((project) => (project.assetWithImagesCount || 0) > 0 && !coverDetails[project.id])
+      .slice(0, 8);
+    if (!missing.length) return;
+
+    let cancelled = false;
+    void Promise.all(
+      missing.map(async (project) => {
+        try {
+          return await fetchPromptStudioProject(project.id);
+        } catch {
+          return null;
+        }
+      }),
+    ).then((details) => {
+      if (cancelled) return;
+      setCoverDetails((current) => {
+        const next = { ...current };
+        details.forEach((detailItem) => {
+          if (detailItem?.id) next[detailItem.id] = detailItem;
+        });
+        return next;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [coverDetails, isOpen, projects]);
+
+  const detailCache = useMemo(() => {
+    if (!selectedProject) return coverDetails;
+    return { ...coverDetails, [selectedProject.id]: selectedProject };
+  }, [coverDetails, selectedProject]);
+
+  const visibleProjects = useMemo(() => {
+    const filtered = projects.filter((project) => {
+      const projectDetail = detailCache[project.id]?.projectData;
+      return projectMatchesSearch(project, searchQuery, projectDetail) && projectMatchesFilter(project, activeFilter, projectDetail);
+    });
+    return sortProjectLibraryItems(filtered, sortMode, detailCache);
+  }, [activeFilter, detailCache, projects, searchQuery, sortMode]);
+
   if (!isOpen) return null;
 
   const detail = selectedProject?.projectData;
   const style = detail?.styleConstitution;
   const assets = detail?.assetPlan;
-  const selectedAssetCount =
-    (assets?.characters?.length || selectedProject?.characterCount || 0) +
-    (assets?.locations?.length || selectedProject?.locationCount || 0) +
-    (assets?.props?.length || selectedProject?.propCount || 0);
-  const selectedReferenceCount = detail ? countProjectAssetReferenceImages(detail) : selectedProject?.assetWithImagesCount || 0;
+  const selectedAssetCount = selectedProject ? getProjectAssetCount(selectedProject, detail) : 0;
+  const selectedReferenceCount = selectedProject ? getProjectReferenceCount(selectedProject, detail) : 0;
+  const selectedCoverImage = getProjectCoverImage(detail);
+  const selectedProjectSummary = selectedProject
+    ? {
+        ...selectedProject,
+        coverSummary: selectedProject.coverSummary || detail?.projectLogline || detail?.projectTitle,
+      }
+    : null;
+  const selectedAssetRows = detail
+    ? [
+        ...(assets?.characters || []).map((asset) => ({ asset, type: isZh ? "\u89d2\u8272" : "Character" })),
+        ...(assets?.locations || []).map((asset) => ({ asset, type: isZh ? "\u573a\u666f" : "Location" })),
+        ...(assets?.props || []).map((asset) => ({ asset, type: isZh ? "\u9053\u5177" : "Prop" })),
+      ].sort((a, b) => Number(Boolean(getProjectAssetReferenceImage(b.asset)?.url)) - Number(Boolean(getProjectAssetReferenceImage(a.asset)?.url)))
+    : [];
+  const filters: Array<{ id: ProjectLibraryFilter; label: string }> = [
+    { id: "all", label: isZh ? "\u5168\u90e8" : "All" },
+    { id: "withReferences", label: isZh ? "\u6709\u53c2\u8003\u56fe" : "With references" },
+    { id: "noReferences", label: isZh ? "\u65e0\u53c2\u8003\u56fe" : "No references" },
+    { id: "recent", label: isZh ? "\u6700\u8fd1\u66f4\u65b0" : "Recent" },
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end overflow-hidden bg-black/62 backdrop-blur-sm">
       <button aria-label="Close Project History" className="absolute inset-0 cursor-default" onClick={onClose} type="button" />
-      <aside className={cx("relative z-10 flex h-full w-full max-w-[900px] flex-col border-l border-white/[.08] bg-[#0b0d10] shadow-[-24px_0_80px_rgba(0,0,0,.45)]", subtleScrollbar)}>
+      <aside className={cx("relative z-10 flex h-full w-full max-w-[1040px] flex-col border-l border-white/[.08] bg-[#0b0d10] shadow-[-24px_0_80px_rgba(0,0,0,.45)]", subtleScrollbar)}>
         <div className="border-b border-white/[.07] p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -2251,8 +2509,65 @@ function ProjectHistoryDrawerV2({
           {error ? <div className="mt-3 rounded-2xl border border-red-300/20 bg-red-400/10 p-3 text-sm text-red-100">{error}</div> : null}
         </div>
 
-        <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_220px]">
+            <label className="block">
+              <span className="sr-only">{isZh ? "\u641c\u7d22\u9879\u76ee" : "Search projects"}</span>
+              <input
+                className="h-11 w-full rounded-2xl border border-white/[.08] bg-[#0c0e12] px-4 text-sm font-bold text-white outline-none transition placeholder:text-white/28 focus:border-[#f6a935]/42 focus:ring-2 focus:ring-[#f6a935]/12"
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder={isZh ? "\u641c\u7d22\u6807\u9898\u3001@资产\u3001\u98ce\u683c\u6216\u5f15\u64ce" : "Search title, @assets, styles, or engine"}
+                type="search"
+                value={searchQuery}
+              />
+            </label>
+            <label className="block">
+              <span className="sr-only">{isZh ? "\u6392\u5e8f" : "Sort"}</span>
+              <select
+                className="h-11 w-full rounded-2xl border border-white/[.08] bg-[#0c0e12] px-4 text-sm font-black text-white outline-none transition focus:border-[#f6a935]/42 focus:ring-2 focus:ring-[#f6a935]/12"
+                onChange={(event) => setSortMode(event.target.value as ProjectLibrarySort)}
+                value={sortMode}
+              >
+                <option value="updatedNewest">{isZh ? "\u6700\u8fd1\u66f4\u65b0" : "Updated newest"}</option>
+                <option value="createdNewest">{isZh ? "\u6700\u65b0\u521b\u5efa" : "Created newest"}</option>
+                <option value="mostShots">{isZh ? "\u5206\u955c\u6700\u591a" : "Most shots"}</option>
+                <option value="mostAssets">{isZh ? "\u8d44\u4ea7\u6700\u591a" : "Most assets"}</option>
+              </select>
+            </label>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {filters.map((filter) => (
+              <button
+                className={cx(
+                  "rounded-full border px-3 py-1.5 text-xs font-black transition",
+                  activeFilter === filter.id
+                    ? "border-[#f6a935]/34 bg-[#f6a935]/16 text-[#ffd48a] shadow-[0_0_24px_rgba(246,169,53,.12)]"
+                    : "border-white/[.08] bg-white/[.035] text-white/52 hover:text-white",
+                )}
+                key={filter.id}
+                onClick={() => setActiveFilter(filter.id)}
+                type="button"
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+
+        <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_390px]">
           <div className={cx("min-h-0 overflow-y-auto p-5", subtleScrollbar)}>
+            {isLoading && !projects.length ? (
+              <div className="grid gap-4 xl:grid-cols-2">
+                {[0, 1, 2, 3].map((item) => (
+                  <div className="overflow-hidden rounded-[28px] border border-white/[.06] bg-white/[.03]" key={item}>
+                    <div className="aspect-[16/9] animate-pulse bg-white/[.055]" />
+                    <div className="space-y-3 p-4">
+                      <div className="h-4 w-3/4 rounded-full bg-white/[.06]" />
+                      <div className="h-3 w-full rounded-full bg-white/[.045]" />
+                      <div className="h-3 w-1/2 rounded-full bg-white/[.045]" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {!isLoading && !projects.length ? (
               <div className="rounded-[28px] border border-white/[.06] bg-white/[.03] p-6 text-sm leading-6 text-white/56">
                 {isZh
@@ -2261,11 +2576,21 @@ function ProjectHistoryDrawerV2({
               </div>
             ) : null}
 
+            {!isLoading && projects.length > 0 && visibleProjects.length === 0 ? (
+              <div className="rounded-[28px] border border-white/[.06] bg-white/[.03] p-6 text-sm leading-6 text-white/56">
+                {isZh ? "\u6ca1\u6709\u627e\u5230\u5339\u914d\u7684\u9879\u76ee\u3002" : "No matching projects found."}
+              </div>
+            ) : null}
+
             <div className="grid gap-4 xl:grid-cols-2">
-              {projects.map((project) => {
+              {visibleProjects.map((project) => {
                 const active = selectedProject?.id === project.id;
                 const styleChips = compactProjectItems(project.styleSummary, 3);
                 const assetTags = compactProjectItems(project.primaryAssetTags, 3);
+                const projectDetail = detailCache[project.id]?.projectData;
+                const coverImage = getProjectCoverImage(projectDetail);
+                const referenceCount = getProjectReferenceCount(project, projectDetail);
+                const assetCount = getProjectAssetCount(project, projectDetail);
 
                 return (
                   <article
@@ -2276,28 +2601,15 @@ function ProjectHistoryDrawerV2({
                     key={project.id}
                   >
                     <button className="block w-full text-left" onClick={() => onSelect(project)} type="button">
-                      <div className="relative min-h-[118px] overflow-hidden border-b border-white/[.06] bg-[radial-gradient(circle_at_20%_20%,rgba(246,169,53,.22),transparent_34%),linear-gradient(135deg,#161922,#090a0d)] p-4">
-                        <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[#111318] to-transparent" />
-                        <div className="relative flex items-start justify-between gap-3">
-                          <span className="rounded-full border border-[#f6a935]/24 bg-[#f6a935]/12 px-2.5 py-1 text-[11px] font-black uppercase tracking-[.16em] text-[#ffd48a]">
-                            {project.projectType || "project"}
-                          </span>
-                          <span className="rounded-full border border-white/[.08] bg-black/24 px-2.5 py-1 text-[11px] font-bold text-white/58">
-                            {project.aspectRatio || "9:16"}
-                          </span>
-                        </div>
-                        <p className="relative mt-7 line-clamp-2 text-sm font-black leading-6 text-white">
-                          {project.coverSummary || project.title || "Prompt Studio Project"}
-                        </p>
-                      </div>
+                      <ProjectCover image={coverImage} isZh={isZh} project={project} />
 
                       <div className="p-4">
                         <h3 className="line-clamp-2 text-base font-black leading-6 text-white">{project.title || "Untitled Project"}</h3>
                         <p className="mt-2 line-clamp-2 text-xs leading-5 text-white/50">{project.previewLogline || project.brief}</p>
                         <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-white/48">
                           <span>{project.shotCount || 0} shots</span>
-                          <span>{project.assetCount || 0} assets</span>
-                          {project.assetWithImagesCount ? <span>{project.assetWithImagesCount} references attached</span> : null}
+                          <span>{assetCount} assets</span>
+                          {referenceCount ? <span>{referenceCount} references attached</span> : null}
                           <span>{formatProjectDate(project.updatedAt || project.createdAt)}</span>
                         </div>
                         {assetTags.length ? (
@@ -2348,6 +2660,9 @@ function ProjectHistoryDrawerV2({
               </div>
             ) : selectedProject && detail ? (
               <div className="space-y-5">
+                {selectedProjectSummary ? (
+                  <ProjectCover aspect="aspect-[16/9]" image={selectedCoverImage} isZh={isZh} project={selectedProjectSummary} />
+                ) : null}
                 <div>
                   <SectionLabel>{isZh ? "项目详情" : "Project Detail"}</SectionLabel>
                   <h3 className="mt-2 text-2xl font-black leading-8 text-white">{detail.projectTitle || selectedProject.title}</h3>
@@ -2356,7 +2671,8 @@ function ProjectHistoryDrawerV2({
                     <span>{detail.shotPlan?.length || selectedProject.shotCount || 0} shots</span>
                     <span>{selectedAssetCount} assets</span>
                     {selectedReferenceCount ? <span>{selectedReferenceCount} references attached</span> : null}
-                    <span>{formatProjectDate(selectedProject.updatedAt || selectedProject.createdAt)}</span>
+                    <span>Updated {formatProjectDate(selectedProject.updatedAt || selectedProject.createdAt)}</span>
+                    <span>Created {formatProjectDate(selectedProject.createdAt)}</span>
                   </div>
                 </div>
 
@@ -2392,10 +2708,38 @@ function ProjectHistoryDrawerV2({
 
                 <div className="rounded-[22px] border border-white/[.06] bg-white/[.03] p-4">
                   <h4 className="text-sm font-black text-white">{isZh ? "资产概览" : "Assets"}</h4>
-                  <div className="mt-3 grid gap-2 text-xs text-white/56">
-                    <div><b className="text-white/78">Characters:</b> {(assets?.characters || []).map((item) => `${item.assetTag}${formatProjectAssetReferenceSuffix(item)}`).join(", ") || "-"}</div>
-                    <div><b className="text-white/78">Locations:</b> {(assets?.locations || []).map((item) => `${item.assetTag}${formatProjectAssetReferenceSuffix(item)}`).join(", ") || "-"}</div>
-                    <div><b className="text-white/78">Props:</b> {(assets?.props || []).map((item) => `${item.assetTag}${formatProjectAssetReferenceSuffix(item)}`).join(", ") || "-"}</div>
+                  <div className="mt-3 grid gap-2">
+                    {selectedAssetRows.map(({ asset, type }) => {
+                      const image = getProjectAssetReferenceImage(asset);
+                      return (
+                        <div className="grid grid-cols-[44px_minmax(0,1fr)] gap-3 rounded-2xl border border-white/[.05] bg-black/18 p-2" key={`${type}-${asset.assetTag}`}>
+                          {image?.url && isSafeDisplayImageUrl(image.url) ? (
+                            <button className="h-11 w-11 overflow-hidden rounded-xl border border-white/[.08] bg-white/[.04]" onClick={() => setPreviewImage(image)} type="button">
+                              <img alt={`${asset.assetTag} reference`} className="h-full w-full object-cover" src={image.url} />
+                            </button>
+                          ) : (
+                            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/[.06] bg-white/[.035] text-[10px] font-black text-white/32">
+                              {type.slice(0, 1)}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-xs font-black text-[#ffd48a]">{asset.assetTag}</span>
+                              <span className="rounded-full border border-white/[.07] bg-white/[.04] px-2 py-0.5 text-[10px] font-black uppercase tracking-[.12em] text-white/42">
+                                {type}
+                              </span>
+                              {image?.url ? (
+                                <span className="rounded-full border border-[#f6a935]/14 bg-[#f6a935]/8 px-2 py-0.5 text-[10px] font-black text-[#ffd48a]/76">
+                                  image
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="mt-1 truncate text-xs font-bold text-white/68">{asset.name}</div>
+                            <div className="mt-1 line-clamp-2 text-[11px] leading-4 text-white/42">{asset.description}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -2437,6 +2781,7 @@ function ProjectHistoryDrawerV2({
           </section>
         </div>
       </aside>
+      <ProjectReferencePreviewModal image={previewImage} isZh={isZh} onClose={() => setPreviewImage(null)} />
     </div>
   );
 }
