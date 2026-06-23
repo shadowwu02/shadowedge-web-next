@@ -253,19 +253,40 @@ function findDraftModel(draft: VideoWorkspaceDraft | null, modelList: VideoModel
 
 function getPromptStudioVideoReferences(draft: PromptStudioBridgeDraft | null): UploadMediaItem[] {
   return (draft?.referenceImages || [])
-    .filter((reference) => reference.url)
-    .map((reference) => ({
-      id: reference.id || reference.url,
-      type: "image" as const,
-      role: "reference" as const,
-      source: "reference_selected" as const,
-      name: reference.name || "Prompt Studio reference",
-      previewUrl: reference.url,
-      url: reference.url,
-      size: reference.sizeBytes,
-      mimeType: reference.mimeType,
-      uploadStatus: "ready" as const,
-    }));
+    .filter((reference) => isSafePromptStudioReferenceUrl(reference.url))
+    .map((reference) => {
+      const fileName = reference.fileName || reference.name || "Prompt Studio reference";
+      return {
+        id: `prompt-studio-${reference.id || reference.url}`,
+        type: "image" as const,
+        role: "reference" as const,
+        source: "reference_selected" as const,
+        name: reference.name || fileName,
+        previewUrl: reference.url,
+        url: reference.url,
+        size: reference.sizeBytes,
+        mimeType: reference.mimeType,
+        filename: fileName,
+        originalName: fileName,
+        uploadStatus: "ready" as const,
+      };
+    });
+}
+
+function isSafePromptStudioReferenceUrl(value?: string) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  if (!/^https?:\/\//i.test(normalized)) return false;
+  const lower = normalized.toLowerCase();
+  return (
+    !lower.startsWith("data:") &&
+    !lower.startsWith("blob:") &&
+    !lower.startsWith("javascript:") &&
+    !lower.includes("127.0.0.1") &&
+    !lower.includes("localhost") &&
+    !lower.includes("0.0.0.0") &&
+    !lower.includes("[::1]") &&
+    !lower.includes("file://")
+  );
 }
 
 function writeVideoDraft(snapshot: {
@@ -861,6 +882,7 @@ export function VideoWorkspace() {
 
     const nextPrompt = draft.prompt.slice(0, VIDEO_PROMPT_FRONTEND_LIMIT);
     const timer = window.setTimeout(() => {
+      setWorkspaceMode("create");
       if (prompt.trim()) {
         setPendingPromptStudioDraft({ ...draft, prompt: nextPrompt });
         return;
@@ -1349,6 +1371,7 @@ export function VideoWorkspace() {
 
   const handleImportPromptStudioDraft = useCallback(() => {
     if (!pendingPromptStudioDraft?.prompt) return;
+    setWorkspaceMode("create");
     setPrompt(pendingPromptStudioDraft.prompt.slice(0, VIDEO_PROMPT_FRONTEND_LIMIT));
     const nextReferences = getPromptStudioVideoReferences(pendingPromptStudioDraft);
     if (nextReferences.length) {

@@ -12,6 +12,7 @@ export type PromptStudioDraftReferenceImage = {
   name: string;
   url: string;
   storagePath?: string;
+  fileName?: string;
   mimeType?: string;
   sizeBytes?: number;
   width?: number;
@@ -78,7 +79,8 @@ function normalizeReferenceImage(value: unknown): PromptStudioDraftReferenceImag
   const url = typeof reference.url === "string" ? reference.url.trim() : "";
   const storagePath = typeof reference.storagePath === "string" ? reference.storagePath.trim() : "";
   if (!url || isUnsafeReferenceImageUrl(url) || isUnsafeReferenceImageUrl(storagePath)) return null;
-  const name = typeof reference.name === "string" && reference.name.trim() ? reference.name.trim() : "Reference image";
+  const fileName = typeof reference.fileName === "string" ? reference.fileName.trim().slice(0, 255) : "";
+  const name = typeof reference.name === "string" && reference.name.trim() ? reference.name.trim() : fileName || "Reference image";
   const provider = typeof reference.provider === "string" ? reference.provider.trim().slice(0, 64) : "";
 
   return {
@@ -86,6 +88,7 @@ function normalizeReferenceImage(value: unknown): PromptStudioDraftReferenceImag
     name,
     url,
     storagePath: storagePath || undefined,
+    fileName: fileName || undefined,
     mimeType: typeof reference.mimeType === "string" ? reference.mimeType : undefined,
     sizeBytes: Number.isFinite(Number(reference.sizeBytes)) ? Number(reference.sizeBytes) : undefined,
     width: Number.isFinite(Number(reference.width)) ? Number(reference.width) : undefined,

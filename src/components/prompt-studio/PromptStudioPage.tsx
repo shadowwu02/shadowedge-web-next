@@ -1445,6 +1445,7 @@ function assetReferenceToDraftReference(asset: ProjectAssetItem): BridgeReferenc
     name: image.fileName || `${asset.assetTag} reference`,
     url: image.url,
     storagePath: image.storagePath,
+    fileName: image.fileName,
     mimeType: image.mimeType,
     sizeBytes: image.sizeBytes,
     width: image.width,
@@ -1589,6 +1590,7 @@ function ProjectPlanOutput({
   result,
   savedProjectId,
   isSavingProject,
+  hasUnsavedAssetReferenceChanges,
   assetUploadErrors,
   assetUploadingKey,
 }: {
@@ -1605,6 +1607,7 @@ function ProjectPlanOutput({
   result: PromptStudioProjectPlanResult;
   savedProjectId?: string;
   isSavingProject: boolean;
+  hasUnsavedAssetReferenceChanges: boolean;
   assetUploadErrors: Record<string, string>;
   assetUploadingKey: string;
 }) {
@@ -1637,6 +1640,11 @@ function ProjectPlanOutput({
             >
               {isSavingProject ? (isZh ? "保存中..." : "Saving...") : savedProjectId ? (isZh ? "更新项目" : "Update Project") : (isZh ? "保存项目" : "Save Project")}
             </button>
+            {savedProjectId && hasUnsavedAssetReferenceChanges ? (
+              <span className="rounded-full border border-[#ffc35a]/24 bg-[#ffc35a]/10 px-3 py-1.5 text-xs font-black text-[#ffe0a3]">
+                {isZh ? "\u6709\u672a\u4fdd\u5b58\u7684\u53c2\u8003\u56fe\u66f4\u6539" : "Unsaved reference changes"}
+              </span>
+            ) : null}
             <button
               className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/70 hover:text-white"
               onClick={onOpenHistory}
@@ -2515,6 +2523,7 @@ export function PromptStudioPage() {
   const [deleteProjectError, setDeleteProjectError] = useState("");
   const [assetUploadingKey, setAssetUploadingKey] = useState("");
   const [assetUploadErrors, setAssetUploadErrors] = useState<Record<string, string>>({});
+  const [hasUnsavedAssetReferenceChanges, setHasUnsavedAssetReferenceChanges] = useState(false);
   const [styleCardResult, setStyleCardResult] = useState<PromptStudioReferenceAnalysisResult | null>(null);
   const [referenceStyleResult, setReferenceStyleResult] = useState<PromptStudioReferenceStylePromptResult | null>(null);
   const [referenceImageFile, setReferenceImageFile] = useState<File | null>(null);
@@ -2872,6 +2881,7 @@ export function PromptStudioPage() {
       });
       setProjectResult(data || null);
       setSavedProjectId(undefined);
+      setHasUnsavedAssetReferenceChanges(false);
       setResult(null);
       setNotice(
         isZh
@@ -2915,6 +2925,7 @@ export function PromptStudioPage() {
     setResult(null);
     setProjectResult(null);
     setSavedProjectId(undefined);
+    setHasUnsavedAssetReferenceChanges(false);
     setReferenceStyleResult(null);
     setError("");
     setNotice("");
@@ -3071,7 +3082,8 @@ export function PromptStudioPage() {
       const image = await uploadPromptStudioAssetImage(file);
       if (!image?.url) throw new Error("Upload did not return an image URL.");
       updateProjectAssetReference(kind, assetTag, image);
-      setNotice(isZh ? "参考图已绑定。点击更新项目即可保存到项目历史。" : "Reference image bound. Click Update Project to save it to Project History.");
+      setHasUnsavedAssetReferenceChanges(true);
+      setNotice(isZh ? "\u53c2\u8003\u56fe\u5df2\u7ed1\u5b9a\uff0c\u8bf7\u70b9\u51fb\u201c\u66f4\u65b0\u9879\u76ee\u201d\u4fdd\u5b58\u3002" : "Reference image attached. Click \u201cUpdate Project\u201d to save.");
     } catch (uploadError) {
       setAssetUploadErrors((current) => ({
         ...current,
@@ -3085,6 +3097,7 @@ export function PromptStudioPage() {
   function removeAssetReferenceImage(kind: ProjectAssetKind, assetTag: string) {
     updateProjectAssetReference(kind, assetTag, null);
     setAssetUploadErrors((current) => ({ ...current, [getAssetUploadKey(kind, assetTag)]: "" }));
+    setHasUnsavedAssetReferenceChanges(true);
     setNotice(isZh ? assetReferenceRemovedMessageZh : "Reference image removed. Click Update Project to save.");
   }
 
@@ -3134,6 +3147,7 @@ export function PromptStudioPage() {
         setProjectResult(saved.projectData);
         setSelectedHistoryProject(saved);
       }
+      setHasUnsavedAssetReferenceChanges(false);
       setNotice(isZh ? "项目已保存。" : "Project saved.");
       if (isProjectHistoryOpen) void loadProjectHistory();
     } catch (saveError) {
@@ -3171,6 +3185,7 @@ export function PromptStudioPage() {
       setSelectedStyles(detail.selectedStyles || []);
       setSelectedModules(detail.selectedModules || []);
       setIsProjectHistoryOpen(false);
+      setHasUnsavedAssetReferenceChanges(false);
       setNotice(isZh ? "已加载保存的项目，可以继续编辑或更新。" : "Saved project loaded. You can continue editing or update it.");
       window.requestAnimationFrame(scrollToOutput);
     } catch (openError) {
@@ -3343,6 +3358,7 @@ export function PromptStudioPage() {
     setResult(null);
     setProjectResult(null);
     setSavedProjectId(undefined);
+    setHasUnsavedAssetReferenceChanges(false);
     setStyleCardResult(null);
     setReferenceStyleResult(null);
     setNotice("");
@@ -3987,6 +4003,7 @@ export function PromptStudioPage() {
                   result={projectResult}
                   savedProjectId={savedProjectId}
                   isSavingProject={isProjectSaving}
+                  hasUnsavedAssetReferenceChanges={hasUnsavedAssetReferenceChanges}
                   assetUploadErrors={assetUploadErrors}
                   assetUploadingKey={assetUploadingKey}
                 />
