@@ -57,11 +57,24 @@ function normalizePrompt(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function isUnsafeReferenceImageUrl(value: unknown) {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (!normalized) return false;
+  if (normalized.startsWith("data:") || normalized.startsWith("blob:") || normalized.startsWith("javascript:")) return true;
+  return (
+    normalized.includes("127.0.0.1") ||
+    normalized.includes("localhost") ||
+    normalized.includes("0.0.0.0") ||
+    normalized.includes("[::1]") ||
+    normalized.includes("file://")
+  );
+}
+
 function normalizeReferenceImage(value: unknown): PromptStudioDraftReferenceImage | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const reference = value as Record<string, unknown>;
   const url = typeof reference.url === "string" ? reference.url.trim() : "";
-  if (!url || url.startsWith("data:") || url.startsWith("blob:")) return null;
+  if (!url || isUnsafeReferenceImageUrl(url)) return null;
   const name = typeof reference.name === "string" && reference.name.trim() ? reference.name.trim() : "Reference image";
 
   return {

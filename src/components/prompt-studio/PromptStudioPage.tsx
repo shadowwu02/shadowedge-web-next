@@ -54,6 +54,11 @@ type ProjectAssetItem =
   | PromptStudioProjectPlanResult["assetPlan"]["props"][number];
 type BridgeReferenceImage = NonNullable<Parameters<typeof savePromptStudioToImageDraft>[0]["referenceImages"]>[number];
 
+const assetUploadSupportedMessageZh = "\u4ec5\u652f\u6301 JPG\u3001PNG\u3001WebP \u56fe\u7247\uff0c\u6700\u5927 10MB\u3002";
+const assetUploadTooLargeMessageZh = "\u56fe\u7247\u4e0d\u80fd\u8d85\u8fc7 10MB\u3002";
+const assetReferenceInvalidMessageZh = "\u65e0\u6548\u53c2\u8003\u56fe\u5c06\u5728\u4e0b\u6b21\u66f4\u65b0\u65f6\u6e05\u7406\u3002";
+const assetReferenceRemovedMessageZh = "\u53c2\u8003\u56fe\u5df2\u89e3\u7ed1\uff0c\u8bf7\u70b9\u51fb\u66f4\u65b0\u9879\u76ee\u4fdd\u5b58\u3002";
+
 type LibraryItemWithKind = PromptStudioLibraryItem & { libraryKind: LibraryKind };
 
 const characterModuleNames = ["人物形象", "表情神态", "服装造型妆发", "姿态动作", "角色一致性"];
@@ -1375,7 +1380,42 @@ function getProjectAssetPrompt(asset: ProjectAssetItem) {
 }
 
 function getProjectAssetReferenceImage(asset?: ProjectAssetItem | null) {
-  return asset?.assetReferenceImage || null;
+  const image = asset?.assetReferenceImage || null;
+  return isSafeAssetReferenceImage(image) ? image : null;
+}
+
+function getUnsafeProjectAssetReferenceImage(asset?: ProjectAssetItem | null) {
+  const image = asset?.assetReferenceImage || null;
+  return image && hasAssetReferenceImageCandidate(image) && !isSafeAssetReferenceImage(image) ? image : null;
+}
+
+function isUnsafeAssetReferenceUrl(value?: string | null) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return false;
+  if (normalized.startsWith("data:") || normalized.startsWith("blob:") || normalized.startsWith("javascript:")) return true;
+  return (
+    normalized.includes("127.0.0.1") ||
+    normalized.includes("localhost") ||
+    normalized.includes("0.0.0.0") ||
+    normalized.includes("[::1]") ||
+    normalized.includes("file://")
+  );
+}
+
+function isSafeAssetReferenceImage(image?: PromptStudioAssetReferenceImage | null) {
+  if (!image) return false;
+  const url = typeof image.url === "string" ? image.url.trim() : "";
+  const storagePath = typeof image.storagePath === "string" ? image.storagePath.trim() : "";
+  if (!url && !storagePath) return false;
+  return !isUnsafeAssetReferenceUrl(url) && !isUnsafeAssetReferenceUrl(storagePath);
+}
+
+function hasAssetReferenceImageCandidate(image?: PromptStudioAssetReferenceImage | null) {
+  if (!image) return false;
+  return Boolean(
+    (typeof image.url === "string" && image.url.trim()) ||
+      (typeof image.storagePath === "string" && image.storagePath.trim()),
+  );
 }
 
 function getAssetUploadKey(kind: ProjectAssetKind, assetTag: string) {
@@ -1389,6 +1429,12 @@ function countProjectAssetReferenceImages(projectData?: PromptStudioProjectPlanR
     ...projectData.assetPlan.locations,
     ...projectData.assetPlan.props,
   ].filter((asset) => Boolean(getProjectAssetReferenceImage(asset)?.url)).length;
+}
+
+function formatProjectAssetReferenceSuffix(asset: ProjectAssetItem) {
+  if (getProjectAssetReferenceImage(asset)?.url) return " (image)";
+  if (getUnsafeProjectAssetReferenceImage(asset)) return " (invalid)";
+  return "";
 }
 
 function assetReferenceToDraftReference(asset: ProjectAssetItem): BridgeReferenceImage | null {
@@ -1407,7 +1453,7 @@ function assetReferenceToDraftReference(asset: ProjectAssetItem): BridgeReferenc
 }
 
 function isBridgeReferenceImage(value: BridgeReferenceImage | null): value is BridgeReferenceImage {
-  return Boolean(value?.url);
+  return Boolean(value?.url && !isUnsafeAssetReferenceUrl(value.url));
 }
 
 function formatAssetFileMeta(image: PromptStudioAssetReferenceImage) {
@@ -1442,6 +1488,7 @@ function ProjectAssetReferencePanel({
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const image = getProjectAssetReferenceImage(asset);
+  const invalidImage = getUnsafeProjectAssetReferenceImage(asset);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -1501,6 +1548,24 @@ function ProjectAssetReferencePanel({
           {isZh ? "还没有为该资产绑定参考图。" : "No reference image is bound to this asset yet."}
         </div>
       )}
+
+      {invalidImage ? (
+        <div className="mt-3 rounded-2xl border border-yellow-300/20 bg-yellow-400/10 p-3">
+          <div className="text-xs font-black uppercase tracking-[.14em] text-yellow-100/80">
+            {isZh ? "\u65e0\u6548\u53c2\u8003\u56fe" : "Invalid reference"}
+          </div>
+          <p className="mt-2 text-xs leading-5 text-yellow-50/72">
+            {isZh ? assetReferenceInvalidMessageZh : "Invalid reference removed on next update."}
+          </p>
+          <button
+            className="mt-3 rounded-full border border-red-300/18 bg-red-400/10 px-3 py-1.5 text-xs font-black text-red-100/80"
+            onClick={() => onRemove(kind, asset.assetTag)}
+            type="button"
+          >
+            {isZh ? "\u79fb\u9664\u7ed1\u5b9a" : "Remove image"}
+          </button>
+        </div>
+      ) : null}
 
       {error ? <div className="mt-3 rounded-2xl border border-red-300/20 bg-red-400/10 p-3 text-xs leading-5 text-red-100">{error}</div> : null}
     </section>
@@ -2114,6 +2179,7 @@ function ProjectHistoryDrawerV2({
     (assets?.characters?.length || selectedProject?.characterCount || 0) +
     (assets?.locations?.length || selectedProject?.locationCount || 0) +
     (assets?.props?.length || selectedProject?.propCount || 0);
+  const selectedReferenceCount = detail ? countProjectAssetReferenceImages(detail) : selectedProject?.assetWithImagesCount || 0;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end overflow-hidden bg-black/62 backdrop-blur-sm">
@@ -2250,7 +2316,7 @@ function ProjectHistoryDrawerV2({
                   <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-white/44">
                     <span>{detail.shotPlan?.length || selectedProject.shotCount || 0} shots</span>
                     <span>{selectedAssetCount} assets</span>
-                    <span>{countProjectAssetReferenceImages(detail)} references attached</span>
+                    {selectedReferenceCount ? <span>{selectedReferenceCount} references attached</span> : null}
                     <span>{formatProjectDate(selectedProject.updatedAt || selectedProject.createdAt)}</span>
                   </div>
                 </div>
@@ -2288,9 +2354,9 @@ function ProjectHistoryDrawerV2({
                 <div className="rounded-[22px] border border-white/[.06] bg-white/[.03] p-4">
                   <h4 className="text-sm font-black text-white">{isZh ? "资产概览" : "Assets"}</h4>
                   <div className="mt-3 grid gap-2 text-xs text-white/56">
-                    <div><b className="text-white/78">Characters:</b> {(assets?.characters || []).map((item) => `${item.assetTag}${item.assetReferenceImage?.url ? " (image)" : ""}`).join(", ") || "-"}</div>
-                    <div><b className="text-white/78">Locations:</b> {(assets?.locations || []).map((item) => `${item.assetTag}${item.assetReferenceImage?.url ? " (image)" : ""}`).join(", ") || "-"}</div>
-                    <div><b className="text-white/78">Props:</b> {(assets?.props || []).map((item) => `${item.assetTag}${item.assetReferenceImage?.url ? " (image)" : ""}`).join(", ") || "-"}</div>
+                    <div><b className="text-white/78">Characters:</b> {(assets?.characters || []).map((item) => `${item.assetTag}${formatProjectAssetReferenceSuffix(item)}`).join(", ") || "-"}</div>
+                    <div><b className="text-white/78">Locations:</b> {(assets?.locations || []).map((item) => `${item.assetTag}${formatProjectAssetReferenceSuffix(item)}`).join(", ") || "-"}</div>
+                    <div><b className="text-white/78">Props:</b> {(assets?.props || []).map((item) => `${item.assetTag}${formatProjectAssetReferenceSuffix(item)}`).join(", ") || "-"}</div>
                   </div>
                 </div>
 
@@ -2985,18 +3051,17 @@ export function PromptStudioPage() {
     if (!allowedTypes.has(file.type)) {
       setAssetUploadErrors((current) => ({
         ...current,
-        [key]: isZh ? "只支持 PNG、JPEG 或 WebP 图片。" : "Only PNG, JPEG, or WebP images are supported.",
+        [key]: isZh ? assetUploadSupportedMessageZh : "Only JPG, PNG, and WebP images up to 10MB are supported.",
       }));
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
       setAssetUploadErrors((current) => ({
         ...current,
-        [key]: isZh ? "参考图不能超过 10MB。" : "Reference image must be 10MB or smaller.",
+        [key]: isZh ? assetUploadTooLargeMessageZh : "Reference image must be 10MB or smaller.",
       }));
       return;
     }
-
     setAssetUploadingKey(key);
     setAssetUploadErrors((current) => ({ ...current, [key]: "" }));
     try {
@@ -3017,7 +3082,7 @@ export function PromptStudioPage() {
   function removeAssetReferenceImage(kind: ProjectAssetKind, assetTag: string) {
     updateProjectAssetReference(kind, assetTag, null);
     setAssetUploadErrors((current) => ({ ...current, [getAssetUploadKey(kind, assetTag)]: "" }));
-    setNotice(isZh ? "已移除该资产的参考图绑定。点击更新项目即可保存。" : "Reference image removed from this asset. Click Update Project to save.");
+    setNotice(isZh ? assetReferenceRemovedMessageZh : "Reference image removed. Click Update Project to save.");
   }
 
   async function loadProjectHistory() {
@@ -3062,6 +3127,10 @@ export function PromptStudioPage() {
         ? await updatePromptStudioProject(savedProjectId, payload)
         : await savePromptStudioProject(payload);
       setSavedProjectId(saved?.id);
+      if (saved?.projectData) {
+        setProjectResult(saved.projectData);
+        setSelectedHistoryProject(saved);
+      }
       setNotice(isZh ? "项目已保存。" : "Project saved.");
       if (isProjectHistoryOpen) void loadProjectHistory();
     } catch (saveError) {
