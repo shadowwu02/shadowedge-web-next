@@ -815,6 +815,9 @@ export function VideoWorkspace() {
   );
   const [workspaceNotice, setWorkspaceNotice] = useState("");
   const [pendingPromptStudioDraft, setPendingPromptStudioDraft] = useState<PromptStudioBridgeDraft | null>(null);
+  const promptStudioImportTargetRef = useRef<HTMLDivElement | null>(null);
+  const promptStudioImportHighlightTimerRef = useRef<number | null>(null);
+  const [isPromptStudioImportHighlighted, setIsPromptStudioImportHighlighted] = useState(false);
   const promptStudioDraftCheckedRef = useRef(false);
   const reconciledMentionBindings = useMemo(
     () => serializeMentionBindings(stripReconciledMentionBindings(reconcileMentionBindings(mentionBindings, media))),
@@ -873,6 +876,27 @@ export function VideoWorkspace() {
     };
   }, [t]);
 
+  const focusPromptStudioImportTarget = useCallback(() => {
+    if (promptStudioImportHighlightTimerRef.current) {
+      window.clearTimeout(promptStudioImportHighlightTimerRef.current);
+    }
+    window.requestAnimationFrame(() => {
+      promptStudioImportTargetRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setIsPromptStudioImportHighlighted(true);
+      promptStudioImportHighlightTimerRef.current = window.setTimeout(() => {
+        setIsPromptStudioImportHighlighted(false);
+      }, 1800);
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (promptStudioImportHighlightTimerRef.current) {
+        window.clearTimeout(promptStudioImportHighlightTimerRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (!draftReady || promptStudioDraftCheckedRef.current) return;
     promptStudioDraftCheckedRef.current = true;
@@ -883,8 +907,9 @@ export function VideoWorkspace() {
     const nextPrompt = draft.prompt.slice(0, VIDEO_PROMPT_FRONTEND_LIMIT);
     const timer = window.setTimeout(() => {
       setWorkspaceMode("create");
-      if (prompt.trim()) {
+      if (prompt.trim() || media.length) {
         setPendingPromptStudioDraft({ ...draft, prompt: nextPrompt });
+        focusPromptStudioImportTarget();
         return;
       }
 
@@ -895,13 +920,14 @@ export function VideoWorkspace() {
       }
       setWorkspaceNotice(
         isZh
-          ? "已从 Prompt Studio 填入草稿。不会自动生成。"
-          : "Draft imported from Prompt Studio. It will not generate automatically.",
+          ? "已导入 Prompt Studio 草稿。请确认后手动点击生成。"
+          : "Prompt Studio draft imported. Review it, then click Generate manually.",
       );
+      focusPromptStudioImportTarget();
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [draftReady, isZh, prompt]);
+  }, [draftReady, focusPromptStudioImportTarget, isZh, media.length, prompt]);
 
   useEffect(() => {
     if (!draftReady) return;
@@ -1380,10 +1406,11 @@ export function VideoWorkspace() {
     setPendingPromptStudioDraft(null);
     setWorkspaceNotice(
       isZh
-        ? "已从 Prompt Studio 填入草稿。不会自动生成。"
-        : "Draft imported from Prompt Studio. It will not generate automatically.",
+        ? "已导入 Prompt Studio 草稿。请确认后手动点击生成。"
+        : "Prompt Studio draft imported. Review it, then click Generate manually.",
     );
-  }, [isZh, pendingPromptStudioDraft]);
+    focusPromptStudioImportTarget();
+  }, [focusPromptStudioImportTarget, isZh, pendingPromptStudioDraft]);
 
   const handleIgnorePromptStudioDraft = useCallback(() => {
     setPendingPromptStudioDraft(null);
@@ -2691,47 +2718,69 @@ export function VideoWorkspace() {
             />
           ) : (
             <>
-              {modelLoading ? <LoadingState label={t("video.model.loading")} /> : null}
-              <UploadBox
-                media={media}
-                modelRule={selectedModelRule}
-                onBusyChange={setIsAssetPickerUploading}
-                onChange={setMedia}
-                reusableMedia={reusableMedia}
-              />
-              <ReferenceMediaTray media={media} modelRule={selectedModelRule} onRemove={removeMedia} onRoleChange={updateMediaRole} />
-              <PromptBox
-                media={media}
-                mentionBindings={reconciledMentionBindings}
-                onChange={setPrompt}
-                onMentionBindingsChange={setMentionBindings}
-                value={prompt}
-              />
-              {pendingPromptStudioDraft ? (
-                <div className="rounded-[20px] border border-[#ffb44d]/24 bg-[#ffb44d]/8 p-3 text-xs leading-5 text-[#ffd08a]/82">
-                  <p className="font-semibold">
-                    {isZh
-                      ? "检测到 Prompt Studio 草稿。当前提示词不为空，是否导入并替换？"
-                      : "Prompt Studio draft detected. Your current prompt is not empty. Import and replace it?"}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <button
-                      className="rounded-full border border-[#ffb44d]/30 bg-[#ffb44d]/14 px-3 py-1.5 text-[11px] font-semibold text-[#ffe0a3] hover:bg-[#ffb44d]/20"
-                      onClick={handleImportPromptStudioDraft}
-                      type="button"
-                    >
-                      {isZh ? "导入" : "Import"}
-                    </button>
-                    <button
-                      className="rounded-full border border-white/10 bg-white/[.04] px-3 py-1.5 text-[11px] font-semibold text-white/62 hover:text-white"
-                      onClick={handleIgnorePromptStudioDraft}
-                      type="button"
-                    >
-                      {isZh ? "忽略" : "Ignore"}
-                    </button>
+              <div
+                className={`grid gap-3.5 rounded-[24px] transition-[box-shadow,background-color] duration-500 ${
+                  isPromptStudioImportHighlighted
+                    ? "bg-[#ffb44d]/[.035] shadow-[0_0_0_1px_rgba(255,180,77,.34),0_0_36px_rgba(255,180,77,.18)]"
+                    : ""
+                }`}
+                ref={promptStudioImportTargetRef}
+              >
+                {modelLoading ? <LoadingState label={t("video.model.loading")} /> : null}
+                <UploadBox
+                  media={media}
+                  modelRule={selectedModelRule}
+                  onBusyChange={setIsAssetPickerUploading}
+                  onChange={setMedia}
+                  reusableMedia={reusableMedia}
+                />
+                <ReferenceMediaTray media={media} modelRule={selectedModelRule} onRemove={removeMedia} onRoleChange={updateMediaRole} />
+                <PromptBox
+                  media={media}
+                  mentionBindings={reconciledMentionBindings}
+                  onChange={setPrompt}
+                  onMentionBindingsChange={setMentionBindings}
+                  value={prompt}
+                />
+                {pendingPromptStudioDraft ? (
+                  <div className="rounded-[20px] border border-[#ffb44d]/24 bg-[#ffb44d]/8 p-3 text-xs leading-5 text-[#ffd08a]/82">
+                    <p className="font-black text-[#ffe0a3]">{isZh ? "检测到 Prompt Studio 草稿" : "Prompt Studio draft detected"}</p>
+                    <p className="mt-1 text-[#ffd08a]/78">
+                      {isZh
+                        ? "是否导入这份草稿？导入后会填入提示词和参考图，但不会自动生成，也不会扣费。"
+                        : "Import this draft into the workspace? It will fill the prompt and reference images, but will not generate or use credits."}
+                    </p>
+                    {getPromptStudioVideoReferences(pendingPromptStudioDraft).length > 0 ? (
+                      <p className="mt-1 font-semibold text-[#ffe0a3]">
+                        {isZh
+                          ? `包含 ${getPromptStudioVideoReferences(pendingPromptStudioDraft).length} 张参考图`
+                          : `Includes ${getPromptStudioVideoReferences(pendingPromptStudioDraft).length} reference image${getPromptStudioVideoReferences(pendingPromptStudioDraft).length === 1 ? "" : "s"}`}
+                      </p>
+                    ) : null}
+                    {prompt.trim() || media.length ? (
+                      <p className="mt-1 text-white/56">
+                        {isZh ? "导入会覆盖当前未生成草稿。" : "Importing will replace the current unsaved draft."}
+                      </p>
+                    ) : null}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        className="rounded-full border border-[#ffb44d]/30 bg-[#ffb44d]/14 px-3 py-1.5 text-[11px] font-semibold text-[#ffe0a3] hover:bg-[#ffb44d]/20"
+                        onClick={handleImportPromptStudioDraft}
+                        type="button"
+                      >
+                        {isZh ? "导入草稿" : "Import draft"}
+                      </button>
+                      <button
+                        className="rounded-full border border-white/10 bg-white/[.04] px-3 py-1.5 text-[11px] font-semibold text-white/62 hover:text-white"
+                        onClick={handleIgnorePromptStudioDraft}
+                        type="button"
+                      >
+                        {isZh ? "忽略" : "Ignore"}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ) : null}
+                ) : null}
+              </div>
               <button
                 className="group flex min-h-10 items-center justify-between gap-3 rounded-[18px] border border-[#ffb44d]/18 bg-[#ffb44d]/8 px-3 py-2 text-left text-xs font-semibold text-[#ffd08a]/86 transition hover:border-[#ffcc86]/34 hover:bg-[#ffb44d]/12"
                 onClick={handleOpenPromptStudio}

@@ -17,6 +17,7 @@ export function ImagePromptPanel({
   models,
   params,
   prompt,
+  promptStudioDraftReferenceCount = 0,
   promptStudioDraftPending,
   references,
   selectedModel,
@@ -41,6 +42,7 @@ export function ImagePromptPanel({
   models: ImageModel[];
   params: ImageGenerationParams;
   prompt: string;
+  promptStudioDraftReferenceCount?: number;
   promptStudioDraftPending?: boolean;
   references: ImageReferenceItem[];
   selectedModel: ImageModel | null;
@@ -63,6 +65,7 @@ export function ImagePromptPanel({
   const maxBatchCount = selectedModel?.capabilities.maxBatchCount || 1;
   const hasUploadingReferences = references.some((reference) => reference.uploadStatus === "uploading");
   const hasPrompt = Boolean(prompt.trim());
+  const hasExistingDraft = hasPrompt || references.length > 0;
   const disabled = isGenerating || loadingModels || hasUploadingReferences || isPolling || isActiveJob || !hasPrompt;
   const optionLabel = (value: string) => value || t("image.params.default");
   const generateLabel = hasUploadingReferences
@@ -113,18 +116,31 @@ export function ImagePromptPanel({
           ) : null}
           {promptStudioDraftPending ? (
             <div className="mt-3 rounded-[18px] border border-[#ffb44d]/24 bg-[#ffb44d]/8 p-3 text-xs leading-5 text-[#ffd08a]/82">
-              <p className="font-semibold">
+              <p className="font-black text-[#ffe0a3]">{isZh ? "检测到 Prompt Studio 草稿" : "Prompt Studio draft detected"}</p>
+              <p className="mt-1 text-[#ffd08a]/78">
                 {isZh
-                  ? "检测到 Prompt Studio 草稿。当前提示词不为空，是否导入并替换？"
-                  : "Prompt Studio draft detected. Your current prompt is not empty. Import and replace it?"}
+                  ? "是否导入这份草稿？导入后会填入提示词和参考图，但不会自动生成，也不会扣费。"
+                  : "Import this draft into the workspace? It will fill the prompt and reference images, but will not generate or use credits."}
               </p>
+              {promptStudioDraftReferenceCount > 0 ? (
+                <p className="mt-1 font-semibold text-[#ffe0a3]">
+                  {isZh
+                    ? `包含 ${promptStudioDraftReferenceCount} 张参考图`
+                    : `Includes ${promptStudioDraftReferenceCount} reference image${promptStudioDraftReferenceCount === 1 ? "" : "s"}`}
+                </p>
+              ) : null}
+              {hasExistingDraft ? (
+                <p className="mt-1 text-white/56">
+                  {isZh ? "导入会覆盖当前未生成草稿。" : "Importing will replace the current unsaved draft."}
+                </p>
+              ) : null}
               <div className="mt-2 flex flex-wrap gap-2">
                 <button
                   className="rounded-full border border-[#ffb44d]/30 bg-[#ffb44d]/14 px-3 py-1.5 text-[11px] font-semibold text-[#ffe0a3] hover:bg-[#ffb44d]/20"
                   onClick={onImportPromptStudioDraft}
                   type="button"
                 >
-                  {isZh ? "导入" : "Import"}
+                  {isZh ? "导入草稿" : "Import draft"}
                 </button>
                 <button
                   className="rounded-full border border-white/10 bg-white/[.04] px-3 py-1.5 text-[11px] font-semibold text-white/62 hover:text-white"

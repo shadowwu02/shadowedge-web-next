@@ -20,7 +20,7 @@ import type { ImageHistoryItem, ImageReferenceItem } from "@/types/image";
 
 function getPromptStudioImageReferences(draft: PromptStudioBridgeDraft | null): ImageReferenceItem[] {
   return (draft?.referenceImages || [])
-    .filter((reference) => reference.url)
+    .filter((reference) => isSafePromptStudioReferenceUrl(reference.url))
     .map((reference) => ({
       id: reference.id || reference.url,
       type: "image" as const,
@@ -36,6 +36,22 @@ function getPromptStudioImageReferences(draft: PromptStudioBridgeDraft | null): 
     }));
 }
 
+function isSafePromptStudioReferenceUrl(value?: string) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  if (!/^https?:\/\//i.test(normalized)) return false;
+  const lower = normalized.toLowerCase();
+  return (
+    !lower.startsWith("data:") &&
+    !lower.startsWith("blob:") &&
+    !lower.startsWith("javascript:") &&
+    !lower.includes("127.0.0.1") &&
+    !lower.includes("localhost") &&
+    !lower.includes("0.0.0.0") &&
+    !lower.includes("[::1]") &&
+    !lower.includes("file://")
+  );
+}
+
 function mergeImageReferences(current: ImageReferenceItem[], next: ImageReferenceItem[]) {
   if (!next.length) return current;
   const existing = new Set(current.map((item) => item.url || item.id));
@@ -48,8 +64,11 @@ export function ImageWorkspace() {
   const isZh = getPromptStudioDraftLocale(locale) === "zh";
   const image = useImageGeneration();
   const promptStudioDraftCheckedRef = useRef(false);
+  const promptStudioImportTargetRef = useRef<HTMLDivElement | null>(null);
+  const promptStudioImportHighlightTimerRef = useRef<number | null>(null);
   const [pendingPromptStudioDraft, setPendingPromptStudioDraft] = useState<PromptStudioBridgeDraft | null>(null);
   const [promptStudioNotice, setPromptStudioNotice] = useState("");
+  const [isPromptStudioImportHighlighted, setIsPromptStudioImportHighlighted] = useState(false);
   const displayJob = image.currentJob || image.outputs[0] || null;
   const localizedError = useMemo(() => {
     const message = String(image.error || "").trim();
@@ -79,6 +98,27 @@ export function ImageWorkspace() {
     void image.refreshStatus(jobId);
   }, [image]);
 
+  const focusPromptStudioImportTarget = useCallback(() => {
+    if (promptStudioImportHighlightTimerRef.current) {
+      window.clearTimeout(promptStudioImportHighlightTimerRef.current);
+    }
+    window.requestAnimationFrame(() => {
+      promptStudioImportTargetRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setIsPromptStudioImportHighlighted(true);
+      promptStudioImportHighlightTimerRef.current = window.setTimeout(() => {
+        setIsPromptStudioImportHighlighted(false);
+      }, 1800);
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (promptStudioImportHighlightTimerRef.current) {
+        window.clearTimeout(promptStudioImportHighlightTimerRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (!image.draftReady || promptStudioDraftCheckedRef.current) return;
     promptStudioDraftCheckedRef.current = true;
@@ -88,8 +128,9 @@ export function ImageWorkspace() {
 
     const nextPrompt = draft.prompt.slice(0, 2000);
     const timer = window.setTimeout(() => {
-      if (image.prompt.trim()) {
+      if (image.prompt.trim() || image.references.length) {
         setPendingPromptStudioDraft({ ...draft, prompt: nextPrompt });
+        focusPromptStudioImportTarget();
         return;
       }
 
@@ -100,13 +141,14 @@ export function ImageWorkspace() {
       }
       setPromptStudioNotice(
         isZh
-          ? "已从 Prompt Studio 填入草稿。不会自动生成。"
-          : "Draft imported from Prompt Studio. It will not generate automatically.",
+          ? "已导入 Prompt Studio 草稿。请确认后手动点击生成。"
+          : "Prompt Studio draft imported. Review it, then click Generate manually.",
       );
+      focusPromptStudioImportTarget();
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [image, image.draftReady, image.prompt, isZh]);
+  }, [focusPromptStudioImportTarget, image, image.draftReady, image.prompt, image.references.length, isZh]);
 
   const handleImportPromptStudioDraft = useCallback(() => {
     if (!pendingPromptStudioDraft?.prompt) return;
@@ -118,10 +160,11 @@ export function ImageWorkspace() {
     setPendingPromptStudioDraft(null);
     setPromptStudioNotice(
       isZh
-        ? "已从 Prompt Studio 填入草稿。不会自动生成。"
-        : "Draft imported from Prompt Studio. It will not generate automatically.",
+        ? "已导入 Prompt Studio 草稿。请确认后手动点击生成。"
+        : "Prompt Studio draft imported. Review it, then click Generate manually.",
     );
-  }, [image, isZh, pendingPromptStudioDraft]);
+    focusPromptStudioImportTarget();
+  }, [focusPromptStudioImportTarget, image, isZh, pendingPromptStudioDraft]);
 
   const handleIgnorePromptStudioDraft = useCallback(() => {
     setPendingPromptStudioDraft(null);
@@ -147,7 +190,14 @@ export function ImageWorkspace() {
 
   return (
     <div className="se-scrollbar grid h-full min-h-0 gap-4 overflow-y-auto overflow-x-hidden xl:grid-cols-[minmax(300px,360px)_minmax(0,1fr)_minmax(300px,380px)] xl:overflow-hidden">
-      <div className="min-h-[760px] overflow-hidden xl:min-h-0">
+      <div
+        className={`min-h-[760px] overflow-hidden rounded-[32px] transition-[box-shadow,background-color] duration-500 xl:min-h-0 ${
+          isPromptStudioImportHighlighted
+            ? "bg-[#ffb44d]/[.035] shadow-[0_0_0_1px_rgba(255,180,77,.34),0_0_36px_rgba(255,180,77,.18)]"
+            : ""
+        }`}
+        ref={promptStudioImportTargetRef}
+      >
         <ImagePromptPanel
           draftNotice={promptStudioNotice || image.draftNotice}
           error={localizedError}
@@ -169,6 +219,7 @@ export function ImageWorkspace() {
           onUploadReference={(file) => void image.uploadReferenceFile(file)}
           params={image.params}
           prompt={image.prompt}
+          promptStudioDraftReferenceCount={getPromptStudioImageReferences(pendingPromptStudioDraft).length}
           promptStudioDraftPending={Boolean(pendingPromptStudioDraft)}
           references={image.references}
           selectedModel={image.selectedModel}
