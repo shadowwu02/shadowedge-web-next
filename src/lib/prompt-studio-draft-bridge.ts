@@ -3,7 +3,9 @@
 export const PROMPT_STUDIO_TO_VIDEO_DRAFT_KEY = "shadowedge_prompt_studio_to_video_draft_v1";
 export const PROMPT_STUDIO_TO_IMAGE_DRAFT_KEY = "shadowedge_prompt_studio_to_image_draft_v1";
 export const WORKSPACE_TO_PROMPT_STUDIO_DRAFT_KEY = "shadowedge_workspace_to_prompt_studio_v1";
+export const PROMPT_STUDIO_RETURN_STATE_KEY = "shadowedge_prompt_studio_return_state_v1";
 const LANGUAGE_STORAGE_KEY = "se_lang";
+const PROMPT_STUDIO_RETURN_STATE_TTL_MS = 30 * 60 * 1000;
 
 export type PromptStudioDraftTarget = "video" | "image" | "storyboard";
 
@@ -31,7 +33,23 @@ export type PromptStudioBridgeDraft = {
   createdAt: string;
 };
 
+export type PromptStudioReturnState = {
+  source: "asset-reference";
+  projectId?: string;
+  assetType?: "characters" | "locations" | "props";
+  assetTag?: string;
+  assetName?: string;
+  mode: "project";
+  openHistory: boolean;
+  openProjectDetail: boolean;
+  createdAt: string;
+};
+
 type DraftInput = Omit<PromptStudioBridgeDraft, "createdAt"> & {
+  createdAt?: string;
+};
+
+type ReturnStateInput = Omit<PromptStudioReturnState, "createdAt"> & {
   createdAt?: string;
 };
 
@@ -128,6 +146,34 @@ function normalizeDraft(value: unknown): PromptStudioBridgeDraft | null {
   };
 }
 
+function normalizeReturnState(value: unknown): PromptStudioReturnState | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const source = String(record.source || "");
+  const mode = String(record.mode || "");
+  const createdAt = typeof record.createdAt === "string" ? record.createdAt : "";
+  const createdTime = Date.parse(createdAt);
+  if (source !== "asset-reference" || mode !== "project" || !createdAt || !Number.isFinite(createdTime)) return null;
+  if (createdTime + PROMPT_STUDIO_RETURN_STATE_TTL_MS <= Date.now()) return null;
+
+  const assetType = String(record.assetType || "");
+  const projectId = typeof record.projectId === "string" ? record.projectId.trim().slice(0, 128) : "";
+  const assetTag = typeof record.assetTag === "string" ? record.assetTag.trim().slice(0, 128) : "";
+  const assetName = typeof record.assetName === "string" ? record.assetName.trim().slice(0, 255) : "";
+
+  return {
+    source: "asset-reference",
+    projectId: projectId || undefined,
+    assetType: assetType === "characters" || assetType === "locations" || assetType === "props" ? assetType : undefined,
+    assetTag: assetTag || undefined,
+    assetName: assetName || undefined,
+    mode: "project",
+    openHistory: Boolean(record.openHistory),
+    openProjectDetail: Boolean(record.openProjectDetail),
+    createdAt,
+  };
+}
+
 function readDraft(key: string) {
   const storage = safeLocalStorage();
   if (!storage) return null;
@@ -139,6 +185,26 @@ function readDraft(key: string) {
   } catch {
     try {
       storage.removeItem(key);
+    } catch {
+      // Ignore storage cleanup failures.
+    }
+    return null;
+  }
+}
+
+function readReturnState() {
+  const storage = safeLocalStorage();
+  if (!storage) return null;
+
+  try {
+    const raw = storage.getItem(PROMPT_STUDIO_RETURN_STATE_KEY);
+    if (!raw) return null;
+    const state = normalizeReturnState(JSON.parse(raw));
+    if (!state) storage.removeItem(PROMPT_STUDIO_RETURN_STATE_KEY);
+    return state;
+  } catch {
+    try {
+      storage.removeItem(PROMPT_STUDIO_RETURN_STATE_KEY);
     } catch {
       // Ignore storage cleanup failures.
     }
@@ -160,6 +226,36 @@ function saveDraft(key: string, draft: DraftInput) {
   } catch {
     return false;
   }
+}
+
+export function savePromptStudioReturnState(state: ReturnStateInput) {
+  const storage = safeLocalStorage();
+  const normalized = normalizeReturnState({
+    ...state,
+    createdAt: state.createdAt || new Date().toISOString(),
+  });
+  if (!storage || !normalized) return false;
+
+  try {
+    storage.setItem(PROMPT_STUDIO_RETURN_STATE_KEY, JSON.stringify(normalized));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function consumePromptStudioReturnState() {
+  const storage = safeLocalStorage();
+  const state = readReturnState();
+  if (!storage) return state;
+
+  try {
+    storage.removeItem(PROMPT_STUDIO_RETURN_STATE_KEY);
+  } catch {
+    // Ignore storage cleanup failures.
+  }
+
+  return state;
 }
 
 function consumeDraft(key: string) {

@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { useI18n } from "@/i18n/useI18n";
 import {
+  consumePromptStudioReturnState,
   consumeWorkspaceToPromptStudioDraft,
   getPromptStudioDraftLocale,
+  savePromptStudioReturnState,
   savePromptStudioToImageDraft,
   savePromptStudioToVideoDraft,
 } from "@/lib/prompt-studio-draft-bridge";
@@ -1588,6 +1590,7 @@ function ProjectPlanOutput({
   onRemoveAssetReference,
   onUploadAssetReference,
   result,
+  highlightedAssetKey,
   savedProjectId,
   isSavingProject,
   hasUnsavedAssetReferenceChanges,
@@ -1605,6 +1608,7 @@ function ProjectPlanOutput({
   onRemoveAssetReference: (kind: ProjectAssetKind, assetTag: string) => void;
   onUploadAssetReference: (kind: ProjectAssetKind, assetTag: string, file: File) => void;
   result: PromptStudioProjectPlanResult;
+  highlightedAssetKey?: string;
   savedProjectId?: string;
   isSavingProject: boolean;
   hasUnsavedAssetReferenceChanges: boolean;
@@ -1698,7 +1702,15 @@ function ProjectPlanOutput({
                 <span className="text-xs font-bold text-white/34">{result.assetPlan.characters.length}</span>
               </div>
               {result.assetPlan.characters.map((item) => (
-                <article className="rounded-[22px] border border-white/[.06] bg-[#0c0e12] p-4" key={item.assetTag}>
+                <article
+                  className={`rounded-[22px] border bg-[#0c0e12] p-4 transition-[border-color,box-shadow,background-color] duration-500 ${
+                    highlightedAssetKey === getAssetUploadKey("characters", item.assetTag)
+                      ? "border-[#ffc35a]/45 bg-[#ffc35a]/[.04] shadow-[0_0_0_1px_rgba(255,195,90,.22),0_0_38px_rgba(255,180,77,.18)]"
+                      : "border-white/[.06]"
+                  }`}
+                  data-project-asset-key={getAssetUploadKey("characters", item.assetTag)}
+                  key={item.assetTag}
+                >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <div className="text-xs font-black text-[#ffd48a]">{item.assetTag}</div>
@@ -1753,7 +1765,15 @@ function ProjectPlanOutput({
                 <span className="text-xs font-bold text-white/34">{result.assetPlan.locations.length}</span>
               </div>
               {result.assetPlan.locations.map((item) => (
-                <article className="rounded-[22px] border border-white/[.06] bg-[#0c0e12] p-4" key={item.assetTag}>
+                <article
+                  className={`rounded-[22px] border bg-[#0c0e12] p-4 transition-[border-color,box-shadow,background-color] duration-500 ${
+                    highlightedAssetKey === getAssetUploadKey("locations", item.assetTag)
+                      ? "border-[#ffc35a]/45 bg-[#ffc35a]/[.04] shadow-[0_0_0_1px_rgba(255,195,90,.22),0_0_38px_rgba(255,180,77,.18)]"
+                      : "border-white/[.06]"
+                  }`}
+                  data-project-asset-key={getAssetUploadKey("locations", item.assetTag)}
+                  key={item.assetTag}
+                >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <div className="text-xs font-black text-[#ffd48a]">{item.assetTag}</div>
@@ -1801,7 +1821,15 @@ function ProjectPlanOutput({
                 <span className="text-xs font-bold text-white/34">{result.assetPlan.props.length}</span>
               </div>
               {result.assetPlan.props.map((item) => (
-                <article className="rounded-[22px] border border-white/[.06] bg-[#0c0e12] p-4" key={item.assetTag}>
+                <article
+                  className={`rounded-[22px] border bg-[#0c0e12] p-4 transition-[border-color,box-shadow,background-color] duration-500 ${
+                    highlightedAssetKey === getAssetUploadKey("props", item.assetTag)
+                      ? "border-[#ffc35a]/45 bg-[#ffc35a]/[.04] shadow-[0_0_0_1px_rgba(255,195,90,.22),0_0_38px_rgba(255,180,77,.18)]"
+                      : "border-white/[.06]"
+                  }`}
+                  data-project-asset-key={getAssetUploadKey("props", item.assetTag)}
+                  key={item.assetTag}
+                >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <div className="text-xs font-black text-[#ffd48a]">{item.assetTag}</div>
@@ -2491,6 +2519,8 @@ export function PromptStudioPage() {
   const mainRef = useRef<HTMLElement | null>(null);
   const outputRef = useRef<HTMLElement | null>(null);
   const referenceInputRef = useRef<HTMLInputElement | null>(null);
+  const returnStateCheckedRef = useRef(false);
+  const highlightedProjectAssetTimerRef = useRef<number | null>(null);
   const [catalog, setCatalog] = useState<PromptStudioCatalog>(fallbackCatalog);
   const [catalogError, setCatalogError] = useState("");
   const [mode, setMode] = useState<TextMode>("generate");
@@ -2524,6 +2554,7 @@ export function PromptStudioPage() {
   const [assetUploadingKey, setAssetUploadingKey] = useState("");
   const [assetUploadErrors, setAssetUploadErrors] = useState<Record<string, string>>({});
   const [hasUnsavedAssetReferenceChanges, setHasUnsavedAssetReferenceChanges] = useState(false);
+  const [highlightedProjectAssetKey, setHighlightedProjectAssetKey] = useState("");
   const [styleCardResult, setStyleCardResult] = useState<PromptStudioReferenceAnalysisResult | null>(null);
   const [referenceStyleResult, setReferenceStyleResult] = useState<PromptStudioReferenceStylePromptResult | null>(null);
   const [referenceImageFile, setReferenceImageFile] = useState<File | null>(null);
@@ -2578,6 +2609,85 @@ export function PromptStudioPage() {
 
     return () => window.clearTimeout(timer);
   }, [locale]);
+
+  useEffect(() => {
+    if (returnStateCheckedRef.current) return;
+    returnStateCheckedRef.current = true;
+    const returnState = consumePromptStudioReturnState();
+    if (!returnState) return;
+
+    const timer = window.setTimeout(() => {
+      const returnLocale = getPromptStudioDraftLocale(locale);
+      setMode("project");
+      setResult(null);
+      setStyleCardResult(null);
+      setReferenceStyleResult(null);
+      setError("");
+      setProjectHistoryError("");
+
+      if (!returnState.projectId) {
+        setIsProjectHistoryOpen(false);
+        setNotice(
+          returnLocale === "zh"
+            ? "\u5df2\u56de\u5230\u9879\u76ee\u5236\u4f5c\u6a21\u5f0f\u3002"
+            : "Returned to Project Studio.",
+        );
+        return;
+      }
+
+      setIsProjectHistoryOpen(Boolean(returnState.openHistory));
+      setIsProjectHistoryLoading(true);
+      setIsProjectDetailLoading(true);
+      Promise.all([fetchPromptStudioProjects(), fetchPromptStudioProject(returnState.projectId)])
+        .then(([projects, detail]) => {
+          setProjectHistory(projects);
+          if (!detail?.projectData) throw new Error("Project data is missing.");
+          setSelectedHistoryProject(detail);
+          setProjectResult(detail.projectData);
+          setSavedProjectId(detail.id);
+          setHasUnsavedAssetReferenceChanges(false);
+          setIntent(detail.brief || detail.projectData.projectLogline || detail.projectData.projectTitle || "");
+          setProjectType((detail.projectType || detail.projectData.projectType || "short-film") as PromptStudioProjectType);
+          setTarget(detail.target === "storyboard" ? "storyboard" : "video");
+          setEngine((detail.engine || detail.projectData.engine || "seedance") as Engine);
+          setAspectRatio(detail.aspectRatio || detail.projectData.aspectRatio || "9:16");
+          setProjectShotCount(Number(detail.projectData.shotCount || detail.projectData.shotPlan?.length || 5));
+          setSelectedStyles(detail.selectedStyles || []);
+          setSelectedModules(detail.selectedModules || []);
+          setNotice(
+            returnLocale === "zh"
+              ? "\u5df2\u56de\u5230\u521a\u624d\u7684\u9879\u76ee\u8d44\u4ea7\u3002"
+              : "Returned to your previous project asset.",
+          );
+          window.requestAnimationFrame(() => {
+            scrollToOutput();
+            highlightProjectAsset(returnState.assetType, returnState.assetTag);
+          });
+        })
+        .catch((restoreError) => {
+          const message =
+            returnLocale === "zh"
+              ? "\u672a\u80fd\u6062\u590d\u4e0a\u6b21\u9879\u76ee\uff0c\u53ef\u80fd\u5df2\u88ab\u5220\u9664\u3002"
+              : "Could not restore the previous project. It may have been deleted.";
+          setNotice(message);
+          setProjectHistoryError(restoreError instanceof Error ? restoreError.message : message);
+        })
+        .finally(() => {
+          setIsProjectHistoryLoading(false);
+          setIsProjectDetailLoading(false);
+        });
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [locale]);
+
+  useEffect(() => {
+    return () => {
+      if (highlightedProjectAssetTimerRef.current) {
+        window.clearTimeout(highlightedProjectAssetTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -2732,6 +2842,24 @@ export function PromptStudioPage() {
       top: main.scrollTop + outputTop - mainTop - 16,
       behavior: "smooth",
     });
+  }
+
+  function highlightProjectAsset(assetType?: ProjectAssetKind, assetTag?: string) {
+    if (!assetType || !assetTag) return;
+    const assetKey = getAssetUploadKey(assetType, assetTag);
+    setHighlightedProjectAssetKey(assetKey);
+    if (highlightedProjectAssetTimerRef.current) {
+      window.clearTimeout(highlightedProjectAssetTimerRef.current);
+    }
+    window.setTimeout(() => {
+      const targetAsset = Array.from(document.querySelectorAll<HTMLElement>("[data-project-asset-key]")).find(
+        (item) => item.dataset.projectAssetKey === assetKey,
+      );
+      targetAsset?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 120);
+    highlightedProjectAssetTimerRef.current = window.setTimeout(() => {
+      setHighlightedProjectAssetKey("");
+    }, 2600);
   }
 
   function handleTargetChange(nextTarget: Target) {
@@ -3011,6 +3139,27 @@ export function PromptStudioPage() {
       selectedModules,
       projectData,
     };
+  }
+
+  function getProjectAssetKind(asset: ProjectAssetItem): ProjectAssetKind | undefined {
+    if (projectResult?.assetPlan.characters.some((item) => item.assetTag === asset.assetTag)) return "characters";
+    if (projectResult?.assetPlan.locations.some((item) => item.assetTag === asset.assetTag)) return "locations";
+    if (projectResult?.assetPlan.props.some((item) => item.assetTag === asset.assetTag)) return "props";
+    return undefined;
+  }
+
+  function saveProjectAssetReturnState(asset: ProjectAssetItem) {
+    const assetType = getProjectAssetKind(asset);
+    savePromptStudioReturnState({
+      source: "asset-reference",
+      projectId: savedProjectId,
+      assetType,
+      assetTag: asset.assetTag,
+      assetName: asset.name,
+      mode: "project",
+      openHistory: Boolean(savedProjectId),
+      openProjectDetail: Boolean(savedProjectId),
+    });
   }
 
   function updateProjectAssetReference(kind: ProjectAssetKind, assetTag: string, assetReferenceImage?: PromptStudioAssetReferenceImage | null) {
@@ -3298,6 +3447,7 @@ export function PromptStudioPage() {
     const prompt = getProjectAssetPrompt(asset);
     if (!prompt) return;
     const referenceImages = [assetReferenceToDraftReference(asset)].filter(isBridgeReferenceImage);
+    saveProjectAssetReturnState(asset);
     savePromptStudioToImageDraft({
       prompt,
       source: "prompt-studio",
@@ -3316,6 +3466,7 @@ export function PromptStudioPage() {
     const prompt = getProjectAssetPrompt(asset);
     if (!prompt) return;
     const referenceImages = [assetReferenceToDraftReference(asset)].filter(isBridgeReferenceImage);
+    saveProjectAssetReturnState(asset);
     savePromptStudioToVideoDraft({
       prompt,
       source: "prompt-studio",
@@ -4001,6 +4152,7 @@ export function PromptStudioPage() {
                   onRemoveAssetReference={removeAssetReferenceImage}
                   onUploadAssetReference={(kind, assetTag, file) => void uploadAssetReferenceImage(kind, assetTag, file)}
                   result={projectResult}
+                  highlightedAssetKey={highlightedProjectAssetKey}
                   savedProjectId={savedProjectId}
                   isSavingProject={isProjectSaving}
                   hasUnsavedAssetReferenceChanges={hasUnsavedAssetReferenceChanges}
