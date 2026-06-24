@@ -6,7 +6,8 @@ import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { getImageUserFacingError } from "@/lib/image/imageErrorDisplay";
 import { isImageActiveStatus, isImageCompletedStatus, isImageFailedStatus } from "@/lib/image/imageHistoryUtils";
 import { getImageHistoryModelLogoLookup } from "@/lib/image/imageModelLogo";
-import { getReusableImageOutputUrl, sendImageResultToVideoDraft } from "@/lib/video/videoResultDrafts";
+import { getReusableImageOutputUrl, sendImageResultToImageDraft } from "@/lib/image/imageResultDrafts";
+import { sendImageResultToVideoDraft } from "@/lib/video/videoResultDrafts";
 import { useI18n } from "@/i18n/useI18n";
 import { formatTime } from "@/lib/utils";
 import type { ImageHistoryItem } from "@/types/image";
@@ -90,6 +91,21 @@ export function ImageHistoryPanel({
     }
 
     router.push("/workspace/video?from=image-result");
+  };
+
+  const handleUseAsReference = (item: ImageHistoryItem) => {
+    setActionError("");
+    const result = sendImageResultToImageDraft(
+      { image: item },
+      t("image.actions.imageAddedAsReferenceDraft"),
+    );
+
+    if (!result) {
+      setActionError(t("image.actions.noReusableImageUrl"));
+      return;
+    }
+
+    window.location.assign("/workspace/image?from=image-result");
   };
 
   return (
@@ -239,7 +255,13 @@ export function ImageHistoryPanel({
                   </button>
                   {isCompleted ? (
                     <>
-                      <button className={imageActionClass("normal")} disabled title={t("image.actions.comingSoonDraftOnly")} type="button">
+                      <button
+                        className={imageActionClass("normal")}
+                        disabled={!reusableImageUrl}
+                        onClick={() => handleUseAsReference(item)}
+                        title={reusableImageUrl ? t("image.actions.imageAddedAsReferenceDraft") : t("image.actions.noReusableImageUrl")}
+                        type="button"
+                      >
                         {t("image.actions.useAsReference")}
                       </button>
                       <button

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildImageGenerateRequest, generateImage, getImageHistory, getImageModels, getImageStatus, uploadImage } from "@/lib/image-api";
 import { useI18n } from "@/i18n/useI18n";
 import { formatGenerationConcurrencyLimitError } from "@/lib/generationConcurrencyError";
+import { readImageResultDraftNotice } from "@/lib/image/imageResultDrafts";
 import {
   isImageActiveStatus,
   isImageTerminalStatus,
@@ -201,10 +202,15 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
 
         if (draftResult.status === "expired") {
           setDraftNotice(t("image.draftExpired"));
-        } else if (draft && nextReferences.length) {
-          setDraftNotice(tf("image.referencesRestored", { count: nextReferences.length }));
         } else if (draft) {
-          setDraftNotice(t("image.draftRestored"));
+          const resultDraftNotice = readImageResultDraftNotice();
+          if (resultDraftNotice) {
+            setDraftNotice(resultDraftNotice);
+          } else if (nextReferences.length) {
+            setDraftNotice(tf("image.referencesRestored", { count: nextReferences.length }));
+          } else {
+            setDraftNotice(t("image.draftRestored"));
+          }
         }
 
         setDraftReady(true);
