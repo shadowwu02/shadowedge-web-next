@@ -133,7 +133,7 @@ export function sanitizeVideoDraftMedia(items: UploadMediaItem[]) {
         id: item.id || item.url || `${item.type}-${item.name}`,
         type: item.type,
         role: item.role || ("reference" as UploadMediaRole),
-        source: "reference_selected" as UploadMediaSource,
+        source: item.source || ("reference_selected" as UploadMediaSource),
         name: item.name || `${item.type} reference`,
         previewUrl: previewUrl || (item.type === "image" ? item.url : ""),
         url: item.url,

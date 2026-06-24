@@ -66,6 +66,7 @@ import {
   saveRemakeShotQueueDraft,
 } from "@/lib/video/remakeShotQueueDraft";
 import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
+import { readVideoDraftNotice } from "@/lib/video/videoResultDrafts";
 import { estimateVideoCreditsForParams, getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
 import { VIDEO_PROMPT_FRONTEND_LIMIT } from "@/lib/video/videoPromptLimits";
 import {
@@ -844,6 +845,8 @@ export function VideoWorkspace() {
         setPrompt(draft.prompt);
         setMedia(draft.referenceMedia);
         setMentionBindings(draft.mentionBindings);
+        const draftNotice = readVideoDraftNotice();
+        if (draftNotice) setWorkspaceNotice(draftNotice);
       }
 
       setDraftReady(true);

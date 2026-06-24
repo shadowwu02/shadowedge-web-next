@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { isImageActiveStatus, isImageCompletedStatus, isImageFailedStatus } from "@/lib/image/imageHistoryUtils";
 import { getImageUserFacingError } from "@/lib/image/imageErrorDisplay";
+import { getReusableImageOutputUrl, sendImageResultToVideoDraft } from "@/lib/video/videoResultDrafts";
 import { useI18n } from "@/i18n/useI18n";
 import { formatTime } from "@/lib/utils";
 import type { ImageHistoryItem } from "@/types/image";
@@ -64,7 +67,9 @@ export function ImageOutputStage({
   onRefresh?: (jobId: string) => void;
   recoveredJobId?: string;
 }) {
+  const router = useRouter();
   const { t, tf } = useI18n();
+  const [actionError, setActionError] = useState("");
   const status = String(job?.status || "");
   const isActive = Boolean(job && isImageActiveStatus(status));
   const isFailed = Boolean(job && isImageFailedStatus(status));
@@ -82,6 +87,21 @@ export function ImageOutputStage({
     if (isImageActiveStatus(status)) return t("image.status.processing");
     return status;
   })();
+  const handleSendToVideoDraft = (outputUrl: string, outputIndex: number) => {
+    if (!job) return;
+    setActionError("");
+    const result = sendImageResultToVideoDraft(
+      { image: job, outputIndex, outputUrl },
+      t("image.actions.imageAddedToVideoDraft"),
+    );
+
+    if (!result) {
+      setActionError(t("image.actions.noReusableImageUrl"));
+      return;
+    }
+
+    router.push("/workspace/video?from=image-result");
+  };
 
   return (
     <section className="se-panel flex h-full min-h-[520px] flex-col overflow-hidden rounded-[34px] p-4 shadow-2xl shadow-black/24">
@@ -92,6 +112,7 @@ export function ImageOutputStage({
           <p className="mt-1 text-xs text-[#b9b9b9]/48">
             {job ? `${job.model || t("image.model.label")} - ${formatTime(job.createdAt)}` : t("image.workspace.generatedImagesHint")}
           </p>
+          {actionError ? <p className="mt-1 text-xs font-semibold text-[#f2b3a1]/78">{actionError}</p> : null}
         </div>
         {job ? (
           <div className="flex items-center gap-2">
@@ -169,7 +190,13 @@ export function ImageOutputStage({
                       <button className={outputActionClass("normal")} disabled title={t("image.actions.comingSoonDraftOnly")} type="button">
                         {t("image.actions.useAsReference")}
                       </button>
-                      <button className={outputActionClass("normal")} disabled title={t("image.actions.comingSoonDraftOnly")} type="button">
+                      <button
+                        className={outputActionClass("normal")}
+                        disabled={!getReusableImageOutputUrl(job, url)}
+                        onClick={() => handleSendToVideoDraft(url, index)}
+                        title={getReusableImageOutputUrl(job, url) ? t("image.actions.imageAddedToVideoDraft") : t("image.actions.noReusableImageUrl")}
+                        type="button"
+                      >
                         {t("image.actions.sendToVideoDraft")}
                       </button>
                     </span>

@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { getImageUserFacingError } from "@/lib/image/imageErrorDisplay";
 import { isImageActiveStatus, isImageCompletedStatus, isImageFailedStatus } from "@/lib/image/imageHistoryUtils";
 import { getImageHistoryModelLogoLookup } from "@/lib/image/imageModelLogo";
+import { getReusableImageOutputUrl, sendImageResultToVideoDraft } from "@/lib/video/videoResultDrafts";
 import { useI18n } from "@/i18n/useI18n";
 import { formatTime } from "@/lib/utils";
 import type { ImageHistoryItem } from "@/types/image";
@@ -49,9 +51,11 @@ export function ImageHistoryPanel({
   onRefreshStatus: (jobId: string) => void;
   onSelect: (item: ImageHistoryItem) => void;
 }) {
+  const router = useRouter();
   const { t, tf } = useI18n();
   const [filter, setFilter] = useState<ImageHistoryFilter>("all");
   const [expandedKey, setExpandedKey] = useState<string>("");
+  const [actionError, setActionError] = useState("");
   const counts = useMemo(() => ({
     all: history.length,
     completed: history.filter((item) => isImageCompletedStatus(item.status)).length,
@@ -72,6 +76,20 @@ export function ImageHistoryPanel({
     if (item === "completed") return t("image.history.filter.completed");
     if (item === "failed") return t("image.history.filter.failed");
     return t("image.history.filter.all");
+  };
+  const handleSendToVideoDraft = (item: ImageHistoryItem) => {
+    setActionError("");
+    const result = sendImageResultToVideoDraft(
+      { image: item },
+      t("image.actions.imageAddedToVideoDraft"),
+    );
+
+    if (!result) {
+      setActionError(t("image.actions.noReusableImageUrl"));
+      return;
+    }
+
+    router.push("/workspace/video?from=image-result");
   };
 
   return (
@@ -111,6 +129,9 @@ export function ImageHistoryPanel({
         {error ? (
           <div className="rounded-[18px] border border-[#8c4632]/42 bg-[#2a1012]/72 px-3 py-2 text-xs leading-5 text-[#f2b3a1]">{error}</div>
         ) : null}
+        {actionError ? (
+          <div className="rounded-[18px] border border-[#8c4632]/42 bg-[#2a1012]/72 px-3 py-2 text-xs leading-5 text-[#f2b3a1]">{actionError}</div>
+        ) : null}
         {isLoading && !visibleHistory.length ? (
           <div className="grid min-h-[180px] place-items-center rounded-[20px] border border-dashed border-white/10 text-center">
             <div>
@@ -131,6 +152,7 @@ export function ImageHistoryPanel({
             const safeFilename = String(historyKey).replace(/[^\w.-]+/g, "-");
             const isRefunded = Boolean(item.refunded || item.refundStatus === "refunded");
             const modelLogoLookup = getImageHistoryModelLogoLookup(item);
+            const reusableImageUrl = getReusableImageOutputUrl(item, outputUrl);
             const failedErrorMessage = isFailed ? getImageUserFacingError(item.errorMessage, t, {
               errorCode: item.errorCode,
               refunded: item.refunded,
@@ -220,7 +242,13 @@ export function ImageHistoryPanel({
                       <button className={imageActionClass("normal")} disabled title={t("image.actions.comingSoonDraftOnly")} type="button">
                         {t("image.actions.useAsReference")}
                       </button>
-                      <button className={imageActionClass("normal")} disabled title={t("image.actions.comingSoonDraftOnly")} type="button">
+                      <button
+                        className={imageActionClass("normal")}
+                        disabled={!reusableImageUrl}
+                        onClick={() => handleSendToVideoDraft(item)}
+                        title={reusableImageUrl ? t("image.actions.imageAddedToVideoDraft") : t("image.actions.noReusableImageUrl")}
+                        type="button"
+                      >
                         {t("image.actions.sendToVideoDraft")}
                       </button>
                     </>
