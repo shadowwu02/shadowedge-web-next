@@ -288,10 +288,10 @@ export function VideoHistoryCanvas({
                             className={actionButtonClass("normal")}
                             disabled={Boolean(useResultIssue)}
                             onClick={() => onUseResultAsReference(item)}
-                            title={useResultIssue || t("video.history.useResultTitle")}
+                            title={useResultIssue || t("video.history.reuseAsVideoDraftTitle")}
                             type="button"
                           >
-                            {t("video.history.useAsReference")}
+                            {t("video.history.reuseAsVideoDraft")}
                           </button>
                         ) : null}
                         {!isProcessing && onHide ? (

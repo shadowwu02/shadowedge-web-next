@@ -302,15 +302,15 @@ export function VideoOutputDetailPanel({
         ) : null}
         {hasOutput && onUseResultAsReference ? (
           <button
-            aria-label={t("video.history.useAsReference")}
+            aria-label={t("video.history.reuseAsVideoDraft")}
             className={actionButtonClass("normal")}
             disabled={Boolean(useResultIssue)}
             onClick={() => onUseResultAsReference(record)}
-            title={useResultIssue || t("video.history.useResultTitle")}
+            title={useResultIssue || t("video.history.reuseAsVideoDraftTitle")}
             type="button"
           >
             <AddReferenceIcon />
-            {t("video.generation.addReference")}
+            {t("video.generation.reuseAsVideoDraft")}
           </button>
         ) : null}
         {hasOutput ? (

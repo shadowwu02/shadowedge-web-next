@@ -220,14 +220,14 @@ function VideoGenerationCard({
               <div className="absolute right-4 top-4 flex flex-col gap-2 opacity-0 transition group-hover:opacity-100">
                 {onUseResultAsReference ? (
                   <button
-                    aria-label={t("video.generation.useAsReference")}
+                    aria-label={t("video.generation.reuseAsVideoDraft")}
                     className={canvasActionClass()}
                     disabled={Boolean(useResultIssue)}
                     onClick={(event) => {
                       event.stopPropagation();
                       onUseResultAsReference(record);
                     }}
-                    title={useResultIssue || t("video.generation.useAsReference")}
+                    title={useResultIssue || t("video.generation.reuseAsVideoDraft")}
                     type="button"
                   >
                     <AddReferenceIcon />
@@ -371,10 +371,10 @@ function VideoGenerationCard({
                 className={outputActionClass()}
                 disabled={Boolean(useResultIssue)}
                 onClick={() => onUseResultAsReference(record)}
-                title={useResultIssue || t("video.history.useResultTitle")}
+                title={useResultIssue || t("video.history.reuseAsVideoDraftTitle")}
                 type="button"
               >
-                {t("video.generation.useAsReference")}
+                {t("video.generation.reuseAsVideoDraft")}
               </button>
             ) : null}
             {(isFailed || isStaleActive) ? (

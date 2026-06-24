@@ -37,7 +37,7 @@ import { useAuthSession } from "@/hooks/useAuthSession";
 import { useCredits } from "@/hooks/useCredits";
 import { useVideoGeneration } from "@/hooks/useVideoGeneration";
 import { useI18n } from "@/i18n/useI18n";
-import { collectGeneratedResultMediaAssets, collectHistoryInputMediaAssets, collectReusableVideoAssets, mergeMediaAssets } from "@/lib/media-assets";
+import { collectHistoryInputMediaAssets, collectReusableVideoAssets, mergeMediaAssets } from "@/lib/media-assets";
 import {
   consumePromptStudioToVideoDraft,
   getPromptStudioDraftLocale,
@@ -66,7 +66,7 @@ import {
   saveRemakeShotQueueDraft,
 } from "@/lib/video/remakeShotQueueDraft";
 import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
-import { readVideoDraftNotice } from "@/lib/video/videoResultDrafts";
+import { getReusableVideoOutputUrl, readVideoDraftNotice, sendVideoResultToVideoDraft } from "@/lib/video/videoResultDrafts";
 import { estimateVideoCreditsForParams, getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
 import { VIDEO_PROMPT_FRONTEND_LIMIT } from "@/lib/video/videoPromptLimits";
 import {
@@ -2540,17 +2540,10 @@ export function VideoWorkspace() {
 
   const getGeneratedResultReferenceIssue = useCallback(
     (record: (typeof history)[number]) => {
-      if (!getSafeHistoryOutputUrl(record)) return t("video.errors.generatedNoUrl");
-      if (!selectedModelRule.supportsGeneratedResultAsReference) {
-        return t("video.drawer.generatedUnsupported");
-      }
-
-      const generatedAsset = collectGeneratedResultMediaAssets([record])[0];
-      if (!generatedAsset) return t("video.errors.generatedNoReusable");
-
-      return validateReferenceSelectionForRule(selectedModelRule, media, [generatedAsset]);
+      if (!getReusableVideoOutputUrl(record)) return t("video.history.noReusableVideoUrl");
+      return "";
     },
-    [media, selectedModelRule, t],
+    [t],
   );
 
   const localizeReferenceIssue = useCallback(
@@ -2617,16 +2610,15 @@ export function VideoWorkspace() {
         return;
       }
 
-      const generatedAsset = collectGeneratedResultMediaAssets([record])[0];
-      if (!generatedAsset) {
-        setWorkspaceNotice(t("video.errors.generatedNoReusable"));
+      const draft = sendVideoResultToVideoDraft({ video: record }, t("video.notices.videoAddedToDraft"));
+      if (!draft) {
+        setWorkspaceNotice(t("video.history.noReusableVideoUrl"));
         return;
       }
 
-      setMedia((currentItems) => mergeMediaAssets(currentItems, [generatedAsset]));
-      setWorkspaceNotice(t("video.notices.generatedAdded"));
+      router.push("/workspace/video?from=video-result");
     },
-    [getGeneratedResultReferenceIssue, t],
+    [getGeneratedResultReferenceIssue, router, t],
   );
 
   const handleFillFromHistory = useCallback(
