@@ -184,20 +184,6 @@ export function ReferenceMediaTray({
 
   const openRoleItem = media.find((item) => item.id === openRoleId) || null;
   const openRoleMention = openRoleItem ? mentionById.get(openRoleItem.id) : null;
-  const firstIssueEntry = Array.from(mediaIssues.entries()).find(([, issues]) => issues.length > 0);
-  const firstIssueItem = firstIssueEntry ? media.find((item) => item.id === firstIssueEntry[0]) || null : null;
-  const firstIssue = firstIssueEntry?.[1]?.[0] || "";
-  const mediaByType = useMemo(() => {
-    const grouped: Record<UploadMediaType, UploadMediaItem[]> = {
-      image: [],
-      video: [],
-      audio: [],
-    };
-    media.forEach((item) => {
-      grouped[item.type].push(item);
-    });
-    return grouped;
-  }, [media]);
   const startFrameCount = media.filter((item) => item.role === "start_frame").length;
   const endFrameCount = media.filter((item) => item.role === "end_frame").length;
   const hasExplicitFrameSlots = modelRule.uploadSlots.some(
@@ -209,16 +195,6 @@ export function ReferenceMediaTray({
       slot === "last_frame_image",
   );
   const showFrameSlotsByDefault = hasExplicitFrameSlots && (modelRule.supportsStartFrame || modelRule.supportsEndFrame);
-  const typeSlots = useMemo(
-    () =>
-      (["image", "video", "audio"] as UploadMediaType[]).map((type) => ({
-        type,
-        items: mediaByType[type],
-        limit: modelRule.maxReferences[type],
-        supported: allowedTypes.includes(type) && modelRule.maxReferences[type] > 0,
-      })),
-    [allowedTypes, mediaByType, modelRule.maxReferences],
-  );
   const isImageOnlyModel = allowedTypes.length === 1 && allowedTypes[0] === "image";
 
   function roleLabel(role: UploadMediaRole) {
@@ -281,12 +257,6 @@ export function ReferenceMediaTray({
     return supported ? t("video.references.available") : t("video.references.unavailable");
   }
 
-  function slotToneClass(supported: boolean, hasItems = false) {
-    if (hasItems) return "border-[#79d88a]/22 bg-[#79d88a]/8";
-    if (supported) return "border-[#ffb44d]/22 bg-[#ffb44d]/7";
-    return "border-[rgba(244,244,244,0.08)] bg-[#05070b]/26";
-  }
-
   function frameSlotToneClass(supported: boolean, hasItems = false) {
     if (hasItems) return "border-[#79d88a]/18 bg-[#79d88a]/7";
     if (supported) return "border-[rgba(255,180,77,0.13)] bg-[#05070b]/18";
@@ -303,20 +273,26 @@ export function ReferenceMediaTray({
     : allowedTypes.length === 1 && allowedTypes[0] === "image"
       ? t("video.upload.imageSubtitle")
       : t("video.upload.mediaHint");
+  const inputSummary = allowedTypes.length ? allowedTypes.map((type) => allowedTypeLabel(type)).join(", ") : t("video.references.modelDoesNotAccept");
+  const compactMappingItems = media.slice(0, 1);
+  const hiddenMappingCount = Math.max(0, media.length - compactMappingItems.length);
+  const unsupportedMedia = media.filter((item) => (mediaIssues.get(item.id) || []).length > 0);
+  const unsupportedItems = unsupportedMedia.slice(0, 1);
+  const hiddenUnsupportedCount = Math.max(0, unsupportedMedia.length - unsupportedItems.length);
 
   return (
-    <section className="se-card rounded-[24px] p-3.5" ref={rootRef}>
+    <section className="se-card min-w-0 max-w-full overflow-hidden rounded-[24px] p-3.5" ref={rootRef}>
       <div className="mb-3">
-        <div className="flex items-start justify-between gap-3">
-          <div>
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
             <p className="se-eyebrow">{t("video.references.inputMedia")}</p>
             <h2 className="mt-1 text-sm font-semibold text-[#f4f4f4]">{uploadTitle}</h2>
           </div>
-          <span className="rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/70 px-2.5 py-1 text-[11px] font-medium text-[#b9b9b9]/56">
+          <span className="shrink-0 rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/70 px-2.5 py-1 text-[11px] font-medium text-[#b9b9b9]/56">
             {tf("video.references.referencesCount", { count: media.length, total: limitSummary.total })}
           </span>
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
           {allowedTypes.length ? (
             allowedTypes.map((type) => (
               <span
@@ -356,7 +332,7 @@ export function ReferenceMediaTray({
       </div>
 
       {media.length ? (
-        <div className="se-subtle-scrollbar grid max-h-[220px] gap-2 overflow-y-auto pr-1">
+        <div className="se-subtle-scrollbar grid max-h-[220px] min-w-0 max-w-full gap-2 overflow-hidden overflow-y-auto pr-1">
           {media.map((item) => {
             const mention = mentionById.get(item.id);
             const currentRole = item.role || "reference";
@@ -479,7 +455,7 @@ export function ReferenceMediaTray({
 
       <div className="mt-3 rounded-[18px] border border-[rgba(244,244,244,0.07)] bg-[#05070b]/14">
         <button
-          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
+          className="flex w-full min-w-0 items-center justify-between gap-3 px-3 py-2 text-left"
           onClick={() => setIsAdvancedOpen((current) => !current)}
           type="button"
         >
@@ -489,169 +465,91 @@ export function ReferenceMediaTray({
           <span className="text-xs font-semibold text-[#b9b9b9]/45">{isAdvancedOpen ? "-" : "+"}</span>
         </button>
         {isAdvancedOpen ? (
-          <div className="border-t border-[rgba(244,244,244,0.06)] p-3">
-            <div className="rounded-[16px] border border-[rgba(244,244,244,0.08)] bg-[#05070b]/24 p-2.5">
-              <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[.11em] text-[#b9b9b9]/52">
-                <span>{t("video.references.capabilitySummary")}</span>
-                <span className="text-[#b9b9b9]/28">/</span>
-                <span>{tf("video.references.referencesCount", { count: media.length, total: limitSummary.total })}</span>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                <span className="rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/75 px-2 py-1 text-[11px] font-semibold text-[#f4f4f4]/78">
-                  {t("video.references.inputText")}
-                </span>
-                {(["image", "video", "audio"] as UploadMediaType[]).map((type) => {
-                  const isSupported = allowedTypes.includes(type);
-                  return (
-                    <span
-                      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-semibold ${
-                        isSupported
-                          ? "border-[#ffb44d]/24 bg-[#ffb44d]/8 text-[#ffd08a]"
-                          : "border-[rgba(244,244,244,0.08)] bg-[#111318]/55 text-[#b9b9b9]/42"
-                      }`}
-                      key={type}
-                    >
-                      <MediaTypeIcon className="size-3" type={type} />
-                      {allowedTypeLabel(type)}
-                    </span>
-                  );
-                })}
-                <span className="rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/55 px-2 py-1 text-[11px] font-semibold text-[#b9b9b9]/55">
-                  {t("video.references.startFrame")}: {supportLabel(modelRule.supportsStartFrame)}
-                </span>
-                <span className="rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/55 px-2 py-1 text-[11px] font-semibold text-[#b9b9b9]/55">
-                  {t("video.references.endFrame")}: {supportLabel(modelRule.supportsEndFrame)}
-                </span>
-              </div>
+          <div className="grid min-w-0 max-w-full gap-1 overflow-hidden border-t border-[rgba(244,244,244,0.06)] px-2.5 py-2 text-[11px] leading-5">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="w-[74px] shrink-0 text-[10px] font-semibold uppercase tracking-[.08em] text-[#b9b9b9]/45">
+                {t("video.references.compact.inputs")}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[#f4f4f4]/72">{inputSummary}</span>
+            </div>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="w-[74px] shrink-0 text-[10px] font-semibold uppercase tracking-[.08em] text-[#b9b9b9]/45">
+                {t("video.references.compact.references")}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[#f4f4f4]/72">
+                {media.length} / {limitSummary.total}
+              </span>
+            </div>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="w-[74px] shrink-0 text-[10px] font-semibold uppercase tracking-[.08em] text-[#b9b9b9]/45">
+                {t("video.references.compact.frames")}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[#f4f4f4]/72">
+                {t("video.references.compact.start")} {supportLabel(modelRule.supportsStartFrame)} · {t("video.references.compact.end")}{" "}
+                {supportLabel(modelRule.supportsEndFrame)}
+              </span>
             </div>
 
-            {firstIssue ? (
-              <p className="mt-2 rounded-2xl border border-[#ffb44d]/22 bg-[#ffb44d]/8 px-3 py-2 text-xs font-semibold leading-5 text-[#ffb44d]">
-                {getNotUsedDetail(firstIssueItem, [firstIssue])}
-              </p>
+            {compactMappingItems.map((item) => {
+              const mention = mentionById.get(item.id);
+              const issues = mediaIssues.get(item.id) || [];
+              const status = getMediaStatus(item, issues);
+              return (
+                <div className="flex min-w-0 items-center gap-2" key={item.id}>
+                  <span className="w-[74px] shrink-0 text-[10px] font-semibold uppercase tracking-[.08em] text-[#b9b9b9]/45">
+                    {t("video.references.compact.mapping")}
+                  </span>
+                  <button
+                    className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-1 py-px text-left transition-colors disabled:cursor-default hover:bg-[#111318]/44"
+                    disabled={!mention}
+                    onClick={() => {
+                      if (mention) insertMention(mention);
+                    }}
+                    title={item.name}
+                    type="button"
+                  >
+                    <span className="shrink-0 rounded-full border border-[#ffb44d]/20 bg-[#ffb44d]/7 px-1.5 py-px text-[10px] font-bold text-[#ffd08a]">
+                      {mention?.display || allowedTypeLabel(item.type)}
+                    </span>
+                    <span className="shrink-0 text-[#b9b9b9]/35">→</span>
+                    <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-[#f4f4f4]/72">{item.name}</span>
+                    <span className={`shrink-0 rounded-full border px-1.5 py-px text-[9px] font-semibold ${getStatusClass(status)}`}>
+                      {mediaStatusLabel(status)}
+                    </span>
+                  </button>
+                </div>
+              );
+            })}
+            {hiddenMappingCount > 0 ? (
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="w-[74px] shrink-0" />
+                <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-[#b9b9b9]/45">
+                  {tf("video.references.compact.more", { count: hiddenMappingCount })}
+                </span>
+              </div>
             ) : null}
 
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <div className={`rounded-[16px] border p-2.5 ${slotToneClass(allowedTypes.length > 0, mentionItems.length > 0)}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-[#f4f4f4]/86">{t("video.references.slot.mainMedia")}</span>
-                  <span className="text-[10px] font-semibold uppercase tracking-[.08em] text-[#b9b9b9]/45">
-                    {tf("video.references.readyCount", { count: mentionItems.length })}
+            {unsupportedItems.map((item) => {
+              const issues = mediaIssues.get(item.id) || [];
+              const mention = mentionById.get(item.id);
+              return (
+                <div className="flex min-w-0 items-center gap-2 rounded-lg bg-[#ffb44d]/6 px-1 py-px" key={item.id}>
+                  <span className="w-[70px] shrink-0 text-[10px] font-semibold uppercase tracking-[.08em] text-[#ffb44d]/72">
+                    {t("video.references.notUsedShort")}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-[#ffcf92]" title={getNotUsedDetail(item, issues)}>
+                    <span className="font-bold">{mention?.display || allowedTypeLabel(item.type)}</span>
+                    <span className="text-[#ffcf92]/65"> · {getNotUsedDetail(item, issues)}</span>
                   </span>
                 </div>
-                <p className="mt-1 text-[11px] leading-4 text-[#b9b9b9]/52">{t("video.references.mainMediaHint")}</p>
-              </div>
-              <div className={`rounded-[16px] border px-2.5 py-2 ${frameSlotToneClass(modelRule.supportsStartFrame, startFrameCount > 0)}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-semibold text-[#f4f4f4]/68">{t("video.references.slot.startFrame")}</span>
-                  <span className="text-[9px] font-semibold uppercase tracking-[.08em] text-[#b9b9b9]/36">{supportLabel(modelRule.supportsStartFrame)}</span>
-                </div>
-                <p className="mt-0.5 text-[10px] leading-4 text-[#b9b9b9]/42">{tf("video.references.slotCount", { count: startFrameCount })}</p>
-              </div>
-              <div className={`rounded-[16px] border px-2.5 py-2 ${frameSlotToneClass(modelRule.supportsEndFrame, endFrameCount > 0)}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-semibold text-[#f4f4f4]/68">{t("video.references.slot.endFrame")}</span>
-                  <span className="text-[9px] font-semibold uppercase tracking-[.08em] text-[#b9b9b9]/36">{supportLabel(modelRule.supportsEndFrame)}</span>
-                </div>
-                <p className="mt-0.5 text-[10px] leading-4 text-[#b9b9b9]/42">{tf("video.references.slotCount", { count: endFrameCount })}</p>
-              </div>
-              <div className="rounded-[16px] border border-[rgba(244,244,244,0.08)] bg-[#05070b]/22 p-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-[#f4f4f4]/86">{t("video.references.slot.references")}</span>
-                  <span className="text-[10px] font-semibold uppercase tracking-[.08em] text-[#b9b9b9]/45">{media.length}/{limitSummary.total}</span>
-                </div>
-                <p className="mt-1 text-[11px] leading-4 text-[#b9b9b9]/52">{t("video.references.tokenHelper")}</p>
-              </div>
-            </div>
-
-            {media.length ? (
-              <div className="mt-3 rounded-[18px] border border-[rgba(244,244,244,0.08)] bg-[#05070b]/18 p-2">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-[#b9b9b9]/45">{t("video.references.tokenMapping")}</p>
-                  <p className="text-[11px] text-[#b9b9b9]/46">{t("video.references.tokenHelper")}</p>
-                </div>
-                <div className="mt-2 grid gap-1.5">
-                  {typeSlots.map((slot) => {
-                    const label = slot.type === "image"
-                      ? t("video.references.slot.referenceImage")
-                      : slot.type === "video"
-                        ? t("video.references.slot.referenceVideo")
-                        : t("video.references.slot.referenceAudio");
-
-                    return (
-                      <div className="rounded-[14px] border border-[rgba(244,244,244,0.055)] bg-[#111318]/38 p-1.5" key={slot.type}>
-                        <div className="mb-1 flex items-center justify-between gap-2">
-                          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#f4f4f4]/78">
-                            <MediaTypeIcon className="size-3.5 text-[#ffd08a]/72" type={slot.type} />
-                            {label}
-                          </span>
-                          <span
-                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
-                              slot.supported
-                                ? "border-[#79d88a]/25 bg-[#79d88a]/8 text-[#9be8a6]"
-                                : "border-[rgba(244,244,244,0.08)] bg-[#05070b]/45 text-[#b9b9b9]/44"
-                            }`}
-                          >
-                            {slot.items.length}/{slot.limit}
-                          </span>
-                        </div>
-
-                        {slot.items.length ? (
-                          <div className="space-y-1">
-                            {slot.items.map((item) => {
-                              const mention = mentionById.get(item.id);
-                              const issues = mediaIssues.get(item.id) || [];
-                              const status = getMediaStatus(item, issues);
-                              const durationLabel = formatDurationLabel(item.duration);
-
-                              return (
-                                <div
-                                  className="flex items-center gap-2 rounded-xl border border-[rgba(244,244,244,0.055)] bg-[#05070b]/30 px-2 py-1"
-                                  key={item.id}
-                                  title={issues.map(localizeIssue).join(" ")}
-                                >
-                                  <button
-                                    className="min-w-0 flex-1 text-left disabled:cursor-not-allowed"
-                                    disabled={!mention}
-                                    onClick={() => {
-                                      if (mention) insertMention(mention);
-                                    }}
-                                    type="button"
-                                  >
-                                    <span className="flex items-center gap-2">
-                                      <span className="shrink-0 rounded-full border border-[#ffb44d]/22 bg-[#ffb44d]/8 px-1.5 py-0.5 text-[10px] font-bold text-[#ffd08a]">
-                                        {mention?.display || allowedTypeLabel(item.type)}
-                                      </span>
-                                      <span className="truncate text-[11px] font-medium text-[#f4f4f4]/72">{item.name}</span>
-                                    </span>
-                                    <span className="mt-px flex flex-wrap items-center gap-1.5 text-[9px] text-[#b9b9b9]/42">
-                                      {durationLabel ? <span>{durationLabel}</span> : null}
-                                      {issues.length ? <span>{t("video.references.notUsedShort")}</span> : null}
-                                    </span>
-                                  </button>
-                                  <span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${getStatusClass(status)}`}>
-                                    {mediaStatusLabel(status)}
-                                  </span>
-                                  <button
-                                    className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-[#b9b9b9]/44 transition-colors hover:bg-[#ff6b6b]/10 hover:text-[#ff8b8b]"
-                                    onClick={() => onRemove(item.id)}
-                                    type="button"
-                                  >
-                                    {t("video.references.removeInline")}
-                                  </button>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <p className="rounded-xl border border-dashed border-[rgba(244,244,244,0.06)] px-2 py-1.5 text-[11px] text-[#b9b9b9]/42">
-                            {slot.supported ? t("video.references.noMediaForType") : t("video.references.unsupportedByCurrentModel")}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+              );
+            })}
+            {hiddenUnsupportedCount > 0 ? (
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="w-[74px] shrink-0" />
+                <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-[#ffcf92]/58">
+                  {tf("video.references.compact.more", { count: hiddenUnsupportedCount })}
+                </span>
               </div>
             ) : null}
           </div>

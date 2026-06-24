@@ -2678,7 +2678,7 @@ export function VideoWorkspace() {
     <div className="se-scrollbar h-full min-h-0 space-y-4 overflow-y-auto overflow-x-hidden xl:grid xl:grid-cols-[minmax(340px,370px)_minmax(0,1fr)] xl:gap-4 xl:space-y-0 xl:overflow-hidden 2xl:grid-cols-[380px_minmax(0,1fr)]">
       <aside className="se-panel flex min-h-0 flex-col overflow-hidden rounded-[30px]">
         <div className="shrink-0 border-b border-[rgba(244,244,244,0.08)] px-4 py-3.5">
-          <div className="flex gap-4 overflow-x-auto whitespace-nowrap text-[13px] font-semibold text-[#b9b9b9]/66">
+          <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1 whitespace-nowrap text-[13px] font-semibold text-[#b9b9b9]/66">
             {workspaceTabs.map((tab) => {
               const isActive = workspaceMode === tab.key;
               return (
@@ -2704,7 +2704,7 @@ export function VideoWorkspace() {
           </div>
         </div>
 
-        <div className="se-subtle-scrollbar grid min-h-0 flex-1 content-start gap-3.5 overflow-y-auto p-3.5">
+        <div className="se-subtle-scrollbar grid min-h-0 min-w-0 flex-1 content-start gap-3.5 overflow-x-hidden overflow-y-auto p-3.5">
           {workspaceMode === "remake" ? (
             <VideoRemakeWorkspace
               analysisError={remakeAnalysisError}
