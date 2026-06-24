@@ -50,14 +50,6 @@ function insertMention(item: MentionableMediaItem) {
   );
 }
 
-function FullscreenIcon() {
-  return (
-    <svg aria-hidden="true" className="size-3.5" fill="none" viewBox="0 0 24 24">
-      <path d="M8 4H4v4M16 4h4v4M8 20H4v-4M20 16v4h-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-    </svg>
-  );
-}
-
 function MoreIcon() {
   return (
     <svg aria-hidden="true" className="size-4" fill="none" viewBox="0 0 24 24">
@@ -103,6 +95,32 @@ function getRoleMenuPosition(trigger: HTMLElement): RoleMenuPosition {
   };
 }
 
+type MediaStatus = "ready" | "uploading" | "failed" | "unsupported" | "local";
+
+function getMediaStatus(item: UploadMediaItem, issues: string[]): MediaStatus {
+  if (issues.length) return "unsupported";
+  if (item.uploadStatus === "failed") return "failed";
+  if (item.uploadStatus === "uploading") return "uploading";
+  if (item.uploadStatus === "ready") return "ready";
+  return "local";
+}
+
+function getStatusClass(status: MediaStatus) {
+  if (status === "ready") return "border-[#79d88a]/28 bg-[#79d88a]/10 text-[#9be8a6]";
+  if (status === "uploading") return "border-[#d1fe17]/25 bg-[#d1fe17]/8 text-[#d1fe17]";
+  if (status === "failed") return "border-[#ff6b6b]/32 bg-[#ff6b6b]/10 text-[#ff8b8b]";
+  if (status === "unsupported") return "border-[#ffb44d]/32 bg-[#ffb44d]/10 text-[#ffb44d]";
+  return "border-[rgba(244,244,244,0.08)] bg-[#111318]/70 text-[#b9b9b9]/58";
+}
+
+function formatDurationLabel(duration?: number) {
+  if (!duration || !Number.isFinite(duration)) return "";
+  if (duration < 60) return `${Math.round(duration)}s`;
+  const minutes = Math.floor(duration / 60);
+  const seconds = Math.round(duration % 60);
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
 export function ReferenceMediaTray({
   media,
   modelRule,
@@ -123,6 +141,8 @@ export function ReferenceMediaTray({
   const [openRoleId, setOpenRoleId] = useState("");
   const [roleMenuPosition, setRoleMenuPosition] = useState<RoleMenuPosition>({ left: 12, top: 12, width: 190 });
   const [previewItem, setPreviewItem] = useState<UploadMediaItem | null>(null);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [failedPreviewIds, setFailedPreviewIds] = useState<Set<string>>(() => new Set());
   const rootRef = useRef<HTMLElement | null>(null);
   const roleMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -164,7 +184,42 @@ export function ReferenceMediaTray({
 
   const openRoleItem = media.find((item) => item.id === openRoleId) || null;
   const openRoleMention = openRoleItem ? mentionById.get(openRoleItem.id) : null;
-  const firstIssue = Array.from(mediaIssues.values()).flat()[0] || "";
+  const firstIssueEntry = Array.from(mediaIssues.entries()).find(([, issues]) => issues.length > 0);
+  const firstIssueItem = firstIssueEntry ? media.find((item) => item.id === firstIssueEntry[0]) || null : null;
+  const firstIssue = firstIssueEntry?.[1]?.[0] || "";
+  const mediaByType = useMemo(() => {
+    const grouped: Record<UploadMediaType, UploadMediaItem[]> = {
+      image: [],
+      video: [],
+      audio: [],
+    };
+    media.forEach((item) => {
+      grouped[item.type].push(item);
+    });
+    return grouped;
+  }, [media]);
+  const startFrameCount = media.filter((item) => item.role === "start_frame").length;
+  const endFrameCount = media.filter((item) => item.role === "end_frame").length;
+  const hasExplicitFrameSlots = modelRule.uploadSlots.some(
+    (slot) =>
+      slot.includes("start") ||
+      slot.includes("end") ||
+      slot === "first_frame" ||
+      slot === "last_frame" ||
+      slot === "last_frame_image",
+  );
+  const showFrameSlotsByDefault = hasExplicitFrameSlots && (modelRule.supportsStartFrame || modelRule.supportsEndFrame);
+  const typeSlots = useMemo(
+    () =>
+      (["image", "video", "audio"] as UploadMediaType[]).map((type) => ({
+        type,
+        items: mediaByType[type],
+        limit: modelRule.maxReferences[type],
+        supported: allowedTypes.includes(type) && modelRule.maxReferences[type] > 0,
+      })),
+    [allowedTypes, mediaByType, modelRule.maxReferences],
+  );
+  const isImageOnlyModel = allowedTypes.length === 1 && allowedTypes[0] === "image";
 
   function roleLabel(role: UploadMediaRole) {
     if (role === "start_frame") return t("video.references.role.startFrame");
@@ -197,114 +252,180 @@ export function ReferenceMediaTray({
     return issue;
   }
 
+  function getNotUsedDetail(item: UploadMediaItem | null, issues: string[] = []) {
+    const imageOnlyReason = isImageOnlyModel && item && item.type !== "image"
+      ? ` ${t("video.references.imageOnlyReason")}`
+      : "";
+    const issueText = issues.length ? ` ${issues.map(localizeIssue).join(" ")}` : "";
+    return `${t("video.references.notUsedDetail")}${imageOnlyReason}${issueText}`;
+  }
+
+  function markPreviewFailed(id: string) {
+    setFailedPreviewIds((current) => {
+      if (current.has(id)) return current;
+      const next = new Set(current);
+      next.add(id);
+      return next;
+    });
+  }
+
+  function mediaStatusLabel(status: MediaStatus) {
+    if (status === "ready") return t("video.references.status.ready");
+    if (status === "uploading") return t("video.references.status.uploading");
+    if (status === "failed") return t("video.references.status.failed");
+    if (status === "unsupported") return t("video.references.status.notUsed");
+    return t("video.references.status.local");
+  }
+
+  function supportLabel(supported: boolean) {
+    return supported ? t("video.references.available") : t("video.references.unavailable");
+  }
+
+  function slotToneClass(supported: boolean, hasItems = false) {
+    if (hasItems) return "border-[#79d88a]/22 bg-[#79d88a]/8";
+    if (supported) return "border-[#ffb44d]/22 bg-[#ffb44d]/7";
+    return "border-[rgba(244,244,244,0.08)] bg-[#05070b]/26";
+  }
+
+  function frameSlotToneClass(supported: boolean, hasItems = false) {
+    if (hasItems) return "border-[#79d88a]/18 bg-[#79d88a]/7";
+    if (supported) return "border-[rgba(255,180,77,0.13)] bg-[#05070b]/18";
+    return "border-[rgba(244,244,244,0.06)] bg-[#05070b]/14";
+  }
+
+  const uploadTitle = showFrameSlotsByDefault
+    ? t("video.references.startEndFrames")
+    : allowedTypes.length === 1 && allowedTypes[0] === "image"
+      ? t("video.upload.imageTitle")
+      : t("video.upload.title");
+  const uploadSubtitle = showFrameSlotsByDefault
+    ? t("video.references.startEndHint")
+    : allowedTypes.length === 1 && allowedTypes[0] === "image"
+      ? t("video.upload.imageSubtitle")
+      : t("video.upload.mediaHint");
+
   return (
     <section className="se-card rounded-[24px] p-3.5" ref={rootRef}>
       <div className="mb-3">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="se-eyebrow">{t("video.references.inputMedia")}</p>
-            <h2 className="mt-1 text-sm font-semibold text-[#f4f4f4]">{t("video.references.mainMedia")}</h2>
+            <h2 className="mt-1 text-sm font-semibold text-[#f4f4f4]">{uploadTitle}</h2>
           </div>
           <span className="rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/70 px-2.5 py-1 text-[11px] font-medium text-[#b9b9b9]/56">
-            {tf("video.references.readyCount", { count: mentionItems.length })}
+            {tf("video.references.referencesCount", { count: media.length, total: limitSummary.total })}
           </span>
         </div>
-        <p className="mt-2 text-xs leading-5 text-[#b9b9b9]/55">
-          {allowedTypes.length
-            ? tf("video.references.allowedSummary", {
-                model: modelRule.label,
-                total: limitSummary.total,
-                types: allowedTypes.map((type) => allowedTypeLabel(type)).join(", "),
-              })
-            : tf("video.references.modelDoesNotAcceptNamed", { model: modelRule.label })}
-        </p>
-        {firstIssue ? (
-          <p className="mt-2 rounded-2xl border border-[#ffb44d]/30 bg-[#ffb44d]/10 px-3 py-2 text-xs font-semibold leading-5 text-[#ffb44d]">
-            {localizeIssue(firstIssue)}
-          </p>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {allowedTypes.length ? (
+            allowedTypes.map((type) => (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full border border-[#ffb44d]/20 bg-[#ffb44d]/8 px-2 py-1 text-[11px] font-semibold text-[#ffd08a]"
+                key={type}
+              >
+                <MediaTypeIcon className="size-3" type={type} />
+                {allowedTypeLabel(type)}
+              </span>
+            ))
+          ) : (
+            <span className="rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/55 px-2 py-1 text-[11px] font-semibold text-[#b9b9b9]/48">
+              {t("video.references.modelDoesNotAccept")}
+            </span>
+          )}
+        </div>
+        <p className="mt-2 text-xs leading-5 text-[#b9b9b9]/55">{uploadSubtitle}</p>
+        <p className="mt-1 text-[11px] leading-4 text-[#b9b9b9]/45">{t("video.references.tokenHelper")}</p>
+        {showFrameSlotsByDefault ? (
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className={`rounded-[16px] border px-2.5 py-2 ${frameSlotToneClass(modelRule.supportsStartFrame, startFrameCount > 0)}`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold text-[#f4f4f4]/72">{t("video.references.slot.startFrame")}</span>
+                <span className="text-[9px] font-semibold uppercase tracking-[.08em] text-[#b9b9b9]/40">{t("video.references.optional")}</span>
+              </div>
+              <p className="mt-0.5 text-[10px] leading-4 text-[#b9b9b9]/42">{tf("video.references.slotCount", { count: startFrameCount })}</p>
+            </div>
+            <div className={`rounded-[16px] border px-2.5 py-2 ${frameSlotToneClass(modelRule.supportsEndFrame, endFrameCount > 0)}`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold text-[#f4f4f4]/72">{t("video.references.slot.endFrame")}</span>
+                <span className="text-[9px] font-semibold uppercase tracking-[.08em] text-[#b9b9b9]/40">{t("video.references.optional")}</span>
+              </div>
+              <p className="mt-0.5 text-[10px] leading-4 text-[#b9b9b9]/42">{tf("video.references.slotCount", { count: endFrameCount })}</p>
+            </div>
+          </div>
         ) : null}
       </div>
 
       {media.length ? (
-        <div className="se-subtle-scrollbar grid max-h-[198px] grid-cols-2 gap-2 overflow-y-auto pr-1">
+        <div className="se-subtle-scrollbar grid max-h-[220px] gap-2 overflow-y-auto pr-1">
           {media.map((item) => {
             const mention = mentionById.get(item.id);
             const currentRole = item.role || "reference";
             const previewUrl = getPreviewUrl(item);
+            const isPreviewBroken = failedPreviewIds.has(item.id);
             const shortRole = roleShortLabel(currentRole);
             const issues = mediaIssues.get(item.id) || [];
-            const hasIssues = issues.length > 0;
+            const status = getMediaStatus(item, issues);
+            const durationLabel = formatDurationLabel(item.duration);
+            const issueTitle = issues.length ? getNotUsedDetail(item, issues) : "";
 
             return (
               <article
-                className={`group relative h-[82px] overflow-hidden rounded-[16px] border bg-[#05070b]/40 shadow-inner shadow-black/18 transition-colors ${
-                  hasIssues ? "border-[#ffb44d]/55" : "border-[rgba(244,244,244,0.08)] hover:border-[#ffb44d]/34"
+                className={`group flex min-w-0 items-center gap-2 rounded-[18px] border bg-[#05070b]/28 p-2 transition-colors ${
+                  issues.length ? "border-[#ffb44d]/35" : "border-[rgba(244,244,244,0.08)] hover:border-[#ffb44d]/24"
                 }`}
                 key={item.id}
-                title={issues.map(localizeIssue).join(" ")}
+                title={issueTitle}
               >
                 <button
                   aria-label={tf("video.references.previewAsset", { name: item.name })}
-                  className="absolute inset-0 grid place-items-center overflow-hidden text-left"
+                  className="relative grid size-14 shrink-0 place-items-center overflow-hidden rounded-[14px] border border-[rgba(244,244,244,0.08)] bg-[#111318]"
                   onClick={() => setPreviewItem(item)}
                   type="button"
                 >
-                  {item.type === "image" && previewUrl ? (
+                  {item.type === "image" && previewUrl && !isPreviewBroken ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img alt="" className="h-full w-full object-cover" src={previewUrl} />
+                    <img alt="" className="h-full w-full object-cover" onError={() => markPreviewFailed(item.id)} src={previewUrl} />
                   ) : item.type === "video" && item.url ? (
                     <video className="h-full w-full object-cover" muted playsInline preload="metadata" src={item.url} />
                   ) : (
-                    <span className="grid size-12 place-items-center rounded-2xl border border-[rgba(244,244,244,0.08)] bg-[#33323a]/55 text-[#ffd08a]/72">
-                      <MediaTypeIcon type={item.type} />
-                    </span>
+                    <MediaTypeIcon className="size-5 text-[#ffd08a]/72" type={item.type} />
                   )}
-                  <span className="absolute inset-0 bg-black/0 transition group-hover:bg-black/18" />
+                  {shortRole ? (
+                    <span className="absolute bottom-1 left-1 rounded-full bg-[#05070b]/78 px-1.5 py-px text-[8px] font-bold uppercase tracking-[.08em] text-[#ffd08a]">
+                      {shortRole}
+                    </span>
+                  ) : null}
                 </button>
 
-                {shortRole ? (
-                  <span className="absolute bottom-1.5 left-1.5 rounded-full bg-[#05070b]/72 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[.08em] text-[#ffb44d]">
-                    {shortRole}
-                  </span>
-                ) : null}
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <button
+                      className="shrink-0 rounded-full border border-[#ffb44d]/22 bg-[#ffb44d]/8 px-2 py-0.5 text-[10px] font-bold text-[#ffd08a] disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={!mention}
+                      onClick={() => {
+                        if (mention) insertMention(mention);
+                      }}
+                      type="button"
+                    >
+                      {mention?.display || allowedTypeLabel(item.type)}
+                    </button>
+                    <span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${getStatusClass(status)}`}>
+                      {mediaStatusLabel(status)}
+                    </span>
+                  </div>
+                  <p className="mt-1 truncate text-xs font-semibold text-[#f4f4f4]/78">{item.name}</p>
+                  <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-[#b9b9b9]/45">
+                    <span>{allowedTypeLabel(item.type)}</span>
+                    {durationLabel ? <span>{durationLabel}</span> : null}
+                    {issues.length ? <span>{t("video.references.notUsedShort")}</span> : null}
+                  </p>
+                </div>
 
-                {hasIssues ? (
-                  <span className="absolute right-1.5 top-8 grid size-5 place-items-center rounded-full border border-[#ffb44d]/35 bg-[#05070b]/72 text-[11px] font-semibold text-[#ffb44d]">
-                    !
-                  </span>
-                ) : null}
-
-                  <span className="absolute left-1.5 top-1.5 rounded-full bg-[#05070b]/62 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[.08em] text-[#b9b9b9]/65 opacity-0 transition group-hover:opacity-100">
-                  {mention?.display || allowedTypeLabel(item.type)}
-                </span>
-
-                <button
-                  aria-label={tf("video.references.removeAsset", { name: item.name })}
-                  className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-[#05070b]/78 text-[11px] text-[#f4f4f4]/76 opacity-0 transition-colors hover:text-[#f2b3a1] group-hover:opacity-100"
-                  onClick={() => onRemove(item.id)}
-                  type="button"
-                >
-                  x
-                </button>
-
-                <button
-                  aria-label={tf("video.references.fullScreenAsset", { name: item.name })}
-                  className="absolute bottom-1.5 right-1.5 grid size-7 place-items-center rounded-full border border-[#33323a]/60 bg-[#05070b]/78 text-[#f4f4f4]/80 opacity-0 transition-colors hover:border-[#ffb44d]/38 hover:text-[#ffb44d] group-hover:opacity-100"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setPreviewItem(item);
-                  }}
-                  type="button"
-                >
-                  <FullscreenIcon />
-                </button>
-
-                <div className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition group-hover:opacity-100">
+                <div className="flex shrink-0 items-center gap-1">
                   <button
                     aria-label={tf("video.references.openRoleMenu", { name: item.name })}
-                    className="pointer-events-auto grid size-[30px] place-items-center rounded-full border border-[#33323a]/60 bg-[#05070b]/78 text-[#f4f4f4]/82 shadow-xl shadow-black/26 transition-colors hover:border-[#ffb44d]/38 hover:text-[#ffb44d]"
+                    className="grid size-8 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/70 text-[#b9b9b9]/62 transition-colors hover:border-[#ffb44d]/30 hover:text-[#ffb44d]"
                     onClick={(event) => {
-                      event.stopPropagation();
                       setRoleMenuPosition(getRoleMenuPosition(event.currentTarget));
                       setOpenRoleId((current) => (current === item.id ? "" : item.id));
                     }}
@@ -312,43 +433,230 @@ export function ReferenceMediaTray({
                   >
                     <MoreIcon />
                   </button>
+                  <button
+                    aria-label={tf("video.references.removeAsset", { name: item.name })}
+                    className="grid size-8 place-items-center rounded-full text-[12px] font-semibold text-[#b9b9b9]/44 transition-colors hover:bg-[#ff6b6b]/10 hover:text-[#ff8b8b]"
+                    onClick={() => onRemove(item.id)}
+                    type="button"
+                  >
+                    x
+                  </button>
                 </div>
               </article>
             );
           })}
 
           <button
-            className="grid h-[82px] place-items-center rounded-[18px] border border-dashed border-[#ffb44d]/30 bg-[#ffb44d]/7 p-3 text-center transition-colors hover:bg-[#ffb44d]/12"
+            className="grid min-h-14 place-items-center rounded-[18px] border border-dashed border-[rgba(244,244,244,0.08)] bg-[#05070b]/16 p-2 text-center transition-colors hover:border-[#ffb44d]/22 hover:bg-[#ffb44d]/5"
             onClick={(event) => openMediaPicker(event.currentTarget)}
             type="button"
           >
-            <span>
-              <span className="mx-auto grid size-8 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/70 text-lg font-semibold text-[#b9b9b9]/65">
-                +
-              </span>
-              <span className="mt-1.5 block text-xs font-semibold text-[#f4f4f4]">{t("video.references.addMore")}</span>
+            <span className="inline-flex items-center gap-2 text-[11px] font-semibold text-[#b9b9b9]/62">
+              <span className="grid size-6 place-items-center rounded-full border border-[rgba(244,244,244,0.07)] bg-[#111318]/52 text-sm">+</span>
+              {t("video.references.addMore")}
             </span>
           </button>
         </div>
       ) : (
         <button
-          className="grid min-h-[116px] w-full place-items-center rounded-[24px] border border-dashed border-[rgba(244,244,244,0.12)] bg-[#05070b]/24 px-4 text-center transition-colors hover:border-[#ffb44d]/38 hover:bg-[#ffb44d]/8"
+          className="grid min-h-[108px] w-full place-items-center rounded-[24px] border border-dashed border-[rgba(244,244,244,0.12)] bg-[#05070b]/24 px-4 text-center transition-colors hover:border-[#ffb44d]/34 hover:bg-[#ffb44d]/7"
           onClick={(event) => openMediaPicker(event.currentTarget)}
           type="button"
         >
           <span>
             <span className="mx-auto mb-3 flex justify-center gap-2">
-              {(["image", "video", "audio"] as UploadMediaType[]).map((type) => (
+              {(allowedTypes.length ? allowedTypes : (["image", "video", "audio"] as UploadMediaType[])).map((type) => (
                 <span className="grid size-9 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#1a1c22] text-[#ffd08a]/70" key={type}>
                   <MediaTypeIcon className="size-4" type={type} />
                 </span>
               ))}
             </span>
-            <span className="block text-sm font-semibold text-[#f4f4f4]">{t("video.upload.title")}</span>
-            <span className="mt-1 block text-xs text-[#b9b9b9]/55">{t("video.upload.subtitle")}</span>
+            <span className="block text-sm font-semibold text-[#f4f4f4]">{uploadTitle}</span>
+            <span className="mt-1 block text-xs text-[#b9b9b9]/55">{uploadSubtitle}</span>
           </span>
         </button>
       )}
+
+      <div className="mt-3 rounded-[18px] border border-[rgba(244,244,244,0.07)] bg-[#05070b]/14">
+        <button
+          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
+          onClick={() => setIsAdvancedOpen((current) => !current)}
+          type="button"
+        >
+          <span className="text-[11px] font-semibold uppercase tracking-[.13em] text-[#b9b9b9]/56">
+            {t("video.references.advancedMediaDetails")}
+          </span>
+          <span className="text-xs font-semibold text-[#b9b9b9]/45">{isAdvancedOpen ? "-" : "+"}</span>
+        </button>
+        {isAdvancedOpen ? (
+          <div className="border-t border-[rgba(244,244,244,0.06)] p-3">
+            <div className="rounded-[16px] border border-[rgba(244,244,244,0.08)] bg-[#05070b]/24 p-2.5">
+              <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[.11em] text-[#b9b9b9]/52">
+                <span>{t("video.references.capabilitySummary")}</span>
+                <span className="text-[#b9b9b9]/28">/</span>
+                <span>{tf("video.references.referencesCount", { count: media.length, total: limitSummary.total })}</span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <span className="rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/75 px-2 py-1 text-[11px] font-semibold text-[#f4f4f4]/78">
+                  {t("video.references.inputText")}
+                </span>
+                {(["image", "video", "audio"] as UploadMediaType[]).map((type) => {
+                  const isSupported = allowedTypes.includes(type);
+                  return (
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-semibold ${
+                        isSupported
+                          ? "border-[#ffb44d]/24 bg-[#ffb44d]/8 text-[#ffd08a]"
+                          : "border-[rgba(244,244,244,0.08)] bg-[#111318]/55 text-[#b9b9b9]/42"
+                      }`}
+                      key={type}
+                    >
+                      <MediaTypeIcon className="size-3" type={type} />
+                      {allowedTypeLabel(type)}
+                    </span>
+                  );
+                })}
+                <span className="rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/55 px-2 py-1 text-[11px] font-semibold text-[#b9b9b9]/55">
+                  {t("video.references.startFrame")}: {supportLabel(modelRule.supportsStartFrame)}
+                </span>
+                <span className="rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/55 px-2 py-1 text-[11px] font-semibold text-[#b9b9b9]/55">
+                  {t("video.references.endFrame")}: {supportLabel(modelRule.supportsEndFrame)}
+                </span>
+              </div>
+            </div>
+
+            {firstIssue ? (
+              <p className="mt-2 rounded-2xl border border-[#ffb44d]/22 bg-[#ffb44d]/8 px-3 py-2 text-xs font-semibold leading-5 text-[#ffb44d]">
+                {getNotUsedDetail(firstIssueItem, [firstIssue])}
+              </p>
+            ) : null}
+
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <div className={`rounded-[16px] border p-2.5 ${slotToneClass(allowedTypes.length > 0, mentionItems.length > 0)}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-[#f4f4f4]/86">{t("video.references.slot.mainMedia")}</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[.08em] text-[#b9b9b9]/45">
+                    {tf("video.references.readyCount", { count: mentionItems.length })}
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] leading-4 text-[#b9b9b9]/52">{t("video.references.mainMediaHint")}</p>
+              </div>
+              <div className={`rounded-[16px] border px-2.5 py-2 ${frameSlotToneClass(modelRule.supportsStartFrame, startFrameCount > 0)}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold text-[#f4f4f4]/68">{t("video.references.slot.startFrame")}</span>
+                  <span className="text-[9px] font-semibold uppercase tracking-[.08em] text-[#b9b9b9]/36">{supportLabel(modelRule.supportsStartFrame)}</span>
+                </div>
+                <p className="mt-0.5 text-[10px] leading-4 text-[#b9b9b9]/42">{tf("video.references.slotCount", { count: startFrameCount })}</p>
+              </div>
+              <div className={`rounded-[16px] border px-2.5 py-2 ${frameSlotToneClass(modelRule.supportsEndFrame, endFrameCount > 0)}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold text-[#f4f4f4]/68">{t("video.references.slot.endFrame")}</span>
+                  <span className="text-[9px] font-semibold uppercase tracking-[.08em] text-[#b9b9b9]/36">{supportLabel(modelRule.supportsEndFrame)}</span>
+                </div>
+                <p className="mt-0.5 text-[10px] leading-4 text-[#b9b9b9]/42">{tf("video.references.slotCount", { count: endFrameCount })}</p>
+              </div>
+              <div className="rounded-[16px] border border-[rgba(244,244,244,0.08)] bg-[#05070b]/22 p-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-[#f4f4f4]/86">{t("video.references.slot.references")}</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[.08em] text-[#b9b9b9]/45">{media.length}/{limitSummary.total}</span>
+                </div>
+                <p className="mt-1 text-[11px] leading-4 text-[#b9b9b9]/52">{t("video.references.tokenHelper")}</p>
+              </div>
+            </div>
+
+            {media.length ? (
+              <div className="mt-3 rounded-[18px] border border-[rgba(244,244,244,0.08)] bg-[#05070b]/18 p-2">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-[#b9b9b9]/45">{t("video.references.tokenMapping")}</p>
+                  <p className="text-[11px] text-[#b9b9b9]/46">{t("video.references.tokenHelper")}</p>
+                </div>
+                <div className="mt-2 grid gap-1.5">
+                  {typeSlots.map((slot) => {
+                    const label = slot.type === "image"
+                      ? t("video.references.slot.referenceImage")
+                      : slot.type === "video"
+                        ? t("video.references.slot.referenceVideo")
+                        : t("video.references.slot.referenceAudio");
+
+                    return (
+                      <div className="rounded-[14px] border border-[rgba(244,244,244,0.055)] bg-[#111318]/38 p-1.5" key={slot.type}>
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#f4f4f4]/78">
+                            <MediaTypeIcon className="size-3.5 text-[#ffd08a]/72" type={slot.type} />
+                            {label}
+                          </span>
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                              slot.supported
+                                ? "border-[#79d88a]/25 bg-[#79d88a]/8 text-[#9be8a6]"
+                                : "border-[rgba(244,244,244,0.08)] bg-[#05070b]/45 text-[#b9b9b9]/44"
+                            }`}
+                          >
+                            {slot.items.length}/{slot.limit}
+                          </span>
+                        </div>
+
+                        {slot.items.length ? (
+                          <div className="space-y-1">
+                            {slot.items.map((item) => {
+                              const mention = mentionById.get(item.id);
+                              const issues = mediaIssues.get(item.id) || [];
+                              const status = getMediaStatus(item, issues);
+                              const durationLabel = formatDurationLabel(item.duration);
+
+                              return (
+                                <div
+                                  className="flex items-center gap-2 rounded-xl border border-[rgba(244,244,244,0.055)] bg-[#05070b]/30 px-2 py-1"
+                                  key={item.id}
+                                  title={issues.map(localizeIssue).join(" ")}
+                                >
+                                  <button
+                                    className="min-w-0 flex-1 text-left disabled:cursor-not-allowed"
+                                    disabled={!mention}
+                                    onClick={() => {
+                                      if (mention) insertMention(mention);
+                                    }}
+                                    type="button"
+                                  >
+                                    <span className="flex items-center gap-2">
+                                      <span className="shrink-0 rounded-full border border-[#ffb44d]/22 bg-[#ffb44d]/8 px-1.5 py-0.5 text-[10px] font-bold text-[#ffd08a]">
+                                        {mention?.display || allowedTypeLabel(item.type)}
+                                      </span>
+                                      <span className="truncate text-[11px] font-medium text-[#f4f4f4]/72">{item.name}</span>
+                                    </span>
+                                    <span className="mt-px flex flex-wrap items-center gap-1.5 text-[9px] text-[#b9b9b9]/42">
+                                      {durationLabel ? <span>{durationLabel}</span> : null}
+                                      {issues.length ? <span>{t("video.references.notUsedShort")}</span> : null}
+                                    </span>
+                                  </button>
+                                  <span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${getStatusClass(status)}`}>
+                                    {mediaStatusLabel(status)}
+                                  </span>
+                                  <button
+                                    className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-[#b9b9b9]/44 transition-colors hover:bg-[#ff6b6b]/10 hover:text-[#ff8b8b]"
+                                    onClick={() => onRemove(item.id)}
+                                    type="button"
+                                  >
+                                    {t("video.references.removeInline")}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="rounded-xl border border-dashed border-[rgba(244,244,244,0.06)] px-2 py-1.5 text-[11px] text-[#b9b9b9]/42">
+                            {slot.supported ? t("video.references.noMediaForType") : t("video.references.unsupportedByCurrentModel")}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
 
       {openRoleItem ? (
         <div
@@ -431,9 +739,14 @@ export function ReferenceMediaTray({
               </button>
             </header>
             <div className="grid min-h-[360px] place-items-center bg-black/28 p-4">
-              {previewItem.type === "image" && getPreviewUrl(previewItem) ? (
+              {previewItem.type === "image" && getPreviewUrl(previewItem) && !failedPreviewIds.has(previewItem.id) ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img alt="" className="max-h-[70vh] max-w-full rounded-2xl object-contain" src={getPreviewUrl(previewItem)} />
+                <img
+                  alt=""
+                  className="max-h-[70vh] max-w-full rounded-2xl object-contain"
+                  onError={() => markPreviewFailed(previewItem.id)}
+                  src={getPreviewUrl(previewItem)}
+                />
               ) : previewItem.type === "video" && previewItem.url ? (
                 <video className="max-h-[70vh] max-w-full rounded-2xl object-contain" controls src={previewItem.url} />
               ) : previewItem.type === "audio" && previewItem.url ? (
