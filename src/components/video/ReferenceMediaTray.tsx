@@ -196,6 +196,7 @@ export function ReferenceMediaTray({
   );
   const showFrameSlotsByDefault = hasExplicitFrameSlots && (modelRule.supportsStartFrame || modelRule.supportsEndFrame);
   const isImageOnlyModel = allowedTypes.length === 1 && allowedTypes[0] === "image";
+  const isSingleMediaModel = allowedTypes.length > 1 && limitSummary.total === 1;
 
   function roleLabel(role: UploadMediaRole) {
     if (role === "start_frame") return t("video.references.role.startFrame");
@@ -272,6 +273,8 @@ export function ReferenceMediaTray({
     ? t("video.references.startEndHint")
     : allowedTypes.length === 1 && allowedTypes[0] === "image"
       ? t("video.upload.imageSubtitle")
+      : isSingleMediaModel
+        ? t("video.upload.singleMediaHint")
       : t("video.upload.mediaHint");
   const inputSummary = allowedTypes.length ? allowedTypes.map((type) => allowedTypeLabel(type)).join(", ") : t("video.references.modelDoesNotAccept");
   const compactMappingItems = media.slice(0, 1);
