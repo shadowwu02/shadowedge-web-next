@@ -26,7 +26,7 @@ type VideoGenerationStreamProps = {
   onAddReference?: (asset: UploadMediaItem) => void;
   onFill?: (record: VideoTaskRecord) => void;
   onFilterChange: (filter: VideoHistoryFilter) => void;
-  onRetry?: (record: VideoTaskRecord) => void;
+  onRetryAsDraft?: (record: VideoTaskRecord) => void;
   onUseResultAsReference?: (record: VideoTaskRecord) => void;
   task: VideoTaskRecord | null;
 };
@@ -157,6 +157,7 @@ function VideoGenerationCard({
   getUseResultAsReferenceIssue,
   onAddReference,
   onFill,
+  onRetryAsDraft,
   onUseResultAsReference,
   record,
 }: {
@@ -164,6 +165,7 @@ function VideoGenerationCard({
   getUseResultAsReferenceIssue?: (record: VideoTaskRecord) => string;
   onAddReference?: (asset: UploadMediaItem) => void;
   onFill?: (record: VideoTaskRecord) => void;
+  onRetryAsDraft?: (record: VideoTaskRecord) => void;
   onUseResultAsReference?: (record: VideoTaskRecord) => void;
   record: VideoTaskRecord;
 }) {
@@ -306,10 +308,10 @@ function VideoGenerationCard({
                   {isFailed || isStaleActive ? (
                     <button
                       className={outputActionClass("primary")}
-                      disabled={!onFill}
+                      disabled={!onRetryAsDraft}
                       onClick={(event) => {
                         event.stopPropagation();
-                        onFill?.(record);
+                        onRetryAsDraft?.(record);
                       }}
                       title={t("video.history.draftOnlyHint")}
                       type="button"
@@ -378,7 +380,7 @@ function VideoGenerationCard({
               </button>
             ) : null}
             {(isFailed || isStaleActive) ? (
-              <button className={outputActionClass("primary")} disabled={!onFill} onClick={() => onFill?.(record)} title={t("video.history.draftOnlyHint")} type="button">
+              <button className={outputActionClass("primary")} disabled={!onRetryAsDraft} onClick={() => onRetryAsDraft?.(record)} title={t("video.history.draftOnlyHint")} type="button">
                 {t("video.history.retryAsDraft")}
               </button>
             ) : null}
@@ -392,6 +394,7 @@ function VideoGenerationCard({
         getUseResultAsReferenceIssue={getUseResultAsReferenceIssue}
         onAddReference={onAddReference}
         onFill={onFill}
+        onRetryAsDraft={onRetryAsDraft}
         onUseResultAsReference={onUseResultAsReference}
         record={record}
       />
@@ -408,6 +411,7 @@ export function VideoGenerationStream({
   onAddReference,
   onFill,
   onFilterChange,
+  onRetryAsDraft,
   onUseResultAsReference,
   task,
 }: VideoGenerationStreamProps) {
@@ -462,6 +466,7 @@ export function VideoGenerationStream({
                   key={key}
                   onAddReference={onAddReference}
                   onFill={onFill}
+                  onRetryAsDraft={onRetryAsDraft}
                   onUseResultAsReference={onUseResultAsReference}
                   record={record}
                 />

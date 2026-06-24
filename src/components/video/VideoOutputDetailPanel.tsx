@@ -15,7 +15,7 @@ type VideoOutputDetailPanelProps = {
   getUseResultAsReferenceIssue?: (record: VideoTaskRecord) => string;
   onAddReference?: (asset: UploadMediaItem) => void;
   onFill?: (record: VideoTaskRecord) => void;
-  onRetry?: (record: VideoTaskRecord) => void;
+  onRetryAsDraft?: (record: VideoTaskRecord) => void;
   onUseResultAsReference?: (record: VideoTaskRecord) => void;
   record: VideoTaskRecord | null;
 };
@@ -118,6 +118,7 @@ export function VideoOutputDetailPanel({
   getUseResultAsReferenceIssue,
   onAddReference,
   onFill,
+  onRetryAsDraft,
   onUseResultAsReference,
   record,
 }: VideoOutputDetailPanelProps) {
@@ -331,8 +332,8 @@ export function VideoOutputDetailPanel({
           <button
             aria-label={t("video.history.retryAsDraft")}
             className={actionButtonClass("primary")}
-            disabled={!onFill}
-            onClick={() => onFill?.(record)}
+            disabled={!onRetryAsDraft}
+            onClick={() => onRetryAsDraft?.(record)}
             title={t("video.history.draftOnlyHint")}
             type="button"
           >

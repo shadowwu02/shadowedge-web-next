@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { isImageActiveStatus, isImageCompletedStatus, isImageFailedStatus } from "@/lib/image/imageHistoryUtils";
 import { getImageUserFacingError } from "@/lib/image/imageErrorDisplay";
-import { getReusableImageOutputUrl, sendImageResultToImageDraft } from "@/lib/image/imageResultDrafts";
+import { getReusableImageOutputUrl, sendImageFailedJobToImageDraft, sendImageResultToImageDraft } from "@/lib/image/imageResultDrafts";
 import { sendImageResultToVideoDraft } from "@/lib/video/videoResultDrafts";
 import { useI18n } from "@/i18n/useI18n";
 import { formatTime } from "@/lib/utils";
@@ -117,6 +117,21 @@ export function ImageOutputStage({
     }
 
     window.location.assign("/workspace/image?from=image-result");
+  };
+  const handleRetryAsDraft = () => {
+    if (!job) return;
+    setActionError("");
+    const result = sendImageFailedJobToImageDraft(
+      { image: job },
+      t("image.actions.failedRestoredAsDraft"),
+    );
+
+    if (!result) {
+      setActionError(t("image.actions.comingSoonDraftOnly"));
+      return;
+    }
+
+    window.location.assign("/workspace/image?from=failed-job");
   };
 
   return (
@@ -262,7 +277,12 @@ export function ImageOutputStage({
                 <CopyIcon />
                 {t("image.actions.copyPrompt")}
               </button>
-              <button className={outputActionClass("normal")} disabled title={t("image.actions.comingSoonDraftOnly")} type="button">
+              <button
+                className={outputActionClass("primary")}
+                onClick={handleRetryAsDraft}
+                title={t("image.actions.failedRestoredAsDraft")}
+                type="button"
+              >
                 {t("image.actions.retryAsDraft")}
               </button>
             </div>

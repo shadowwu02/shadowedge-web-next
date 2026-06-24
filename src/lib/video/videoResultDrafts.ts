@@ -1,4 +1,6 @@
 import { saveVideoDraft } from "@/lib/video/videoDraft";
+import { collectHistoryInputMediaAssets } from "@/lib/media-assets";
+import { parseMentionBindings, serializeMentionBindings } from "@/lib/video/videoMentionBindings";
 import type { ImageHistoryItem } from "@/types/image";
 import type { UploadMediaItem, VideoTaskRecord } from "@/types/video";
 
@@ -34,6 +36,26 @@ type VideoResultVideoDraft = {
   };
 };
 
+type VideoFailedDraftInput = {
+  video: VideoTaskRecord;
+};
+
+type VideoFailedDraft = {
+  prompt: string;
+  modelId: string;
+  providerModel?: string;
+  modelLabel?: string;
+  params: {
+    duration?: number;
+    ratio?: string;
+    quality?: string;
+    generateAudio?: boolean;
+  };
+  referenceMedia: UploadMediaItem[];
+  mentionBindings: ReturnType<typeof parseMentionBindings>;
+  missingReferences: boolean;
+};
+
 function safeLocalStorage() {
   if (typeof window === "undefined") return null;
   try {
@@ -53,6 +75,13 @@ function pickBoolean(...values: unknown[]) {
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function asArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string" && value.trim()) return [value];
+  if (value && typeof value === "object") return [value];
+  return [];
 }
 
 function isUnsafeReferenceUrl(url: string) {
@@ -267,6 +296,58 @@ function createVideoResultMedia(video: VideoTaskRecord, url: string): UploadMedi
   };
 }
 
+function getVideoPrompt(video: VideoTaskRecord) {
+  const raw = asRecord(video);
+  const meta = asRecord(video.meta);
+  return pickString(meta.original_prompt, meta.originalPrompt, raw.original_prompt, raw.originalPrompt, meta.prompt, video.prompt) || "";
+}
+
+function getVideoModelId(video: VideoTaskRecord) {
+  const raw = asRecord(video);
+  const meta = asRecord(video.meta);
+  return pickString(video.modelId, video.frontendModel, video.model, meta.modelId, meta.frontendModel, meta.model, raw.model_id, raw.frontend_model) || "";
+}
+
+function getVideoProviderModel(video: VideoTaskRecord) {
+  const meta = asRecord(video.meta);
+  return pickString(video.providerModel, meta.providerModel, meta.provider_model);
+}
+
+function getVideoModelLabel(video: VideoTaskRecord) {
+  const raw = asRecord(video);
+  const meta = asRecord(video.meta);
+  return pickString(raw.modelLabel, video.model, meta.modelLabel, meta.model);
+}
+
+function getVideoFailedMentionBindings(video: VideoTaskRecord) {
+  const raw = asRecord(video);
+  const meta = asRecord(video.meta);
+  return serializeMentionBindings(parseMentionBindings(meta.mentionBindings ?? meta.mention_bindings ?? raw.mentionBindings ?? raw.mention_bindings));
+}
+
+function getPotentialVideoReferenceCount(video: VideoTaskRecord) {
+  const raw = asRecord(video);
+  const meta = asRecord(video.meta);
+  const uploadAssets = asRecord(video.upload_assets || video.uploadAssets || meta.upload_assets || meta.uploadAssets);
+  const assets = asRecord(video.assets || meta.assets);
+
+  return [
+    ...asArray(video.mediaList || meta.mediaList),
+    ...asArray(video.reference_images || meta.reference_images || meta.referenceImages),
+    ...asArray(video.reference_videos || meta.reference_videos || meta.referenceVideos),
+    ...asArray(video.reference_audios || meta.reference_audios || meta.referenceAudios),
+    ...asArray(uploadAssets.media),
+    ...asArray(uploadAssets.reference_images || uploadAssets.referenceImages || uploadAssets.images),
+    ...asArray(uploadAssets.reference_videos || uploadAssets.referenceVideos || uploadAssets.videos),
+    ...asArray(uploadAssets.reference_audios || uploadAssets.referenceAudios || uploadAssets.audios),
+    ...asArray(assets.images),
+    ...asArray(assets.videos),
+    ...asArray(assets.audios),
+    raw.first_frame_image || raw.firstFrameImage || meta.first_frame_image || meta.firstFrameImage,
+    raw.last_frame_image || raw.lastFrameImage || meta.last_frame_image || meta.lastFrameImage,
+  ].filter(Boolean).length;
+}
+
 export function buildVideoDraftFromVideoResult(input: VideoResultDraftInput): VideoResultVideoDraft | null {
   const outputUrl = getReusableVideoOutputUrl(input.video, input.outputUrl);
   if (!outputUrl) return null;
@@ -290,6 +371,28 @@ export function buildVideoDraftFromVideoResult(input: VideoResultDraftInput): Vi
       quality: pickString(input.video.quality, meta.quality),
       generateAudio: pickBoolean(raw.generateAudio, meta.generateAudio, meta.generate_audio),
     },
+  };
+}
+
+export function buildVideoDraftFromFailedJob(input: VideoFailedDraftInput): VideoFailedDraft {
+  const referenceMedia = collectHistoryInputMediaAssets([input.video]);
+  const potentialReferenceCount = getPotentialVideoReferenceCount(input.video);
+  const meta = asRecord(input.video.meta);
+
+  return {
+    prompt: getVideoPrompt(input.video),
+    modelId: getVideoModelId(input.video),
+    providerModel: getVideoProviderModel(input.video),
+    modelLabel: getVideoModelLabel(input.video),
+    params: {
+      duration: parseDuration(input.video.duration ?? meta.duration),
+      ratio: pickString(input.video.ratio, meta.ratio, meta.aspect_ratio),
+      quality: pickString(input.video.quality, meta.quality, meta.resolution),
+      generateAudio: pickBoolean(asRecord(input.video).generateAudio, asRecord(input.video).generate_audio, meta.generateAudio, meta.generate_audio),
+    },
+    referenceMedia,
+    mentionBindings: getVideoFailedMentionBindings(input.video),
+    missingReferences: potentialReferenceCount > referenceMedia.length,
   };
 }
 
@@ -354,4 +457,31 @@ export function sendVideoResultToVideoDraft(input: VideoResultDraftInput, notice
   }
 
   return draft;
+}
+
+export function sendVideoFailedJobToVideoDraft(input: VideoFailedDraftInput, notice: string) {
+  const draftInput = buildVideoDraftFromFailedJob(input);
+  const draft = saveVideoDraft({
+    prompt: draftInput.prompt,
+    modelId: draftInput.modelId,
+    providerModel: draftInput.providerModel,
+    modelLabel: draftInput.modelLabel,
+    params: draftInput.params,
+    referenceMedia: draftInput.referenceMedia,
+    mentionBindings: draftInput.mentionBindings,
+  });
+
+  const storage = safeLocalStorage();
+  if (storage && notice) {
+    try {
+      storage.setItem(VIDEO_DRAFT_NOTICE_KEY, notice);
+    } catch {
+      // Ignore storage quota failures; the draft itself has already been saved.
+    }
+  }
+
+  return {
+    ...draft,
+    missingReferences: draftInput.missingReferences,
+  };
 }

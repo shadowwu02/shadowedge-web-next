@@ -66,7 +66,7 @@ import {
   saveRemakeShotQueueDraft,
 } from "@/lib/video/remakeShotQueueDraft";
 import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
-import { getReusableVideoOutputUrl, readVideoDraftNotice, sendVideoResultToVideoDraft } from "@/lib/video/videoResultDrafts";
+import { getReusableVideoOutputUrl, readVideoDraftNotice, sendVideoFailedJobToVideoDraft, sendVideoResultToVideoDraft } from "@/lib/video/videoResultDrafts";
 import { estimateVideoCreditsForParams, getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
 import { VIDEO_PROMPT_FRONTEND_LIMIT } from "@/lib/video/videoPromptLimits";
 import {
@@ -2492,52 +2492,6 @@ export function VideoWorkspace() {
     });
   }, [concurrencyLimitNotice, effectiveGenerateAudio, hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, maxConcurrency, media, params, prompt, reconciledMentionBindings, selectedModel, submit, t, token]);
 
-  const handleRetry = useCallback(
-    (record: (typeof history)[number]) => {
-      setWorkspaceNotice("");
-      const retryModel = findRetryModel(record);
-      if (!retryModel) {
-        setWorkspaceNotice(t("video.errors.retryModelUnavailable"));
-        return;
-      }
-
-      const retryMedia = buildRetryMedia(record, getRetryMediaName);
-      const retryMentionBindings = getRecordMentionBindings(record, retryMedia);
-      const hasMissingMedia = retryMedia.some((item) => !item.url || item.url.startsWith("blob:") || item.url.startsWith("data:"));
-      if (hasMissingMedia) {
-        setWorkspaceNotice(t("video.errors.retryMediaMissing"));
-        return;
-      }
-
-      const promptText = String(record.meta?.original_prompt || record.prompt || "").trim();
-      if (!promptText) {
-        setWorkspaceNotice(t("video.errors.retryPromptMissing"));
-        return;
-      }
-
-      const retryParams = buildParamsForModel(retryModel, {
-        duration: getRecordDuration(record, retryModel.durationDefault),
-        generateAudio: getRecordGenerateAudio(record),
-        quality: record.quality,
-        ratio: record.ratio,
-      });
-
-      setMainPanel("history");
-      void submit({
-        prompt: promptText,
-        model: retryModel,
-        duration: retryParams.duration,
-        ratio: retryParams.ratio,
-        quality: retryParams.quality,
-        generateAudio: retryParams.generateAudio,
-        media: retryMedia,
-        mentionBindings: retryMentionBindings,
-        maxConcurrency,
-      });
-    },
-    [findRetryModel, getRetryMediaName, maxConcurrency, submit, t],
-  );
-
   const getGeneratedResultReferenceIssue = useCallback(
     (record: (typeof history)[number]) => {
       if (!getReusableVideoOutputUrl(record)) return t("video.history.noReusableVideoUrl");
@@ -2642,6 +2596,38 @@ export function VideoWorkspace() {
       router.push("/workspace/video?from=video-result");
     },
     [getGeneratedResultReferenceIssue, models, router, selectedModel, t],
+  );
+
+  const handleRetryAsDraftFromHistory = useCallback(
+    (record: (typeof history)[number]) => {
+      const draft = sendVideoFailedJobToVideoDraft({ video: record }, t("video.notices.failedRestoredAsDraft"));
+      const draftModel = findDraftModel(draft, models) || findRetryModel(record) || selectedModel;
+      const draftParams = buildParamsForModel(draftModel, draft?.params);
+      const nextSnapshot = {
+        media: draft?.referenceMedia || [],
+        mentionBindings: draft?.mentionBindings || [],
+        params: draftParams,
+        prompt: draft?.prompt || String(record.meta?.original_prompt || record.prompt || "").trim(),
+        selectedModel: draftModel,
+      };
+
+      if (draftSaveTimerRef.current) {
+        clearTimeout(draftSaveTimerRef.current);
+        draftSaveTimerRef.current = null;
+      }
+      latestDraftSnapshotRef.current = nextSnapshot;
+
+      setWorkspaceMode("create");
+      setSelectedModel(draftModel);
+      setParams(draftParams);
+      setMedia(nextSnapshot.media);
+      setMentionBindings(nextSnapshot.mentionBindings);
+      setPrompt(nextSnapshot.prompt);
+      setMainPanel("history");
+      setWorkspaceNotice(t("video.notices.failedRestoredAsDraft"));
+      router.push("/workspace/video?from=failed-job");
+    },
+    [findRetryModel, models, router, selectedModel, t],
   );
 
   const handleFillFromHistory = useCallback(
@@ -2956,7 +2942,7 @@ export function VideoWorkspace() {
                   onAddReference={handleAddHistoryReferenceAsset}
                   onFilterChange={setHistoryFilter}
                   onFill={handleFillFromHistory}
-                  onRetry={handleRetry}
+                  onRetryAsDraft={handleRetryAsDraftFromHistory}
                   onUseResultAsReference={handleUseResultAsReference}
                   task={task}
                 />

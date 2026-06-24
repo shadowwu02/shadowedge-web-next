@@ -18,7 +18,7 @@ type VideoHistoryCanvasProps = {
   onFill?: (record: VideoTaskRecord) => void;
   onFilterChange: (filter: HistoryFilter) => void;
   onHide?: (record: VideoTaskRecord) => void;
-  onRetry?: (record: VideoTaskRecord) => void;
+  onRetryAsDraft?: (record: VideoTaskRecord) => void;
   onUseResultAsReference?: (record: VideoTaskRecord) => void;
 };
 
@@ -93,6 +93,7 @@ export function VideoHistoryCanvas({
   onFill,
   onFilterChange,
   onHide,
+  onRetryAsDraft,
   onUseResultAsReference,
 }: VideoHistoryCanvasProps) {
   const { t, tf } = useI18n();
@@ -279,7 +280,7 @@ export function VideoHistoryCanvas({
                           </button>
                         ) : null}
                         {isFailed ? (
-                          <button className={actionButtonClass("primary")} disabled={!onFill} onClick={() => onFill?.(item)} title={t("video.history.draftOnlyHint")} type="button">
+                          <button className={actionButtonClass("primary")} disabled={!onRetryAsDraft} onClick={() => onRetryAsDraft?.(item)} title={t("video.history.draftOnlyHint")} type="button">
                             {t("video.history.retryAsDraft")}
                           </button>
                         ) : null}

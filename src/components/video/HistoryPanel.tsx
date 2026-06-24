@@ -19,7 +19,7 @@ type HistoryPanelProps = {
   onFilterChange?: (filter: HistoryFilter) => void;
   onFill?: (record: VideoTaskRecord) => void;
   onHide?: (record: VideoTaskRecord) => void;
-  onRetry?: (record: VideoTaskRecord) => void;
+  onRetryAsDraft?: (record: VideoTaskRecord) => void;
   onUseResultAsReference?: (record: VideoTaskRecord) => void;
 };
 
@@ -90,6 +90,7 @@ export function HistoryPanel({
   onFilterChange,
   onFill,
   onHide,
+  onRetryAsDraft,
   onUseResultAsReference,
 }: HistoryPanelProps) {
   const { t, tf } = useI18n();
@@ -280,7 +281,7 @@ export function HistoryPanel({
                           </button>
                         ) : null}
                         {isFailed ? (
-                          <button className={actionButtonClass("primary")} disabled={!onFill} onClick={() => onFill?.(item)} title={t("video.history.draftOnlyHint")} type="button">
+                          <button className={actionButtonClass("primary")} disabled={!onRetryAsDraft} onClick={() => onRetryAsDraft?.(item)} title={t("video.history.draftOnlyHint")} type="button">
                             {t("video.history.retryAsDraft")}
                           </button>
                         ) : null}
