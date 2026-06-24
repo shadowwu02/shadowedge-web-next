@@ -2616,9 +2616,32 @@ export function VideoWorkspace() {
         return;
       }
 
+      const draftModel = findDraftModel(draft, models) || selectedModel;
+      const draftParams = buildParamsForModel(draftModel, draft.params);
+      const nextSnapshot = {
+        media: draft.referenceMedia,
+        mentionBindings: draft.mentionBindings,
+        params: draftParams,
+        prompt: draft.prompt,
+        selectedModel: draftModel,
+      };
+
+      if (draftSaveTimerRef.current) {
+        clearTimeout(draftSaveTimerRef.current);
+        draftSaveTimerRef.current = null;
+      }
+      latestDraftSnapshotRef.current = nextSnapshot;
+
+      setWorkspaceMode("create");
+      setSelectedModel(draftModel);
+      setParams(draftParams);
+      setMedia(draft.referenceMedia);
+      setMentionBindings(draft.mentionBindings);
+      setPrompt(draft.prompt);
+      setWorkspaceNotice(t("video.notices.videoAddedToDraft"));
       router.push("/workspace/video?from=video-result");
     },
-    [getGeneratedResultReferenceIssue, router, t],
+    [getGeneratedResultReferenceIssue, models, router, selectedModel, t],
   );
 
   const handleFillFromHistory = useCallback(
