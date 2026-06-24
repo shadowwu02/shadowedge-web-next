@@ -93,7 +93,6 @@ export function VideoHistoryCanvas({
   onFill,
   onFilterChange,
   onHide,
-  onRetry,
   onUseResultAsReference,
 }: VideoHistoryCanvasProps) {
   const { t, tf } = useI18n();
@@ -174,7 +173,7 @@ export function VideoHistoryCanvas({
               });
 
               return (
-                <article className="overflow-hidden rounded-[28px] border border-white/10 bg-black/22" key={view.key}>
+                <article className="overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(17,19,24,0.72),rgba(5,7,11,0.86))] shadow-[0_18px_60px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.035)]" key={view.key}>
                   <div className="grid gap-0 2xl:grid-cols-[minmax(0,1.3fr)_minmax(270px,0.7fr)]">
                     <div className="grid min-h-[280px] place-items-center bg-[#05070b] p-3">
                       {view.outputUrl ? (
@@ -222,6 +221,11 @@ export function VideoHistoryCanvas({
                         <span className={`se-status rounded-full px-2.5 py-1 text-[10px] font-black ${statusClass(isStaleActive ? "unknown" : view.status, Boolean(view.outputUrl))}`}>
                           {statusLabel(view.status, view.statusLabel, isStaleActive)}
                         </span>
+                        {isFailed && view.refunded ? (
+                          <span className="rounded-full border border-[#ffb44d]/20 bg-[#ffb44d]/10 px-2.5 py-1 text-[10px] font-black text-[#ffd08a]">
+                            {t("video.history.refundedChip")}
+                          </span>
+                        ) : null}
                         <span className="text-xs text-white/38">{view.createdAtLabel}</span>
                       </div>
 
@@ -251,7 +255,7 @@ export function VideoHistoryCanvas({
                         </p>
                       ) : null}
 
-                      <div className="mt-auto flex flex-wrap gap-2">
+                      <div className="mt-auto flex flex-wrap gap-2 border-t border-white/8 pt-3">
                         {isSuccess ? (
                           <a
                             className={actionButtonClass("normal")}
@@ -264,14 +268,19 @@ export function VideoHistoryCanvas({
                             {t("video.history.downloadOpen")}
                           </a>
                         ) : null}
-                        {(isSuccess || isFailed) && onFill ? (
+                        {(isSuccess || isFailed) ? (
+                          <button className={actionButtonClass("normal")} disabled={!view.title} onClick={() => void navigator.clipboard?.writeText(view.title || "")} type="button">
+                            {t("video.history.copyPrompt")}
+                          </button>
+                        ) : null}
+                        {isSuccess && onFill ? (
                           <button className={actionButtonClass("normal")} onClick={() => onFill(item)} type="button">
                             {t("video.history.fill")}
                           </button>
                         ) : null}
                         {isFailed ? (
-                          <button className={actionButtonClass("primary")} disabled={!onRetry} onClick={() => onRetry?.(item)} type="button">
-                            {t("video.history.retry")}
+                          <button className={actionButtonClass("primary")} disabled={!onFill} onClick={() => onFill?.(item)} title={t("video.history.draftOnlyHint")} type="button">
+                            {t("video.history.retryAsDraft")}
                           </button>
                         ) : null}
                         {isSuccess && onUseResultAsReference ? (

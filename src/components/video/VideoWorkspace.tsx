@@ -1464,7 +1464,8 @@ export function VideoWorkspace() {
   );
   const hasEnoughCredits = credits === null || estimatedCredits <= credits;
   const isPromptTooLong = prompt.length > VIDEO_PROMPT_FRONTEND_LIMIT;
-  const canGenerate = Boolean(selectedModel) && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits && !isPromptTooLong;
+  const hasPromptForGenerate = Boolean(prompt.trim());
+  const canGenerate = Boolean(selectedModel) && hasPromptForGenerate && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits && !isPromptTooLong;
   const reusableMedia = useMemo(
     () => collectReusableVideoAssets(task ? [task, ...history] : history),
     [history, task],
@@ -1512,6 +1513,15 @@ export function VideoWorkspace() {
     if (!hasEnoughCredits) return t("video.credits.notEnough");
     return tf("video.actions.generateWithCredits", { credits: estimatedCredits });
   }, [estimatedCredits, hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, t, tf, token]);
+  const generateButtonHelper = useMemo(() => {
+    if (!hasPromptForGenerate) return t("video.errors.promptRequired");
+    if (isUploadingMedia) return t("video.errors.mediaUploading");
+    if (isProcessing) return concurrencyLimitNotice;
+    if (!token && !isSignedIn) return t("video.errors.signInRequired");
+    if (!hasEnoughCredits) return t("video.credits.notEnough");
+    if (isPromptTooLong) return tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT });
+    return t("video.credits.beforeSubmit");
+  }, [concurrencyLimitNotice, hasEnoughCredits, hasPromptForGenerate, isProcessing, isPromptTooLong, isSignedIn, isUploadingMedia, t, tf, token]);
 
   const handleGenerateRemakeShot = useCallback(
     async (shot: RemakeShot, queueMeta?: RemakeShotQueueMeta) => {
@@ -2824,13 +2834,15 @@ export function VideoWorkspace() {
                 value={params}
               />
               {!token && !isSignedIn ? (
-                <div className="rounded-[22px] border border-[#ffb44d]/26 bg-[#ffb44d]/8 p-4">
-                  <p className="text-sm font-semibold text-[#ffb44d]">{t("video.errors.signInRequired")}</p>
-                  <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/70">
-                    {t("video.workspace.signInBody")}
-                  </p>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[#ffb44d]/20 bg-[#ffb44d]/8 px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-[#ffd08a]">{t("video.errors.signInRequired")}</p>
+                    <p className="mt-0.5 line-clamp-1 text-[11px] leading-4 text-[#b9b9b9]/58">
+                      {t("video.workspace.signInBody")}
+                    </p>
+                  </div>
                   <Link
-                    className="se-button-primary mt-4 inline-flex h-10 items-center justify-center rounded-full px-5 text-sm font-semibold"
+                    className="se-button-secondary inline-flex min-h-8 shrink-0 items-center justify-center rounded-full px-3 text-[11px] font-semibold"
                     href="/sign-in?next=/workspace/video"
                   >
                     {t("video.actions.signIn")}
@@ -2850,6 +2862,7 @@ export function VideoWorkspace() {
             <GenerateButton
               credits={estimatedCredits}
               disabled={!canGenerate}
+              helperText={generateButtonHelper}
               isSubmitting={isSubmitting}
               label={generateButtonLabel}
               onClick={submitCurrent}

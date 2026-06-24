@@ -118,7 +118,6 @@ export function VideoOutputDetailPanel({
   getUseResultAsReferenceIssue,
   onAddReference,
   onFill,
-  onRetry,
   onUseResultAsReference,
   record,
 }: VideoOutputDetailPanelProps) {
@@ -328,10 +327,17 @@ export function VideoOutputDetailPanel({
             {t("video.generation.downloadResult")}
           </a>
         ) : null}
-        {(isFailed || isStaleActive) && onRetry ? (
-          <button aria-label={t("video.history.retry")} className={actionButtonClass("primary")} onClick={() => onRetry(record)} title={t("video.history.retry")} type="button">
+        {isFailed || isStaleActive ? (
+          <button
+            aria-label={t("video.history.retryAsDraft")}
+            className={actionButtonClass("primary")}
+            disabled={!onFill}
+            onClick={() => onFill?.(record)}
+            title={t("video.history.draftOnlyHint")}
+            type="button"
+          >
             <RetryIcon />
-            {t("video.history.retry")}
+            {t("video.history.retryAsDraft")}
           </button>
         ) : null}
         {view.jobLabel && view.jobLabel !== "--" ? (

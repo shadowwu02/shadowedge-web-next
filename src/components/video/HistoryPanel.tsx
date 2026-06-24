@@ -90,11 +90,11 @@ export function HistoryPanel({
   onFilterChange,
   onFill,
   onHide,
-  onRetry,
   onUseResultAsReference,
 }: HistoryPanelProps) {
   const { t, tf } = useI18n();
   const [localFilter, setLocalFilter] = useState<HistoryFilter>("all");
+  const [expandedKey, setExpandedKey] = useState<string>("");
   const currentFilter = filter ?? localFilter;
   const setNextFilter = (nextFilter: HistoryFilter) => {
     if (filter === undefined) setLocalFilter(nextFilter);
@@ -186,6 +186,21 @@ export function HistoryPanel({
               const useResultIssue = getUseResultAsReferenceIssue?.(item) || "";
               const referenceCount = collectHistoryInputMediaAssets([item]).length;
               const sourceLabel = getOutputSourceLabel(item, t);
+              const isExpanded = expandedKey === view.key;
+              const copyMetadata = () => {
+                const metadata = {
+                  createdAt: view.createdAtLabel,
+                  duration: view.duration,
+                  job: view.jobLabel,
+                  model: view.modelLabel,
+                  outputUrl: view.outputUrl,
+                  prompt: view.title,
+                  quality: view.quality,
+                  ratio: view.ratio,
+                  status: view.status,
+                };
+                void navigator.clipboard?.writeText(JSON.stringify(metadata, null, 2));
+              };
               return (
                 <article className="se-card-interactive group rounded-[18px] p-2" key={view.key}>
                   <div className="grid grid-cols-[68px_minmax(0,1fr)] gap-2">
@@ -213,6 +228,11 @@ export function HistoryPanel({
                         <span className={`se-status shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-black ${statusClass(isStaleActive ? "unknown" : view.status, Boolean(view.outputUrl))}`}>
                           {statusLabel(view.status, view.statusLabel, isStaleActive)}
                         </span>
+                        {isFailed && view.refunded ? (
+                          <span className="shrink-0 rounded-full border border-[#ffb44d]/20 bg-[#ffb44d]/10 px-1.5 py-0.5 text-[9px] font-bold text-[#ffd08a]">
+                            {t("video.history.refundedChip")}
+                          </span>
+                        ) : null}
                         <span className="truncate text-[11px] text-white/34">{view.createdAtLabel}</span>
                       </div>
                       <p className="mt-1.5 line-clamp-2 text-sm font-bold leading-5 text-white">{view.title}</p>
@@ -236,7 +256,7 @@ export function HistoryPanel({
                           </span>
                         </div>
                       ) : null}
-                      <div className="mt-2 flex max-h-0 flex-wrap gap-1.5 overflow-hidden opacity-0 transition-all duration-150 group-hover:max-h-24 group-hover:opacity-100">
+                      <div className="mt-2 flex flex-wrap gap-1.5 border-t border-white/8 pt-2">
                         {isSuccess ? (
                           <a
                             className={actionButtonClass("normal")}
@@ -249,14 +269,19 @@ export function HistoryPanel({
                             {t("video.history.downloadOpen")}
                           </a>
                         ) : null}
-                        {(isSuccess || isFailed) && onFill ? (
+                        {(isSuccess || isFailed) ? (
+                          <button className={actionButtonClass("normal")} disabled={!view.title} onClick={() => void navigator.clipboard?.writeText(view.title || "")} type="button">
+                            {t("video.history.copyPrompt")}
+                          </button>
+                        ) : null}
+                        {isSuccess && onFill ? (
                           <button className={actionButtonClass("normal")} onClick={() => onFill(item)} type="button">
                             {t("video.history.fill")}
                           </button>
                         ) : null}
                         {isFailed ? (
-                          <button className={actionButtonClass("primary")} disabled={!onRetry} onClick={() => onRetry?.(item)} type="button">
-                            {t("video.history.retry")}
+                          <button className={actionButtonClass("primary")} disabled={!onFill} onClick={() => onFill?.(item)} title={t("video.history.draftOnlyHint")} type="button">
+                            {t("video.history.retryAsDraft")}
                           </button>
                         ) : null}
                         {isSuccess && onUseResultAsReference ? (
@@ -270,6 +295,11 @@ export function HistoryPanel({
                             {t("video.history.useAsReference")}
                           </button>
                         ) : null}
+                        {(isSuccess || isFailed) ? (
+                          <button className={actionButtonClass("normal")} onClick={() => setExpandedKey(isExpanded ? "" : view.key)} type="button">
+                            {t("video.history.viewDetails")}
+                          </button>
+                        ) : null}
                         {!isProcessing && onHide ? (
                           <button className={actionButtonClass("danger")} onClick={() => onHide(item)} title={t("video.history.hideTitle")} type="button">
                             {t("video.history.hide")}
@@ -279,6 +309,19 @@ export function HistoryPanel({
                           <span className="w-full text-[11px] leading-4 text-white/36">{useResultIssue}</span>
                         ) : null}
                       </div>
+                      {isExpanded ? (
+                        <div className="mt-2 rounded-2xl border border-white/8 bg-black/24 p-2.5 text-[11px] leading-5 text-white/46">
+                          <div className="mb-1.5 flex items-center justify-between gap-2">
+                            <span className="font-bold text-white/70">{t("video.history.viewDetails")}</span>
+                            <button className={actionButtonClass("normal")} onClick={copyMetadata} type="button">
+                              {t("video.history.copyMetadata")}
+                            </button>
+                          </div>
+                          <p className="line-clamp-2 text-white/58">{view.title}</p>
+                          <p className="mt-1 truncate">{view.modelLabel} · {view.duration} · {view.ratio} · {view.quality}</p>
+                          {isFailed ? <p className="mt-1 line-clamp-2 text-[#f2b3a1]/70">{localizeHistoryMessage(view.errorMessage, item)}</p> : null}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </article>

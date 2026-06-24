@@ -125,17 +125,17 @@ export function ImageReferenceTray({
         </div>
       ) : (
         <button
-          className="grid min-h-[148px] w-full place-items-center rounded-[22px] border border-dashed border-white/12 bg-white/[.025] text-center transition-colors hover:border-[#ffb44d]/28 hover:bg-[#ffb44d]/7 disabled:hover:border-white/12 disabled:hover:bg-white/[.025]"
+          className={`grid w-full place-items-center rounded-[22px] border border-dashed border-white/12 bg-white/[.025] text-center transition-colors hover:border-[#ffb44d]/28 hover:bg-[#ffb44d]/7 disabled:hover:border-white/12 disabled:hover:bg-white/[.025] ${maxReferences ? "min-h-[148px]" : "min-h-[92px]"}`}
           disabled={!canUpload}
           onClick={() => inputRef.current?.click()}
           type="button"
         >
-            <span>
-            <span className="mx-auto grid size-11 place-items-center rounded-2xl border border-[#ffb44d]/20 bg-[#ffb44d]/10 text-[#ffd08a]">
+          <span>
+            <span className={`mx-auto grid place-items-center border border-[#ffb44d]/20 bg-[#ffb44d]/10 text-[#ffd08a] ${maxReferences ? "size-11 rounded-2xl" : "size-8 rounded-xl"}`}>
               <ImageIcon />
             </span>
-            <span className="mt-3 block text-sm font-semibold text-[#f4f4f4]">{maxReferences ? t("image.references.uploadTitle") : t("image.references.unsupportedTitle")}</span>
-            <span className="mt-1 block text-xs text-[#b9b9b9]/52">
+            <span className={`block font-semibold text-[#f4f4f4] ${maxReferences ? "mt-3 text-sm" : "mt-2 text-xs"}`}>{maxReferences ? t("image.references.uploadTitle") : t("image.references.unsupportedTitle")}</span>
+            <span className="mt-0.5 block text-xs text-[#b9b9b9]/52">
               {maxReferences ? t("image.references.uploadHint") : t("image.references.unsupportedHint")}
             </span>
           </span>

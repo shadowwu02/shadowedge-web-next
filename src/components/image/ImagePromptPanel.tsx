@@ -73,8 +73,17 @@ export function ImagePromptPanel({
     : isGenerating
       ? t("image.workspace.generating")
       : isPolling || isActiveJob
-        ? t("image.workspace.waitingForResult")
-        : tf("image.workspace.generateWithCredits", { credits: estimatedCredits });
+      ? t("image.workspace.waitingForResult")
+      : tf("image.workspace.generateWithCredits", { credits: estimatedCredits });
+  const generateHelper = !hasPrompt
+    ? t("image.generate.disabled.promptEmpty")
+    : hasUploadingReferences
+      ? t("image.generate.disabled.uploadingReferences")
+      : loadingModels
+        ? t("image.generate.disabled.loadingModels")
+        : isGenerating || isPolling || isActiveJob
+          ? t("image.generate.disabled.processing")
+          : t("image.params.estimatedCostHint");
 
   return (
     <aside className="se-panel se-scrollbar flex h-full min-h-0 flex-col overflow-y-auto rounded-[30px] p-4">
@@ -259,10 +268,24 @@ export function ImagePromptPanel({
         {error ? <div className="rounded-[18px] border border-[#8c4632]/42 bg-[#2a1012]/72 px-3 py-2 text-xs leading-5 text-[#f2b3a1]">{error}</div> : null}
       </div>
 
-      <div className="mt-4 flex-none pt-1">
-        <button className="se-button-primary min-h-[54px] w-full rounded-[20px] px-5 text-sm font-semibold" disabled={disabled} onClick={onGenerate} type="button">
+      <div className="mt-4 flex-none rounded-[22px] border border-[#ffb44d]/16 bg-[linear-gradient(180deg,rgba(255,178,74,0.10),rgba(20,18,14,0.82))] p-2.5 shadow-[0_18px_60px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.05)]">
+        <div className="mb-2 flex items-center justify-between gap-2 px-1">
+          <span className="se-eyebrow">{t("image.generate.readyCheck")}</span>
+          <span className="rounded-full border border-[#ffb44d]/24 bg-[#ffb44d]/10 px-2.5 py-1 text-[10px] font-semibold text-[#ffd08a]">
+            {tf("image.generate.creditsPill", { credits: estimatedCredits })}
+          </span>
+        </div>
+        <button
+          className="se-button-primary min-h-[54px] w-full rounded-[18px] px-5 text-sm font-semibold shadow-[0_18px_60px_rgba(0,0,0,0.38)]"
+          disabled={disabled}
+          onClick={onGenerate}
+          type="button"
+        >
           {generateLabel}
         </button>
+        <p className={`mt-2 text-center text-[11px] leading-4 ${disabled ? "text-[#ffd08a]/62" : "text-[#f7f3ea]/48"}`}>
+          {generateHelper}
+        </p>
       </div>
     </aside>
   );

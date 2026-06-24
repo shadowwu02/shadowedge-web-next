@@ -42,6 +42,13 @@ function statusClass(status: string) {
   return "se-status-neutral";
 }
 
+function outputActionClass(tone: "normal" | "primary" = "normal") {
+  if (tone === "primary") {
+    return "se-button-secondary inline-flex min-h-8 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-45";
+  }
+  return "se-button-ghost inline-flex min-h-8 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-45";
+}
+
 export function ImageOutputStage({
   error,
   isGenerating,
@@ -123,30 +130,48 @@ export function ImageOutputStage({
           <div className="se-scrollbar h-full w-full overflow-y-auto">
             <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
               {job.outputUrls.map((url, index) => (
-                <article className="overflow-hidden rounded-[24px] border border-white/10 bg-black/42" key={`${url}-${index}`}>
+                <article className="overflow-hidden rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(30,27,23,0.88),rgba(12,13,14,0.78))] shadow-[0_18px_60px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)]" key={`${url}-${index}`}>
                   <button className="block aspect-square w-full bg-black/40" onClick={() => window.open(url, "_blank", "noopener,noreferrer")} type="button">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img alt={tf("image.output.label", { index: index + 1 })} className="h-full w-full object-contain" src={url} />
                   </button>
-                  <div className="flex items-center justify-between gap-2 p-2.5">
-                    <span className="text-[11px] font-semibold text-[#f4f4f4]/72">{tf("image.output.imageLabel", { index: index + 1 })}</span>
-                    <span className="flex flex-wrap items-center justify-end gap-1">
+                  <div className="grid gap-2 border-t border-white/8 p-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold text-[#f4f4f4]/72">{tf("image.output.imageLabel", { index: index + 1 })}</span>
+                      <span className="truncate text-[10px] text-[#b9b9b9]/42">{job.model || t("image.model.label")}</span>
+                    </div>
+                    <span className="flex flex-wrap items-center gap-1">
                       <button
-                        className="se-button-ghost inline-flex min-h-8 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold"
+                        className={outputActionClass("normal")}
                         onClick={() => void navigator.clipboard?.writeText(url)}
                         type="button"
                       >
                         <CopyIcon />
                         {t("image.actions.copy")}
                       </button>
-                      <a className="se-button-secondary inline-flex min-h-8 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold" href={url} rel="noreferrer" target="_blank">
-                        <ExternalIcon />
-                        {t("image.actions.open")}
-                      </a>
-                      <a className="se-button-secondary inline-flex min-h-8 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold" download={`shadowedge-image-${index + 1}.png`} href={url} rel="noreferrer" target="_blank">
+                      <button
+                        className={outputActionClass("normal")}
+                        disabled={!job.prompt}
+                        onClick={() => void navigator.clipboard?.writeText(job.prompt || "")}
+                        type="button"
+                      >
+                        <CopyIcon />
+                        {t("image.actions.copyPrompt")}
+                      </button>
+                      <a className={outputActionClass("primary")} download={`shadowedge-image-${index + 1}.png`} href={url} rel="noreferrer" target="_blank">
                         <DownloadIcon />
                         {t("image.actions.download")}
                       </a>
+                      <a className={outputActionClass("normal")} href={url} rel="noreferrer" target="_blank">
+                        <ExternalIcon />
+                        {t("image.actions.open")}
+                      </a>
+                      <button className={outputActionClass("normal")} disabled title={t("image.actions.comingSoonDraftOnly")} type="button">
+                        {t("image.actions.useAsReference")}
+                      </button>
+                      <button className={outputActionClass("normal")} disabled title={t("image.actions.comingSoonDraftOnly")} type="button">
+                        {t("image.actions.sendToVideoDraft")}
+                      </button>
                     </span>
                   </div>
                 </article>
@@ -177,6 +202,20 @@ export function ImageOutputStage({
               {job.refunded || job.refundStatus === "refunded" ? (
                 <span className="inline-flex rounded-full border border-[#ffb44d]/20 bg-[#ffb44d]/10 px-3 py-1 text-xs font-semibold text-[#ffd08a]">{t("image.status.refunded")}</span>
               ) : null}
+            </div>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <button
+                className={outputActionClass("normal")}
+                disabled={!job.prompt}
+                onClick={() => void navigator.clipboard?.writeText(job.prompt || "")}
+                type="button"
+              >
+                <CopyIcon />
+                {t("image.actions.copyPrompt")}
+              </button>
+              <button className={outputActionClass("normal")} disabled title={t("image.actions.comingSoonDraftOnly")} type="button">
+                {t("image.actions.retryAsDraft")}
+              </button>
             </div>
           </div>
         ) : (
