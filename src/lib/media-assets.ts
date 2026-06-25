@@ -21,6 +21,49 @@ function pickString(...values: unknown[]) {
   return values.find((value) => typeof value === "string" && value.trim()) as string | undefined;
 }
 
+function cleanFilename(value: unknown) {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return "";
+  return raw.replace(/[?#].*$/, "").split(/[\\/]/).filter(Boolean).pop() || raw;
+}
+
+function safeDecodeFilename(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function isGenericFilename(value: string) {
+  const name = cleanFilename(value);
+  const stem = name.replace(/\.[a-z0-9]{2,6}$/i, "");
+  if (!stem) return true;
+  if (stem.length > 48) return true;
+  if (/^[0-9a-f]{24,}$/i.test(stem.replace(/-/g, ""))) return true;
+  if (/^(remote[-_])?(image|video|audio)[-_]?\d*$/i.test(stem)) return true;
+  return false;
+}
+
+function filenameFromUrl(url: string) {
+  if (!url) return "";
+  const path = (() => {
+    try {
+      return new URL(url).pathname;
+    } catch {
+      return url;
+    }
+  })();
+
+  const name = safeDecodeFilename(cleanFilename(path));
+  return name && !isGenericFilename(name) ? name : "";
+}
+
+function fallbackAssetName(type: UploadMediaType, source: UploadMediaSource | MediaAssetSourceInput, index = 0) {
+  if (source === "generated_result") return `Generated ${type}`;
+  return `Reference ${type} ${Math.max(1, index + 1)}`;
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
@@ -96,7 +139,19 @@ export function normalizeMediaAsset(item: unknown, source: MediaAssetSourceInput
   const mimeType = pickString(raw.mimeType, raw.mime_type, raw.mimetype);
   const type = normalizeType(raw.type, url, mimeType);
   const role = normalizeRole(raw.role || raw.assetRole);
-  const name = pickString(raw.name, raw.originalName, raw.original_name, raw.filename, raw.fileName) || `${type} asset`;
+  const name =
+    pickString(
+      raw.displayName,
+      raw.display_name,
+      raw.originalName,
+      raw.original_name,
+      raw.originalFilename,
+      raw.original_filename,
+      raw.filename,
+      raw.fileName,
+      raw.name,
+      filenameFromUrl(url),
+    ) || fallbackAssetName(type, normalizeSource(source));
   const rawPreviewUrl =
     type === "image"
       ? pickString(raw.previewUrl, raw.thumbnailUrl, raw.thumbnail_url, url) || url
@@ -113,7 +168,7 @@ export function normalizeMediaAsset(item: unknown, source: MediaAssetSourceInput
     size: Number(raw.size || raw.bytes || 0) || undefined,
     mimeType,
     filename: pickString(raw.filename, raw.fileName),
-    originalName: pickString(raw.originalName, raw.original_name, name),
+    originalName: pickString(raw.originalName, raw.original_name, raw.originalFilename, raw.original_filename, name),
     duration: Number(raw.duration || raw.durationSeconds || raw.duration_seconds || 0) || undefined,
     uploadStatus: "ready",
     errorMessage: source === "current" ? raw.errorMessage : "",
@@ -261,6 +316,7 @@ function createReusableHistoryAsset(
   role: UploadMediaRole,
   source: UploadMediaSource,
   namespace: string,
+  assetIndex = 0,
 ) {
   const url = getHistoryUrlFromItem(item);
   if (!url || isTransientMediaUrl(url) || !isRemoteMediaUrl(url)) return null;
@@ -268,8 +324,18 @@ function createReusableHistoryAsset(
   const raw = asRecord(item);
   const recordId = getHistoryRecordId(record, recordIndex);
   const name =
-    pickString(raw.name, raw.originalName, raw.original_name, raw.filename, raw.fileName, record.prompt) ||
-    `${source === "generated_result" ? "Generated" : "History"} ${type}`;
+    pickString(
+      raw.displayName,
+      raw.display_name,
+      raw.originalName,
+      raw.original_name,
+      raw.originalFilename,
+      raw.original_filename,
+      raw.filename,
+      raw.fileName,
+      raw.name,
+      filenameFromUrl(url),
+    ) || fallbackAssetName(type, source, assetIndex);
   const previewUrl =
     type === "image"
       ? pickString(raw.previewUrl, raw.preview_url, raw.thumbnailUrl, raw.thumbnail_url, url) || url
@@ -282,7 +348,7 @@ function createReusableHistoryAsset(
       id: pickString(raw.id, raw.mediaId, raw.media_id, raw.key) || `${namespace}:${recordId}:${type}:${url}`,
       mimeType: raw.mimeType || raw.mime_type || raw.mimetype,
       name,
-      originalName: raw.originalName || raw.original_name || name,
+      originalName: raw.originalName || raw.original_name || raw.originalFilename || raw.original_filename || name,
       previewUrl,
       role,
       size: raw.size || raw.bytes,
@@ -302,8 +368,9 @@ function addReusableAsset(
   role: UploadMediaRole,
   source: UploadMediaSource,
   namespace: string,
+  assetIndex = 0,
 ) {
-  const asset = createReusableHistoryAsset(record, recordIndex, item, type, role, source, namespace);
+  const asset = createReusableHistoryAsset(record, recordIndex, item, type, role, source, namespace, assetIndex);
   if (asset) items.push(asset);
 }
 
@@ -314,12 +381,12 @@ function collectUploadAssetItems(
   uploadAssets: Record<string, unknown>,
 ) {
   Object.entries(uploadAssets).forEach(([slot, value]) => {
-    asArray(value).forEach((item) => {
+    asArray(value).forEach((item, assetIndex) => {
       const url = getHistoryUrlFromItem(item);
       if (!url) return;
       const type = inferHistoryType(item, url, slot);
       const role = type === "image" ? inferHistoryRole(item, slot) : "reference";
-      addReusableAsset(items, record, recordIndex, item, type, role, "history", "history-upload");
+      addReusableAsset(items, record, recordIndex, item, type, role, "history", "history-upload", assetIndex);
     });
   });
 }
@@ -352,19 +419,19 @@ export function collectHistoryInputMediaAssets(records: VideoTaskRecord[]) {
       "history-end",
     );
 
-    asArray(rawRecord.mediaList || meta.mediaList).forEach((item) => {
+    asArray(rawRecord.mediaList || meta.mediaList).forEach((item, assetIndex) => {
       const url = getHistoryUrlFromItem(item);
       if (!url) return;
       const type = inferHistoryType(item, url);
       const role = type === "image" ? inferHistoryRole(item) : "reference";
-      addReusableAsset(items, rawRecord, recordIndex, item, type, role, "history", "history-media-list");
+      addReusableAsset(items, rawRecord, recordIndex, item, type, role, "history", "history-media-list", assetIndex);
     });
 
-    asArray(rawRecord.reference_images || rawRecord.referenceImages || meta.reference_images || meta.referenceImages).forEach((item) =>
-      addReusableAsset(items, rawRecord, recordIndex, item, "image", "reference", "history", "history-ref-image"),
+    asArray(rawRecord.reference_images || rawRecord.referenceImages || meta.reference_images || meta.referenceImages).forEach((item, assetIndex) =>
+      addReusableAsset(items, rawRecord, recordIndex, item, "image", "reference", "history", "history-ref-image", assetIndex),
     );
-    asArray(rawRecord.reference_videos || rawRecord.referenceVideos || meta.reference_videos || meta.referenceVideos).forEach((item) =>
-      addReusableAsset(items, rawRecord, recordIndex, item, "video", "reference", "history", "history-ref-video"),
+    asArray(rawRecord.reference_videos || rawRecord.referenceVideos || meta.reference_videos || meta.referenceVideos).forEach((item, assetIndex) =>
+      addReusableAsset(items, rawRecord, recordIndex, item, "video", "reference", "history", "history-ref-video", assetIndex),
     );
     asArray(
       rawRecord.reference_audios ||
@@ -374,12 +441,12 @@ export function collectHistoryInputMediaAssets(records: VideoTaskRecord[]) {
         rawRecord.audioUrl ||
         meta.reference_audios ||
         meta.referenceAudios,
-    ).forEach((item) => addReusableAsset(items, rawRecord, recordIndex, item, "audio", "reference", "history", "history-ref-audio"));
+    ).forEach((item, assetIndex) => addReusableAsset(items, rawRecord, recordIndex, item, "audio", "reference", "history", "history-ref-audio", assetIndex));
 
     const assets = asRecord(rawRecord.assets || meta.assets);
-    asArray(assets.images).forEach((item) => addReusableAsset(items, rawRecord, recordIndex, item, "image", "reference", "history", "history-assets-image"));
-    asArray(assets.videos).forEach((item) => addReusableAsset(items, rawRecord, recordIndex, item, "video", "reference", "history", "history-assets-video"));
-    asArray(assets.audios).forEach((item) => addReusableAsset(items, rawRecord, recordIndex, item, "audio", "reference", "history", "history-assets-audio"));
+    asArray(assets.images).forEach((item, assetIndex) => addReusableAsset(items, rawRecord, recordIndex, item, "image", "reference", "history", "history-assets-image", assetIndex));
+    asArray(assets.videos).forEach((item, assetIndex) => addReusableAsset(items, rawRecord, recordIndex, item, "video", "reference", "history", "history-assets-video", assetIndex));
+    asArray(assets.audios).forEach((item, assetIndex) => addReusableAsset(items, rawRecord, recordIndex, item, "audio", "reference", "history", "history-assets-audio", assetIndex));
 
     collectUploadAssetItems(
       items,
@@ -417,7 +484,7 @@ export function collectGeneratedResultMediaAssets(records: VideoTaskRecord[]) {
       recordIndex,
       {
         id: `generated:${getHistoryRecordId(rawRecord, recordIndex)}`,
-        name: pickString(rawRecord.prompt, meta.original_prompt, meta.prompt) || "Generated video",
+        name: "Generated video",
         previewUrl: pickString(rawRecord.thumbnailUrl, rawRecord.thumbnail, meta.thumbnailUrl, meta.thumbnail_url, meta.thumbnail),
         thumbnailUrl: pickString(rawRecord.thumbnailUrl, rawRecord.thumbnail, meta.thumbnailUrl, meta.thumbnail_url, meta.thumbnail),
         type: "video",
