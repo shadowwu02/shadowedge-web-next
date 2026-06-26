@@ -6,7 +6,7 @@ import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { useI18n } from "@/i18n/useI18n";
 import { collectHistoryInputMediaAssets } from "@/lib/media-assets";
 import { getSafeVideoHistoryView, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
-import { getVideoUserFacingError } from "@/lib/video/videoErrorDisplay";
+import { getVideoUserFacingErrorDisplay } from "@/lib/video/videoErrorDisplay";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { UploadMediaItem, VideoTaskRecord } from "@/types/video";
 
@@ -159,12 +159,14 @@ export function VideoOutputDetailPanel({
   const isProcessing = isVideoActiveStatus(view.status) && !isStaleActive;
   const useResultIssue = getUseResultAsReferenceIssue?.(record) || "";
   const modelLogoLookup = getRecordModelLogoLookup(record, view.modelLabel);
-  const displayErrorMessage = getVideoUserFacingError(view.errorMessage, t, {
-    context: isRemakeRecord(record) ? "remake" : "video",
-    errorCode: view.errorCode,
-    refunded: view.refunded,
-    refundStatus: view.refundStatus,
-  });
+  const failureDisplay = isFailed
+    ? getVideoUserFacingErrorDisplay(view.errorMessage, t, {
+        context: isRemakeRecord(record) ? "remake" : "video",
+        errorCode: view.errorCode,
+        refunded: view.refunded,
+        refundStatus: view.refundStatus,
+      })
+    : null;
   const statusLabel = isStaleActive
     ? t("video.generation.stale")
     : isFailed
@@ -277,9 +279,11 @@ export function VideoOutputDetailPanel({
         </div>
 
         {isFailed || isStaleActive ? (
-          <div className="line-clamp-6 rounded-[20px] border border-[#8c4632]/42 bg-[#2a1012] p-3 text-xs leading-5 text-[#f2b3a1]/70">
-            {displayErrorMessage}
-            {view.refundNotice ? ` ${view.refundNotice}` : ""}
+          <div className="rounded-[20px] border border-[#8c4632]/42 bg-[#2a1012] p-3 text-xs leading-5 text-[#f2b3a1]/72">
+            <p className="font-bold text-[#f2b3a1]/90">{isStaleActive ? t("video.generation.stale") : failureDisplay?.title}</p>
+            <p className="mt-1">{isStaleActive ? t("video.result.staleBody") : failureDisplay?.message}</p>
+            {!isStaleActive && failureDisplay?.suggestion ? <p className="mt-1 text-[#ffd08a]/70">{failureDisplay.suggestion}</p> : null}
+            {view.refundNotice ? <p className="mt-1 text-[#ffd08a]/70">{view.refundNotice}</p> : null}
           </div>
         ) : null}
       </div>

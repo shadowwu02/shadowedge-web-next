@@ -11,7 +11,7 @@ import {
   isVideoStaleActiveRecord,
   preferLatestVideoTask,
 } from "@/lib/video/historyUtils";
-import { getVideoUserFacingError } from "@/lib/video/videoErrorDisplay";
+import { getVideoUserFacingErrorDisplay } from "@/lib/video/videoErrorDisplay";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { UploadMediaItem, VideoTaskRecord } from "@/types/video";
 
@@ -37,10 +37,6 @@ const filters: VideoHistoryFilter[] = ["all", "success", "failed", "processing"]
 function safeDownloadFilename(view: ReturnType<typeof getSafeVideoHistoryView>) {
   const id = view.jobLabel && view.jobLabel !== "--" ? view.jobLabel : view.key || Date.now();
   return `shadowedge-video-${String(id).replace(/[^\w.-]+/g, "-")}.mp4`;
-}
-
-function isSensitiveFailure(message: string) {
-  return /nsfw|sensitive|policy|content|moderation|copyright/i.test(message);
 }
 
 function statusClass(status: string, hasOutput: boolean, isStale = false) {
@@ -176,16 +172,18 @@ function VideoGenerationCard({
   const isFailed = isVideoFailedStatus(view.status);
   const isStaleActive = isVideoStaleActiveRecord(record);
   const isProcessing = isVideoActiveStatus(view.status) && !isStaleActive;
-  const sensitiveFailure = isFailed && isSensitiveFailure(view.errorMessage);
   const useResultIssue = getUseResultAsReferenceIssue?.(record) || "";
   const modelLogoLookup = getRecordModelLogoLookup(record, view.modelLabel);
   const sourceLabel = getOutputSourceLabel(record, t);
-  const displayErrorMessage = getVideoUserFacingError(view.errorMessage, t, {
-    context: isRemakeRecord(record) ? "remake" : "video",
-    errorCode: view.errorCode,
-    refunded: view.refunded,
-    refundStatus: view.refundStatus,
-  });
+  const failureDisplay = isFailed
+    ? getVideoUserFacingErrorDisplay(view.errorMessage, t, {
+        context: isRemakeRecord(record) ? "remake" : "video",
+        errorCode: view.errorCode,
+        refunded: view.refunded,
+        refundStatus: view.refundStatus,
+      })
+    : null;
+  const sensitiveFailure = failureDisplay?.reasonCode === "policy";
   const statusLabel = isStaleActive
     ? t("video.generation.stale")
     : isFailed
@@ -288,9 +286,14 @@ function VideoGenerationCard({
                   ) : null}
                 </div>
                 <p className="text-lg font-semibold text-[#f2b3a1]">
-                  {isStaleActive ? t("video.generation.stale") : sensitiveFailure ? t("video.generation.sensitive") : t("video.generation.failed")}
+                  {isStaleActive ? t("video.generation.stale") : failureDisplay?.title || t("video.generation.failed")}
                 </p>
-                <p className="mx-auto mt-2 line-clamp-2 max-w-lg text-sm leading-6 text-[#f2b3a1]/54">{displayErrorMessage}</p>
+                <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-[#f2b3a1]/62">
+                  {isStaleActive ? t("video.result.staleBody") : failureDisplay?.message}
+                </p>
+                {!isStaleActive && failureDisplay?.suggestion ? (
+                  <p className="mx-auto mt-2 max-w-lg text-xs leading-5 text-[#ffd08a]/66">{failureDisplay.suggestion}</p>
+                ) : null}
                 <div className="mt-5 flex flex-wrap justify-center gap-2">
                   {onFill ? (
                     <button

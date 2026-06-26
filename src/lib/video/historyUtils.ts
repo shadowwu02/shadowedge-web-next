@@ -489,7 +489,17 @@ export function getSafeVideoHistoryView(record: VideoTaskRecord, fallbackKey = "
     outputUrl,
     thumbnailUrl: getSafeHistoryThumbnailUrl(raw),
     errorMessage: getSafeVideoHistoryErrorMessage(raw),
-    errorCode: pickString(raw.errorCode, raw.error_code, meta.errorCode, meta.error_code) || "",
+    errorCode:
+      pickString(
+        raw.errorCode,
+        raw.error_code,
+        raw.providerFailureCategory,
+        raw.provider_failure_category,
+        meta.errorCode,
+        meta.error_code,
+        meta.providerFailureCategory,
+        meta.provider_failure_category,
+      ) || "",
     refunded: isRefunded(raw),
     refundStatus: getRefundStatus(raw),
     refundNotice: getRefundNotice(raw),

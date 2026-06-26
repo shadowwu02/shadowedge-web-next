@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useI18n } from "@/i18n/useI18n";
 import { collectHistoryInputMediaAssets } from "@/lib/media-assets";
-import { getVideoUserFacingError } from "@/lib/video/videoErrorDisplay";
+import { getVideoUserFacingErrorDisplay } from "@/lib/video/videoErrorDisplay";
 import { getSafeVideoHistoryView, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { VideoTaskRecord } from "@/types/video";
@@ -122,11 +122,9 @@ export function HistoryPanel({
     if (isVideoActiveStatus(status)) return t("video.status.processing");
     return fallback || t("video.history.status.unknown");
   };
-  const localizeHistoryMessage = (message: string, record: VideoTaskRecord) => {
-    if (message === "Video generation failed. Please try again later or change the media.") return t("video.errors.generationFailed");
-    if (message === "Unable to check this job status. It may be expired. Please check History or retry.") return t("video.result.statusExpired");
+  const getHistoryErrorDisplay = (record: VideoTaskRecord) => {
     const view = getSafeVideoHistoryView(record);
-    return getVideoUserFacingError(message, t, {
+    return getVideoUserFacingErrorDisplay(view.errorMessage, t, {
       context: isRemakeRecord(record) ? "remake" : "video",
       errorCode: view.errorCode,
       refunded: view.refunded,
@@ -188,6 +186,7 @@ export function HistoryPanel({
               const referenceCount = collectHistoryInputMediaAssets([item]).length;
               const sourceLabel = getOutputSourceLabel(item, t);
               const isExpanded = expandedKey === view.key;
+              const errorDisplay = isFailed ? getHistoryErrorDisplay(item) : null;
               const copyMetadata = () => {
                 const metadata = {
                   createdAt: view.createdAtLabel,
@@ -251,10 +250,13 @@ export function HistoryPanel({
                       </div>
                       {isFailed ? (
                         <div className="mt-2">
-                          <span className="line-clamp-2 w-full text-[11px] leading-4 text-[#f2b3a1]/62">
-                            {localizeHistoryMessage(view.errorMessage, item)}
-                            {view.refundNotice ? ` ${localizeRefundNotice(view.refundNotice)}` : ""}
-                          </span>
+                          <div className="w-full rounded-2xl border border-[#8c4632]/28 bg-[#2a1012]/46 px-2.5 py-2">
+                            <p className="truncate text-[11px] font-bold text-[#f2b3a1]/82">{errorDisplay?.title}</p>
+                            <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-[#f2b3a1]/62">
+                              {errorDisplay?.message}
+                              {view.refundNotice ? ` ${localizeRefundNotice(view.refundNotice)}` : ""}
+                            </p>
+                          </div>
                         </div>
                       ) : null}
                       <div className="mt-2 flex flex-wrap gap-1.5 border-t border-white/8 pt-2">
@@ -320,7 +322,13 @@ export function HistoryPanel({
                           </div>
                           <p className="line-clamp-2 text-white/58">{view.title}</p>
                           <p className="mt-1 truncate">{view.modelLabel} · {view.duration} · {view.ratio} · {view.quality}</p>
-                          {isFailed ? <p className="mt-1 line-clamp-2 text-[#f2b3a1]/70">{localizeHistoryMessage(view.errorMessage, item)}</p> : null}
+                          {isFailed && errorDisplay ? (
+                            <div className="mt-1 rounded-2xl border border-[#8c4632]/28 bg-[#2a1012]/42 p-2 text-[#f2b3a1]/72">
+                              <p className="font-bold text-[#f2b3a1]/88">{errorDisplay.title}</p>
+                              <p className="mt-1 line-clamp-2">{errorDisplay.message}</p>
+                              <p className="mt-1 line-clamp-2 text-[#ffd08a]/66">{errorDisplay.suggestion}</p>
+                            </div>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>
