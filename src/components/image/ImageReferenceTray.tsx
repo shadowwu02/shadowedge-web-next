@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { useI18n } from "@/i18n/useI18n";
+import { getSafeMediaItemDisplayName } from "@/lib/media-assets";
 import type { ImageModel, ImageReferenceItem } from "@/types/image";
 
 function ImageIcon() {
@@ -40,7 +41,8 @@ export function ImageReferenceTray({
   onRemove: (referenceId: string) => void;
   onUploadFile: (file: File) => void;
 }) {
-  const { t, tf } = useI18n();
+  const { locale, t, tf } = useI18n();
+  const displayLocale = locale === "zh" ? "zh" : "en";
   const inputRef = useRef<HTMLInputElement | null>(null);
   const maxReferences = model?.capabilities.maxReferences || 0;
   const canUpload = references.length < maxReferences;
@@ -90,38 +92,46 @@ export function ImageReferenceTray({
 
       {references.length ? (
         <div className="grid grid-cols-2 gap-2">
-          {references.map((reference) => (
-            <article className="group overflow-hidden rounded-[18px] border border-white/10 bg-[#05070b]/62" key={reference.id}>
-              <div className="relative aspect-square bg-black/40">
-                {reference.previewUrl || reference.url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img alt={reference.name} className="h-full w-full object-cover" src={reference.previewUrl || reference.url} />
-                ) : (
-                  <div className="grid h-full place-items-center text-[#ffd08a]/70">
-                    <ImageIcon />
-                  </div>
-                )}
-                <button
-                  aria-label={tf("image.references.remove", { name: reference.name })}
-                  className="se-icon-button-danger absolute right-2 top-2 grid size-7 place-items-center rounded-full opacity-100 shadow-lg shadow-black/30 sm:opacity-0 sm:group-hover:opacity-100"
-                  onClick={() => onRemove(reference.id)}
-                  type="button"
-                >
-                  <TrashIcon />
-                </button>
-              </div>
-              <div className="p-2">
-                <p className="truncate text-[11px] font-semibold text-[#f4f4f4]/78">{reference.name}</p>
-                <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-[#b9b9b9]/45">
-                  <span>{formatBytes(reference.size) || t("image.references.generic")}</span>
-                  <span className={reference.uploadStatus === "failed" ? "text-[#f2b3a1]" : reference.uploadStatus === "uploading" ? "text-[#ffd08a]" : "text-[#b8e7ee]"}>
-                    {getUploadStatusLabel(reference)}
-                  </span>
+          {references.map((reference, referenceIndex) => {
+            const displayName = getSafeMediaItemDisplayName(
+              { ...reference, source: "reference_selected", type: "image" },
+              referenceIndex,
+              displayLocale,
+            );
+
+            return (
+              <article className="group overflow-hidden rounded-[18px] border border-white/10 bg-[#05070b]/62" key={reference.id}>
+                <div className="relative aspect-square bg-black/40">
+                  {reference.previewUrl || reference.url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img alt={displayName} className="h-full w-full object-cover" src={reference.previewUrl || reference.url} />
+                  ) : (
+                    <div className="grid h-full place-items-center text-[#ffd08a]/70">
+                      <ImageIcon />
+                    </div>
+                  )}
+                  <button
+                    aria-label={tf("image.references.remove", { name: displayName })}
+                    className="se-icon-button-danger absolute right-2 top-2 grid size-7 place-items-center rounded-full opacity-100 shadow-lg shadow-black/30 sm:opacity-0 sm:group-hover:opacity-100"
+                    onClick={() => onRemove(reference.id)}
+                    type="button"
+                  >
+                    <TrashIcon />
+                  </button>
                 </div>
-                {reference.errorMessage ? <p className="mt-1 line-clamp-2 text-[10px] text-[#f2b3a1]/78">{reference.errorMessage}</p> : null}
-              </div>
-            </article>
-          ))}
+                <div className="p-2">
+                  <p className="truncate text-[11px] font-semibold text-[#f4f4f4]/78">{displayName}</p>
+                  <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-[#b9b9b9]/45">
+                    <span>{formatBytes(reference.size) || t("image.references.generic")}</span>
+                    <span className={reference.uploadStatus === "failed" ? "text-[#f2b3a1]" : reference.uploadStatus === "uploading" ? "text-[#ffd08a]" : "text-[#b8e7ee]"}>
+                      {getUploadStatusLabel(reference)}
+                    </span>
+                  </div>
+                  {reference.errorMessage ? <p className="mt-1 line-clamp-2 text-[10px] text-[#f2b3a1]/78">{reference.errorMessage}</p> : null}
+                </div>
+              </article>
+            );
+          })}
         </div>
       ) : (
         <button

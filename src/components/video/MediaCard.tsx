@@ -1,6 +1,7 @@
 "use client";
 
 import { useI18n } from "@/i18n/useI18n";
+import { getSafeMediaItemDisplayName } from "@/lib/media-assets";
 import type { UploadMediaItem } from "@/types/video";
 
 export function MediaCard({
@@ -14,7 +15,8 @@ export function MediaCard({
 }) {
   const isImage = item.type === "image" && item.previewUrl;
   const isFailed = item.uploadStatus === "failed";
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const displayName = getSafeMediaItemDisplayName(item, 0, locale === "zh" ? "zh" : "en");
 
   function statusLabel(status: UploadMediaItem["uploadStatus"]) {
     if (status === "uploading") return t("common.status.uploading");
@@ -51,7 +53,7 @@ export function MediaCard({
 
       <div className={compact ? "grid gap-1.5 p-2" : "grid gap-2 p-3"}>
         <div className="min-w-0">
-          <p className="truncate text-xs font-semibold text-[#f4f4f4]/72">{item.name}</p>
+          <p className="truncate text-xs font-semibold text-[#f4f4f4]/72">{displayName}</p>
           <p className={`mt-1 text-[11px] font-semibold uppercase tracking-[.12em] ${isFailed ? "text-[#f2b3a1]/80" : "text-[#b9b9b9]/45"}`}>
             {statusLabel(item.uploadStatus)}
           </p>

@@ -7,6 +7,7 @@ export const LOCAL_MEDIA_ASSETS_MAX = 80;
 type RawMediaAsset = Partial<UploadMediaItem> & Record<string, unknown>;
 type MediaAssetSourceInput = UploadMediaSource | "current" | "uploads" | "local";
 type ReusableHistoryRecord = Partial<VideoTaskRecord> & Record<string, unknown>;
+export type MediaDisplayLocale = "en" | "zh";
 
 function safeLocalStorage() {
   if (typeof window === "undefined") return null;
@@ -59,9 +60,139 @@ function filenameFromUrl(url: string) {
   return name && !isGenericFilename(name) ? name : "";
 }
 
-function fallbackAssetName(type: UploadMediaType, source: UploadMediaSource | MediaAssetSourceInput, index = 0) {
-  if (source === "generated_result") return `Generated ${type}`;
-  return `Reference ${type} ${Math.max(1, index + 1)}`;
+function hasMediaExtension(value: string) {
+  return /\.(png|jpe?g|webp|gif|avif|mp4|mov|webm|m4v|mp3|wav|m4a|aac|ogg)$/i.test(cleanFilename(value));
+}
+
+function isUnhelpfulDisplayName(value: string) {
+  const name = cleanFilename(value);
+  const stem = name.replace(/\.[a-z0-9]{2,8}$/i, "");
+  if (!stem) return true;
+  if (/^[0-9a-f]{24,}$/i.test(stem.replace(/-/g, ""))) return true;
+  if (/^(remote[-_])?(image|video|audio|file|media)[-_]?\d*$/i.test(stem)) return true;
+  return !hasMediaExtension(name) && stem.length > 80;
+}
+
+const englishPromptNameHints = [
+  "cinematic",
+  "commercial",
+  "camera",
+  "lighting",
+  "scene",
+  "style",
+  "prompt",
+  "realistic",
+  "product",
+  "video",
+  "shot",
+  "lens",
+  "studio",
+  "soft light",
+  "slow camera",
+  "ultra",
+  "render",
+  "animation",
+];
+
+const chinesePromptNameHints = ["镜头", "画面", "风格", "生成", "场景", "人物", "光影", "产品", "视频", "商业", "广告", "灯光", "高级", "柔和", "推进"];
+
+export function looksLikePromptMediaName(value: unknown) {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return false;
+  if (/[\r\n]/.test(raw)) return true;
+
+  const name = cleanFilename(raw);
+  const hasExtension = hasMediaExtension(name);
+  const lower = name.toLowerCase();
+  const words = name.split(/\s+/).filter(Boolean).length;
+  const separators = (name.match(/[,.，。;；:：]/g) || []).length;
+  const englishHits = englishPromptNameHints.filter((hint) => lower.includes(hint)).length;
+  const chineseHits = chinesePromptNameHints.filter((hint) => name.includes(hint)).length;
+
+  if (!hasExtension && name.length > 80) return true;
+  if (!hasExtension && words >= 10 && separators >= 2) return true;
+  if (!hasExtension && name.length > 42 && englishHits >= 3) return true;
+  if (!hasExtension && name.length > 24 && chineseHits >= 3) return true;
+  if (!hasExtension && name.length > 44 && separators >= 4) return true;
+  return false;
+}
+
+function localizedFallbackAssetName(
+  type: UploadMediaType,
+  source: UploadMediaSource | MediaAssetSourceInput | undefined,
+  index: number,
+  locale: MediaDisplayLocale,
+) {
+  const isGenerated = source === "generated_result";
+  const ordinal = Math.max(1, index + 1);
+
+  if (locale === "zh") {
+    if (isGenerated) {
+      if (type === "video") return "生成视频";
+      if (type === "audio") return "生成音频";
+      return "生成图片";
+    }
+    if (type === "video") return `参考视频 ${ordinal}`;
+    if (type === "audio") return `参考音频 ${ordinal}`;
+    return `参考图 ${ordinal}`;
+  }
+
+  if (isGenerated) {
+    if (type === "video") return "Generated video";
+    if (type === "audio") return "Generated audio";
+    return "Generated image";
+  }
+  if (type === "video") return `Reference video ${ordinal}`;
+  if (type === "audio") return `Reference audio ${ordinal}`;
+  return `Reference image ${ordinal}`;
+}
+
+export function sanitizeMediaDisplayName({
+  rawName,
+  type,
+  index = 0,
+  source = "reference_selected",
+  locale = "en",
+}: {
+  rawName: unknown;
+  type: UploadMediaType;
+  index?: number;
+  source?: UploadMediaSource | MediaAssetSourceInput;
+  locale?: MediaDisplayLocale;
+}) {
+  const name = safeDecodeFilename(cleanFilename(rawName));
+  if (name && !isUnhelpfulDisplayName(name) && !looksLikePromptMediaName(name)) return name;
+  return localizedFallbackAssetName(type, source, index, locale);
+}
+
+export function sanitizeMediaDisplayNameFromCandidates({
+  candidates,
+  type,
+  index = 0,
+  source = "reference_selected",
+  locale = "en",
+}: {
+  candidates: unknown[];
+  type: UploadMediaType;
+  index?: number;
+  source?: UploadMediaSource | MediaAssetSourceInput;
+  locale?: MediaDisplayLocale;
+}) {
+  for (const candidate of candidates) {
+    const name = safeDecodeFilename(cleanFilename(candidate));
+    if (name && !isUnhelpfulDisplayName(name) && !looksLikePromptMediaName(name)) return name;
+  }
+  return localizedFallbackAssetName(type, source, index, locale);
+}
+
+export function getSafeMediaItemDisplayName(item: Partial<UploadMediaItem>, index = 0, locale: MediaDisplayLocale = "en") {
+  return sanitizeMediaDisplayNameFromCandidates({
+    candidates: [item.name, item.originalName, item.filename],
+    index,
+    locale,
+    source: item.source || "reference_selected",
+    type: item.type || "image",
+  });
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -139,8 +270,8 @@ export function normalizeMediaAsset(item: unknown, source: MediaAssetSourceInput
   const mimeType = pickString(raw.mimeType, raw.mime_type, raw.mimetype);
   const type = normalizeType(raw.type, url, mimeType);
   const role = normalizeRole(raw.role || raw.assetRole);
-  const name =
-    pickString(
+  const name = sanitizeMediaDisplayNameFromCandidates({
+    candidates: [
       raw.displayName,
       raw.display_name,
       raw.originalName,
@@ -151,7 +282,10 @@ export function normalizeMediaAsset(item: unknown, source: MediaAssetSourceInput
       raw.fileName,
       raw.name,
       filenameFromUrl(url),
-    ) || fallbackAssetName(type, normalizeSource(source));
+    ],
+    source: normalizeSource(source),
+    type,
+  });
   const rawPreviewUrl =
     type === "image"
       ? pickString(raw.previewUrl, raw.thumbnailUrl, raw.thumbnail_url, url) || url
@@ -323,8 +457,8 @@ function createReusableHistoryAsset(
 
   const raw = asRecord(item);
   const recordId = getHistoryRecordId(record, recordIndex);
-  const name =
-    pickString(
+  const name = sanitizeMediaDisplayNameFromCandidates({
+    candidates: [
       raw.displayName,
       raw.display_name,
       raw.originalName,
@@ -335,7 +469,11 @@ function createReusableHistoryAsset(
       raw.fileName,
       raw.name,
       filenameFromUrl(url),
-    ) || fallbackAssetName(type, source, assetIndex);
+    ],
+    index: assetIndex,
+    source,
+    type,
+  });
   const previewUrl =
     type === "image"
       ? pickString(raw.previewUrl, raw.preview_url, raw.thumbnailUrl, raw.thumbnail_url, url) || url

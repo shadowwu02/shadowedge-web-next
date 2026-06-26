@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, DragEvent, RefObject } from "react";
-import { mergeMediaAssets } from "@/lib/media-assets";
+import { getSafeMediaItemDisplayName, mergeMediaAssets } from "@/lib/media-assets";
 import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
 import { slotAllowsAssetType } from "@/lib/upload-rules";
 import {
@@ -125,7 +125,8 @@ export function MediaPickerDrawer({
   reusableMedia?: UploadMediaItem[];
   slot: string;
 }) {
-  const { t, tf } = useI18n();
+  const { locale, t, tf } = useI18n();
+  const displayLocale = locale === "zh" ? "zh" : "en";
   const [activeFilter, setActiveFilter] = useState<MediaFilter>("uploads");
   const [position, setPosition] = useState<DrawerPosition>({ left: 16, maxHeight: 520, top: 72, width: 600 });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -531,7 +532,7 @@ export function MediaPickerDrawer({
 
           {visibleMedia.length ? (
             <div className="mt-3 grid grid-cols-3 gap-2.5">
-              {visibleMedia.map((item) => {
+              {visibleMedia.map((item, itemIndex) => {
                 const selectIssue = selectionIssueById.get(item.id) || "";
                 const isRawSelected = selectedIds.has(item.id);
                 const isSelected = validSelectedIds.has(item.id);
@@ -540,6 +541,7 @@ export function MediaPickerDrawer({
                 const isAlreadyAdded = selectIssue === "Already added to references.";
                 const isUnsupported = Boolean(selectIssue) && !isAlreadyAdded && !isFailed && item.uploadStatus !== "uploading";
                 const canRemove = item.source !== "history" && item.source !== "generated_result";
+                const displayName = getSafeMediaItemDisplayName(item, itemIndex, displayLocale);
 
                 return (
                   <article
@@ -555,7 +557,7 @@ export function MediaPickerDrawer({
                             : "border-white/10 bg-black/24 hover:border-[#ffb44d]/35"
                     }`}
                     key={item.id}
-                    title={selectIssue || item.name}
+                    title={selectIssue || displayName}
                   >
                     <button
                       className={`block w-full text-left ${isSelectable ? "cursor-pointer" : "cursor-default"}`}
@@ -584,7 +586,7 @@ export function MediaPickerDrawer({
                         ) : null}
                       </span>
                       <span className="grid gap-1.5 p-2">
-                        <span className="truncate text-xs font-bold text-white/72">{item.name}</span>
+                        <span className="truncate text-xs font-bold text-white/72">{displayName}</span>
                         <span className="flex min-w-0 items-center gap-1.5 text-[10px] font-black uppercase tracking-[.12em]">
                           <span className={isFailed || isUnsupported ? "text-[#f2b3a1]/75" : isAlreadyAdded ? "text-[#ffd08a]/72" : "text-white/38"}>
                             {localizedStatusLabel(item.uploadStatus, selectIssue)}
@@ -598,7 +600,7 @@ export function MediaPickerDrawer({
                     </button>
                     {canRemove ? (
                       <button
-                        aria-label={tf("video.drawer.removeAsset", { name: item.name })}
+                        aria-label={tf("video.drawer.removeAsset", { name: displayName })}
                         className="se-button-danger absolute bottom-2 right-2 rounded-full px-2 py-1 text-[10px] font-bold opacity-0 group-hover:opacity-100"
                         onClick={(event) => {
                           event.stopPropagation();

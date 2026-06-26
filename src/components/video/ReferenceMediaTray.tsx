@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
+import { getSafeMediaItemDisplayName } from "@/lib/media-assets";
 import { getReadyMentionableMediaItems } from "@/lib/video-mentions";
 import type { MentionableMediaItem } from "@/lib/video-mentions";
 import type { UploadMediaItem, UploadMediaRole, UploadMediaType } from "@/types/video";
@@ -132,7 +133,8 @@ export function ReferenceMediaTray({
   onRemove: (id: string) => void;
   onRoleChange: (id: string, role: UploadMediaRole) => void;
 }) {
-  const { t, tf } = useI18n();
+  const { locale, t, tf } = useI18n();
+  const displayLocale = locale === "zh" ? "zh" : "en";
   const mentionItems = getReadyMentionableMediaItems(media);
   const mentionById = useMemo(() => new Map(mentionItems.map((item) => [item.id, item])), [mentionItems]);
   const mediaIssues = useMemo(() => getReferenceMediaIssues(modelRule, media), [media, modelRule]);
@@ -246,6 +248,10 @@ export function ReferenceMediaTray({
     });
   }
 
+  function displayNameFor(item: UploadMediaItem, index = media.findIndex((candidate) => candidate.id === item.id)) {
+    return getSafeMediaItemDisplayName(item, Math.max(0, index), displayLocale);
+  }
+
   function mediaStatusLabel(status: MediaStatus) {
     if (status === "ready") return t("video.references.status.ready");
     if (status === "uploading") return t("video.references.status.uploading");
@@ -336,7 +342,7 @@ export function ReferenceMediaTray({
 
       {media.length ? (
         <div className="se-subtle-scrollbar grid max-h-[220px] min-w-0 max-w-full gap-2 overflow-hidden overflow-y-auto pr-1">
-          {media.map((item) => {
+          {media.map((item, itemIndex) => {
             const mention = mentionById.get(item.id);
             const currentRole = item.role || "reference";
             const previewUrl = getPreviewUrl(item);
@@ -346,6 +352,7 @@ export function ReferenceMediaTray({
             const status = getMediaStatus(item, issues);
             const durationLabel = formatDurationLabel(item.duration);
             const issueTitle = issues.length ? getNotUsedDetail(item, issues) : "";
+            const displayName = displayNameFor(item, itemIndex);
 
             return (
               <article
@@ -356,7 +363,7 @@ export function ReferenceMediaTray({
                 title={issueTitle}
               >
                 <button
-                  aria-label={tf("video.references.previewAsset", { name: item.name })}
+                  aria-label={tf("video.references.previewAsset", { name: displayName })}
                   className="relative grid size-14 shrink-0 place-items-center overflow-hidden rounded-[14px] border border-[rgba(244,244,244,0.08)] bg-[#111318]"
                   onClick={() => setPreviewItem(item)}
                   type="button"
@@ -392,7 +399,7 @@ export function ReferenceMediaTray({
                       {mediaStatusLabel(status)}
                     </span>
                   </div>
-                  <p className="mt-1 truncate text-xs font-semibold text-[#f4f4f4]/78">{item.name}</p>
+                  <p className="mt-1 truncate text-xs font-semibold text-[#f4f4f4]/78">{displayName}</p>
                   <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-[#b9b9b9]/45">
                     <span>{allowedTypeLabel(item.type)}</span>
                     {durationLabel ? <span>{durationLabel}</span> : null}
@@ -402,7 +409,7 @@ export function ReferenceMediaTray({
 
                 <div className="flex shrink-0 items-center gap-1">
                   <button
-                    aria-label={tf("video.references.openRoleMenu", { name: item.name })}
+                    aria-label={tf("video.references.openRoleMenu", { name: displayName })}
                     className="grid size-8 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/70 text-[#b9b9b9]/62 transition-colors hover:border-[#ffb44d]/30 hover:text-[#ffb44d]"
                     onClick={(event) => {
                       setRoleMenuPosition(getRoleMenuPosition(event.currentTarget));
@@ -413,7 +420,7 @@ export function ReferenceMediaTray({
                     <MoreIcon />
                   </button>
                   <button
-                    aria-label={tf("video.references.removeAsset", { name: item.name })}
+                    aria-label={tf("video.references.removeAsset", { name: displayName })}
                     className="grid size-8 place-items-center rounded-full text-[12px] font-semibold text-[#b9b9b9]/44 transition-colors hover:bg-[#ff6b6b]/10 hover:text-[#ff8b8b]"
                     onClick={() => onRemove(item.id)}
                     type="button"
@@ -497,6 +504,7 @@ export function ReferenceMediaTray({
               const mention = mentionById.get(item.id);
               const issues = mediaIssues.get(item.id) || [];
               const status = getMediaStatus(item, issues);
+              const displayName = displayNameFor(item);
               return (
                 <div className="flex min-w-0 items-center gap-2" key={item.id}>
                   <span className="w-[74px] shrink-0 text-[10px] font-semibold uppercase tracking-[.08em] text-[#b9b9b9]/45">
@@ -508,14 +516,14 @@ export function ReferenceMediaTray({
                     onClick={() => {
                       if (mention) insertMention(mention);
                     }}
-                    title={item.name}
+                    title={displayName}
                     type="button"
                   >
                     <span className="shrink-0 rounded-full border border-[#ffb44d]/20 bg-[#ffb44d]/7 px-1.5 py-px text-[10px] font-bold text-[#ffd08a]">
                       {mention?.display || allowedTypeLabel(item.type)}
                     </span>
                     <span className="shrink-0 text-[#b9b9b9]/35">→</span>
-                    <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-[#f4f4f4]/72">{item.name}</span>
+                    <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-[#f4f4f4]/72">{displayName}</span>
                     <span className={`shrink-0 rounded-full border px-1.5 py-px text-[9px] font-semibold ${getStatusClass(status)}`}>
                       {mediaStatusLabel(status)}
                     </span>
@@ -628,7 +636,7 @@ export function ReferenceMediaTray({
             <header className="flex items-center justify-between border-b border-[#33323a]/60 px-4 py-3">
               <div className="min-w-0">
                 <p className="se-eyebrow">{t("video.references.preview")}</p>
-                <h3 className="truncate text-sm font-semibold text-[#f4f4f4]">{previewItem.name}</h3>
+                <h3 className="truncate text-sm font-semibold text-[#f4f4f4]">{displayNameFor(previewItem)}</h3>
               </div>
               <button
                 aria-label={t("video.references.closePreview")}
@@ -655,7 +663,7 @@ export function ReferenceMediaTray({
                   <span className="mx-auto grid size-16 place-items-center rounded-3xl border border-[rgba(244,244,244,0.08)] bg-[#33323a]/55 text-[#ffd08a]/72">
                     <MediaTypeIcon className="size-6" type="audio" />
                   </span>
-                  <p className="text-sm font-semibold text-[#b9b9b9]/72">{previewItem.name}</p>
+                  <p className="text-sm font-semibold text-[#b9b9b9]/72">{displayNameFor(previewItem)}</p>
                   <audio className="w-full" controls src={previewItem.url} />
                 </div>
               ) : (
@@ -663,7 +671,7 @@ export function ReferenceMediaTray({
                   <span className="mx-auto grid size-16 place-items-center rounded-3xl bg-[#33323a]/55 text-sm font-semibold text-[#b9b9b9]/60">
                     <MediaTypeIcon className="size-6" type={previewItem.type} />
                   </span>
-                  <p className="text-sm font-semibold text-[#b9b9b9]/72">{previewItem.name}</p>
+                  <p className="text-sm font-semibold text-[#b9b9b9]/72">{displayNameFor(previewItem)}</p>
                 </div>
               )}
             </div>

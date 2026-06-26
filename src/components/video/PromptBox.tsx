@@ -14,6 +14,7 @@ import {
   findMentionBindingForToken,
   type VideoMentionBinding,
 } from "@/lib/video/videoMentionBindings";
+import { sanitizeMediaDisplayName } from "@/lib/media-assets";
 import { VIDEO_PROMPT_FRONTEND_LIMIT, VIDEO_PROMPT_WARNING_THRESHOLD } from "@/lib/video/videoPromptLimits";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
 import { useI18n } from "@/i18n/useI18n";
@@ -192,7 +193,8 @@ function getMissingMentionsWithBindings(prompt: string, media: UploadMediaItem[]
 }
 
 export function PromptBox({ value, media, mentionBindings = [], onChange, onMentionBindingsChange }: PromptBoxProps) {
-  const { t, tf } = useI18n();
+  const { locale, t, tf } = useI18n();
+  const displayLocale = locale === "zh" ? "zh" : "en";
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const menuAnchorRef = useRef<HTMLElement | null>(null);
@@ -529,27 +531,36 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
                   <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-[.14em] text-white/38">
                     {mentionGroupTitle(type)}
                   </div>
-                  {groupItems.map((item) => (
-                    <button
-                      className="flex min-h-10 w-full items-center gap-2.5 rounded-xl border border-transparent px-2 py-1.5 text-left transition hover:border-[#ffb44d]/26 hover:bg-[#ffb44d]/9 focus:border-[#ffb44d]/32 focus:bg-[#ffb44d]/10 focus:outline-none"
-                      key={`${item.type}-${item.index}-${item.id}`}
-                      onClick={() => insertMention(item)}
-                      type="button"
-                    >
-                      {item.type === "image" && item.previewUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img alt="" className="size-9 rounded-lg object-cover" src={item.previewUrl} />
-                      ) : (
-                        <span className="grid size-9 place-items-center rounded-lg border border-white/10 bg-[#ffb44d]/10 text-[#ffd08a]/78">
-                          <MediaTypeIcon className="size-[18px]" type={item.type} />
+                  {groupItems.map((item) => {
+                    const itemTitle = sanitizeMediaDisplayName({
+                      index: Math.max(0, item.index - 1),
+                      locale: displayLocale,
+                      rawName: item.title,
+                      type: item.type,
+                    });
+
+                    return (
+                      <button
+                        className="flex min-h-10 w-full items-center gap-2.5 rounded-xl border border-transparent px-2 py-1.5 text-left transition hover:border-[#ffb44d]/26 hover:bg-[#ffb44d]/9 focus:border-[#ffb44d]/32 focus:bg-[#ffb44d]/10 focus:outline-none"
+                        key={`${item.type}-${item.index}-${item.id}`}
+                        onClick={() => insertMention(item)}
+                        type="button"
+                      >
+                        {item.type === "image" && item.previewUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img alt="" className="size-9 rounded-lg object-cover" src={item.previewUrl} />
+                        ) : (
+                          <span className="grid size-9 place-items-center rounded-lg border border-white/10 bg-[#ffb44d]/10 text-[#ffd08a]/78">
+                            <MediaTypeIcon className="size-[18px]" type={item.type} />
+                          </span>
+                        )}
+                        <span className="min-w-0">
+                          <span className="block text-[12px] font-semibold leading-4 text-white/90">{item.display}</span>
+                          <span className="mt-0.5 block truncate text-[10px] leading-3 text-white/38">{itemTitle}</span>
                         </span>
-                      )}
-                      <span className="min-w-0">
-                        <span className="block text-[12px] font-semibold leading-4 text-white/90">{item.display}</span>
-                        <span className="mt-0.5 block truncate text-[10px] leading-3 text-white/38">{item.title}</span>
-                      </span>
-                    </button>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
               );
             })
