@@ -8,6 +8,7 @@ import {
   collectCurrentMediaAssets,
   collectLocalMediaAssets,
   collectReferenceMediaAssets,
+  getMediaUploadErrorDisplayKeys,
   mergeMediaAssets,
   removeLocalMediaAsset,
 } from "@/lib/media-assets";
@@ -207,6 +208,8 @@ export function UploadBox({
           setLocalStoredMedia(appendLocalMediaAssets([uploadedItem]));
         } catch (error) {
           const message = error instanceof Error ? error.message : t("video.upload.failed");
+          const display = getMediaUploadErrorDisplayKeys(message, { fallbackKind: "upload" });
+          setPickerNotice(t(display.messageKey));
           setCurrentUploadMedia((currentItems) =>
             currentItems.map((current) =>
               current.id === item.id

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, DragEvent, RefObject } from "react";
-import { getSafeMediaItemDisplayName, mergeMediaAssets } from "@/lib/media-assets";
+import { getMediaUploadErrorDisplayKeys, getSafeMediaItemDisplayName, mergeMediaAssets } from "@/lib/media-assets";
 import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
 import { slotAllowsAssetType } from "@/lib/upload-rules";
 import {
@@ -171,8 +171,10 @@ export function MediaPickerDrawer({
 
   function localizeIssue(issue: string) {
     if (!issue) return "";
+    const uploadDisplay = getMediaUploadErrorDisplayKeys(issue, { fallbackKind: "upload" });
+    if (uploadDisplay.kind === "auth") return t(uploadDisplay.messageKey);
     if (issue === "Already added to references.") return t("video.drawer.alreadyAdded");
-    if (issue === "Upload failed.") return t("video.upload.failed");
+    if (issue === "Upload failed.") return t(uploadDisplay.messageKey);
     if (issue === "Upload still in progress.") return t("video.drawer.uploading");
     if (issue === "Media URL is not ready yet.") return t("video.drawer.urlNotReady");
     if (issue === "Unsupported file type for this slot.") return t("video.upload.unsupportedType");
@@ -194,6 +196,16 @@ export function MediaPickerDrawer({
     if (issue) return t("video.drawer.status.blocked");
     if (status === "ready") return t("common.status.ready");
     return t("video.drawer.status.local");
+  }
+
+  function localizedFailedMediaMessage(errorMessage?: string) {
+    const display = getMediaUploadErrorDisplayKeys(errorMessage, { fallbackKind: "unavailable" });
+    return t(display.messageKey);
+  }
+
+  function localizedFailedMediaTitle(errorMessage?: string) {
+    const display = getMediaUploadErrorDisplayKeys(errorMessage, { fallbackKind: "unavailable" });
+    return t(display.titleKey);
   }
 
   const allMedia = useMemo(() => mergeMediaAssets(currentMedia, localMedia, reusableMedia), [currentMedia, localMedia, reusableMedia]);
@@ -264,6 +276,11 @@ export function MediaPickerDrawer({
 
     return issues;
   }, [allMedia, modelRule, referenceMedia, selectedIds, slot]);
+  const unavailableNotice = useMemo(() => {
+    if (notice || !visibleMedia.length) return "";
+    const failedCount = visibleMedia.filter((item) => item.uploadStatus === "failed").length;
+    return failedCount > 0 && failedCount === visibleMedia.length ? t("media.upload.unavailableNotice") : "";
+  }, [notice, t, visibleMedia]);
   const validSelectedIds = useMemo(() => {
     const next = new Set<string>();
     const selectedItems = allMedia.filter((item) => selectedIds.has(item.id));
@@ -376,7 +393,11 @@ export function MediaPickerDrawer({
 
   function toggleSelected(item: UploadMediaItem) {
     if (!selectedIds.has(item.id) && (item.uploadStatus !== "ready" || !item.url)) {
-      onNotice?.(localizeIssue(selectionIssueById.get(item.id) || "Media is not ready yet."));
+      onNotice?.(
+        item.uploadStatus === "failed"
+          ? localizedFailedMediaMessage(item.errorMessage)
+          : localizeIssue(selectionIssueById.get(item.id) || "Media is not ready yet."),
+      );
       return;
     }
 
@@ -524,9 +545,9 @@ export function MediaPickerDrawer({
             <span className="text-xs font-bold text-white/38">{tf("video.drawer.shownCount", { count: visibleMedia.length })}</span>
           </div>
 
-          {notice ? (
+          {notice || unavailableNotice ? (
             <div className="mt-3 rounded-2xl border border-[#ffb44d]/25 bg-[#ffb44d]/10 px-3 py-2 text-xs font-bold text-[#ffd08a]">
-              {localizeIssue(notice)}
+              {notice ? localizeIssue(notice) : unavailableNotice}
             </div>
           ) : null}
 
@@ -542,6 +563,7 @@ export function MediaPickerDrawer({
                 const isUnsupported = Boolean(selectIssue) && !isAlreadyAdded && !isFailed && item.uploadStatus !== "uploading";
                 const canRemove = item.source !== "history" && item.source !== "generated_result";
                 const displayName = getSafeMediaItemDisplayName(item, itemIndex, displayLocale);
+                const failedMediaMessage = isFailed ? localizedFailedMediaMessage(item.errorMessage) : "";
 
                 return (
                   <article
@@ -557,7 +579,7 @@ export function MediaPickerDrawer({
                             : "border-white/10 bg-black/24 hover:border-[#ffb44d]/35"
                     }`}
                     key={item.id}
-                    title={selectIssue || displayName}
+                    title={isFailed ? localizedFailedMediaTitle(item.errorMessage) : selectIssue || displayName}
                   >
                     <button
                       className={`block w-full text-left ${isSelectable ? "cursor-pointer" : "cursor-default"}`}
@@ -595,7 +617,7 @@ export function MediaPickerDrawer({
                           <span className="truncate text-white/34">{sourceLabel(item.source)}</span>
                         </span>
                         {isUnsupported ? <span className="line-clamp-2 text-xs leading-5 text-[#f2b3a1]/78">{localizeIssue(selectIssue)}</span> : null}
-                        {item.errorMessage ? <span className="line-clamp-2 text-xs leading-5 text-[#f2b3a1]/78">{localizeIssue(item.errorMessage)}</span> : null}
+                        {isFailed ? <span className="line-clamp-2 text-xs leading-5 text-[#f2b3a1]/78">{failedMediaMessage}</span> : null}
                       </span>
                     </button>
                     {canRemove ? (

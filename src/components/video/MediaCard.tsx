@@ -1,7 +1,7 @@
 "use client";
 
 import { useI18n } from "@/i18n/useI18n";
-import { getSafeMediaItemDisplayName } from "@/lib/media-assets";
+import { getMediaUploadErrorDisplayKeys, getSafeMediaItemDisplayName } from "@/lib/media-assets";
 import type { UploadMediaItem } from "@/types/video";
 
 export function MediaCard({
@@ -17,6 +17,7 @@ export function MediaCard({
   const isFailed = item.uploadStatus === "failed";
   const { locale, t } = useI18n();
   const displayName = getSafeMediaItemDisplayName(item, 0, locale === "zh" ? "zh" : "en");
+  const failedErrorDisplay = isFailed ? getMediaUploadErrorDisplayKeys(item.errorMessage, { fallbackKind: "unavailable" }) : null;
 
   function statusLabel(status: UploadMediaItem["uploadStatus"]) {
     if (status === "uploading") return t("common.status.uploading");
@@ -59,7 +60,7 @@ export function MediaCard({
           </p>
         </div>
 
-        {item.errorMessage ? <p className="line-clamp-2 text-xs leading-5 text-[#f2b3a1]/78">{item.errorMessage}</p> : null}
+        {failedErrorDisplay ? <p className="line-clamp-2 text-xs leading-5 text-[#f2b3a1]/78">{t(failedErrorDisplay.messageKey)}</p> : null}
 
         <div className="flex flex-wrap gap-2">
           {item.url ? (

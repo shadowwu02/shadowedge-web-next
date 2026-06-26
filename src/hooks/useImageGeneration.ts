@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildImageGenerateRequest, generateImage, getImageHistory, getImageModels, getImageStatus, uploadImage } from "@/lib/image-api";
 import { useI18n } from "@/i18n/useI18n";
 import { formatGenerationConcurrencyLimitError } from "@/lib/generationConcurrencyError";
+import { getMediaUploadErrorDisplayKeys } from "@/lib/media-assets";
 import { readImageResultDraftNotice } from "@/lib/image/imageResultDrafts";
 import {
   isImageActiveStatus,
@@ -342,12 +343,13 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       setReferences((current) => current.map((item) => (item.id === localReference.id ? nextReference : item)));
       return nextReference;
     } catch (uploadError) {
-      const message = formatImageError("image.errors.uploadFailed", uploadError, "Image upload failed.");
+      const display = getMediaUploadErrorDisplayKeys(uploadError, { fallbackKind: "upload" });
+      const message = t(display.messageKey);
       setReferences((current) => current.map((item) => (item.id === localReference.id ? { ...item, uploadStatus: "failed", errorMessage: message } : item)));
       setError(message);
       return null;
     }
-  }, [formatImageError, references.length, selectedModel, tf]);
+  }, [references.length, selectedModel, t, tf]);
 
   const removeReference = useCallback((referenceId: string) => {
     setReferences((current) => current.filter((item) => item.id !== referenceId));
@@ -364,12 +366,13 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       setReferences((current) => current.map((item) => (item.id === referenceId ? { ...uploaded, previewUrl: item.previewUrl || uploaded.previewUrl } : item)));
       return uploaded;
     } catch (uploadError) {
-      const message = formatImageError("image.errors.uploadFailed", uploadError, "Image upload failed.");
+      const display = getMediaUploadErrorDisplayKeys(uploadError, { fallbackKind: "upload" });
+      const message = t(display.messageKey);
       setReferences((current) => current.map((item) => (item.id === referenceId ? { ...item, uploadStatus: "failed", errorMessage: message } : item)));
       setError(message);
       return null;
     }
-  }, [formatImageError, references]);
+  }, [references, t]);
 
   const ensureReadyReferences = useCallback(async (items: ImageReferenceItem[]) => {
     const ready: ImageReferenceItem[] = [];

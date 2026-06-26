@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { useI18n } from "@/i18n/useI18n";
-import { getSafeMediaItemDisplayName } from "@/lib/media-assets";
+import { getMediaUploadErrorDisplayKeys, getSafeMediaItemDisplayName } from "@/lib/media-assets";
 import type { ImageModel, ImageReferenceItem } from "@/types/image";
 
 function ImageIcon() {
@@ -98,6 +98,8 @@ export function ImageReferenceTray({
               referenceIndex,
               displayLocale,
             );
+            const failedDisplay =
+              reference.uploadStatus === "failed" ? getMediaUploadErrorDisplayKeys(reference.errorMessage, { fallbackKind: "unavailable" }) : null;
 
             return (
               <article className="group overflow-hidden rounded-[18px] border border-white/10 bg-[#05070b]/62" key={reference.id}>
@@ -127,7 +129,7 @@ export function ImageReferenceTray({
                       {getUploadStatusLabel(reference)}
                     </span>
                   </div>
-                  {reference.errorMessage ? <p className="mt-1 line-clamp-2 text-[10px] text-[#f2b3a1]/78">{reference.errorMessage}</p> : null}
+                  {failedDisplay ? <p className="mt-1 line-clamp-2 text-[10px] text-[#f2b3a1]/78">{t(failedDisplay.messageKey)}</p> : null}
                 </div>
               </article>
             );

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
-import { getSafeMediaItemDisplayName } from "@/lib/media-assets";
+import { getMediaUploadErrorDisplayKeys, getSafeMediaItemDisplayName } from "@/lib/media-assets";
 import { getReadyMentionableMediaItems } from "@/lib/video-mentions";
 import type { MentionableMediaItem } from "@/lib/video-mentions";
 import type { UploadMediaItem, UploadMediaRole, UploadMediaType } from "@/types/video";
@@ -351,7 +351,8 @@ export function ReferenceMediaTray({
             const issues = mediaIssues.get(item.id) || [];
             const status = getMediaStatus(item, issues);
             const durationLabel = formatDurationLabel(item.duration);
-            const issueTitle = issues.length ? getNotUsedDetail(item, issues) : "";
+            const failedDisplay = status === "failed" ? getMediaUploadErrorDisplayKeys(item.errorMessage, { fallbackKind: "unavailable" }) : null;
+            const issueTitle = issues.length ? getNotUsedDetail(item, issues) : failedDisplay ? t(failedDisplay.messageKey) : "";
             const displayName = displayNameFor(item, itemIndex);
 
             return (

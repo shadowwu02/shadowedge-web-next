@@ -8,6 +8,69 @@ type RawMediaAsset = Partial<UploadMediaItem> & Record<string, unknown>;
 type MediaAssetSourceInput = UploadMediaSource | "current" | "uploads" | "local";
 type ReusableHistoryRecord = Partial<VideoTaskRecord> & Record<string, unknown>;
 export type MediaDisplayLocale = "en" | "zh";
+export type MediaUploadErrorKind = "auth" | "unavailable" | "upload";
+
+export function getMediaUploadErrorDisplayKeys(
+  errorLike: unknown,
+  options: { fallbackKind?: MediaUploadErrorKind } = {},
+) {
+  const raw =
+    typeof errorLike === "string"
+      ? errorLike
+      : errorLike instanceof Error
+        ? errorLike.message
+        : errorLike && typeof errorLike === "object"
+          ? pickString(
+              (errorLike as Record<string, unknown>).message,
+              (errorLike as Record<string, unknown>).error,
+              (errorLike as Record<string, unknown>).code,
+            ) || ""
+          : "";
+  const normalized = raw.toLowerCase().trim();
+  const fallbackKind = options.fallbackKind || "upload";
+  const isAuthError =
+    /\b401\b/.test(normalized) ||
+    normalized.includes("unauthorized") ||
+    normalized.includes("sign in required") ||
+    normalized.includes("sign in to upload") ||
+    normalized.includes("please sign in") ||
+    normalized.includes("login required") ||
+    normalized.includes("not authenticated") ||
+    normalized.includes("authentication") ||
+    normalized.includes("auth token") ||
+    normalized.includes("invalid token") ||
+    normalized.includes("missing authorization") ||
+    normalized.includes("session expired") ||
+    normalized.includes("请先登录");
+  const isUnavailable =
+    normalized.includes("media unavailable") ||
+    normalized.includes("asset unavailable") ||
+    normalized.includes("not ready") ||
+    normalized.includes("no url");
+  const kind: MediaUploadErrorKind = isAuthError ? "auth" : isUnavailable || !normalized ? fallbackKind : "upload";
+
+  if (kind === "auth") {
+    return {
+      kind,
+      messageKey: "media.upload.authRequiredMessage" as const,
+      titleKey: "media.upload.authRequiredTitle" as const,
+    };
+  }
+
+  if (kind === "unavailable") {
+    return {
+      kind,
+      messageKey: "media.upload.unavailableMessage" as const,
+      titleKey: "media.upload.unavailableTitle" as const,
+    };
+  }
+
+  return {
+    kind,
+    messageKey: "media.upload.failedMessage" as const,
+    titleKey: "media.upload.failedTitle" as const,
+  };
+}
 
 function safeLocalStorage() {
   if (typeof window === "undefined") return null;
