@@ -2,7 +2,7 @@ import { mergeMediaAssets, normalizeMediaAsset } from "@/lib/media-assets";
 import { isRemoteMediaUrl, isTransientMediaUrl } from "@/lib/upload-rules";
 import {
   parseMentionBindings,
-  reconcileMentionBindings,
+  sanitizeVideoMentionBindings,
   serializeMentionBindings,
   type VideoMentionBinding,
 } from "@/lib/video/videoMentionBindings";
@@ -156,7 +156,11 @@ function normalizeDraft(raw: RawDraft): VideoWorkspaceDraft | null {
   const referenceMedia = Array.isArray(raw.referenceMedia)
     ? sanitizeVideoDraftMedia(raw.referenceMedia)
     : sanitizeVideoDraftMedia(flattenLegacyAssets(raw.assets));
-  const mentionBindings = serializeMentionBindings(reconcileMentionBindings(parseMentionBindings(raw.mentionBindings), referenceMedia));
+  const mentionBindings = sanitizeVideoMentionBindings(
+    typeof raw.prompt === "string" ? raw.prompt : "",
+    parseMentionBindings(raw.mentionBindings),
+    referenceMedia,
+  ).mentionBindings;
 
   return {
     version: VIDEO_WORKSPACE_DRAFT_VERSION,
@@ -205,7 +209,7 @@ export function saveVideoDraft(input: DraftWriteInput) {
     modelLabel: input.modelLabel,
     params: input.params,
     referenceMedia: sanitizeVideoDraftMedia(input.referenceMedia),
-    mentionBindings: serializeMentionBindings(input.mentionBindings || []),
+    mentionBindings: sanitizeVideoMentionBindings(input.prompt, serializeMentionBindings(input.mentionBindings || []), input.referenceMedia).mentionBindings,
     updatedAt: Date.now(),
   };
 

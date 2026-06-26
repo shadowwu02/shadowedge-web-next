@@ -71,7 +71,7 @@ import { estimateVideoCreditsForParams, getVideoModelRule, hasVideoModelRule, no
 import { VIDEO_PROMPT_FRONTEND_LIMIT } from "@/lib/video/videoPromptLimits";
 import {
   parseMentionBindings,
-  reconcileMentionBindings,
+  sanitizeVideoMentionBindings,
   serializeMentionBindings,
   type VideoMentionBinding,
 } from "@/lib/video/videoMentionBindings";
@@ -226,18 +226,6 @@ function normalizeModelLookup(value: string | undefined) {
     .toLowerCase()
     .replace(/[./\s-]+/g, "_")
     .replace(/[^\w]/g, "");
-}
-
-function stripReconciledMentionBindings(bindings: ReturnType<typeof reconcileMentionBindings>): VideoMentionBinding[] {
-  return bindings.map((binding) => ({
-    tokenId: binding.tokenId,
-    mediaId: binding.mediaId,
-    mediaType: binding.mediaType,
-    displayLabel: binding.displayLabel,
-    sourceTokenText: binding.sourceTokenText,
-    createdAt: binding.createdAt,
-    updatedAt: binding.updatedAt,
-  }));
 }
 
 function findDraftModel(draft: VideoWorkspaceDraft | null, modelList: VideoModel[]) {
@@ -426,12 +414,10 @@ function getRecordDuration(record: { duration?: string | number; meta?: Record<s
 function getRecordMentionBindings(
   record: { meta?: Record<string, unknown>; mentionBindings?: unknown; mention_bindings?: unknown },
   referenceMedia: UploadMediaItem[],
+  prompt = "",
 ) {
   const rawBindings = record.meta?.mentionBindings ?? record.meta?.mention_bindings ?? record.mentionBindings ?? record.mention_bindings;
-
-  return serializeMentionBindings(
-    stripReconciledMentionBindings(reconcileMentionBindings(parseMentionBindings(rawBindings), referenceMedia)),
-  );
+  return sanitizeVideoMentionBindings(prompt, parseMentionBindings(rawBindings), referenceMedia).mentionBindings;
 }
 
 function isSameVideoTaskId(record: VideoTaskRecord, taskId: string) {
@@ -821,8 +807,8 @@ export function VideoWorkspace() {
   const [isPromptStudioImportHighlighted, setIsPromptStudioImportHighlighted] = useState(false);
   const promptStudioDraftCheckedRef = useRef(false);
   const reconciledMentionBindings = useMemo(
-    () => serializeMentionBindings(stripReconciledMentionBindings(reconcileMentionBindings(mentionBindings, media))),
-    [media, mentionBindings],
+    () => sanitizeVideoMentionBindings(prompt, serializeMentionBindings(mentionBindings), media).mentionBindings,
+    [media, mentionBindings, prompt],
   );
 
   useEffect(() => {
@@ -2634,14 +2620,14 @@ export function VideoWorkspace() {
     (record: (typeof history)[number]) => {
       const fillModel = findRetryModel(record) || selectedModel;
       const nextMedia = buildRetryMedia(record, getRetryMediaName).filter(isReadyRemoteMedia);
-      const nextMentionBindings = getRecordMentionBindings(record, nextMedia);
+      const promptText = String(record.meta?.original_prompt || record.prompt || "").trim();
+      const nextMentionBindings = getRecordMentionBindings(record, nextMedia, promptText);
       const nextParams = buildParamsForModel(fillModel, {
         duration: getRecordDuration(record, fillModel.durationDefault),
         generateAudio: getRecordGenerateAudio(record),
         quality: record.quality,
         ratio: record.ratio,
       });
-      const promptText = String(record.meta?.original_prompt || record.prompt || "").trim();
 
       setSelectedModel(fillModel);
       setParams(nextParams);

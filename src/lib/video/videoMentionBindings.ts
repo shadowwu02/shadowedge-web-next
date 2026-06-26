@@ -23,6 +23,12 @@ export type ReconciledVideoMentionBinding = VideoMentionBinding & {
   media?: UploadMediaItem;
 };
 
+export type SanitizedVideoMentionBindings = {
+  mediaLabelMap: Record<string, string>;
+  mentionBindings: VideoMentionBinding[];
+  warnings: string[];
+};
+
 type CreateMentionBindingOptions = {
   createdAt?: number;
   sourceTokenText?: string;
@@ -48,6 +54,10 @@ function isUploadMediaType(value: unknown): value is UploadMediaType {
 
 function getMediaId(media: Pick<UploadMediaItem, "id" | "url">) {
   return String(media.id || media.url || "").trim();
+}
+
+function getMediaIdentities(media: Pick<UploadMediaItem, "id" | "url">) {
+  return [media.id, media.url].map((value) => String(value || "").trim()).filter(Boolean);
 }
 
 function normalizeTokenText(tokenText: string) {
@@ -172,6 +182,119 @@ export function reconcileMentionBindings(
       media,
     };
   });
+}
+
+export function sanitizeVideoMentionBindings(
+  prompt: string,
+  bindings: VideoMentionBinding[],
+  referenceMedia: UploadMediaItem[],
+): SanitizedVideoMentionBindings {
+  const readyItems = getReadyMentionableMediaItems(referenceMedia);
+  const promptMentionTokens = new Set(
+    findPromptMentions(prompt).flatMap((mention) => [mention.display, mention.token]).map((value) => normalizeTokenText(value)),
+  );
+  const mediaLabelMap: Record<string, string> = {};
+  const mentionByIdentity = new Map<
+    string,
+    {
+      display: string;
+      identity: string;
+      index: number;
+      media: UploadMediaItem;
+      token: string;
+      type: UploadMediaType;
+    }
+  >();
+
+  readyItems.forEach((mention) => {
+    const media = referenceMedia.find((item) => item.id === mention.id || item.url === mention.url);
+    if (!media) return;
+
+    const identity = getMediaId(media);
+    if (!identity) return;
+
+    getMediaIdentities(media).forEach((key) => {
+      mediaLabelMap[key] = mention.display;
+      mentionByIdentity.set(key, {
+        display: mention.display,
+        identity,
+        index: mention.index,
+        media,
+        token: mention.token,
+        type: mention.type,
+      });
+    });
+  });
+
+  const sanitizedBindings = serializeMentionBindings(bindings);
+  const nextBindings: VideoMentionBinding[] = [];
+  const seenTokenIds = new Set<string>();
+  const seenMediaTokens = new Set<string>();
+  const labelOwners = new Map<string, string>();
+  const warnings: string[] = [];
+
+  sanitizedBindings.forEach((binding) => {
+    if (seenTokenIds.has(binding.tokenId)) {
+      warnings.push("duplicate_token_id");
+      return;
+    }
+    seenTokenIds.add(binding.tokenId);
+
+    const currentMention = mentionByIdentity.get(binding.mediaId);
+    if (!currentMention) {
+      warnings.push("missing_media");
+      return;
+    }
+
+    if (currentMention.type !== binding.mediaType) {
+      warnings.push("media_type_mismatch");
+      return;
+    }
+
+    const labelOwner = labelOwners.get(currentMention.display);
+    if (labelOwner && labelOwner !== currentMention.identity) {
+      warnings.push("duplicate_active_label");
+      return;
+    }
+    labelOwners.set(currentMention.display, currentMention.identity);
+
+    const mediaTokenKey = `${currentMention.identity}:${currentMention.token}`;
+    if (seenMediaTokens.has(mediaTokenKey)) {
+      warnings.push("duplicate_media_token");
+      return;
+    }
+    seenMediaTokens.add(mediaTokenKey);
+
+    const nextBinding: VideoMentionBinding = {
+      ...binding,
+      mediaId: currentMention.identity,
+      mediaType: currentMention.type,
+      displayLabel: currentMention.display,
+      sourceTokenText: currentMention.token,
+    };
+    const changed =
+      nextBinding.mediaId !== binding.mediaId ||
+      nextBinding.mediaType !== binding.mediaType ||
+      nextBinding.displayLabel !== binding.displayLabel ||
+      nextBinding.sourceTokenText !== binding.sourceTokenText;
+
+    if (changed) {
+      nextBinding.updatedAt = binding.updatedAt || binding.createdAt || safeNow();
+      warnings.push("relabelled_binding");
+    }
+
+    if (promptMentionTokens.size && !promptMentionTokens.has(normalizeTokenText(currentMention.display))) {
+      warnings.push("prompt_token_not_present");
+    }
+
+    nextBindings.push(nextBinding);
+  });
+
+  return {
+    mediaLabelMap,
+    mentionBindings: nextBindings,
+    warnings: Array.from(new Set(warnings)),
+  };
 }
 
 export function getMissingMentionBindings(bindings: VideoMentionBinding[], referenceMedia: UploadMediaItem[]) {

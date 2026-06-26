@@ -18,7 +18,7 @@ import {
   preferLatestVideoTask,
   selectRecoverableVideoPollingTask,
 } from "@/lib/video/historyUtils";
-import { serializeMentionBindings, type VideoMentionBinding } from "@/lib/video/videoMentionBindings";
+import { sanitizeVideoMentionBindings, serializeMentionBindings, type VideoMentionBinding } from "@/lib/video/videoMentionBindings";
 import { isVideoActiveStatus } from "@/lib/utils";
 import { ApiError } from "@/types/api";
 import type { UploadMediaItem, VideoGenerationRequest, VideoHistoryItem, VideoModel, VideoStatusResponse, VideoTaskRecord } from "@/types/video";
@@ -85,7 +85,11 @@ function buildVideoRequest(options: SubmitVideoOptions): VideoGenerationRequest 
   const images = mediaList.filter((item) => item.type === "image").map((item) => item.url);
   const videos = mediaList.filter((item) => item.type === "video").map((item) => item.url);
   const audios = mediaList.filter((item) => item.type === "audio").map((item) => item.url);
-  const mentionBindings = serializeMentionBindings(options.mentionBindings || []);
+  const mentionBindings = sanitizeVideoMentionBindings(
+    options.prompt,
+    serializeMentionBindings(options.mentionBindings || []),
+    options.media,
+  ).mentionBindings;
   const enhancedPrompt = buildMediaAwarePrompt(options.prompt, mentionMediaItems, mentionBindings);
   const primaryImageUrl = images[0] || "";
   const primaryVideoUrl = videos[0] || "";
