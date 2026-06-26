@@ -21,7 +21,10 @@ export type SafeVideoHistoryView = {
   outputUrl: string;
   thumbnailUrl: string;
   errorMessage: string;
+  errorClassificationMessage: string;
   errorCode: string;
+  errorPublicMessageEn: string;
+  errorPublicMessageZh: string;
   refunded: boolean;
   refundStatus: string;
   refundNotice: string;
@@ -411,22 +414,13 @@ function truncateText(value: string, maxLength = 220) {
 }
 
 export function getSafeVideoHistoryErrorMessage(record: unknown) {
+  const publicMessages = getSafeVideoHistoryPublicErrorMessages(record);
   const raw = asRecord(record);
   const meta = asRecord(raw.meta);
   const rawMessage =
     pickString(
-      raw.public_message,
-      raw.publicMessage,
-      raw.providerPublicMessage,
-      raw.provider_public_message,
-      raw.providerPublicMessageEn,
-      raw.provider_public_message_en,
-      meta.public_message,
-      meta.publicMessage,
-      meta.providerPublicMessage,
-      meta.provider_public_message,
-      meta.providerPublicMessageEn,
-      meta.provider_public_message_en,
+      publicMessages.en,
+      publicMessages.zh,
       raw.error_message,
       raw.errorMessage,
       meta.error_message,
@@ -442,6 +436,93 @@ export function getSafeVideoHistoryErrorMessage(record: unknown) {
     ) || "Video generation failed. Please try again later or change the media.";
 
   return truncateText(rawMessage.split(/\r?\n/)[0] || rawMessage);
+}
+
+export function getSafeVideoHistoryPublicErrorMessages(record: unknown) {
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+  const zh = pickString(
+    meta.providerPublicMessageZh,
+    meta.provider_public_message_zh,
+    meta.publicMessageZh,
+    meta.public_message_zh,
+    meta.errorMessageZh,
+    meta.error_message_zh,
+    raw.providerPublicMessageZh,
+    raw.provider_public_message_zh,
+    raw.publicMessageZh,
+    raw.public_message_zh,
+    raw.errorMessageZh,
+    raw.error_message_zh,
+  );
+  const en = pickString(
+    meta.providerPublicMessageEn,
+    meta.provider_public_message_en,
+    meta.providerPublicMessage,
+    meta.provider_public_message,
+    meta.publicMessage,
+    meta.public_message,
+    meta.errorMessage,
+    meta.error_message,
+    raw.providerPublicMessageEn,
+    raw.provider_public_message_en,
+    raw.providerPublicMessage,
+    raw.provider_public_message,
+    raw.publicMessage,
+    raw.public_message,
+    raw.errorMessage,
+  );
+
+  return {
+    en: truncateText(en || "", 500),
+    zh: truncateText(zh || "", 500),
+  };
+}
+
+export function getLocalizedVideoHistoryPublicErrorMessage(
+  view: Pick<SafeVideoHistoryView, "errorMessage" | "errorPublicMessageEn" | "errorPublicMessageZh">,
+  locale: string,
+) {
+  if (locale === "zh") return view.errorPublicMessageZh || view.errorPublicMessageEn || "";
+  return view.errorPublicMessageEn || view.errorPublicMessageZh || "";
+}
+
+function getSafeVideoHistoryErrorCode(record: unknown) {
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+  return (
+    pickString(
+      meta.providerFailureCategory,
+      meta.provider_failure_category,
+      meta.errorCode,
+      meta.error_code,
+      raw.providerFailureCategory,
+      raw.provider_failure_category,
+      raw.errorCode,
+      raw.error_code,
+    ) || ""
+  );
+}
+
+function getSafeVideoHistoryErrorClassificationMessage(record: unknown) {
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+  return truncateText(
+    [
+      getSafeVideoHistoryErrorCode(record),
+      getSafeVideoHistoryErrorMessage(record),
+      meta.providerRawError,
+      meta.provider_raw_error,
+      raw.providerRawError,
+      raw.provider_raw_error,
+      meta.rawError,
+      raw.rawError,
+    ]
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+      .join(" "),
+    900,
+  );
 }
 
 function getRefundNotice(record: unknown) {
@@ -473,6 +554,7 @@ export function getSafeVideoHistoryView(record: VideoTaskRecord, fallbackKey = "
   const status = String(pickString(raw.status, meta.status) || (outputUrl ? "completed" : "unknown")).toLowerCase();
   const createdAt = pickString(raw.createdAt, raw.created_at, meta.createdAt, meta.created_at) || pickNumber(raw.createdAt, meta.createdAt) || "";
   const jobLabel = pickString(raw.jobId, raw.providerJobId, raw.dbJobId, meta.jobId, meta.providerJobId) || "--";
+  const publicErrorMessages = getSafeVideoHistoryPublicErrorMessages(raw);
 
   return {
     key: getVideoHistoryStableKey(raw, fallbackKey || `${createdAt || "unknown"}-${jobLabel}`),
@@ -489,17 +571,10 @@ export function getSafeVideoHistoryView(record: VideoTaskRecord, fallbackKey = "
     outputUrl,
     thumbnailUrl: getSafeHistoryThumbnailUrl(raw),
     errorMessage: getSafeVideoHistoryErrorMessage(raw),
-    errorCode:
-      pickString(
-        raw.errorCode,
-        raw.error_code,
-        raw.providerFailureCategory,
-        raw.provider_failure_category,
-        meta.errorCode,
-        meta.error_code,
-        meta.providerFailureCategory,
-        meta.provider_failure_category,
-      ) || "",
+    errorClassificationMessage: getSafeVideoHistoryErrorClassificationMessage(raw),
+    errorCode: getSafeVideoHistoryErrorCode(raw),
+    errorPublicMessageEn: publicErrorMessages.en,
+    errorPublicMessageZh: publicErrorMessages.zh,
     refunded: isRefunded(raw),
     refundStatus: getRefundStatus(raw),
     refundNotice: getRefundNotice(raw),

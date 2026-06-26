@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useI18n } from "@/i18n/useI18n";
 import { collectHistoryInputMediaAssets } from "@/lib/media-assets";
 import { getVideoUserFacingErrorDisplay } from "@/lib/video/videoErrorDisplay";
-import { getSafeVideoHistoryView, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
+import { getLocalizedVideoHistoryPublicErrorMessage, getSafeVideoHistoryView, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { VideoTaskRecord } from "@/types/video";
 
@@ -113,7 +113,7 @@ export function HistoryPanel({
   onRetryAsDraft,
   onUseResultAsReference,
 }: HistoryPanelProps) {
-  const { t, tf } = useI18n();
+  const { locale, t, tf } = useI18n();
   const [localFilter, setLocalFilter] = useState<HistoryFilter>("all");
   const [expandedKey, setExpandedKey] = useState<string>("");
   const currentFilter = filter ?? localFilter;
@@ -145,8 +145,10 @@ export function HistoryPanel({
   const getHistoryErrorDisplay = (record: VideoTaskRecord) => {
     const view = getSafeVideoHistoryView(record);
     return getVideoUserFacingErrorDisplay(view.errorMessage, t, {
+      classificationMessage: view.errorClassificationMessage,
       context: isRemakeRecord(record) ? "remake" : "video",
       errorCode: view.errorCode,
+      publicMessage: getLocalizedVideoHistoryPublicErrorMessage(view, locale),
       refunded: view.refunded,
       refundStatus: view.refundStatus,
     });

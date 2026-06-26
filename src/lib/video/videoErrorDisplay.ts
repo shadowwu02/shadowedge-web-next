@@ -16,8 +16,10 @@ export type VideoUserFacingErrorDisplay = {
 type VideoErrorTranslator = (key: DictionaryKey) => string;
 
 type VideoErrorDisplayOptions = {
+  classificationMessage?: string | null;
   context?: "remake" | "video";
   errorCode?: string | null;
+  publicMessage?: string | null;
   refunded?: boolean;
   refundStatus?: string | null;
 };
@@ -148,8 +150,13 @@ const materialErrorTerms = [
   "file unreadable",
   "could not be processed",
   "asset not accessible",
+  "asset not found",
   "content could not be processed",
   "cannot process media",
+  "input media not found",
+  "media input not found",
+  "media not found",
+  "reference media not found",
   "unable to process media",
 ];
 
@@ -242,8 +249,16 @@ export function isProviderInternalVideoError(message: string | null | undefined)
   return providerInternalErrorTerms.some((term) => normalized.includes(term)) || rawDumpErrorTerms.some((term) => normalized.includes(term));
 }
 
+function isSafePublicVideoErrorMessage(message: string | null | undefined) {
+  const normalized = normalizeErrorMessage(message).toLowerCase();
+  if (!normalized) return false;
+  if (isProviderInternalVideoError(normalized)) return false;
+  if (includesAnyTerm(normalized, ["media input not found", "input media not found", "provider", "raw params", "token"])) return false;
+  return true;
+}
+
 export function getVideoErrorReasonCode(message: string | null | undefined, options: VideoErrorDisplayOptions = {}): VideoErrorReasonCode {
-  const raw = normalizeErrorMessage(message);
+  const raw = normalizeErrorMessage(options.classificationMessage || message);
   const normalized = raw.toLowerCase();
   const errorCode = String(options.errorCode || "").toUpperCase();
   const combined = `${normalized} ${errorCode.toLowerCase()}`;
@@ -320,10 +335,11 @@ export function getVideoUserFacingErrorDisplay(
 ): VideoUserFacingErrorDisplay {
   const reasonCode = getVideoErrorReasonCode(message, options);
   const copy = errorDisplayCopy[reasonCode];
+  const publicMessage = isSafePublicVideoErrorMessage(options.publicMessage) ? normalizeErrorMessage(options.publicMessage) : "";
 
   return {
     title: t(copy.title),
-    message: t(copy.message),
+    message: publicMessage || t(copy.message),
     suggestion: t(copy.suggestion),
     tone: copy.tone,
     reasonCode,

@@ -6,6 +6,7 @@ import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { useI18n } from "@/i18n/useI18n";
 import {
   getSafeVideoHistoryView,
+  getLocalizedVideoHistoryPublicErrorMessage,
   getVideoHistoryStableKey,
   getVideoHistoryTime,
   isVideoStaleActiveRecord,
@@ -193,7 +194,7 @@ function VideoGenerationCard({
   onUseResultAsReference?: (record: VideoTaskRecord) => void;
   record: VideoTaskRecord;
 }) {
-  const { t, tf } = useI18n();
+  const { locale, t, tf } = useI18n();
   const view = getSafeVideoHistoryView(record);
   const hasOutput = Boolean(view.outputUrl);
   const isSuccess = isVideoCompletedStatus(view.status) && hasOutput;
@@ -205,8 +206,10 @@ function VideoGenerationCard({
   const sourceLabel = getOutputSourceLabel(record, t);
   const failureDisplay = isFailed
     ? getVideoUserFacingErrorDisplay(view.errorMessage, t, {
+        classificationMessage: view.errorClassificationMessage,
         context: isRemakeRecord(record) ? "remake" : "video",
         errorCode: view.errorCode,
+        publicMessage: getLocalizedVideoHistoryPublicErrorMessage(view, locale),
         refunded: view.refunded,
         refundStatus: view.refundStatus,
       })

@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useI18n } from "@/i18n/useI18n";
 import { collectHistoryInputMediaAssets } from "@/lib/media-assets";
 import { getVideoUserFacingErrorDisplay } from "@/lib/video/videoErrorDisplay";
-import { getSafeVideoHistoryView, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
+import { getLocalizedVideoHistoryPublicErrorMessage, getSafeVideoHistoryView, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { VideoTaskRecord } from "@/types/video";
 import type { HistoryFilter } from "@/components/video/HistoryPanel";
@@ -112,7 +112,7 @@ export function VideoHistoryCanvas({
   onRetryAsDraft,
   onUseResultAsReference,
 }: VideoHistoryCanvasProps) {
-  const { t, tf } = useI18n();
+  const { locale, t, tf } = useI18n();
   const visibleHistory = useMemo(() => history.filter((item) => filterHistoryItem(item, filter)), [filter, history]);
   const counts = useMemo(
     () =>
@@ -183,8 +183,10 @@ export function VideoHistoryCanvas({
               const sourceLabel = getOutputSourceLabel(item, t);
               const failureDisplay = isFailed
                 ? getVideoUserFacingErrorDisplay(view.errorMessage, t, {
+                    classificationMessage: view.errorClassificationMessage,
                     context: isRemakeRecord(item) ? "remake" : "video",
                     errorCode: view.errorCode,
+                    publicMessage: getLocalizedVideoHistoryPublicErrorMessage(view, locale),
                     refunded: view.refunded,
                     refundStatus: view.refundStatus,
                   })

@@ -5,7 +5,7 @@ import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { useI18n } from "@/i18n/useI18n";
 import { collectHistoryInputMediaAssets } from "@/lib/media-assets";
-import { getSafeVideoHistoryView, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
+import { getLocalizedVideoHistoryPublicErrorMessage, getSafeVideoHistoryView, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
 import { getVideoUserFacingErrorDisplay } from "@/lib/video/videoErrorDisplay";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { UploadMediaItem, VideoTaskRecord } from "@/types/video";
@@ -122,7 +122,7 @@ export function VideoOutputDetailPanel({
   onUseResultAsReference,
   record,
 }: VideoOutputDetailPanelProps) {
-  const { t, tf } = useI18n();
+  const { locale, t, tf } = useI18n();
   const [isPromptExpanded, setIsPromptExpanded] = useState(false);
   const view = record ? getSafeVideoHistoryView(record) : null;
   const referenceAssets = useMemo(() => (record ? collectHistoryInputMediaAssets([record]).slice(0, 12) : []), [record]);
@@ -169,8 +169,10 @@ export function VideoOutputDetailPanel({
   const modelLogoLookup = getRecordModelLogoLookup(record, view.modelLabel);
   const failureDisplay = isFailed
     ? getVideoUserFacingErrorDisplay(view.errorMessage, t, {
+        classificationMessage: view.errorClassificationMessage,
         context: isRemakeRecord(record) ? "remake" : "video",
         errorCode: view.errorCode,
+        publicMessage: getLocalizedVideoHistoryPublicErrorMessage(view, locale),
         refunded: view.refunded,
         refundStatus: view.refundStatus,
       })
