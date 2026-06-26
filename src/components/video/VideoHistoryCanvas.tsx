@@ -47,6 +47,26 @@ function emptyMessageKey(filter: HistoryFilter) {
   return "video.history.canvas.empty";
 }
 
+function emptyHintKey(filter: HistoryFilter) {
+  if (filter === "success") return "video.history.noSuccessfulHint";
+  if (filter === "failed") return "video.history.noFailedHint";
+  if (filter === "processing") return "video.history.noProcessingHint";
+  return "video.history.canvas.emptyHint";
+}
+
+function EmptyCreationIcon() {
+  return (
+    <span className="mx-auto mb-4 grid size-12 place-items-center rounded-[20px] border border-[#ffb44d]/24 bg-[#ffb44d]/10 text-[#ffd08a] shadow-[0_16px_42px_rgba(0,0,0,0.24)]">
+      <svg aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+        <path d="m9 7 8 5-8 5Z" />
+        <path d="M4 5h2" />
+        <path d="M4 12h2" />
+        <path d="M4 19h2" />
+      </svg>
+    </span>
+  );
+}
+
 function safeDownloadFilename(view: ReturnType<typeof getSafeVideoHistoryView>) {
   const id = view.jobLabel && view.jobLabel !== "--" ? view.jobLabel : view.key || Date.now();
   return `shadowedge-video-${String(id).replace(/[^\w.-]+/g, "-")}.mp4`;
@@ -205,8 +225,12 @@ export function VideoHistoryCanvas({
                           </div>
                         </div>
                       ) : (
-                        <div className="grid min-h-[280px] w-full place-items-center rounded-[22px] border border-dashed border-white/12 text-sm text-white/42">
-                          {t(emptyMessageKey(filter))}
+                        <div className="grid min-h-[280px] w-full place-items-center rounded-[22px] border border-dashed border-white/12 bg-white/[.018] px-6 text-center">
+                          <div className="max-w-sm">
+                            <EmptyCreationIcon />
+                            <p className="text-base font-black text-white">{t(emptyMessageKey(filter))}</p>
+                            <p className="mt-2 text-sm leading-6 text-white/42">{t(emptyHintKey(filter))}</p>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -312,9 +336,10 @@ export function VideoHistoryCanvas({
             })
           ) : (
             <div className="grid min-h-[360px] place-items-center rounded-[28px] border border-dashed border-white/12 bg-black/20 p-8 text-center">
-              <div>
+              <div className="max-w-sm">
+                <EmptyCreationIcon />
                 <p className="text-base font-black text-white">{t(emptyMessageKey(filter))}</p>
-                <p className="mt-2 text-sm text-white/42">{t("video.history.subtitle")}</p>
+                <p className="mt-2 text-sm leading-6 text-white/42">{t(emptyHintKey(filter))}</p>
               </div>
             </div>
           )}

@@ -34,6 +34,34 @@ type VideoGenerationStreamProps = {
 const streamLimit = 36;
 const filters: VideoHistoryFilter[] = ["all", "success", "failed", "processing"];
 
+function streamEmptyTitleKey(filter: VideoHistoryFilter) {
+  if (filter === "success") return "video.history.noSuccessful";
+  if (filter === "failed") return "video.history.noFailed";
+  if (filter === "processing") return "video.history.noProcessing";
+  return "video.generation.empty.title";
+}
+
+function streamEmptyBodyKey(filter: VideoHistoryFilter) {
+  if (filter === "success") return "video.history.noSuccessfulHint";
+  if (filter === "failed") return "video.history.noFailedHint";
+  if (filter === "processing") return "video.history.noProcessingHint";
+  return "video.generation.empty.body";
+}
+
+function EmptyStageIcon({ size = "md" }: { size?: "md" | "lg" }) {
+  const iconSize = size === "lg" ? "size-14 rounded-[24px]" : "size-12 rounded-[20px]";
+  return (
+    <span className={`mx-auto mb-4 grid ${iconSize} place-items-center border border-[#ffb44d]/24 bg-[#ffb44d]/10 text-[#ffd08a] shadow-[0_18px_46px_rgba(0,0,0,0.26)]`}>
+      <svg aria-hidden="true" className={size === "lg" ? "size-6" : "size-5"} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+        <path d="m9 7 8 5-8 5Z" />
+        <path d="M4 5h2" />
+        <path d="M4 12h2" />
+        <path d="M4 19h2" />
+      </svg>
+    </span>
+  );
+}
+
 function safeDownloadFilename(view: ReturnType<typeof getSafeVideoHistoryView>) {
   const id = view.jobLabel && view.jobLabel !== "--" ? view.jobLabel : view.key || Date.now();
   return `shadowedge-video-${String(id).replace(/[^\w.-]+/g, "-")}.mp4`;
@@ -334,8 +362,12 @@ function VideoGenerationCard({
               </div>
             </div>
           ) : (
-            <div className="grid min-h-[460px] w-full place-items-center text-sm text-[#b9b9b9]/55 xl:min-h-[520px] 2xl:min-h-[600px]">
-              {t("video.generation.empty.title")}
+            <div className="grid min-h-[460px] w-full place-items-center bg-[radial-gradient(circle_at_50%_35%,rgba(255,180,77,0.10),transparent_34%),#05070b] px-6 text-center xl:min-h-[520px] 2xl:min-h-[600px]">
+              <div className="max-w-md">
+                <EmptyStageIcon size="lg" />
+                <p className="text-lg font-semibold text-[#f4f4f4]">{t("video.generation.empty.title")}</p>
+                <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/55">{t("video.generation.empty.body")}</p>
+              </div>
             </div>
           )}
 
@@ -476,10 +508,11 @@ export function VideoGenerationStream({
               );
             })
           ) : (
-            <div className="grid min-h-[520px] place-items-center rounded-[28px] border border-dashed border-[rgba(244,244,244,0.10)] bg-[#111318]/66 p-8 text-center">
+            <div className="grid min-h-[520px] place-items-center rounded-[28px] border border-dashed border-[rgba(244,244,244,0.10)] bg-[radial-gradient(circle_at_50%_0%,rgba(255,180,77,0.10),transparent_34%),rgba(17,19,24,0.66)] p-8 text-center">
               <div className="max-w-md">
-                <p className="text-lg font-semibold text-[#f4f4f4]">{t("video.generation.empty.title")}</p>
-                <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/55">{t("video.generation.empty.body")}</p>
+                <EmptyStageIcon />
+                <p className="text-lg font-semibold text-[#f4f4f4]">{t(streamEmptyTitleKey(filter))}</p>
+                <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/55">{t(streamEmptyBodyKey(filter))}</p>
               </div>
             </div>
           )}

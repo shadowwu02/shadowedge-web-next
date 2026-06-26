@@ -2758,22 +2758,18 @@ export function VideoWorkspace() {
                 />
                 {pendingPromptStudioDraft ? (
                   <div className="rounded-[20px] border border-[#ffb44d]/24 bg-[#ffb44d]/8 p-3 text-xs leading-5 text-[#ffd08a]/82">
-                    <p className="font-black text-[#ffe0a3]">{isZh ? "检测到 Prompt Studio 草稿" : "Prompt Studio draft detected"}</p>
+                    <p className="font-black text-[#ffe0a3]">{t("video.promptStudio.importDetected")}</p>
                     <p className="mt-1 text-[#ffd08a]/78">
-                      {isZh
-                        ? "是否导入这份草稿？导入后会填入提示词和参考图，但不会自动生成，也不会扣费。"
-                        : "Import this draft into the workspace? It will fill the prompt and reference images, but will not generate or use credits."}
+                      {t("video.promptStudio.importBody")}
                     </p>
                     {getPromptStudioVideoReferences(pendingPromptStudioDraft).length > 0 ? (
                       <p className="mt-1 font-semibold text-[#ffe0a3]">
-                        {isZh
-                          ? `包含 ${getPromptStudioVideoReferences(pendingPromptStudioDraft).length} 张参考图`
-                          : `Includes ${getPromptStudioVideoReferences(pendingPromptStudioDraft).length} reference image${getPromptStudioVideoReferences(pendingPromptStudioDraft).length === 1 ? "" : "s"}`}
+                        {tf("video.promptStudio.referenceCount", { count: getPromptStudioVideoReferences(pendingPromptStudioDraft).length })}
                       </p>
                     ) : null}
                     {prompt.trim() || media.length ? (
                       <p className="mt-1 text-white/56">
-                        {isZh ? "导入会覆盖当前未生成草稿。" : "Importing will replace the current unsaved draft."}
+                        {t("video.promptStudio.importOverwrite")}
                       </p>
                     ) : null}
                     <div className="mt-2 flex flex-wrap gap-2">
@@ -2782,14 +2778,14 @@ export function VideoWorkspace() {
                         onClick={handleImportPromptStudioDraft}
                         type="button"
                       >
-                        {isZh ? "导入草稿" : "Import draft"}
+                        {t("video.promptStudio.importDraft")}
                       </button>
                       <button
                         className="rounded-full border border-white/10 bg-white/[.04] px-3 py-1.5 text-[11px] font-semibold text-white/62 hover:text-white"
                         onClick={handleIgnorePromptStudioDraft}
                         type="button"
                       >
-                        {isZh ? "忽略" : "Ignore"}
+                        {t("video.promptStudio.ignoreDraft")}
                       </button>
                     </div>
                   </div>
@@ -2800,7 +2796,7 @@ export function VideoWorkspace() {
                 onClick={handleOpenPromptStudio}
                 type="button"
               >
-                <span>{isZh ? "用 Prompt Studio 优化" : "Optimize in Prompt Studio"}</span>
+                <span>{t("video.prompt.optimizeInPromptStudio")}</span>
                 <span className="text-[#ffd08a]/50 transition group-hover:text-[#ffd08a]">↗</span>
               </button>
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
@@ -2840,7 +2836,7 @@ export function VideoWorkspace() {
               {!token && !isSignedIn ? (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[#ffb44d]/20 bg-[#ffb44d]/8 px-3 py-2.5">
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-[#ffd08a]">{t("video.errors.signInRequired")}</p>
+                    <p className="text-xs font-bold text-[#ffd08a]">{t("video.workspace.signInTitle")}</p>
                     <p className="mt-0.5 line-clamp-1 text-[11px] leading-4 text-[#b9b9b9]/58">
                       {t("video.workspace.signInBody")}
                     </p>

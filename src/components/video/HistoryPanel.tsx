@@ -48,6 +48,26 @@ function emptyMessageKey(filter: HistoryFilter) {
   return "video.history.empty";
 }
 
+function emptyHintKey(filter: HistoryFilter) {
+  if (filter === "success") return "video.history.noSuccessfulHint";
+  if (filter === "failed") return "video.history.noFailedHint";
+  if (filter === "processing") return "video.history.noProcessingHint";
+  return "video.history.emptyHint";
+}
+
+function EmptyCreationIcon() {
+  return (
+    <span className="mx-auto mb-3 grid size-10 place-items-center rounded-[18px] border border-[#ffb44d]/24 bg-[#ffb44d]/10 text-[#ffd08a] shadow-[0_14px_36px_rgba(0,0,0,0.22)]">
+      <svg aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+        <path d="m9 7 8 5-8 5Z" />
+        <path d="M4 5h2" />
+        <path d="M4 12h2" />
+        <path d="M4 19h2" />
+      </svg>
+    </span>
+  );
+}
+
 function safeDownloadFilename(view: ReturnType<typeof getSafeVideoHistoryView>) {
   const id = view.jobLabel && view.jobLabel !== "--" ? view.jobLabel : view.key || Date.now();
   return `shadowedge-video-${String(id).replace(/[^\w.-]+/g, "-")}.mp4`;
@@ -337,8 +357,12 @@ export function HistoryPanel({
               );
             })
           ) : (
-            <div className="rounded-3xl border border-dashed border-white/12 p-8 text-center text-sm text-white/42">
-              {t(emptyMessageKey(currentFilter))}
+            <div className="rounded-3xl border border-dashed border-white/12 bg-white/[.018] p-6 text-center">
+              <div className="mx-auto max-w-[270px]">
+                <EmptyCreationIcon />
+                <p className="text-sm font-bold text-white">{t(emptyMessageKey(currentFilter))}</p>
+                <p className="mt-1.5 text-[11px] leading-5 text-white/42">{t(emptyHintKey(currentFilter))}</p>
+              </div>
             </div>
           )}
         </div>

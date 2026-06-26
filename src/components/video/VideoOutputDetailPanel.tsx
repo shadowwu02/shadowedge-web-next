@@ -143,7 +143,15 @@ export function VideoOutputDetailPanel({
       <aside className="se-card-quiet flex h-full min-h-0 flex-col overflow-hidden rounded-[26px] p-4 shadow-2xl shadow-black/18">
         <p className="se-eyebrow">{t("video.history.selectedDetail")}</p>
         <div className="grid min-h-0 flex-1 place-items-center text-center">
-          <div>
+          <div className="max-w-[240px]">
+            <span className="mx-auto mb-3 grid size-10 place-items-center rounded-[18px] border border-[#ffb44d]/24 bg-[#ffb44d]/10 text-[#ffd08a]">
+              <svg aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="m9 7 8 5-8 5Z" />
+                <path d="M4 5h2" />
+                <path d="M4 12h2" />
+                <path d="M4 19h2" />
+              </svg>
+            </span>
             <p className="text-sm font-semibold text-[#f4f4f4]">{t("video.generation.empty.title")}</p>
             <p className="mt-2 text-xs leading-5 text-[#b9b9b9]/55">{t("video.generation.empty.body")}</p>
           </div>
