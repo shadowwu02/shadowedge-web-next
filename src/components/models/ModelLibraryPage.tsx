@@ -479,14 +479,14 @@ function CapabilityGroups({
   tf: ReturnType<typeof useI18n>["tf"];
 }) {
   return (
-    <div className="mt-4 grid gap-3">
+    <div className="mt-3 grid gap-2">
       {groups.map((group) => (
-        <div className="min-w-0 rounded-[18px] border border-white/8 bg-[#05070b]/32 p-3" key={group.titleKey}>
+        <div className="min-w-0 rounded-[14px] border border-white/8 bg-[#05070b]/28 px-2.5 py-2" key={group.titleKey}>
           <p className="text-[10px] font-black uppercase tracking-[.12em] text-[#b9b9b9]/42">{t(group.titleKey)}</p>
-          <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
+          <div className="mt-1.5 flex min-w-0 flex-wrap gap-1">
             {group.items.map((item, index) => (
               <span
-                className={`max-w-full rounded-full border px-2.5 py-1 text-[10px] font-bold leading-4 ${tagClassName(item.tone)}`}
+                className={`max-w-full rounded-full border px-2 py-0.5 text-[10px] font-bold leading-4 ${tagClassName(item.tone)}`}
                 key={`${item.labelKey}-${index}`}
               >
                 <span className="block max-w-full truncate">{renderTag(item, t, tf)}</span>
@@ -640,10 +640,10 @@ export function ModelLibraryPage() {
             </div>
           </section>
         ) : visibleCards.length ? (
-          <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+          <section className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
             {visibleCards.map((card) => (
               <article
-                className="se-card-interactive flex min-h-[410px] flex-col rounded-[28px] p-4 shadow-inner shadow-black/8"
+                className="se-card-interactive flex min-h-[350px] flex-col rounded-[24px] p-3.5 shadow-inner shadow-black/8"
                 key={card.id}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -659,11 +659,11 @@ export function ModelLibraryPage() {
                   </span>
                 </div>
 
-                <p className="mt-4 min-h-[72px] text-sm leading-6 text-[#b9b9b9]/68">{t(card.descriptionKey)}</p>
+                <p className="mt-3 min-h-[52px] text-[13px] leading-5 text-[#b9b9b9]/68">{t(card.descriptionKey)}</p>
 
                 <CapabilityGroups groups={card.capabilityGroups} t={t} tf={tf} />
 
-                <Link className="se-button-secondary mt-auto inline-flex min-h-10 items-center justify-center rounded-[16px] px-4 text-sm font-black" href={card.ctaHref}>
+                <Link className="se-button-secondary mt-3 inline-flex min-h-9 items-center justify-center rounded-[14px] px-4 text-sm font-black" href={card.ctaHref}>
                   {t(card.ctaKey)}
                 </Link>
               </article>
