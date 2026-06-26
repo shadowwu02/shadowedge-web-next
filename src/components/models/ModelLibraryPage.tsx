@@ -7,7 +7,7 @@ import { getImageModels } from "@/lib/image-api";
 import { estimateImageCredits, getDefaultImageParams, normalizeImageModel } from "@/lib/image/imageModelRules";
 import { getImageModelLogoLookup } from "@/lib/image/imageModelLogo";
 import { getVideoModels } from "@/lib/video-api";
-import { estimateVideoCreditsForParams, videoModelRules } from "@/lib/video/videoModelRules";
+import { estimateVideoCreditsForParams, getVideoModelRule, hasVideoModelRule, videoModelRules, type VideoModelRule } from "@/lib/video/videoModelRules";
 import { useI18n } from "@/i18n/useI18n";
 import type { ImageModel } from "@/types/image";
 import type { VideoModel } from "@/types/video";
@@ -15,9 +15,20 @@ import type { VideoModel } from "@/types/video";
 type I18nKey = Parameters<ReturnType<typeof useI18n>["t"]>[0];
 type ModelLibraryKind = "image" | "remake" | "video";
 type ModelLibraryFilter = "all" | "image" | "video" | "remake" | "references" | "audio" | "fast" | "premium";
+type CapabilityTagTone = "accent" | "muted" | "success" | "warning";
+type CapabilityTag = {
+  labelKey: I18nKey;
+  tone?: CapabilityTagTone;
+  values?: Record<string, number | string>;
+};
+type CapabilityGroup = {
+  items: CapabilityTag[];
+  titleKey: I18nKey;
+};
 
 type ModelLibraryCard = {
   capabilities: I18nKey[];
+  capabilityGroups: CapabilityGroup[];
   categories: Set<ModelLibraryFilter>;
   ctaHref: string;
   ctaKey: I18nKey;
@@ -152,6 +163,62 @@ function makeSearchText(parts: unknown[]) {
     .toLowerCase();
 }
 
+function makeTag(labelKey: I18nKey, tone: CapabilityTagTone = "muted", values?: Record<string, number | string>): CapabilityTag {
+  return { labelKey, tone, values };
+}
+
+function renderTag(tag: CapabilityTag, t: ReturnType<typeof useI18n>["t"], tf: ReturnType<typeof useI18n>["tf"]) {
+  return tag.values ? tf(tag.labelKey, tag.values) : t(tag.labelKey);
+}
+
+function tagClassName(tone: CapabilityTagTone = "muted") {
+  if (tone === "accent") return "border-[#ffb44d]/24 bg-[#ffb44d]/10 text-[#ffd08a]";
+  if (tone === "success") return "border-[#79d88a]/22 bg-[#79d88a]/10 text-[#a8efb4]";
+  if (tone === "warning") return "border-[#ffb44d]/16 bg-white/[.035] text-[#f4f4f4]/58";
+  return "border-white/8 bg-white/[.035] text-[#f4f4f4]/68";
+}
+
+function getVideoRuleForModel(model: VideoModel) {
+  const candidates = [model.id, model.providerModel, model.label].filter(Boolean);
+  const matched = candidates.find((value) => hasVideoModelRule(String(value)));
+
+  return {
+    isKnown: Boolean(matched),
+    rule: getVideoModelRule(String(matched || model.id || model.providerModel || model.label)),
+  };
+}
+
+function isSeedance20(model: VideoModel, rule: VideoModelRule) {
+  const lookup = [model.id, model.providerModel, model.label, rule.modelId].filter(Boolean).join(" ").toLowerCase();
+  return lookup.includes("seedance_2_0") || lookup.includes("seedance 2.0");
+}
+
+function getBestForKeys(lookup: string, kind: ModelLibraryKind): I18nKey[] {
+  const lower = lookup.toLowerCase();
+
+  if (kind === "image") {
+    if (includesAny(lower, ["gpt", "openai"])) return ["models.best.product", "models.best.character", "models.best.highQuality"];
+    if (includesAny(lower, ["nano", "banana", "flash", "auto"])) return ["models.best.fast", "models.best.product", "models.best.social"];
+    if (includesAny(lower, ["seedream"])) return ["models.best.product", "models.best.character", "models.best.imageReference"];
+    return ["models.best.product", "models.best.imageReference"];
+  }
+
+  if (includesAny(lower, ["seedance"])) return ["models.best.cinematic", "models.best.product", "models.best.motion", "models.best.imageReference"];
+  if (includesAny(lower, ["veo"])) return ["models.best.cinematic", "models.best.highQuality", "models.best.motion"];
+  if (includesAny(lower, ["kling"])) return ["models.best.motion", "models.best.character", "models.best.imageReference"];
+  if (includesAny(lower, ["grok"])) return ["models.best.fast", "models.best.motion", "models.best.social"];
+  if (includesAny(lower, ["wan"])) return ["models.best.motion", "models.best.imageReference", "models.best.cinematic"];
+  if (includesAny(lower, ["hailuo", "minimax"])) return ["models.best.product", "models.best.fast", "models.best.imageReference"];
+  return ["models.best.cinematic", "models.best.motion"];
+}
+
+function makeBestForGroup(keys: I18nKey[]): CapabilityGroup {
+  return {
+    titleKey: "models.group.bestFor",
+    items: keys.slice(0, 4).map((key) => makeTag(key, "muted")),
+  };
+}
+
 function makeImageCard(model: ImageModel): ModelLibraryCard {
   const defaults = getDefaultImageParams(model);
   const credits = estimateImageCredits(model, defaults);
@@ -169,8 +236,32 @@ function makeImageCard(model: ImageModel): ModelLibraryCard {
   if (includesAny(lookup, ["fast", "flash", "lite", "auto"])) categories.add("fast");
   if (credits >= 4 || includesAny(lookup, ["gpt", "pro", "premium"])) categories.add("premium");
 
+  const inputItems = [makeTag("models.capability.textToImage", "accent")];
+  if (hasReferences) inputItems.push(makeTag("models.capability.imageReference", "success"));
+
+  const outputItems = [
+    makeTag("models.output.ratios", "muted", { value: formatList(model.capabilities.ratios, "auto") }),
+    makeTag("models.output.count", "muted", { value: String(model.capabilities.maxBatchCount || 1) }),
+  ];
+
+  if (model.capabilities.resolutions.length || model.capabilities.qualities.length) {
+    outputItems.push(makeTag("models.output.quality", "muted", { value: formatList([...model.capabilities.resolutions, ...model.capabilities.qualities]) }));
+  }
+
+  const bestForKeys = getBestForKeys(lookup, "image");
+  const capabilityGroups: CapabilityGroup[] = [
+    { titleKey: "models.group.inputs", items: inputItems },
+    {
+      titleKey: "models.group.references",
+      items: hasReferences ? [makeTag("models.capability.upToImages", "success", { count: model.capabilities.maxReferences })] : [makeTag("models.capability.promptOnly", "muted")],
+    },
+    { titleKey: "models.group.output", items: outputItems },
+    makeBestForGroup(bestForKeys),
+  ];
+
   return {
     capabilities,
+    capabilityGroups,
     categories,
     ctaHref: "/workspace/image",
     ctaKey: "models.createImage",
@@ -200,6 +291,7 @@ function makeImageCard(model: ImageModel): ModelLibraryCard {
 }
 
 function makeVideoCard(model: VideoModel): ModelLibraryCard {
+  const { isKnown, rule } = getVideoRuleForModel(model);
   const credits = estimateVideoCreditsForParams(
     model.id,
     {
@@ -214,27 +306,81 @@ function makeVideoCard(model: VideoModel): ModelLibraryCard {
   const lookup = [model.id, model.providerModel, model.provider, model.label].filter(Boolean).join(" ");
   const capabilities: I18nKey[] = ["models.capability.textToVideo"];
   const uploadSlots = model.uploadSlots || [];
-  const hasReferences = uploadSlots.length > 0;
+  const allowsMediaType = (type: "image" | "video" | "audio") =>
+    !isKnown || rule.supportedMediaTypes.includes(type);
+  const supportsImageReference = isKnown
+    ? rule.supportsImageReference && allowsMediaType("image")
+    : uploadSlots.some((slot) => slot.includes("image") || slot === "media");
+  const supportsVideoReference = isKnown
+    ? rule.supportsVideoReference && allowsMediaType("video")
+    : uploadSlots.some((slot) => slot.includes("video") || slot === "media");
+  const supportsAudioReference = isKnown
+    ? rule.supportsAudioReference && allowsMediaType("audio")
+    : Boolean(model.supportsAudio || uploadSlots.some((slot) => slot.includes("audio") || slot === "media"));
+  const supportsStartEnd = isKnown ? rule.supportsStartFrame || rule.supportsEndFrame : uploadSlots.some((slot) => slot.includes("start") || slot.includes("end") || slot.includes("first") || slot.includes("last"));
+  const maxReferences = isKnown
+    ? rule.maxReferences
+    : {
+        audio: supportsAudioReference ? 1 : 0,
+        image: supportsImageReference ? 1 : 0,
+        total: uploadSlots.length ? 1 : 0,
+        video: supportsVideoReference ? 1 : 0,
+      };
+  const hasReferences = maxReferences.total > 0 || uploadSlots.length > 0;
+  const seedance20 = isSeedance20(model, rule);
 
   if (hasReferences) {
     categories.add("references");
     capabilities.push("models.capability.references");
   }
 
-  if (uploadSlots.some((slot) => slot.includes("image") || slot === "media")) capabilities.push("models.capability.imageToVideo");
-  if (model.supportsAudio || uploadSlots.some((slot) => slot.includes("audio") || slot === "media")) {
+  if (supportsImageReference) capabilities.push("models.capability.imageToVideo");
+  if (supportsVideoReference) capabilities.push("models.capability.videoReference");
+  if (supportsAudioReference) {
     categories.add("audio");
-    capabilities.push("models.capability.audio");
+    capabilities.push("models.capability.audioInput");
   }
+  if (seedance20) capabilities.push("models.capability.multiImageReference", "models.capability.audioOptional");
   if (includesAny(lookup, ["fast", "lite"])) categories.add("fast");
   if (credits >= 20 || includesAny(lookup, ["veo", "pro", "4k", "ultra", "premium"])) categories.add("premium");
 
+  const inputItems = [makeTag("models.capability.textToVideo", "accent")];
+  if (supportsImageReference) inputItems.push(makeTag("models.capability.imageReference", "success"));
+  if (supportsVideoReference) inputItems.push(makeTag("models.capability.videoReference", "success"));
+  if (supportsAudioReference) inputItems.push(makeTag(seedance20 ? "models.capability.audioOptional" : "models.capability.audioInput", seedance20 ? "accent" : "success"));
+
+  const referenceItems: CapabilityTag[] = [];
+  if (!hasReferences) {
+    referenceItems.push(makeTag("models.capability.promptOnly", "muted"));
+  } else if (maxReferences.total === 1) {
+    referenceItems.push(makeTag("models.capability.singleReferenceOnly", "warning"));
+  } else if (supportsImageReference && maxReferences.image > 1) {
+    referenceItems.push(makeTag(seedance20 ? "models.capability.multiImageReference" : "models.capability.upToImages", "success", { count: maxReferences.image }));
+  }
+  if (supportsStartEnd) referenceItems.push(makeTag("models.capability.startEndFrame", "muted"));
+  if (!supportsVideoReference) referenceItems.push(makeTag("models.capability.videoNotSupported", "warning"));
+  if (!supportsAudioReference) referenceItems.push(makeTag("models.capability.audioNotSupported", "warning"));
+
+  const outputItems = [
+    makeTag("models.output.durations", "muted", { value: formatList(model.durations.map((duration) => `${duration}s`)) }),
+    makeTag("models.output.ratios", "muted", { value: formatList(model.ratios) }),
+    makeTag("models.output.quality", "muted", { value: formatList(model.qualities) }),
+  ];
+  const bestForKeys = getBestForKeys(lookup, "video");
+  const capabilityGroups: CapabilityGroup[] = [
+    { titleKey: "models.group.inputs", items: inputItems },
+    { titleKey: "models.group.references", items: referenceItems },
+    { titleKey: "models.group.output", items: outputItems },
+    makeBestForGroup(bestForKeys),
+  ];
+
   return {
     capabilities: Array.from(new Set(capabilities)),
+    capabilityGroups,
     categories,
     ctaHref: "/workspace/video",
     ctaKey: "models.createVideo",
-    descriptionKey: getVideoDescriptionKey(model),
+    descriptionKey: seedance20 ? "models.description.seedance20" : getVideoDescriptionKey(model),
     detailItems: [
       { labelKey: "models.supportedRatios", value: formatList(model.ratios) },
       { labelKey: "models.durations", value: formatList(model.durations.map((duration) => `${duration}s`)) },
@@ -264,9 +410,21 @@ function makeVideoCard(model: VideoModel): ModelLibraryCard {
 function makeRemakeCard(seedanceCredits: number): ModelLibraryCard {
   const capabilities: I18nKey[] = ["models.capability.remake", "models.capability.storyboard", "models.capability.references"];
   const categories: ModelLibraryCard["categories"] = new Set(["all", "remake", "video", "references", "premium"]);
+  const capabilityGroups: CapabilityGroup[] = [
+    {
+      titleKey: "models.group.inputs",
+      items: [makeTag("models.capability.references", "success"), makeTag("models.capability.storyboard", "accent")],
+    },
+    {
+      titleKey: "models.group.output",
+      items: [makeTag("models.capability.remake", "accent"), makeTag("models.remake.perShot", "muted")],
+    },
+    makeBestForGroup(["models.best.cinematic", "models.best.character", "models.best.motion"]),
+  ];
 
   return {
     capabilities,
+    capabilityGroups,
     categories,
     ctaHref: "/workspace/video?tab=remake",
     ctaKey: "models.tryRemake",
@@ -309,6 +467,36 @@ function getFallbackVideoModels(): VideoModel[] {
       uploadSlots: rule.uploadSlots.map(String),
       raw: rule,
     }));
+}
+
+function CapabilityGroups({
+  groups,
+  t,
+  tf,
+}: {
+  groups: CapabilityGroup[];
+  t: ReturnType<typeof useI18n>["t"];
+  tf: ReturnType<typeof useI18n>["tf"];
+}) {
+  return (
+    <div className="mt-4 grid gap-3">
+      {groups.map((group) => (
+        <div className="min-w-0 rounded-[18px] border border-white/8 bg-[#05070b]/32 p-3" key={group.titleKey}>
+          <p className="text-[10px] font-black uppercase tracking-[.12em] text-[#b9b9b9]/42">{t(group.titleKey)}</p>
+          <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
+            {group.items.map((item, index) => (
+              <span
+                className={`max-w-full rounded-full border px-2.5 py-1 text-[10px] font-bold leading-4 ${tagClassName(item.tone)}`}
+                key={`${item.labelKey}-${index}`}
+              >
+                <span className="block max-w-full truncate">{renderTag(item, t, tf)}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function ModelLibraryPage() {
@@ -379,12 +567,15 @@ export function ModelLibraryPage() {
         card.name.toLowerCase().includes(normalizedQuery) ||
         card.searchText.includes(normalizedQuery) ||
         card.capabilities.some((key) => t(key).toLowerCase().includes(normalizedQuery)) ||
+        card.capabilityGroups.some((group) =>
+          group.items.some((item) => renderTag(item, t, tf).toLowerCase().includes(normalizedQuery)),
+        ) ||
         t(card.descriptionKey).toLowerCase().includes(normalizedQuery) ||
         getKindLabel(card.kind, t).toLowerCase().includes(normalizedQuery);
 
       return matchesFilter && matchesQuery;
     });
-  }, [activeFilter, cards, query, t]);
+  }, [activeFilter, cards, query, t, tf]);
 
   return (
     <div className="se-scrollbar h-full overflow-y-auto overflow-x-hidden">
@@ -470,22 +661,7 @@ export function ModelLibraryPage() {
 
                 <p className="mt-4 min-h-[72px] text-sm leading-6 text-[#b9b9b9]/68">{t(card.descriptionKey)}</p>
 
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {card.capabilities.map((capability) => (
-                    <span className="rounded-full border border-white/8 bg-white/[.035] px-2.5 py-1 text-[10px] font-bold text-[#f4f4f4]/66" key={capability}>
-                      {t(capability)}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="mt-4 grid gap-2">
-                  {card.detailItems.map((item) => (
-                    <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-3 rounded-[16px] border border-white/8 bg-[#05070b]/38 px-3 py-2" key={item.labelKey}>
-                      <span className="text-[10px] font-black uppercase tracking-[.12em] text-[#b9b9b9]/42">{t(item.labelKey)}</span>
-                      <span className="min-w-0 truncate text-xs font-semibold text-[#f4f4f4]/76">{item.valueKey ? t(item.valueKey) : item.value}</span>
-                    </div>
-                  ))}
-                </div>
+                <CapabilityGroups groups={card.capabilityGroups} t={t} tf={tf} />
 
                 <Link className="se-button-secondary mt-auto inline-flex min-h-10 items-center justify-center rounded-[16px] px-4 text-sm font-black" href={card.ctaHref}>
                   {t(card.ctaKey)}
