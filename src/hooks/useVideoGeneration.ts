@@ -7,7 +7,7 @@ import { formatGenerationConcurrencyLimitError } from "@/lib/generationConcurren
 import { createVideoTask, getVideoHistory, getVideoStatus, saveVideoHistory } from "@/lib/video-api";
 import { buildMediaAwarePrompt, getReadyMentionableMediaItems, toGenerationMediaList } from "@/lib/video-mentions";
 import { estimateVideoCreditsForParams } from "@/lib/video/videoModelRules";
-import { VIDEO_PROMPT_FRONTEND_LIMIT } from "@/lib/video/videoPromptLimits";
+import { VIDEO_PROMPT_FRONTEND_LIMIT, VIDEO_PROMPT_FRONTEND_LIMIT_LABEL } from "@/lib/video/videoPromptLimits";
 import {
   getSafeHistoryOutputUrl,
   getVideoHistoryStableKey,
@@ -251,7 +251,7 @@ export function useVideoGeneration() {
     localPreviewMedia: t("video.errors.localPreviewMedia"),
     mediaFailedBeforeGenerate: t("video.errors.mediaFailedBeforeGenerate"),
     mediaUploading: t("video.errors.mediaUploading"),
-    promptTooLong: tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT }),
+    promptTooLong: tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT_LABEL }),
     promptRequired: t("video.errors.promptRequired"),
     remoteMediaOnly: t("video.errors.remoteMediaOnly"),
   }), [t, tf]);

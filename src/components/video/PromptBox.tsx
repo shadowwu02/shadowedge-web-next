@@ -15,7 +15,11 @@ import {
   type VideoMentionBinding,
 } from "@/lib/video/videoMentionBindings";
 import { sanitizeMediaDisplayName } from "@/lib/media-assets";
-import { VIDEO_PROMPT_FRONTEND_LIMIT, VIDEO_PROMPT_WARNING_THRESHOLD } from "@/lib/video/videoPromptLimits";
+import {
+  VIDEO_PROMPT_FRONTEND_LIMIT,
+  VIDEO_PROMPT_FRONTEND_LIMIT_LABEL,
+  VIDEO_PROMPT_WARNING_THRESHOLD,
+} from "@/lib/video/videoPromptLimits";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
 import { useI18n } from "@/i18n/useI18n";
 
@@ -336,7 +340,6 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     const after = value.slice(range.end);
     const trailingSpace = after.length && !/^\s/.test(after) ? " " : "";
     const nextValue = `${before}${mentionInput.display}${trailingSpace}${after}`;
-    if (nextValue.length > VIDEO_PROMPT_FRONTEND_LIMIT) return;
     const nextCaret = Math.min(before.length + mentionInput.display.length + trailingSpace.length, nextValue.length);
 
     onChange(nextValue);
@@ -479,7 +482,6 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
       </div>
       <textarea
         className="se-scrollbar h-[180px] min-h-[160px] w-full resize-y rounded-[24px] border border-white/10 bg-[#10141f]/92 px-4 py-3.5 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70 md:h-[220px] md:min-h-[210px]"
-        maxLength={VIDEO_PROMPT_FRONTEND_LIMIT}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         placeholder={t("video.prompt.placeholder")}
@@ -496,7 +498,11 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
         </div>
         {isPromptTooLong ? (
           <p className="text-xs font-semibold leading-5 text-[#fecaca]">
-            {tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT })}
+            {tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT_LABEL })}
+          </p>
+        ) : isPromptNearLimit ? (
+          <p className="text-xs font-semibold leading-5 text-[#ffd08a]/85">
+            {t("video.prompt.longPromptWarning")}
           </p>
         ) : null}
       </div>

@@ -68,7 +68,7 @@ import {
 import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
 import { getReusableVideoOutputUrl, readVideoDraftNotice, sendVideoFailedJobToVideoDraft, sendVideoResultToVideoDraft } from "@/lib/video/videoResultDrafts";
 import { estimateVideoCreditsForParams, getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
-import { VIDEO_PROMPT_FRONTEND_LIMIT } from "@/lib/video/videoPromptLimits";
+import { VIDEO_PROMPT_FRONTEND_LIMIT, VIDEO_PROMPT_FRONTEND_LIMIT_LABEL } from "@/lib/video/videoPromptLimits";
 import {
   parseMentionBindings,
   sanitizeVideoMentionBindings,
@@ -893,7 +893,7 @@ export function VideoWorkspace() {
     const draft = consumePromptStudioToVideoDraft();
     if (!draft?.prompt) return;
 
-    const nextPrompt = draft.prompt.slice(0, VIDEO_PROMPT_FRONTEND_LIMIT);
+    const nextPrompt = draft.prompt;
     const timer = window.setTimeout(() => {
       setWorkspaceMode("create");
       if (prompt.trim() || media.length) {
@@ -1387,7 +1387,7 @@ export function VideoWorkspace() {
   const handleImportPromptStudioDraft = useCallback(() => {
     if (!pendingPromptStudioDraft?.prompt) return;
     setWorkspaceMode("create");
-    setPrompt(pendingPromptStudioDraft.prompt.slice(0, VIDEO_PROMPT_FRONTEND_LIMIT));
+    setPrompt(pendingPromptStudioDraft.prompt);
     const nextReferences = getPromptStudioVideoReferences(pendingPromptStudioDraft);
     if (nextReferences.length) {
       setMedia((current) => mergeMediaAssets(current, nextReferences));
@@ -1469,7 +1469,9 @@ export function VideoWorkspace() {
       "Some media failed to upload. Remove failed items before generating.": t("video.errors.mediaFailedBeforeGenerate"),
       "Local preview media cannot be used for generation. Please wait for upload to finish.": t("video.errors.localPreviewMedia"),
       "Only uploaded remote media URLs can be used for generation.": t("video.errors.remoteMediaOnly"),
-      "Prompt is too long. Please keep it under 4,000 characters.": tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT }),
+      "Prompt is too long. Please keep it under 4,000 characters.": tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT_LABEL }),
+      "Prompt is too long. Please keep it under 8,000 characters.": tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT_LABEL }),
+      "Prompt is too long. Please keep it under 12,000 characters.": tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT_LABEL }),
       "You already have active generation tasks. Please wait until one finishes.": t("video.errors.activeGeneration"),
       "Video generation request failed.": t("video.errors.generationRequestFailed"),
       "No jobId returned by video API.": t("video.errors.noJobId"),
@@ -1489,7 +1491,7 @@ export function VideoWorkspace() {
     if (message.includes("Type limit reached")) return t("video.drawer.typeLimitReached");
     if (message.includes("Generated results cannot be used as references")) return t("video.drawer.generatedUnsupported");
     if (message.includes("PROMPT_TOO_LONG") || message.toLowerCase().includes("prompt is too long")) {
-      return tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT });
+      return tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT_LABEL });
     }
 
     return message;
@@ -1508,7 +1510,7 @@ export function VideoWorkspace() {
     if (isProcessing) return concurrencyLimitNotice;
     if (!token && !isSignedIn) return t("video.errors.signInRequired");
     if (!hasEnoughCredits) return t("video.credits.notEnough");
-    if (isPromptTooLong) return tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT });
+    if (isPromptTooLong) return tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT_LABEL });
     return t("video.credits.beforeSubmit");
   }, [concurrencyLimitNotice, hasEnoughCredits, hasPromptForGenerate, isProcessing, isPromptTooLong, isSignedIn, isUploadingMedia, t, tf, token]);
 
