@@ -131,6 +131,12 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
             <p className="font-semibold">{failureDisplay.title}</p>
             <p className="mt-1 text-[#f2b3a1]/74">{failureDisplay.message}</p>
             <p className="mt-1 text-[#ffd08a]/70">{failureDisplay.suggestion}</p>
+            {failureDisplay.reasonCode === "material" ? (
+              <div className="mt-2 rounded-2xl border border-[#ffb44d]/20 bg-[#ffb44d]/8 p-2">
+                <p className="font-semibold text-[#ffd08a]/90">{t("image.errorDisplay.material.recoveryTitle")}</p>
+                <p className="mt-1 text-[#ffd08a]/70">{t("image.errorDisplay.material.recoveryMessage")}</p>
+              </div>
+            ) : null}
             <p className="mt-1 text-[#f2b3a1]/68">{t("image.failure.refundHint")}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {chargedCredits ? (

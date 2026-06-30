@@ -47,6 +47,7 @@ import {
 import { getVideoModels, getVideoStatus, reverseAnalyzeVideoRemake, uploadMedia } from "@/lib/video-api";
 import {
   getSafeHistoryOutputUrl,
+  getLocalizedVideoHistoryPublicErrorMessage,
   getSafeVideoHistoryView,
   getVideoHistoryStableKey,
   getSafeVideoHistoryErrorMessage,
@@ -67,6 +68,7 @@ import {
 } from "@/lib/video/remakeShotQueueDraft";
 import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
 import { getReusableVideoOutputUrl, readVideoDraftNotice, sendVideoFailedJobToVideoDraft, sendVideoResultToVideoDraft } from "@/lib/video/videoResultDrafts";
+import { getVideoUserFacingErrorDisplay } from "@/lib/video/videoErrorDisplay";
 import { estimateVideoCreditsForParams, getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
 import { VIDEO_PROMPT_FRONTEND_LIMIT, VIDEO_PROMPT_FRONTEND_LIMIT_LABEL } from "@/lib/video/videoPromptLimits";
 import {
@@ -2588,7 +2590,19 @@ export function VideoWorkspace() {
 
   const handleRetryAsDraftFromHistory = useCallback(
     (record: (typeof history)[number]) => {
-      const draft = sendVideoFailedJobToVideoDraft({ video: record }, t("video.notices.failedRestoredAsDraft"));
+      const view = getSafeVideoHistoryView(record);
+      const failureDisplay = getVideoUserFacingErrorDisplay(view.errorMessage, t, {
+        classificationMessage: view.errorClassificationMessage,
+        context: "video",
+        errorCode: view.errorCode,
+        publicMessage: getLocalizedVideoHistoryPublicErrorMessage(view, locale),
+        refunded: view.refunded,
+        refundStatus: view.refundStatus,
+      });
+      const restoreNotice = failureDisplay.reasonCode === "material"
+        ? t("video.notices.failedMaterialRestoredAsDraft")
+        : t("video.notices.failedRestoredAsDraft");
+      const draft = sendVideoFailedJobToVideoDraft({ video: record }, restoreNotice);
       const draftModel = findDraftModel(draft, models) || findRetryModel(record) || selectedModel;
       const draftParams = buildParamsForModel(draftModel, draft?.params);
       const nextSnapshot = {
@@ -2612,10 +2626,10 @@ export function VideoWorkspace() {
       setMentionBindings(nextSnapshot.mentionBindings);
       setPrompt(nextSnapshot.prompt);
       setMainPanel("history");
-      setWorkspaceNotice(t("video.notices.failedRestoredAsDraft"));
+      setWorkspaceNotice(restoreNotice);
       router.push("/workspace/video?from=failed-job");
     },
-    [findRetryModel, models, router, selectedModel, t],
+    [findRetryModel, locale, models, router, selectedModel, t],
   );
 
   const handleFillFromHistory = useCallback(

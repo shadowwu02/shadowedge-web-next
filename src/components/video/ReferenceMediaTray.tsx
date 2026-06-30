@@ -255,7 +255,7 @@ export function ReferenceMediaTray({
   function mediaStatusLabel(status: MediaStatus) {
     if (status === "ready") return t("video.references.status.ready");
     if (status === "uploading") return t("video.references.status.uploading");
-    if (status === "failed") return t("video.references.status.failed");
+    if (status === "failed") return t("media.upload.unavailableTitle");
     if (status === "unsupported") return t("video.references.status.notUsed");
     return t("video.references.status.local");
   }
@@ -352,7 +352,8 @@ export function ReferenceMediaTray({
             const status = getMediaStatus(item, issues);
             const durationLabel = formatDurationLabel(item.duration);
             const failedDisplay = status === "failed" ? getMediaUploadErrorDisplayKeys(item.errorMessage, { fallbackKind: "unavailable" }) : null;
-            const issueTitle = issues.length ? getNotUsedDetail(item, issues) : failedDisplay ? t(failedDisplay.messageKey) : "";
+            const failedDetail = failedDisplay ? `${t(failedDisplay.messageKey)} ${t("media.upload.removeAndUploadAgain")}` : "";
+            const issueTitle = issues.length ? getNotUsedDetail(item, issues) : failedDetail;
             const displayName = displayNameFor(item, itemIndex);
 
             return (
@@ -406,6 +407,9 @@ export function ReferenceMediaTray({
                     {durationLabel ? <span>{durationLabel}</span> : null}
                     {issues.length ? <span>{t("video.references.notUsedShort")}</span> : null}
                   </p>
+                  {failedDetail ? (
+                    <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-[#f2b3a1]/78">{failedDetail}</p>
+                  ) : null}
                 </div>
 
                 <div className="flex shrink-0 items-center gap-1">

@@ -177,6 +177,7 @@ export function VideoOutputDetailPanel({
         refundStatus: view.refundStatus,
       })
     : null;
+  const isMaterialFailure = failureDisplay?.reasonCode === "material";
   const statusLabel = isStaleActive
     ? t("video.generation.stale")
     : isFailed
@@ -293,6 +294,12 @@ export function VideoOutputDetailPanel({
             <p className="font-bold text-[#f2b3a1]/90">{isStaleActive ? t("video.generation.stale") : failureDisplay?.title}</p>
             <p className="mt-1">{isStaleActive ? t("video.result.staleBody") : failureDisplay?.message}</p>
             {!isStaleActive && failureDisplay?.suggestion ? <p className="mt-1 text-[#ffd08a]/70">{failureDisplay.suggestion}</p> : null}
+            {!isStaleActive && isMaterialFailure ? (
+              <div className="mt-2 rounded-2xl border border-[#ffb44d]/20 bg-[#ffb44d]/8 p-2">
+                <p className="font-bold text-[#ffd08a]/88">{t("video.errorDisplay.material.recoveryTitle")}</p>
+                <p className="mt-1 text-[#ffd08a]/68">{t("video.errorDisplay.material.recoveryMessage")}</p>
+              </div>
+            ) : null}
             {view.refundNotice ? <p className="mt-1 text-[#ffd08a]/70">{view.refundNotice}</p> : null}
           </div>
         ) : null}

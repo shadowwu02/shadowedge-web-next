@@ -210,11 +210,12 @@ function VideoGenerationCard({
         context: isRemakeRecord(record) ? "remake" : "video",
         errorCode: view.errorCode,
         publicMessage: getLocalizedVideoHistoryPublicErrorMessage(view, locale),
-        refunded: view.refunded,
-        refundStatus: view.refundStatus,
-      })
+      refunded: view.refunded,
+      refundStatus: view.refundStatus,
+    })
     : null;
   const sensitiveFailure = failureDisplay?.reasonCode === "policy";
+  const isMaterialFailure = failureDisplay?.reasonCode === "material";
   const statusLabel = isStaleActive
     ? t("video.generation.stale")
     : isFailed
@@ -324,6 +325,12 @@ function VideoGenerationCard({
                 </p>
                 {!isStaleActive && failureDisplay?.suggestion ? (
                   <p className="mx-auto mt-2 max-w-lg text-xs leading-5 text-[#ffd08a]/66">{failureDisplay.suggestion}</p>
+                ) : null}
+                {!isStaleActive && isMaterialFailure ? (
+                  <div className="mx-auto mt-3 max-w-lg rounded-2xl border border-[#ffb44d]/20 bg-[#ffb44d]/8 px-3 py-2 text-left">
+                    <p className="text-xs font-bold text-[#ffd08a]/90">{t("video.errorDisplay.material.recoveryTitle")}</p>
+                    <p className="mt-1 text-xs leading-5 text-[#ffd08a]/68">{t("video.errorDisplay.material.recoveryMessage")}</p>
+                  </div>
                 ) : null}
                 <div className="mt-5 flex flex-wrap justify-center gap-2">
                   {onFill ? (

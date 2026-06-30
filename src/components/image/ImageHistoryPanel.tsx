@@ -110,9 +110,19 @@ export function ImageHistoryPanel({
 
   const handleRetryAsDraft = (item: ImageHistoryItem) => {
     setActionError("");
+    const failureDisplay = getImageUserFacingErrorDisplay(item.errorMessage, t, {
+      classificationMessage: item.errorClassificationMessage,
+      errorCode: item.errorCode,
+      publicMessage: getLocalizedImageHistoryPublicErrorMessage(item, locale),
+      refunded: item.refunded,
+      refundStatus: item.refundStatus,
+    });
+    const restoreNotice = failureDisplay.reasonCode === "material"
+      ? t("image.actions.failedMaterialRestoredAsDraft")
+      : t("image.actions.failedRestoredAsDraft");
     const result = sendImageFailedJobToImageDraft(
       { image: item },
-      t("image.actions.failedRestoredAsDraft"),
+      restoreNotice,
     );
 
     if (!result) {
@@ -243,7 +253,12 @@ export function ImageHistoryPanel({
                       </span>
                     ) : null}
                     {failedErrorDisplay ? (
-                      <span className="mt-1 block truncate text-[10px] font-semibold text-[#f2b3a1]/72">{failedErrorDisplay.title}</span>
+                      <>
+                        <span className="mt-1 block truncate text-[10px] font-semibold text-[#f2b3a1]/72">{failedErrorDisplay.title}</span>
+                        {failedErrorDisplay.reasonCode === "material" ? (
+                          <span className="mt-1 block line-clamp-2 text-[10px] leading-4 text-[#ffd08a]/68">{t("image.errorDisplay.material.recoveryMessage")}</span>
+                        ) : null}
+                      </>
                     ) : null}
                   </span>
                 </button>
@@ -296,7 +311,7 @@ export function ImageHistoryPanel({
                     <button
                       className={imageActionClass("primary")}
                       onClick={() => handleRetryAsDraft(item)}
-                      title={t("image.actions.failedRestoredAsDraft")}
+                      title={failedErrorDisplay?.reasonCode === "material" ? t("image.actions.failedMaterialRestoredAsDraft") : t("image.actions.failedRestoredAsDraft")}
                       type="button"
                     >
                       {t("image.actions.retryAsDraft")}
@@ -324,6 +339,12 @@ export function ImageHistoryPanel({
                         <span className="block font-semibold text-[#f2b3a1]/88">{failedErrorDisplay.title}</span>
                         <span className="mt-1 block">{failedErrorDisplay.message}</span>
                         <span className="mt-1 block text-[#ffd08a]/70">{failedErrorDisplay.suggestion}</span>
+                        {failedErrorDisplay.reasonCode === "material" ? (
+                          <span className="mt-2 block rounded-2xl border border-[#ffb44d]/20 bg-[#ffb44d]/8 p-2">
+                            <span className="block font-semibold text-[#ffd08a]/90">{t("image.errorDisplay.material.recoveryTitle")}</span>
+                            <span className="mt-1 block text-[#ffd08a]/70">{t("image.errorDisplay.material.recoveryMessage")}</span>
+                          </span>
+                        ) : null}
                       </p>
                     ) : null}
                     <p className="truncate">{item.prompt || t("image.history.untitled")}</p>

@@ -191,6 +191,7 @@ export function VideoHistoryCanvas({
                     refundStatus: view.refundStatus,
                   })
                 : null;
+              const isMaterialFailure = failureDisplay?.reasonCode === "material";
               return (
                 <article className="overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(17,19,24,0.72),rgba(5,7,11,0.86))] shadow-[0_18px_60px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.035)]" key={view.key}>
                   <div className="grid gap-0 2xl:grid-cols-[minmax(0,1.3fr)_minmax(270px,0.7fr)]">
@@ -210,6 +211,12 @@ export function VideoHistoryCanvas({
                             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#f2b3a1]/62">{failureDisplay?.message}</p>
                             {failureDisplay?.suggestion ? (
                               <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-[#ffd08a]/66">{failureDisplay.suggestion}</p>
+                            ) : null}
+                            {isMaterialFailure ? (
+                              <div className="mx-auto mt-3 max-w-md rounded-2xl border border-[#ffb44d]/20 bg-[#ffb44d]/8 px-3 py-2 text-left">
+                                <p className="text-xs font-bold text-[#ffd08a]/90">{t("video.errorDisplay.material.recoveryTitle")}</p>
+                                <p className="mt-1 text-xs leading-5 text-[#ffd08a]/68">{t("video.errorDisplay.material.recoveryMessage")}</p>
+                              </div>
                             ) : null}
                             {view.refundNotice ? (
                               <span className="mt-4 inline-flex rounded-full border border-[#ffb44d]/20 bg-[#ffb44d]/10 px-3 py-1 text-xs font-black text-[#ffd08a]">
@@ -278,6 +285,12 @@ export function VideoHistoryCanvas({
                           <span className="block font-bold text-[#f2b3a1]/86">{failureDisplay?.title}</span>
                           <span className="mt-1 block">{failureDisplay?.message}</span>
                           {failureDisplay?.suggestion ? <span className="mt-1 block text-[#ffd08a]/66">{failureDisplay.suggestion}</span> : null}
+                          {isMaterialFailure ? (
+                            <span className="mt-2 block rounded-2xl border border-[#ffb44d]/20 bg-[#ffb44d]/8 p-2">
+                              <span className="block font-bold text-[#ffd08a]/88">{t("video.errorDisplay.material.recoveryTitle")}</span>
+                              <span className="mt-1 block text-[#ffd08a]/68">{t("video.errorDisplay.material.recoveryMessage")}</span>
+                            </span>
+                          ) : null}
                         </p>
                       ) : null}
 

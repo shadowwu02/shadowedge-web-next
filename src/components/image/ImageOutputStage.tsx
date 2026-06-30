@@ -123,9 +123,12 @@ export function ImageOutputStage({
   const handleRetryAsDraft = () => {
     if (!job) return;
     setActionError("");
+    const restoreNotice = failureDisplay.reasonCode === "material"
+      ? t("image.actions.failedMaterialRestoredAsDraft")
+      : t("image.actions.failedRestoredAsDraft");
     const result = sendImageFailedJobToImageDraft(
       { image: job },
-      t("image.actions.failedRestoredAsDraft"),
+      restoreNotice,
     );
 
     if (!result) {
@@ -257,6 +260,12 @@ export function ImageOutputStage({
             <p className="text-xl font-black text-[#f2b3a1]">{failureDisplay.title}</p>
             <p className="mt-2 text-sm leading-6 text-[#f2b3a1]/68">{failureDisplay.message}</p>
             <p className="mt-2 text-xs leading-5 text-[#ffd08a]/70">{failureDisplay.suggestion}</p>
+            {failureDisplay.reasonCode === "material" ? (
+              <div className="mx-auto mt-3 max-w-md rounded-2xl border border-[#ffb44d]/20 bg-[#ffb44d]/8 px-3 py-2 text-left">
+                <p className="text-xs font-bold text-[#ffd08a]/90">{t("image.errorDisplay.material.recoveryTitle")}</p>
+                <p className="mt-1 text-xs leading-5 text-[#ffd08a]/68">{t("image.errorDisplay.material.recoveryMessage")}</p>
+              </div>
+            ) : null}
             <p className="mt-3 text-xs leading-5 text-[#b9b9b9]/52">
               {t("image.failure.refundHint")}
             </p>
@@ -283,7 +292,7 @@ export function ImageOutputStage({
               <button
                 className={outputActionClass("primary")}
                 onClick={handleRetryAsDraft}
-                title={t("image.actions.failedRestoredAsDraft")}
+                title={failureDisplay.reasonCode === "material" ? t("image.actions.failedMaterialRestoredAsDraft") : t("image.actions.failedRestoredAsDraft")}
                 type="button"
               >
                 {t("image.actions.retryAsDraft")}

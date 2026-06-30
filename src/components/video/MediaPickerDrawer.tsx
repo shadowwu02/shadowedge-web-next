@@ -191,7 +191,7 @@ export function MediaPickerDrawer({
 
   function localizedStatusLabel(status: UploadMediaItem["uploadStatus"], issue: string) {
     if (status === "uploading") return t("common.status.uploading");
-    if (status === "failed") return t("video.status.failed");
+    if (status === "failed") return t("media.upload.unavailableTitle");
     if (issue === "Already added to references.") return t("video.drawer.status.added");
     if (issue) return t("video.drawer.status.blocked");
     if (status === "ready") return t("common.status.ready");
@@ -200,7 +200,7 @@ export function MediaPickerDrawer({
 
   function localizedFailedMediaMessage(errorMessage?: string) {
     const display = getMediaUploadErrorDisplayKeys(errorMessage, { fallbackKind: "unavailable" });
-    return t(display.messageKey);
+    return `${t(display.messageKey)} ${t("media.upload.removeAndUploadAgain")}`;
   }
 
   function localizedFailedMediaTitle(errorMessage?: string) {

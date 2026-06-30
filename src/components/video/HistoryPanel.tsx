@@ -209,6 +209,7 @@ export function HistoryPanel({
               const sourceLabel = getOutputSourceLabel(item, t);
               const isExpanded = expandedKey === view.key;
               const errorDisplay = isFailed ? getHistoryErrorDisplay(item) : null;
+              const isMaterialFailure = errorDisplay?.reasonCode === "material";
               const copyMetadata = () => {
                 const metadata = {
                   createdAt: view.createdAtLabel,
@@ -278,6 +279,11 @@ export function HistoryPanel({
                               {errorDisplay?.message}
                               {view.refundNotice ? ` ${localizeRefundNotice(view.refundNotice)}` : ""}
                             </p>
+                            {isMaterialFailure ? (
+                              <p className="mt-1.5 line-clamp-2 text-[10px] font-semibold leading-4 text-[#ffd08a]/72">
+                                {t("video.errorDisplay.material.recoveryMessage")}
+                              </p>
+                            ) : null}
                           </div>
                         </div>
                       ) : null}
@@ -349,6 +355,12 @@ export function HistoryPanel({
                               <p className="font-bold text-[#f2b3a1]/88">{errorDisplay.title}</p>
                               <p className="mt-1 line-clamp-2">{errorDisplay.message}</p>
                               <p className="mt-1 line-clamp-2 text-[#ffd08a]/66">{errorDisplay.suggestion}</p>
+                              {isMaterialFailure ? (
+                                <div className="mt-2 rounded-2xl border border-[#ffb44d]/20 bg-[#ffb44d]/8 p-2">
+                                  <p className="font-bold text-[#ffd08a]/88">{t("video.errorDisplay.material.recoveryTitle")}</p>
+                                  <p className="mt-1 line-clamp-3 text-[#ffd08a]/68">{t("video.errorDisplay.material.recoveryMessage")}</p>
+                                </div>
+                              ) : null}
                             </div>
                           ) : null}
                         </div>

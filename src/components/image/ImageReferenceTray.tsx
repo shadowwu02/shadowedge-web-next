@@ -53,7 +53,7 @@ export function ImageReferenceTray({
       : t("image.references.addTitle");
   const getUploadStatusLabel = (reference: ImageReferenceItem) => {
     if (reference.uploadStatus === "uploading") return t("image.status.uploading");
-    if (reference.uploadStatus === "failed") return t("image.status.failed");
+    if (reference.uploadStatus === "failed") return t("media.upload.unavailableTitle");
     return reference.url ? t("image.status.ready") : t("image.status.local");
   };
 
@@ -129,7 +129,11 @@ export function ImageReferenceTray({
                       {getUploadStatusLabel(reference)}
                     </span>
                   </div>
-                  {failedDisplay ? <p className="mt-1 line-clamp-2 text-[10px] text-[#f2b3a1]/78">{t(failedDisplay.messageKey)}</p> : null}
+                  {failedDisplay ? (
+                    <p className="mt-1 line-clamp-2 text-[10px] text-[#f2b3a1]/78">
+                      {t(failedDisplay.messageKey)} {t("media.upload.removeAndUploadAgain")}
+                    </p>
+                  ) : null}
                 </div>
               </article>
             );

@@ -21,7 +21,7 @@ export function MediaCard({
 
   function statusLabel(status: UploadMediaItem["uploadStatus"]) {
     if (status === "uploading") return t("common.status.uploading");
-    if (status === "failed") return t("video.status.failed");
+    if (status === "failed") return t("media.upload.unavailableTitle");
     if (status === "ready") return t("common.status.ready");
     return t("video.drawer.status.local");
   }
@@ -60,7 +60,11 @@ export function MediaCard({
           </p>
         </div>
 
-        {failedErrorDisplay ? <p className="line-clamp-2 text-xs leading-5 text-[#f2b3a1]/78">{t(failedErrorDisplay.messageKey)}</p> : null}
+        {failedErrorDisplay ? (
+          <p className="line-clamp-2 text-xs leading-5 text-[#f2b3a1]/78">
+            {t(failedErrorDisplay.messageKey)} {t("media.upload.removeAndUploadAgain")}
+          </p>
+        ) : null}
 
         <div className="flex flex-wrap gap-2">
           {item.url ? (
