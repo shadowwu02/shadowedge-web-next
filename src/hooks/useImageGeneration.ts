@@ -5,6 +5,10 @@ import { buildImageGenerateRequest, generateImage, getImageHistory, getImageMode
 import { useI18n } from "@/i18n/useI18n";
 import { formatGenerationConcurrencyLimitError } from "@/lib/generationConcurrencyError";
 import { getMediaUploadErrorDisplayKeys } from "@/lib/media-assets";
+import {
+  IMAGE_PROMPT_FRONTEND_LIMIT,
+  IMAGE_PROMPT_FRONTEND_LIMIT_LABEL,
+} from "@/lib/image/imagePromptLimits";
 import { readImageResultDraftNotice } from "@/lib/image/imageResultDrafts";
 import {
   isImageActiveStatus,
@@ -103,7 +107,7 @@ function getExactImageModelById(models: ImageModel[], modelId?: string) {
 function getImagePromptFromUrl() {
   if (typeof window === "undefined") return "";
   try {
-    return String(new URLSearchParams(window.location.search).get("prompt") || "").slice(0, 2000);
+    return String(new URLSearchParams(window.location.search).get("prompt") || "");
   } catch {
     return "";
   }
@@ -457,6 +461,11 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       return null;
     }
 
+    if (effectivePrompt.length > IMAGE_PROMPT_FRONTEND_LIMIT) {
+      setError(tf("image.errors.promptTooLong", { limit: IMAGE_PROMPT_FRONTEND_LIMIT_LABEL }));
+      return null;
+    }
+
     setIsGenerating(true);
     setError("");
     setRecoveredJobId("");
@@ -485,7 +494,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     } finally {
       setIsGenerating(false);
     }
-  }, [ensureReadyReferences, formatImageError, isGenerating, params, prompt, references, selectedModel, t]);
+  }, [ensureReadyReferences, formatImageError, isGenerating, params, prompt, references, selectedModel, t, tf]);
 
   const recoverPolling = useCallback(() => {
     const recoverable = selectRecoverableImageJob(mergedHistory);

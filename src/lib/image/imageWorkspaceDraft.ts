@@ -57,11 +57,11 @@ function asRecord(value: unknown): RawRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as RawRecord) : {};
 }
 
-function asString(value: unknown, maxLength = 2000) {
+function asString(value: unknown, maxLength?: number) {
   const text = typeof value === "string" ? value.trim() : "";
   if (!text) return "";
   if (SENSITIVE_TEXT_PATTERNS.some((pattern) => pattern.test(text))) return "";
-  return text.slice(0, maxLength);
+  return typeof maxLength === "number" ? text.slice(0, maxLength) : text;
 }
 
 function asNumber(value: unknown) {
@@ -133,7 +133,7 @@ function normalizeDraft(raw: unknown): ImageWorkspaceDraft | null {
   return {
     version: IMAGE_WORKSPACE_DRAFT_VERSION,
     updatedAt,
-    prompt: asString(record.prompt, 2000),
+    prompt: asString(record.prompt),
     modelId: asString(record.modelId, 240),
     ratio: asString(record.ratio, 80),
     resolution: asString(record.resolution, 80),
@@ -174,7 +174,7 @@ export function saveImageWorkspaceDraft(input: SaveImageWorkspaceDraftInput) {
   const draft: ImageWorkspaceDraft = {
     version: IMAGE_WORKSPACE_DRAFT_VERSION,
     updatedAt: new Date().toISOString(),
-    prompt: input.prompt.slice(0, 2000),
+    prompt: input.prompt,
     modelId: input.modelId,
     ratio: input.params.ratio,
     resolution: input.params.resolution,

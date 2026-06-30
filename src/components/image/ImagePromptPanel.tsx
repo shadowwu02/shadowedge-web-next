@@ -3,6 +3,11 @@
 import { ImageModelSelector } from "@/components/image/ImageModelSelector";
 import { ImageReferenceTray } from "@/components/image/ImageReferenceTray";
 import { useI18n } from "@/i18n/useI18n";
+import {
+  IMAGE_PROMPT_FRONTEND_LIMIT,
+  IMAGE_PROMPT_FRONTEND_LIMIT_LABEL,
+  IMAGE_PROMPT_WARNING_THRESHOLD,
+} from "@/lib/image/imagePromptLimits";
 import { getPromptStudioDraftLocale } from "@/lib/prompt-studio-draft-bridge";
 import type { ImageGenerationParams, ImageModel, ImageReferenceItem } from "@/types/image";
 
@@ -65,8 +70,11 @@ export function ImagePromptPanel({
   const maxBatchCount = selectedModel?.capabilities.maxBatchCount || 1;
   const hasUploadingReferences = references.some((reference) => reference.uploadStatus === "uploading");
   const hasPrompt = Boolean(prompt.trim());
+  const promptLength = prompt.length;
+  const isPromptTooLong = promptLength > IMAGE_PROMPT_FRONTEND_LIMIT;
+  const isPromptNearLimit = promptLength >= IMAGE_PROMPT_WARNING_THRESHOLD;
   const hasExistingDraft = hasPrompt || references.length > 0;
-  const disabled = isGenerating || loadingModels || hasUploadingReferences || isPolling || isActiveJob || !hasPrompt;
+  const disabled = isGenerating || loadingModels || hasUploadingReferences || isPolling || isActiveJob || !hasPrompt || isPromptTooLong;
   const optionLabel = (value: string) => value || t("image.params.default");
   const generateLabel = hasUploadingReferences
     ? t("image.workspace.uploadingReferences")
@@ -77,6 +85,8 @@ export function ImagePromptPanel({
       : tf("image.workspace.generateWithCredits", { credits: estimatedCredits });
   const generateHelper = !hasPrompt
     ? t("image.generate.disabled.promptEmpty")
+    : isPromptTooLong
+      ? tf("image.errors.promptTooLong", { limit: IMAGE_PROMPT_FRONTEND_LIMIT_LABEL })
     : hasUploadingReferences
       ? t("image.generate.disabled.uploadingReferences")
       : loadingModels
@@ -109,15 +119,27 @@ export function ImagePromptPanel({
         <section className="se-card rounded-[24px] p-3.5">
           <div className="mb-2 flex items-center justify-between">
             <span className="se-eyebrow">{t("image.prompt.label")}</span>
-            <span className="text-[10px] text-[#b9b9b9]/45">{prompt.length}/2000</span>
+            <span className={`text-[10px] ${isPromptTooLong ? "text-[#ff8f8f]" : "text-[#b9b9b9]/45"}`}>
+              {tf("image.prompt.characterCount", { count: promptLength, limit: IMAGE_PROMPT_FRONTEND_LIMIT })}
+            </span>
           </div>
           <textarea
             className="min-h-[168px] w-full resize-none rounded-[20px] border border-white/10 bg-[#05070b]/64 px-3.5 py-3 text-sm leading-6 text-[#f4f4f4] outline-none transition-colors placeholder:text-[#b9b9b9]/35 focus:border-[#ffb44d]/34"
-            maxLength={2000}
             onChange={(event) => onPromptChange(event.target.value)}
             placeholder={t("image.prompt.placeholder")}
             value={prompt}
           />
+          {isPromptTooLong ? (
+            <p className="mt-2 rounded-[16px] border border-[#ff8f8f]/22 bg-[#ff4f4f]/8 px-3 py-2 text-[11px] font-semibold leading-5 text-[#ffb7b7]">
+              {tf("image.errors.promptTooLong", { limit: IMAGE_PROMPT_FRONTEND_LIMIT_LABEL })}
+            </p>
+          ) : isPromptNearLimit ? (
+            <p className="mt-2 rounded-[16px] border border-[#ffb44d]/18 bg-[#ffb44d]/8 px-3 py-2 text-[11px] font-semibold leading-5 text-[#ffd08a]/82">
+              {t("image.prompt.longPromptWarning")}
+            </p>
+          ) : hasPrompt ? (
+            <p className="mt-2 text-[11px] font-medium text-[#b9b9b9]/45">{t("image.prompt.longPromptSupported")}</p>
+          ) : null}
           {!hasPrompt ? (
             <p className="mt-2 rounded-full border border-[#ffb44d]/16 bg-[#ffb44d]/8 px-3 py-1.5 text-[11px] font-semibold text-[#ffd08a]/78">
               {t("image.prompt.required")}

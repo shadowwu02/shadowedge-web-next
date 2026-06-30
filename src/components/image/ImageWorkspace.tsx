@@ -10,6 +10,7 @@ import { useImageGeneration } from "@/hooks/useImageGeneration";
 import { useI18n } from "@/i18n/useI18n";
 import { getImageUserFacingError } from "@/lib/image/imageErrorDisplay";
 import { isImageActiveStatus } from "@/lib/image/imageHistoryUtils";
+import { IMAGE_PROMPT_FRONTEND_LIMIT_LABEL } from "@/lib/image/imagePromptLimits";
 import {
   consumePromptStudioToImageDraft,
   getPromptStudioDraftLocale,
@@ -59,7 +60,7 @@ function mergeImageReferences(current: ImageReferenceItem[], next: ImageReferenc
 }
 
 export function ImageWorkspace() {
-  const { locale, t } = useI18n();
+  const { locale, t, tf } = useI18n();
   const router = useRouter();
   const isZh = getPromptStudioDraftLocale(locale) === "zh";
   const image = useImageGeneration();
@@ -81,11 +82,14 @@ export function ImageWorkspace() {
     if (normalized.includes("failed to load image models")) return t("image.errors.modelLoadFailed");
     if (normalized.includes("failed to load image history")) return t("image.errors.historyLoadFailed");
     if (normalized.includes("failed to refresh image status")) return t("image.errors.statusRefreshFailed");
+    if (normalized.includes("prompt_too_long") || normalized.includes("prompt is too long") || normalized.includes("prompt too long")) {
+      return tf("image.errors.promptTooLong", { limit: IMAGE_PROMPT_FRONTEND_LIMIT_LABEL });
+    }
     if (normalized.includes("image generation request failed")) return t("image.errors.generationRequestFailed");
     if (normalized.includes("prompt is required")) return t("image.errors.promptRequired");
     if (normalized.includes("upload failed") || normalized.includes("image upload failed")) return t("image.errors.uploadFailed");
     return getImageUserFacingError(message, t);
-  }, [image.error, t]);
+  }, [image.error, t, tf]);
 
   const handleHistorySelect = useCallback((item: ImageHistoryItem) => {
     image.selectJob(item);
@@ -126,7 +130,7 @@ export function ImageWorkspace() {
     const draft = consumePromptStudioToImageDraft();
     if (!draft?.prompt) return;
 
-    const nextPrompt = draft.prompt.slice(0, 2000);
+    const nextPrompt = draft.prompt;
     const timer = window.setTimeout(() => {
       if (image.prompt.trim() || image.references.length) {
         setPendingPromptStudioDraft({ ...draft, prompt: nextPrompt });
@@ -152,7 +156,7 @@ export function ImageWorkspace() {
 
   const handleImportPromptStudioDraft = useCallback(() => {
     if (!pendingPromptStudioDraft?.prompt) return;
-    image.setPrompt(pendingPromptStudioDraft.prompt.slice(0, 2000));
+    image.setPrompt(pendingPromptStudioDraft.prompt);
     const nextReferences = getPromptStudioImageReferences(pendingPromptStudioDraft);
     if (nextReferences.length) {
       image.setReferences((current) => mergeImageReferences(current, nextReferences));
