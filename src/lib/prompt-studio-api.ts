@@ -476,7 +476,6 @@ export async function uploadPromptStudioAssetImage(file: File) {
 export async function generatePromptStudioPrompt(input: PromptStudioGenerateRequest) {
   const payload = await apiRequest<PromptStudioGenerateResult>("/api/prompt-studio/generate", {
     method: "POST",
-    token: "",
     body: JSON.stringify(input),
   });
   return payload.data;
@@ -496,7 +495,6 @@ export async function analyzePromptStudioReference(input: {
 
   const payload = await apiRequest<PromptStudioReferenceAnalysisResult>("/api/prompt-studio/analyze-reference", {
     method: "POST",
-    token: "",
     body: formData,
   });
   return payload.data;
@@ -536,7 +534,6 @@ export async function generatePromptStudioReferenceStylePrompt(input: {
 
   const payload = await apiRequest<PromptStudioReferenceStylePromptResult>("/api/prompt-studio/reference-style-prompt", {
     method: "POST",
-    token: "",
     body: formData,
   });
   return payload.data;
@@ -558,7 +555,6 @@ export async function generatePromptStudioProjectPlan(input: {
 }) {
   const payload = await apiRequest<PromptStudioProjectPlanResult>("/api/prompt-studio/project-plan", {
     method: "POST",
-    token: "",
     body: JSON.stringify(input),
   });
   return payload.data;

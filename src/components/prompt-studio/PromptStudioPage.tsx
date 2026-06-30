@@ -42,6 +42,7 @@ import {
   updatePromptStudioProject,
   uploadPromptStudioAssetImage,
 } from "@/lib/prompt-studio-api";
+import { ApiError } from "@/types/api";
 
 type Target = "video" | "image" | "storyboard";
 type Engine = "seedance" | "higgsfield" | "gpt-image" | "nano-banana";
@@ -57,6 +58,23 @@ type ProjectAssetItem =
   | PromptStudioProjectPlanResult["assetPlan"]["locations"][number]
   | PromptStudioProjectPlanResult["assetPlan"]["props"][number];
 type BridgeReferenceImage = NonNullable<Parameters<typeof savePromptStudioToImageDraft>[0]["referenceImages"]>[number];
+
+function isPromptStudioAuthError(error: unknown) {
+  if (error instanceof ApiError) {
+    return error.kind === "auth" || error.status === 401 || error.code === "AUTH_REQUIRED";
+  }
+
+  const message = error instanceof Error ? error.message : String(error || "");
+  return /(^|\b)(401|unauthorized|auth_required|sign in required)(\b|$)/i.test(message);
+}
+
+function getPromptStudioActionErrorMessage(error: unknown, authMessage: string, fallback: string) {
+  if (isPromptStudioAuthError(error)) {
+    return authMessage;
+  }
+
+  return error instanceof Error ? error.message : fallback;
+}
 
 const assetUploadSupportedMessageZh = "\u4ec5\u652f\u6301 JPG\u3001PNG\u3001WebP \u56fe\u7247\uff0c\u6700\u5927 10MB\u3002";
 const assetUploadTooLargeMessageZh = "\u56fe\u7247\u4e0d\u80fd\u8d85\u8fc7 10MB\u3002";
@@ -2860,7 +2878,7 @@ function ProjectDeleteConfirmModal({
 
 export function PromptStudioPage() {
   const router = useRouter();
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const mainRef = useRef<HTMLElement | null>(null);
   const outputRef = useRef<HTMLElement | null>(null);
   const referenceInputRef = useRef<HTMLInputElement | null>(null);
@@ -3282,7 +3300,13 @@ export function PromptStudioPage() {
       );
       window.requestAnimationFrame(scrollToOutput);
     } catch (referenceError) {
-      setError(referenceError instanceof Error ? referenceError.message : isZh ? "参考图分析失败，请稍后重试。" : "Unable to analyze the reference image. Please try again.");
+      setError(
+        getPromptStudioActionErrorMessage(
+          referenceError,
+          t("promptStudio.errors.signInRequired"),
+          isZh ? "参考图分析失败，请稍后重试。" : "Unable to analyze the reference image. Please try again.",
+        ),
+      );
     } finally {
       setIsReferenceLoading(false);
     }
@@ -3324,7 +3348,13 @@ export function PromptStudioPage() {
       );
       window.requestAnimationFrame(scrollToOutput);
     } catch (referenceError) {
-      setError(referenceError instanceof Error ? referenceError.message : isZh ? "垫图风格 prompt 生成失败，请稍后重试。" : "Unable to create reference style prompts. Please try again.");
+      setError(
+        getPromptStudioActionErrorMessage(
+          referenceError,
+          t("promptStudio.errors.signInRequired"),
+          isZh ? "垫图风格 prompt 生成失败，请稍后重试。" : "Unable to create reference style prompts. Please try again.",
+        ),
+      );
     } finally {
       setIsReferenceLoading(false);
     }
@@ -3363,7 +3393,13 @@ export function PromptStudioPage() {
       );
       window.requestAnimationFrame(scrollToOutput);
     } catch (projectError) {
-      setError(projectError instanceof Error ? projectError.message : isZh ? "项目制作方案生成失败，请稍后重试。" : "Unable to create the project plan. Please try again.");
+      setError(
+        getPromptStudioActionErrorMessage(
+          projectError,
+          t("promptStudio.errors.signInRequired"),
+          isZh ? "项目制作方案生成失败，请稍后重试。" : "Unable to create the project plan. Please try again.",
+        ),
+      );
     } finally {
       setIsLoading(false);
     }
@@ -3456,7 +3492,13 @@ export function PromptStudioPage() {
       setNotice(isZh ? "已生成三档英文提示词。未提交生成任务，也不会扣积分。" : "Generated three prompt versions. No generation job was submitted and no credits were used.");
       window.requestAnimationFrame(scrollToOutput);
     } catch (generateError) {
-      setError(generateError instanceof Error ? generateError.message : isZh ? "生成提示词失败，请稍后重试。" : "Unable to generate prompts. Please try again.");
+      setError(
+        getPromptStudioActionErrorMessage(
+          generateError,
+          t("promptStudio.errors.signInRequired"),
+          isZh ? "生成提示词失败，请稍后重试。" : "Unable to generate prompts. Please try again.",
+        ),
+      );
     } finally {
       setIsLoading(false);
     }
