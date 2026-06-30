@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { isImageActiveStatus, isImageCompletedStatus, isImageFailedStatus } from "@/lib/image/imageHistoryUtils";
-import { getImageUserFacingError } from "@/lib/image/imageErrorDisplay";
+import { getLocalizedImageHistoryPublicErrorMessage, isImageActiveStatus, isImageCompletedStatus, isImageFailedStatus } from "@/lib/image/imageHistoryUtils";
+import { getImageUserFacingErrorDisplay } from "@/lib/image/imageErrorDisplay";
 import { getReusableImageOutputUrl, sendImageFailedJobToImageDraft, sendImageResultToImageDraft } from "@/lib/image/imageResultDrafts";
 import { sendImageResultToVideoDraft } from "@/lib/video/videoResultDrafts";
 import { useI18n } from "@/i18n/useI18n";
@@ -69,15 +69,17 @@ export function ImageOutputStage({
   recoveredJobId?: string;
 }) {
   const router = useRouter();
-  const { t, tf } = useI18n();
+  const { locale, t, tf } = useI18n();
   const [actionError, setActionError] = useState("");
   const status = String(job?.status || "");
   const isActive = Boolean(job && isImageActiveStatus(status));
   const isFailed = Boolean(job && isImageFailedStatus(status));
   const isCompleted = Boolean(job && isImageCompletedStatus(status) && job.outputUrls.length);
   const isRecoveredActiveJob = Boolean(job && recoveredJobId && [job.dbJobId, job.jobId, job.id].filter(Boolean).some((value) => String(value) === String(recoveredJobId)));
-  const displayedErrorMessage = getImageUserFacingError(job?.errorMessage || error, t, {
+  const failureDisplay = getImageUserFacingErrorDisplay(job?.errorMessage || error, t, {
+    classificationMessage: job?.errorClassificationMessage,
     errorCode: job?.errorCode,
+    publicMessage: job ? getLocalizedImageHistoryPublicErrorMessage(job, locale) : null,
     refunded: job?.refunded,
     refundStatus: job?.refundStatus,
   });
@@ -252,8 +254,9 @@ export function ImageOutputStage({
         ) : isFailed ? (
           <div className="max-w-md text-center">
             <div className="mx-auto mb-5 grid size-14 place-items-center rounded-[24px] border border-[#8c4632]/42 bg-[#2a1012] text-xl font-black text-[#f2b3a1]">!</div>
-            <p className="text-xl font-black text-[#f2b3a1]">{t("image.failure.title")}</p>
-            <p className="mt-2 text-sm leading-6 text-[#f2b3a1]/68">{displayedErrorMessage || t("image.failure.generic")}</p>
+            <p className="text-xl font-black text-[#f2b3a1]">{failureDisplay.title}</p>
+            <p className="mt-2 text-sm leading-6 text-[#f2b3a1]/68">{failureDisplay.message}</p>
+            <p className="mt-2 text-xs leading-5 text-[#ffd08a]/70">{failureDisplay.suggestion}</p>
             <p className="mt-3 text-xs leading-5 text-[#b9b9b9]/52">
               {t("image.failure.refundHint")}
             </p>

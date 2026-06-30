@@ -131,8 +131,11 @@ export type ImageJobStatus = {
   referenceCount: number;
   cost: number;
   creditsCharged: number;
+  errorClassificationMessage: string;
   errorMessage: string;
   errorCode: string;
+  errorPublicMessageEn: string;
+  errorPublicMessageZh: string;
   refunded: boolean;
   refundStatus?: "none" | "refunded" | "retry_pending" | string;
   meta?: Record<string, unknown>;

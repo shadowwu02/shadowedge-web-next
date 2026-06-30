@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
-import { getImageUserFacingError } from "@/lib/image/imageErrorDisplay";
-import { isImageActiveStatus, isImageCompletedStatus, isImageFailedStatus } from "@/lib/image/imageHistoryUtils";
+import { getImageUserFacingErrorDisplay } from "@/lib/image/imageErrorDisplay";
+import { getLocalizedImageHistoryPublicErrorMessage, isImageActiveStatus, isImageCompletedStatus, isImageFailedStatus } from "@/lib/image/imageHistoryUtils";
 import { getImageHistoryModelLogoLookup } from "@/lib/image/imageModelLogo";
 import { getReusableImageOutputUrl, sendImageFailedJobToImageDraft, sendImageResultToImageDraft } from "@/lib/image/imageResultDrafts";
 import { sendImageResultToVideoDraft } from "@/lib/video/videoResultDrafts";
@@ -53,7 +53,7 @@ export function ImageHistoryPanel({
   onSelect: (item: ImageHistoryItem) => void;
 }) {
   const router = useRouter();
-  const { t, tf } = useI18n();
+  const { locale, t, tf } = useI18n();
   const [filter, setFilter] = useState<ImageHistoryFilter>("all");
   const [expandedKey, setExpandedKey] = useState<string>("");
   const [actionError, setActionError] = useState("");
@@ -184,11 +184,13 @@ export function ImageHistoryPanel({
             const isRefunded = Boolean(item.refunded || item.refundStatus === "refunded");
             const modelLogoLookup = getImageHistoryModelLogoLookup(item);
             const reusableImageUrl = getReusableImageOutputUrl(item, outputUrl);
-            const failedErrorMessage = isFailed ? getImageUserFacingError(item.errorMessage, t, {
+            const failedErrorDisplay = isFailed ? getImageUserFacingErrorDisplay(item.errorMessage, t, {
+              classificationMessage: item.errorClassificationMessage,
               errorCode: item.errorCode,
+              publicMessage: getLocalizedImageHistoryPublicErrorMessage(item, locale),
               refunded: item.refunded,
               refundStatus: item.refundStatus,
-            }) : "";
+            }) : null;
             const copyMetadata = () => {
               const metadata = {
                 createdAt: item.createdAt,
@@ -240,8 +242,8 @@ export function ImageHistoryPanel({
                         {tf((item.outputUrls.length || 1) > 1 ? "image.status.outputCountPlural" : "image.status.outputCount", { count: item.outputUrls.length || 1 })}
                       </span>
                     ) : null}
-                    {failedErrorMessage ? (
-                      <span className="mt-1 block truncate text-[10px] font-semibold text-[#f2b3a1]/72">{failedErrorMessage}</span>
+                    {failedErrorDisplay ? (
+                      <span className="mt-1 block truncate text-[10px] font-semibold text-[#f2b3a1]/72">{failedErrorDisplay.title}</span>
                     ) : null}
                   </span>
                 </button>
@@ -317,9 +319,11 @@ export function ImageHistoryPanel({
                         {t("image.actions.copyMetadata")}
                       </button>
                     </div>
-                    {isFailed && failedErrorMessage ? (
+                    {isFailed && failedErrorDisplay ? (
                       <p className="mb-2 rounded-2xl border border-[#8c4632]/30 bg-[#2a1012]/56 px-3 py-2 text-[#f2b3a1]/76">
-                        <span className="font-semibold">{t("image.history.failedReason")}:</span> {failedErrorMessage}
+                        <span className="block font-semibold text-[#f2b3a1]/88">{failedErrorDisplay.title}</span>
+                        <span className="mt-1 block">{failedErrorDisplay.message}</span>
+                        <span className="mt-1 block text-[#ffd08a]/70">{failedErrorDisplay.suggestion}</span>
                       </p>
                     ) : null}
                     <p className="truncate">{item.prompt || t("image.history.untitled")}</p>

@@ -24,6 +24,12 @@ function pickArray(...values: unknown[]) {
   return (array || []) as unknown[];
 }
 
+function truncateText(value: string, maxLength = 220) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 1).trim()}...`;
+}
+
 function isRenderableImageUrl(url: string) {
   const value = String(url || "").trim();
   return /^https?:\/\//i.test(value) || /^blob:/i.test(value) || /^data:image\//i.test(value);
@@ -100,6 +106,120 @@ export function normalizeImageStatusValue(status: unknown, outputUrl = ""): Imag
   return value || "unknown";
 }
 
+export function getSafeImageHistoryPublicErrorMessages(record: unknown) {
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+  const zh = pickString(
+    meta.providerPublicMessageZh,
+    meta.provider_public_message_zh,
+    meta.publicMessageZh,
+    meta.public_message_zh,
+    meta.errorMessageZh,
+    meta.error_message_zh,
+    raw.providerPublicMessageZh,
+    raw.provider_public_message_zh,
+    raw.publicMessageZh,
+    raw.public_message_zh,
+    raw.errorMessageZh,
+    raw.error_message_zh,
+  );
+  const en = pickString(
+    meta.providerPublicMessageEn,
+    meta.provider_public_message_en,
+    meta.providerPublicMessage,
+    meta.provider_public_message,
+    meta.publicMessage,
+    meta.public_message,
+    meta.errorMessage,
+    meta.error_message,
+    raw.providerPublicMessageEn,
+    raw.provider_public_message_en,
+    raw.providerPublicMessage,
+    raw.provider_public_message,
+    raw.publicMessage,
+    raw.public_message,
+    raw.errorMessage,
+  );
+
+  return {
+    en: truncateText(en || "", 500),
+    zh: truncateText(zh || "", 500),
+  };
+}
+
+export function getLocalizedImageHistoryPublicErrorMessage(
+  item: Pick<ImageHistoryItem, "errorMessage" | "errorPublicMessageEn" | "errorPublicMessageZh">,
+  locale: string,
+) {
+  if (locale === "zh") return item.errorPublicMessageZh || item.errorPublicMessageEn || "";
+  return item.errorPublicMessageEn || item.errorPublicMessageZh || "";
+}
+
+function getSafeImageHistoryErrorCode(record: unknown) {
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+  return (
+    pickString(
+      meta.providerFailureCategory,
+      meta.provider_failure_category,
+      meta.errorCode,
+      meta.error_code,
+      raw.providerFailureCategory,
+      raw.provider_failure_category,
+      raw.errorCode,
+      raw.error_code,
+    ) || ""
+  );
+}
+
+function getSafeImageHistoryErrorMessage(record: unknown) {
+  const publicMessages = getSafeImageHistoryPublicErrorMessages(record);
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+  const rawMessage =
+    pickString(
+      publicMessages.en,
+      publicMessages.zh,
+      raw.error_message,
+      raw.errorMessage,
+      meta.error_message,
+      meta.errorMessage,
+      raw.message,
+      meta.message,
+      raw.error,
+      meta.error,
+      raw.errorCode,
+      raw.error_code,
+      meta.errorCode,
+      meta.error_code,
+    ) || "Image generation failed. Please try again later or replace the image.";
+
+  return truncateText(rawMessage.split(/\r?\n/)[0] || rawMessage);
+}
+
+function getSafeImageHistoryErrorClassificationMessage(record: unknown) {
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+  return truncateText(
+    [
+      getSafeImageHistoryErrorCode(record),
+      getSafeImageHistoryErrorMessage(record),
+      meta.providerRawError,
+      meta.provider_raw_error,
+      raw.providerRawError,
+      raw.provider_raw_error,
+      meta.rawError,
+      raw.rawError,
+      raw.error,
+      meta.error,
+    ]
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+      .join(" "),
+    900,
+  );
+}
+
 export function isImageActiveStatus(status: unknown) {
   return activeStatuses.has(String(status || "").toLowerCase());
 }
@@ -144,6 +264,7 @@ export function normalizeImageHistoryItem(item: unknown): ImageHistoryItem {
     pickString(raw.createdAt, raw.created_at, meta.createdAt, meta.created_at) ||
     pickNumber(raw.createdAt, raw.created_at, meta.createdAt, meta.created_at) ||
     "";
+  const publicErrorMessages = getSafeImageHistoryPublicErrorMessages(raw);
 
   return {
     id: pickString(raw.id, jobId) || jobId,
@@ -163,8 +284,11 @@ export function normalizeImageHistoryItem(item: unknown): ImageHistoryItem {
     referenceCount: Math.max(0, pickNumber(raw.referenceCount, raw.reference_count, meta.referenceCount, referenceImages.length, 0) || 0),
     cost: Math.max(0, pickNumber(raw.cost, raw.creditsCharged, meta.cost, meta.totalCost, 0) || 0),
     creditsCharged: Math.max(0, pickNumber(raw.creditsCharged, raw.cost, meta.cost, meta.totalCost, 0) || 0),
-    errorMessage: pickString(raw.errorMessage, raw.error_message, raw.error, meta.providerPublicMessage, meta.provider_public_message, meta.errorMessage, meta.error_message, meta.error) || "",
-    errorCode: pickString(raw.errorCode, raw.error_code, meta.errorCode, meta.error_code) || "",
+    errorMessage: getSafeImageHistoryErrorMessage(raw),
+    errorClassificationMessage: getSafeImageHistoryErrorClassificationMessage(raw),
+    errorCode: getSafeImageHistoryErrorCode(raw),
+    errorPublicMessageEn: publicErrorMessages.en,
+    errorPublicMessageZh: publicErrorMessages.zh,
     refunded: Boolean(raw.refunded || meta.refunded),
     refundStatus: pickString(raw.refundStatus, raw.refund_status, meta.refundStatus, meta.refund_status) || "none",
     meta,

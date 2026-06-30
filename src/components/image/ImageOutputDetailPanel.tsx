@@ -1,8 +1,8 @@
 "use client";
 
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
-import { getImageUserFacingError } from "@/lib/image/imageErrorDisplay";
-import { isImageActiveStatus, isImageCompletedStatus, isImageFailedStatus } from "@/lib/image/imageHistoryUtils";
+import { getImageUserFacingErrorDisplay } from "@/lib/image/imageErrorDisplay";
+import { getLocalizedImageHistoryPublicErrorMessage, isImageActiveStatus, isImageCompletedStatus, isImageFailedStatus } from "@/lib/image/imageHistoryUtils";
 import { getImageHistoryModelLogoLookup } from "@/lib/image/imageModelLogo";
 import { useI18n } from "@/i18n/useI18n";
 import { formatTime } from "@/lib/utils";
@@ -54,7 +54,7 @@ function DetailRow({ label, value }: { label: string; value?: string | number })
 }
 
 export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }) {
-  const { t, tf } = useI18n();
+  const { locale, t, tf } = useI18n();
 
   if (!job) {
     return (
@@ -74,8 +74,10 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
   const isFailed = isImageFailedStatus(status);
   const chargedCredits = job.cost || job.creditsCharged || 0;
   const modelLogoLookup = getImageHistoryModelLogoLookup(job);
-  const displayedErrorMessage = getImageUserFacingError(job.errorMessage, t, {
+  const failureDisplay = getImageUserFacingErrorDisplay(job.errorMessage, t, {
+    classificationMessage: job.errorClassificationMessage,
     errorCode: job.errorCode,
+    publicMessage: getLocalizedImageHistoryPublicErrorMessage(job, locale),
     refunded: job.refunded,
     refundStatus: job.refundStatus,
   });
@@ -126,7 +128,9 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
 
         {isFailed ? (
           <div className="rounded-[18px] border border-[#8c4632]/42 bg-[#2a1012]/72 px-3 py-2 text-xs leading-5 text-[#f2b3a1]">
-            <p className="font-semibold">{displayedErrorMessage || t("image.failure.generic")}</p>
+            <p className="font-semibold">{failureDisplay.title}</p>
+            <p className="mt-1 text-[#f2b3a1]/74">{failureDisplay.message}</p>
+            <p className="mt-1 text-[#ffd08a]/70">{failureDisplay.suggestion}</p>
             <p className="mt-1 text-[#f2b3a1]/68">{t("image.failure.refundHint")}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {chargedCredits ? (
@@ -137,8 +141,8 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
               ) : null}
             </div>
           </div>
-        ) : displayedErrorMessage ? (
-          <div className="rounded-[18px] border border-[#8c4632]/42 bg-[#2a1012]/72 px-3 py-2 text-xs leading-5 text-[#f2b3a1]">{displayedErrorMessage}</div>
+        ) : job.errorMessage ? (
+          <div className="rounded-[18px] border border-[#8c4632]/42 bg-[#2a1012]/72 px-3 py-2 text-xs leading-5 text-[#f2b3a1]">{failureDisplay.message}</div>
         ) : null}
 
         {job.outputUrls.length ? (
