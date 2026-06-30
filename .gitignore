@@ -12,6 +12,10 @@
 
 # testing
 /coverage
+outputs/
+screenshots/
+test-results/
+playwright-report/
 
 # next.js
 /.next/
@@ -24,6 +28,11 @@
 # misc
 .DS_Store
 *.pem
+tmp-*/
+tmp-prompt-studio-verification/
+local-only/
+src/app/design-preview/
+src/components/design-preview/
 
 # debug
 npm-debug.log*
