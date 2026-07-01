@@ -189,6 +189,33 @@ function getRemakeAnalysisErrorMessage(error: unknown, t: (key: DictionaryKey) =
   return t("video.remake.analysisFailed");
 }
 
+function getLongVideoCreateErrorMessage(error: unknown, t: (key: DictionaryKey) => string) {
+  const text = getErrorText(error);
+
+  if (
+    text.includes("source_video_not_owned") ||
+    text.includes("source_video_asset_mismatch") ||
+    text.includes("source_video_upload_required") ||
+    text.includes("not owned") ||
+    text.includes("not available") ||
+    (error instanceof ApiError && (error.status === 403 || error.status === 404))
+  ) {
+    return t("video.remake.longVideo.error.assetUnavailable");
+  }
+
+  if (text.includes("source_video_required") || text.includes("video asset") || text.includes("type")) {
+    return t("video.remake.longVideo.error.chooseVideoAsset");
+  }
+
+  if (text.includes("long_video_too_short")) return t("video.remake.longVideo.error.tooShort");
+  if (text.includes("long_video_too_long")) return t("video.remake.longVideo.error.tooLong");
+  if (error instanceof ApiError && (error.kind === "auth" || error.status === 401)) return t("video.remake.uploadError.auth");
+  if (error instanceof ApiError && error.kind === "network") return t("video.remake.analysisNetworkError");
+  if (/network|timeout|timed out|failed to fetch|connection/.test(text)) return t("video.remake.analysisNetworkError");
+
+  return t("video.remake.longVideo.error.generic");
+}
+
 function getLongVideoStageNotice(stage: VideoRemakeLongAnalysisStage | undefined, t: (key: DictionaryKey) => string) {
   if (stage === "reading_metadata") return t("video.remake.longVideo.stage.readingMetadata");
   if (stage === "extracting_keyframes") return t("video.remake.longVideo.stage.extractingKeyframes");
@@ -1504,6 +1531,13 @@ export function VideoWorkspace() {
       }
     } catch (error) {
       if (remakeSourceRevisionRef.current !== analysisRevision) return;
+      if (remakeMode === "long_video") {
+        setRemakeStoryboard(null);
+        setRemakeAnalysisMeta(null);
+        setRemakeAnalysisError(getLongVideoCreateErrorMessage(error, t));
+        setRemakeAnalysisNotice("");
+        return;
+      }
       const isDurationLimit = isRemakeDurationLimitError(error);
       setRemakeStoryboard(isDurationLimit ? null : buildMockRemakeStoryboard(settings, remakeSourceVideo));
       setRemakeAnalysisMeta(null);

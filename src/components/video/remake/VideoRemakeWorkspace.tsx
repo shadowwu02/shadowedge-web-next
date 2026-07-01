@@ -71,6 +71,7 @@ export function VideoRemakeWorkspace({
       </section>
 
       <RemakeSourceUpload
+        mode={mode}
         onClear={onClearSourceVideo}
         onChange={onSourceVideoChange}
         sourceVideo={sourceVideo}

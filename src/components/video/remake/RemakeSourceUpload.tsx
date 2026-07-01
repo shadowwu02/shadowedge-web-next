@@ -3,9 +3,10 @@
 import { useMemo, useId, useRef, useState } from "react";
 import { listMediaAssets, type MediaAssetRecord } from "@/lib/assets-api";
 import { type DictionaryKey, useI18n } from "@/i18n/useI18n";
-import type { RemakeSourceVideo } from "@/components/video/remake/remakeTypes";
+import type { RemakeMode, RemakeSourceVideo } from "@/components/video/remake/remakeTypes";
 
 type RemakeSourceUploadProps = {
+  mode: RemakeMode;
   onClear: () => void;
   onChange: (source: RemakeSourceVideo | null) => void;
   sourceVideo: RemakeSourceVideo | null;
@@ -50,6 +51,22 @@ function getAssetUrl(asset: MediaAssetRecord) {
 
 function getAssetName(asset: MediaAssetRecord) {
   return asset.displayName || asset.filename || "Video asset";
+}
+
+function getAssetSourceLabelKey(source?: string | null): DictionaryKey {
+  if (source === "uploaded") return "video.remake.assetPicker.source.uploaded";
+  if (source === "generated") return "video.remake.assetPicker.source.generated";
+  if (source === "prompt_studio") return "video.remake.assetPicker.source.promptStudio";
+  if (source === "imported") return "video.remake.assetPicker.source.imported";
+  return "video.remake.assetPicker.source.unknown";
+}
+
+function getLongVideoAssetWarningKey(asset: MediaAssetRecord): DictionaryKey | "" {
+  if (asset.source && asset.source !== "uploaded") return "video.remake.assetPicker.longVideo.uploadedOnly";
+  if (typeof asset.durationSeconds !== "number") return "video.remake.assetPicker.longVideo.durationUnknown";
+  if (asset.durationSeconds <= FULL_FILM_BETA_SECONDS) return "video.remake.assetPicker.longVideo.tooShort";
+  if (asset.durationSeconds > LONG_VIDEO_BETA_SECONDS) return "video.remake.assetPicker.longVideo.tooLong";
+  return "";
 }
 
 function formatAssetDate(value?: string | null) {
@@ -213,7 +230,7 @@ function XIcon({ className = "size-4" }: { className?: string }) {
   );
 }
 
-export function RemakeSourceUpload({ onChange, onClear, sourceVideo }: RemakeSourceUploadProps) {
+export function RemakeSourceUpload({ mode, onChange, onClear, sourceVideo }: RemakeSourceUploadProps) {
   const { t } = useI18n();
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -379,6 +396,15 @@ export function RemakeSourceUpload({ onChange, onClear, sourceVideo }: RemakeSou
                     const isSelected = selectedAssetId === asset.id;
                     const assetSize = formatBytes(asset.sizeBytes || 0);
                     const assetDate = formatAssetDate(asset.createdAt);
+                    const assetName = getAssetName(asset);
+                    const longVideoWarningKey = mode === "long_video" ? getLongVideoAssetWarningKey(asset) : "";
+                    const isBlockedForLongVideo =
+                      mode === "long_video" &&
+                      Boolean(
+                        longVideoWarningKey &&
+                          longVideoWarningKey !== "video.remake.assetPicker.longVideo.durationUnknown",
+                      );
+                    const isDisabled = isCurrent || isBlockedForLongVideo;
 
                     return (
                       <button
@@ -386,11 +412,13 @@ export function RemakeSourceUpload({ onChange, onClear, sourceVideo }: RemakeSou
                           "flex min-w-0 items-center gap-3 rounded-[16px] border p-3 text-left transition-colors",
                           isCurrent
                             ? "cursor-not-allowed border-emerald-300/30 bg-emerald-400/10 text-emerald-100"
+                            : isBlockedForLongVideo
+                              ? "cursor-not-allowed border-red-300/20 bg-red-500/8 text-[#f4f4f4]/70"
                             : isSelected
                               ? "border-[#ffb44d]/50 bg-[#ffb44d]/10 text-[#f4f4f4]"
                               : "border-[rgba(244,244,244,0.10)] bg-[#05070b]/35 text-[#f4f4f4] hover:border-[#ffb44d]/30 hover:bg-[#ffb44d]/8",
                         ].join(" ")}
-                        disabled={isCurrent}
+                        disabled={isDisabled}
                         key={asset.id}
                         onClick={() => setSelectedAssetId(asset.id)}
                         type="button"
@@ -399,8 +427,14 @@ export function RemakeSourceUpload({ onChange, onClear, sourceVideo }: RemakeSou
                           {isCurrent ? <CheckIcon className="size-5" /> : <VideoIcon className="size-5" />}
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-semibold">{getAssetName(asset)}</span>
+                          <span className="block truncate text-sm font-semibold">{assetName}</span>
+                          {asset.filename && asset.filename !== assetName ? (
+                            <span className="mt-0.5 block truncate text-[11px] text-[#b9b9b9]/54">{asset.filename}</span>
+                          ) : null}
                           <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#b9b9b9]/58">
+                            <span className="rounded-full border border-[rgba(244,244,244,0.10)] bg-[#1a1c22]/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#b9b9b9]/72">
+                              {t(getAssetSourceLabelKey(asset.source))}
+                            </span>
                             <span className="inline-flex items-center gap-1">
                               <CheckIcon className="size-3.5" />
                               {t("video.remake.assetPicker.ready")}
@@ -414,6 +448,18 @@ export function RemakeSourceUpload({ onChange, onClear, sourceVideo }: RemakeSou
                             {assetSize !== "--" ? <span>{assetSize}</span> : null}
                             {assetDate ? <span>{assetDate}</span> : null}
                           </span>
+                          {longVideoWarningKey ? (
+                            <span
+                              className={[
+                                "mt-2 block rounded-[10px] border px-2 py-1 text-xs leading-5",
+                                isBlockedForLongVideo
+                                  ? "border-red-300/20 bg-red-500/10 text-red-100/88"
+                                  : "border-[#ffb44d]/18 bg-[#ffb44d]/8 text-[#ffd08a]/82",
+                              ].join(" ")}
+                            >
+                              {t(longVideoWarningKey)}
+                            </span>
+                          ) : null}
                         </span>
                         {isCurrent ? (
                           <span className="shrink-0 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-100">
