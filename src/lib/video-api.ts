@@ -213,12 +213,13 @@ function normalizeLongAnalysisJob(payload: unknown): VideoRemakeLongAnalysisJob 
 }
 
 export async function createLongVideoRemakeAnalysis(input: VideoRemakeLongAnalysisCreateInput) {
+  const sourceAssetId = input.sourceAssetId?.trim() || undefined;
   const envelope = await apiRequest<VideoRemakeLongAnalysisJob>("/api/remake/analyze-long-video", {
     method: "POST",
     body: JSON.stringify({
       mode: "long_video",
-      sourceAssetId: input.sourceAssetId,
-      sourceVideoUrl: input.sourceVideoUrl,
+      sourceAssetId,
+      sourceVideoUrl: sourceAssetId ? undefined : input.sourceVideoUrl,
     }),
   });
 

@@ -832,7 +832,7 @@ export function VideoWorkspace() {
   const [draftReady, setDraftReady] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<VideoHistoryFilter>("all");
   const [mainPanel, setMainPanel] = useState<MainPanel>("history");
-  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("create");
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>(tabQuery === "remake" ? "remake" : "create");
   const [remakeMode, setRemakeMode] = useState<RemakeMode>("single_clip");
   const [remakeSourceVideo, setRemakeSourceVideo] = useState<RemakeSourceVideo | null>(null);
   const [remakeTargetRegion, setRemakeTargetRegion] = useState<RemakeTargetRegion>("US");
