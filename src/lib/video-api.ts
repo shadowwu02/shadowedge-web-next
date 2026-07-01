@@ -1,5 +1,6 @@
 import { apiRequest } from "@/lib/api";
 import { getStoredAuthToken } from "@/lib/auth";
+import { ApiError } from "@/types/api";
 import type {
   RemakeMode,
   RemakeSegment,
@@ -126,7 +127,12 @@ export async function reverseAnalyzeVideoRemake(input: VideoRemakeReverseAnalyze
 
   const record = asRecord(payload);
   if (!response.ok || record.ok === false) {
-    throw new Error(getReverseAnalyzeErrorMessage(record));
+    throw new ApiError(getReverseAnalyzeErrorMessage(record), {
+      code: pickString(record.code, record.error_code, record.errorCode),
+      kind: response.status === 401 ? "auth" : response.status >= 500 ? "server" : "unknown",
+      payload: record,
+      status: response.status,
+    });
   }
 
   const data = asRecord(record.data);

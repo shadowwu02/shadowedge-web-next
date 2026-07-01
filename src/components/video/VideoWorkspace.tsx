@@ -36,7 +36,7 @@ import { useTaskPolling } from "@/hooks/useTaskPolling";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useCredits } from "@/hooks/useCredits";
 import { useVideoGeneration } from "@/hooks/useVideoGeneration";
-import { useI18n } from "@/i18n/useI18n";
+import { type DictionaryKey, useI18n } from "@/i18n/useI18n";
 import { collectHistoryInputMediaAssets, collectReusableVideoAssets, mergeMediaAssets } from "@/lib/media-assets";
 import {
   consumePromptStudioToVideoDraft,
@@ -115,6 +115,65 @@ const fallbackModels: VideoModel[] = [
 
 function isMaintenanceApiError(error: unknown) {
   return error instanceof ApiError && error.kind === "maintenance";
+}
+
+const remakeSourceMaxFileSizeBytes = 250 * 1024 * 1024;
+
+function getErrorText(error: unknown) {
+  if (error instanceof ApiError) {
+    return [error.code, error.status, error.kind, error.message].filter(Boolean).join(" ").toLowerCase();
+  }
+  return error instanceof Error ? error.message.toLowerCase() : String(error || "").toLowerCase();
+}
+
+function isRemakeDurationLimitError(error: unknown) {
+  const text = getErrorText(error);
+  return [
+    "full_film_batch_required",
+    "single_clip_too_long",
+    "video_too_long",
+    "source video must be at least",
+    "source_video_too_short",
+  ].some((token) => text.includes(token));
+}
+
+function getRemakeUploadPreflightMessage(file: File, t: (key: DictionaryKey) => string) {
+  if (file.size > remakeSourceMaxFileSizeBytes) return t("video.remake.uploadError.fileTooLarge");
+
+  const lowerName = file.name.toLowerCase();
+  const hasKnownVideoExtension = /\.(mp4|mov|webm)$/i.test(lowerName);
+  const hasVideoMime = file.type.toLowerCase().startsWith("video/");
+  if (!hasVideoMime && !hasKnownVideoExtension) return t("video.remake.uploadError.unsupportedFormat");
+
+  return "";
+}
+
+function getRemakeUploadErrorMessage(error: unknown, t: (key: DictionaryKey) => string) {
+  if (isMaintenanceApiError(error)) return t("maintenance.errors.generationPaused");
+
+  const text = getErrorText(error);
+  if (error instanceof ApiError && (error.kind === "auth" || error.status === 401)) return t("video.remake.uploadError.auth");
+  if (/\b401\b|unauthorized|auth|required|sign in|login/.test(text)) return t("video.remake.uploadError.auth");
+  if (/file too large|too large|limit_file_size|payload too large|\b413\b|250mb|max file size/.test(text)) {
+    return t("video.remake.uploadError.fileTooLarge");
+  }
+  if (/unsupported file type|unsupported format|invalid file type|mime|format/.test(text)) {
+    return t("video.remake.uploadError.unsupportedFormat");
+  }
+  if (error instanceof ApiError && error.kind === "network") return t("video.remake.uploadError.network");
+  if (/network|timeout|timed out|failed to fetch|abort|connection/.test(text)) return t("video.remake.uploadError.network");
+
+  return t("video.remake.uploadError.generic");
+}
+
+function getRemakeAnalysisErrorMessage(error: unknown, t: (key: DictionaryKey) => string) {
+  const text = getErrorText(error);
+  if (text.includes("source_video_too_short") || text.includes("at least 3 seconds")) return t("video.remake.sourceTooShort");
+  if (isRemakeDurationLimitError(error)) return t("video.remake.analysisTooLong");
+  if (error instanceof ApiError && (error.kind === "auth" || error.status === 401)) return t("video.remake.uploadError.auth");
+  if (error instanceof ApiError && error.kind === "network") return t("video.remake.analysisNetworkError");
+  if (/network|timeout|timed out|failed to fetch|connection/.test(text)) return t("video.remake.analysisNetworkError");
+  return t("video.remake.analysisFailed");
 }
 
 type MainPanel = "history" | "guide";
@@ -1210,6 +1269,31 @@ export function VideoWorkspace() {
       return;
     }
 
+    const sourceDuration = Number(remakeSourceVideo.duration || 0);
+    if (Number.isFinite(sourceDuration) && sourceDuration > 0) {
+      if (sourceDuration < 3) {
+        setRemakeAnalysisError(t("video.remake.sourceTooShort"));
+        setRemakeAnalysisNotice("");
+        setRemakeAnalysisMeta(null);
+        setRemakeStoryboard(null);
+        return;
+      }
+      if (sourceDuration > 120) {
+        setRemakeAnalysisError(t("video.remake.analysisTooLong"));
+        setRemakeAnalysisNotice("");
+        setRemakeAnalysisMeta(null);
+        setRemakeStoryboard(null);
+        return;
+      }
+      if (remakeMode === "single_clip" && sourceDuration > 60) {
+        setRemakeAnalysisError(t("video.remake.singleClipTooLong"));
+        setRemakeAnalysisNotice("");
+        setRemakeAnalysisMeta(null);
+        setRemakeStoryboard(null);
+        return;
+      }
+    }
+
     setIsRemakeAnalyzing(true);
     setRemakeAnalysisError("");
     setRemakeAnalysisNotice("");
@@ -1220,6 +1304,12 @@ export function VideoWorkspace() {
       let sourceVideoUrl = remakeSourceVideo?.url || "";
 
       if (!sourceVideoUrl && remakeSourceVideo?.file) {
+        const preflightMessage = getRemakeUploadPreflightMessage(remakeSourceVideo.file, t);
+        if (preflightMessage) {
+          setRemakeAnalysisError(preflightMessage);
+          return;
+        }
+
         setIsRemakeSourceUploading(true);
         setRemakeAnalysisNotice(t("video.remake.uploadingSource"));
 
@@ -1241,14 +1331,7 @@ export function VideoWorkspace() {
           );
         } catch (uploadError) {
           if (remakeSourceRevisionRef.current !== analysisRevision) return;
-          const uploadMessage = isMaintenanceApiError(uploadError)
-            ? t("maintenance.errors.generationPaused")
-            : `${t("video.remake.sourceUploadFailed")} ${
-                uploadError instanceof Error ? uploadError.message : t("video.errors.uploadFailed")
-              }`;
-          setRemakeAnalysisError(
-            uploadMessage,
-          );
+          setRemakeAnalysisError(getRemakeUploadErrorMessage(uploadError, t));
           return;
         } finally {
           if (remakeSourceRevisionRef.current === analysisRevision) setIsRemakeSourceUploading(false);
@@ -1314,12 +1397,11 @@ export function VideoWorkspace() {
       }
     } catch (error) {
       if (remakeSourceRevisionRef.current !== analysisRevision) return;
-      setRemakeStoryboard(buildMockRemakeStoryboard(settings, remakeSourceVideo));
+      const isDurationLimit = isRemakeDurationLimitError(error);
+      setRemakeStoryboard(isDurationLimit ? null : buildMockRemakeStoryboard(settings, remakeSourceVideo));
       setRemakeAnalysisMeta(null);
-      setRemakeAnalysisError(
-        `${t("video.remake.analysisFailed")} ${error instanceof Error ? error.message : t("video.remake.apiUnavailable")}`,
-      );
-      setRemakeAnalysisNotice(t("video.remake.mockFallback"));
+      setRemakeAnalysisError(getRemakeAnalysisErrorMessage(error, t));
+      setRemakeAnalysisNotice(isDurationLimit ? "" : t("video.remake.mockFallback"));
     } finally {
       if (remakeSourceRevisionRef.current === analysisRevision) {
         setIsRemakeAnalyzing(false);

@@ -1,15 +1,17 @@
 "use client";
 
 import { useId, useRef } from "react";
-import { useI18n } from "@/i18n/useI18n";
+import { type DictionaryKey, useI18n } from "@/i18n/useI18n";
 import type { RemakeSourceVideo } from "@/components/video/remake/remakeTypes";
 
 type RemakeSourceUploadProps = {
-  durationWarning?: boolean;
   onClear: () => void;
   onChange: (source: RemakeSourceVideo | null) => void;
   sourceVideo: RemakeSourceVideo | null;
 };
+
+const SINGLE_CLIP_RECOMMENDED_SECONDS = 60;
+const FULL_FILM_BETA_SECONDS = 120;
 
 function formatBytes(size: number) {
   if (!Number.isFinite(size) || size <= 0) return "--";
@@ -28,6 +30,13 @@ function formatBytes(size: number) {
 function formatDuration(seconds?: number) {
   if (!Number.isFinite(seconds || 0) || !seconds) return "";
   return `${seconds.toFixed(seconds % 1 === 0 ? 0 : 1)}s`;
+}
+
+function getDurationStatusKey(duration?: number): DictionaryKey | "" {
+  if (!Number.isFinite(duration || 0) || !duration) return "";
+  if (duration <= SINGLE_CLIP_RECOMMENDED_SECONDS) return "video.remake.durationStatus.singleClipGood";
+  if (duration <= FULL_FILM_BETA_SECONDS) return "video.remake.durationStatus.fullFilmLonger";
+  return "video.remake.durationStatus.tooLongBeta";
 }
 
 function readVideoDuration(file: File) {
@@ -76,11 +85,12 @@ function TrashIcon() {
   );
 }
 
-export function RemakeSourceUpload({ durationWarning = false, onChange, onClear, sourceVideo }: RemakeSourceUploadProps) {
+export function RemakeSourceUpload({ onChange, onClear, sourceVideo }: RemakeSourceUploadProps) {
   const { t } = useI18n();
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const selectionVersionRef = useRef(0);
+  const durationStatusKey = getDurationStatusKey(sourceVideo?.duration);
 
   function handleClear() {
     selectionVersionRef.current += 1;
@@ -171,9 +181,12 @@ export function RemakeSourceUpload({ durationWarning = false, onChange, onClear,
       </label>
 
       <div className="mt-3 grid gap-2 text-xs leading-5 text-[#b9b9b9]/62">
-        {durationWarning ? (
+        <p className="rounded-[14px] border border-[#ffb44d]/18 bg-[#ffb44d]/8 p-2 text-[#ffd08a]/82">
+          {t("video.remake.longVideoBestPractice")}
+        </p>
+        {durationStatusKey ? (
           <p className="rounded-[14px] border border-[#ffb44d]/24 bg-[#ffb44d]/10 p-2 text-[#ffd08a]/86">
-            {t("video.remake.durationWarning")}
+            {t(durationStatusKey)}
           </p>
         ) : null}
         <p>{t("video.remake.singleClipDuration")}</p>

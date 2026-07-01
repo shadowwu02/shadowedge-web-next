@@ -2,7 +2,7 @@
 
 import { RemakeSettingsPanel } from "@/components/video/remake/RemakeSettingsPanel";
 import { RemakeSourceUpload } from "@/components/video/remake/RemakeSourceUpload";
-import { useI18n } from "@/i18n/useI18n";
+import { type DictionaryKey, useI18n } from "@/i18n/useI18n";
 import type { RemakeMode, RemakeSourceVideo, RemakeTargetRegion } from "@/components/video/remake/remakeTypes";
 
 type VideoRemakeWorkspaceProps = {
@@ -26,6 +26,14 @@ type VideoRemakeWorkspaceProps = {
   translateDialogue: boolean;
 };
 
+function getAnalyzeBlockedReasonKey(mode: RemakeMode, duration?: number): DictionaryKey | "" {
+  if (!Number.isFinite(duration || 0) || !duration) return "";
+  if (duration < 3) return "video.remake.sourceTooShort";
+  if (duration > 120) return "video.remake.analysisTooLong";
+  if (mode === "single_clip" && duration > 60) return "video.remake.singleClipTooLong";
+  return "";
+}
+
 export function VideoRemakeWorkspace({
   analyzeLabel,
   analysisError = "",
@@ -47,6 +55,7 @@ export function VideoRemakeWorkspace({
   translateDialogue,
 }: VideoRemakeWorkspaceProps) {
   const { t } = useI18n();
+  const analyzeBlockedReasonKey = getAnalyzeBlockedReasonKey(mode, sourceVideo?.duration);
 
   return (
     <div className="grid content-start gap-3">
@@ -57,18 +66,13 @@ export function VideoRemakeWorkspace({
       </section>
 
       <RemakeSourceUpload
-        durationWarning={Boolean(
-          sourceVideo?.duration &&
-            (sourceVideo.duration < 3 ||
-              (mode === "single_clip" && sourceVideo.duration > 60) ||
-              (mode === "full_film" && sourceVideo.duration > 120)),
-        )}
         onClear={onClearSourceVideo}
         onChange={onSourceVideoChange}
         sourceVideo={sourceVideo}
       />
       <RemakeSettingsPanel
         analyzeLabel={analyzeLabel}
+        analyzeBlockedReason={analyzeBlockedReasonKey ? t(analyzeBlockedReasonKey) : ""}
         analysisError={analysisError}
         analysisNotice={analysisNotice}
         characterRules={characterRules}

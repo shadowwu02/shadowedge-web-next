@@ -5,6 +5,7 @@ import type { RemakeMode, RemakeTargetRegion } from "@/components/video/remake/r
 
 type RemakeSettingsPanelProps = {
   analyzeLabel?: string;
+  analyzeBlockedReason?: string;
   analysisError?: string;
   analysisNotice?: string;
   characterRules: string;
@@ -34,6 +35,7 @@ function modeHintKey(mode: RemakeMode) {
 
 export function RemakeSettingsPanel({
   analyzeLabel,
+  analyzeBlockedReason = "",
   analysisError = "",
   analysisNotice = "",
   characterRules,
@@ -146,10 +148,16 @@ export function RemakeSettingsPanel({
         </p>
       ) : null}
 
+      {analyzeBlockedReason ? (
+        <p className="rounded-[18px] border border-[#ffb44d]/24 bg-[#ffb44d]/10 p-3 text-xs leading-5 text-[#ffd08a]/86">
+          {analyzeBlockedReason}
+        </p>
+      ) : null}
+
       <button
         aria-busy={isAnalyzing}
         className="se-button-primary min-h-11 rounded-[18px] px-4 text-sm font-semibold"
-        disabled={isAnalyzing}
+        disabled={isAnalyzing || Boolean(analyzeBlockedReason)}
         onClick={onAnalyze}
         type="button"
       >
