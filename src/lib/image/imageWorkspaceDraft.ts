@@ -9,6 +9,7 @@ const SENSITIVE_TEXT_PATTERNS = [/authorization/i, /bearer\s+/i, /access[_-]?tok
 
 export type ImageWorkspaceDraftReference = {
   id: string;
+  assetId?: string;
   name: string;
   url: string;
   mimeType?: string;
@@ -16,6 +17,7 @@ export type ImageWorkspaceDraftReference = {
   width?: number;
   height?: number;
   uploadedAt?: string;
+  source?: string;
 };
 
 export type ImageWorkspaceDraft = {
@@ -106,6 +108,7 @@ function sanitizeReference(value: unknown): ImageWorkspaceDraftReference | null 
   const uploadedAt = asString(raw.uploadedAt, 80);
 
   return {
+    assetId: asString(raw.assetId, 240) || asString(raw.asset_id, 240),
     id: asString(raw.id, 240) || url,
     name,
     url,
@@ -114,6 +117,7 @@ function sanitizeReference(value: unknown): ImageWorkspaceDraftReference | null 
     width: asNumber(raw.width),
     height: asNumber(raw.height),
     uploadedAt,
+    source: asString(raw.source, 120),
   };
 }
 
@@ -184,7 +188,9 @@ export function saveImageWorkspaceDraft(input: SaveImageWorkspaceDraftInput) {
       .filter((item) => item.url && item.uploadStatus !== "failed")
       .map((item) => sanitizeReference({
         id: item.id,
+        assetId: item.assetId,
         name: item.name,
+        source: item.source,
         url: item.url,
         mimeType: item.mimeType,
         sizeBytes: item.size,
@@ -212,6 +218,7 @@ export function clearImageWorkspaceDraft() {
 export function getImageReferencesFromDraft(draft: ImageWorkspaceDraft, maxReferences: number): ImageReferenceItem[] {
   return draft.references.slice(0, Math.max(0, maxReferences)).map((reference) => ({
     id: reference.id,
+    assetId: reference.assetId,
     type: "image",
     name: reference.name,
     url: reference.url,
@@ -221,6 +228,7 @@ export function getImageReferencesFromDraft(draft: ImageWorkspaceDraft, maxRefer
     uploadStatus: "ready",
     width: reference.width,
     height: reference.height,
+    source: reference.source,
     uploadedAt: reference.uploadedAt,
   }));
 }

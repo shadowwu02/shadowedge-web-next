@@ -64,6 +64,7 @@ export type ImageGenerationParams = {
 
 export type ImageReferenceItem = {
   id: string;
+  assetId?: string;
   type: "image";
   name: string;
   file?: File;
@@ -78,6 +79,7 @@ export type ImageReferenceItem = {
   width?: number;
   height?: number;
   uploadedAt?: string;
+  source?: "uploaded" | "asset-library" | "generated_result" | "prompt_studio" | string;
   raw?: unknown;
 };
 

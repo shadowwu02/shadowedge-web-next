@@ -355,6 +355,56 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     }
   }, [references.length, selectedModel, t, tf]);
 
+  const addReferenceItems = useCallback((items: ImageReferenceItem[]) => {
+    const candidates = items.filter((item) => item.url && item.uploadStatus !== "failed");
+    if (!candidates.length) return false;
+
+    let addedCount = 0;
+    let reachedLimit = false;
+
+    setReferences((current) => {
+      const maxReferences = Math.max(0, selectedModel.capabilities.maxReferences || 0);
+      if (!maxReferences || current.length >= maxReferences) {
+        reachedLimit = true;
+        return current;
+      }
+
+      const seenIds = new Set(current.map((item) => item.id).filter(Boolean));
+      const seenUrls = new Set(current.map((item) => item.url).filter(Boolean));
+      const seenAssetIds = new Set(current.map((item) => item.assetId).filter(Boolean));
+      const nextItems: ImageReferenceItem[] = [];
+
+      candidates.forEach((item) => {
+        if (current.length + nextItems.length >= maxReferences) {
+          reachedLimit = true;
+          return;
+        }
+
+        const duplicate =
+          seenIds.has(item.id) ||
+          Boolean(item.url && seenUrls.has(item.url)) ||
+          Boolean(item.assetId && seenAssetIds.has(item.assetId));
+        if (duplicate) return;
+
+        nextItems.push(item);
+        seenIds.add(item.id);
+        if (item.url) seenUrls.add(item.url);
+        if (item.assetId) seenAssetIds.add(item.assetId);
+      });
+
+      addedCount = nextItems.length;
+      return nextItems.length ? [...current, ...nextItems] : current;
+    });
+
+    if (reachedLimit) {
+      setError(tf("image.errors.referenceLimitReachedWithCount", { count: selectedModel.capabilities.maxReferences }));
+    } else if (addedCount > 0) {
+      setError("");
+    }
+
+    return addedCount > 0;
+  }, [selectedModel, tf]);
+
   const removeReference = useCallback((referenceId: string) => {
     setReferences((current) => current.filter((item) => item.id !== referenceId));
   }, []);
@@ -537,6 +587,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     references,
     setReferences,
     addReferenceFile,
+    addReferenceItems,
     uploadReferenceFile,
     removeReference,
     uploadReference,

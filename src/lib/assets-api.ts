@@ -1,5 +1,6 @@
 import { apiRequest } from "@/lib/api";
 import { normalizeMediaAsset } from "@/lib/media-assets";
+import type { ImageReferenceItem } from "@/types/image";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
 
 export type MediaAssetRecord = {
@@ -121,5 +122,32 @@ export function mediaAssetToUploadMediaItem(asset: MediaAssetRecord): UploadMedi
     source: "asset-library",
     uploadStatus: asset.status === "ready" || !asset.status ? "ready" : "failed",
     errorMessage: asset.status === "ready" || !asset.status ? "" : "Media unavailable",
+  };
+}
+
+export function mediaAssetToImageReferenceItem(asset: MediaAssetRecord): ImageReferenceItem | null {
+  const publicUrl = String(asset.publicUrl || asset.url || "").trim();
+  if (!publicUrl || asset.type !== "image") return null;
+
+  return {
+    assetId: asset.id,
+    filename: asset.filename || undefined,
+    height: typeof asset.height === "number" ? asset.height : undefined,
+    id: publicUrl,
+    mimeType: asset.mimeType || undefined,
+    name: asset.displayName || asset.filename || "Image asset",
+    previewUrl: publicUrl,
+    raw: {
+      assetId: asset.id,
+      source: asset.source,
+      status: asset.status,
+    },
+    size: typeof asset.sizeBytes === "number" ? asset.sizeBytes : undefined,
+    source: "asset-library",
+    type: "image",
+    uploadedAt: asset.createdAt || undefined,
+    uploadStatus: asset.status === "ready" || !asset.status ? "ready" : "failed",
+    url: publicUrl,
+    width: typeof asset.width === "number" ? asset.width : undefined,
   };
 }

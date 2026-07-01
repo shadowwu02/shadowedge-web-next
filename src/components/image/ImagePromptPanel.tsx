@@ -31,6 +31,7 @@ export function ImagePromptPanel({
   onIgnorePromptStudioDraft,
   onImportPromptStudioDraft,
   onOptimizeInPromptStudio,
+  onAddReferences,
   onPromptChange,
   onRemoveReference,
   onSelectModel,
@@ -56,6 +57,7 @@ export function ImagePromptPanel({
   onIgnorePromptStudioDraft?: () => void;
   onImportPromptStudioDraft?: () => void;
   onOptimizeInPromptStudio?: () => void;
+  onAddReferences: (references: ImageReferenceItem[]) => boolean;
   onPromptChange: (value: string) => void;
   onRemoveReference: (referenceId: string) => void;
   onSelectModel: (modelId: string) => void;
@@ -285,7 +287,13 @@ export function ImagePromptPanel({
           <p className="mt-3 text-[11px] leading-5 text-[#b9b9b9]/45">{t("image.params.estimatedCostHint")}</p>
         </section>
 
-        <ImageReferenceTray model={selectedModel} onRemove={onRemoveReference} onUploadFile={onUploadReference} references={references} />
+        <ImageReferenceTray
+          model={selectedModel}
+          onAddReferences={onAddReferences}
+          onRemove={onRemoveReference}
+          onUploadFile={onUploadReference}
+          references={references}
+        />
 
         {error ? <div className="rounded-[18px] border border-[#8c4632]/42 bg-[#2a1012]/72 px-3 py-2 text-xs leading-5 text-[#f2b3a1]">{error}</div> : null}
       </div>

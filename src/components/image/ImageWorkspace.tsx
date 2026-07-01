@@ -216,6 +216,7 @@ export function ImageWorkspace() {
           onIgnorePromptStudioDraft={handleIgnorePromptStudioDraft}
           onImportPromptStudioDraft={handleImportPromptStudioDraft}
           onOptimizeInPromptStudio={handleOpenPromptStudio}
+          onAddReferences={image.addReferenceItems}
           onPromptChange={image.setPrompt}
           onRemoveReference={image.removeReference}
           onSelectModel={image.setSelectedModelId}
