@@ -76,6 +76,32 @@ export function RemakeSettingsPanel({
               </button>
             );
           })}
+          <button
+            aria-disabled="true"
+            className="cursor-not-allowed rounded-[18px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/78 p-3 text-left text-[#f4f4f4]/48"
+            disabled
+            type="button"
+          >
+            <span className="flex flex-wrap items-center justify-between gap-2">
+              <span className="block text-sm font-semibold">{t("video.remake.mode.longVideoAnalysis")}</span>
+              <span className="rounded-full border border-[#ffb44d]/22 bg-[#ffb44d]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#ffd08a]/84">
+                {t("video.remake.longVideo.comingSoon")}
+              </span>
+            </span>
+            <span className="mt-1 block text-xs leading-5 text-[#b9b9b9]/58">{t("video.remake.longVideo.description")}</span>
+            <span className="mt-2 flex flex-wrap gap-1.5">
+              <span className="rounded-full border border-[rgba(244,244,244,0.08)] bg-[#05070b]/44 px-2 py-0.5 text-[10px] font-semibold text-[#b9b9b9]/58">
+                {t("video.remake.longVideo.backgroundProcessing")}
+              </span>
+              <span className="rounded-full border border-[rgba(244,244,244,0.08)] bg-[#05070b]/44 px-2 py-0.5 text-[10px] font-semibold text-[#b9b9b9]/58">
+                {t("video.remake.longVideo.keyMoments")}
+              </span>
+              <span className="rounded-full border border-[rgba(244,244,244,0.08)] bg-[#05070b]/44 px-2 py-0.5 text-[10px] font-semibold text-[#b9b9b9]/58">
+                {t("video.remake.longVideo.remakeStoryboard")}
+              </span>
+            </span>
+            <span className="mt-2 block text-xs leading-5 text-[#ffd08a]/72">{t("video.remake.longVideo.currentLimitHint")}</span>
+          </button>
         </div>
       </div>
 
