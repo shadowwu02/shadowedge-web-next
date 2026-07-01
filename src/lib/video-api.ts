@@ -462,6 +462,7 @@ export function normalizeUploadResponse(payload: unknown, sourceFile?: File): Up
 
   return {
     id: pickString(data.id, data.mediaId, data.media_id, data.key, url) || url,
+    assetId: pickString(data.assetId, data.asset_id),
     type: inferUploadType(data.type || data.mimeType || data.mimetype, sourceFile?.type),
     name: originalName,
     url,

@@ -131,6 +131,7 @@ export function sanitizeVideoDraftMedia(items: UploadMediaItem[]) {
 
       return {
         id: item.id || item.url || `${item.type}-${item.name}`,
+        assetId: item.assetId,
         type: item.type,
         role: item.role || ("reference" as UploadMediaRole),
         source: item.source || ("reference_selected" as UploadMediaSource),

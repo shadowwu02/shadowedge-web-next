@@ -5,7 +5,7 @@ export const LOCAL_MEDIA_ASSETS_KEY = "shadowedge_local_upload_assets_v1";
 export const LOCAL_MEDIA_ASSETS_MAX = 80;
 
 type RawMediaAsset = Partial<UploadMediaItem> & Record<string, unknown>;
-type MediaAssetSourceInput = UploadMediaSource | "current" | "uploads" | "local";
+type MediaAssetSourceInput = UploadMediaSource | "current" | "uploads" | "local" | "asset_library";
 type ReusableHistoryRecord = Partial<VideoTaskRecord> & Record<string, unknown>;
 export type MediaDisplayLocale = "en" | "zh";
 export type MediaUploadErrorKind = "auth" | "unavailable" | "upload";
@@ -287,6 +287,7 @@ function normalizeRole(value: unknown): UploadMediaRole | undefined {
 function normalizeSource(source: MediaAssetSourceInput = "local_upload_cache"): UploadMediaSource {
   if (source === "current") return "current_upload";
   if (source === "uploads" || source === "local") return "local_upload_cache";
+  if (source === "asset_library") return "asset-library";
   return source;
 }
 
@@ -317,6 +318,7 @@ export function getMediaAssetKeys(item: UploadMediaItem) {
 export function getMediaAssetSourceLabel(source: UploadMediaItem["source"]) {
   if (source === "current_upload") return "Current";
   if (source === "reference_selected") return "Added";
+  if (source === "asset-library") return "My assets";
   if (source === "generated_result") return "Generated";
   if (source === "history") return "History";
   if (source === "local_upload_cache") return "Uploads";
@@ -356,6 +358,7 @@ export function normalizeMediaAsset(item: unknown, source: MediaAssetSourceInput
 
   return {
     id: pickString(raw.id, raw.mediaId, raw.media_id, raw.key, url) || url,
+    assetId: pickString(raw.assetId, raw.asset_id),
     type,
     name,
     url,
@@ -367,7 +370,7 @@ export function normalizeMediaAsset(item: unknown, source: MediaAssetSourceInput
     filename: pickString(raw.filename, raw.fileName),
     originalName: pickString(raw.originalName, raw.original_name, raw.originalFilename, raw.original_filename, name),
     duration: Number(raw.duration || raw.durationSeconds || raw.duration_seconds || 0) || undefined,
-    uploadStatus: "ready",
+    uploadStatus: raw.uploadStatus === "failed" || raw.status === "failed" || raw.status === "unavailable" ? "failed" : "ready",
     errorMessage: source === "current" ? raw.errorMessage : "",
   };
 }

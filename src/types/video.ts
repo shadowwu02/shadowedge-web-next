@@ -28,12 +28,14 @@ export type UploadMediaSource =
   | "current_upload"
   | "local_upload_cache"
   | "reference_selected"
+  | "asset-library"
   | "generated_result"
   | "history"
   | "unknown";
 
 export type UploadMediaItem = {
   id: string;
+  assetId?: string;
   type: UploadMediaType;
   role?: UploadMediaRole;
   source?: UploadMediaSource;
@@ -52,6 +54,7 @@ export type UploadMediaItem = {
 
 export type UploadedMediaResponse = {
   id: string;
+  assetId?: string;
   type: UploadMediaType;
   name: string;
   url: string;

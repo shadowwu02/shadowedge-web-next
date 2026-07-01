@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, DragEvent, RefObject } from "react";
+import { listMediaAssets, mediaAssetToUploadMediaItem } from "@/lib/assets-api";
 import { getMediaUploadErrorDisplayKeys, getSafeMediaItemDisplayName, mergeMediaAssets } from "@/lib/media-assets";
 import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
 import { slotAllowsAssetType } from "@/lib/upload-rules";
@@ -14,9 +15,10 @@ import {
 } from "@/lib/video/videoReferenceRules";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
 import type { VideoModelRule } from "@/lib/video/videoModelRules";
+import { ApiError } from "@/types/api";
 import { useI18n } from "@/i18n/useI18n";
 
-type MediaFilter = "uploads" | "history" | "generated" | UploadMediaType | "elements" | "liked";
+type MediaFilter = "uploads" | "assets" | "history" | "generated" | UploadMediaType | "elements" | "liked";
 
 type DrawerPosition = {
   left: number;
@@ -29,7 +31,7 @@ const drawerWidth = 600;
 const drawerMinWidth = 520;
 const drawerMaxHeight = 520;
 
-const filters: MediaFilter[] = ["uploads", "history", "generated", "image", "video", "audio", "elements", "liked"];
+const filters: MediaFilter[] = ["uploads", "assets", "history", "generated", "image", "video", "audio", "elements", "liked"];
 
 function isSameMediaAsset(left: UploadMediaItem, right: UploadMediaItem) {
   return left.id === right.id || Boolean(left.url && right.url && left.url === right.url);
@@ -115,7 +117,7 @@ export function MediaPickerDrawer({
   localMedia: UploadMediaItem[];
   modelRule: VideoModelRule;
   notice?: string;
-  onAddSelected: (ids: string[]) => boolean;
+  onAddSelected: (ids: string[], availableMedia?: UploadMediaItem[]) => boolean;
   onClearNotice?: () => void;
   onClose: () => void;
   onFiles: (files: File[]) => void;
@@ -130,6 +132,8 @@ export function MediaPickerDrawer({
   const [activeFilter, setActiveFilter] = useState<MediaFilter>("uploads");
   const [position, setPosition] = useState<DrawerPosition>({ left: 16, maxHeight: 520, top: 72, width: 600 });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [assetLibraryMedia, setAssetLibraryMedia] = useState<UploadMediaItem[]>([]);
+  const [assetLibraryStatus, setAssetLibraryStatus] = useState<"idle" | "loading" | "auth" | "error">("idle");
   const previousStatusesRef = useRef<Map<string, UploadMediaItem["uploadStatus"]>>(new Map());
   const rafRef = useRef<number | null>(null);
 
@@ -140,6 +144,7 @@ export function MediaPickerDrawer({
   }
 
   function filterLabel(filter: MediaFilter) {
+    if (filter === "assets") return t("video.drawer.tabs.assetsLibrary");
     if (filter === "history") return t("video.drawer.tabs.history");
     if (filter === "generated") return t("video.drawer.tabs.generated");
     if (filter === "image") return t("video.drawer.tabs.images");
@@ -151,6 +156,7 @@ export function MediaPickerDrawer({
   }
 
   function emptyLabel(filter: MediaFilter) {
+    if (filter === "assets") return t("video.drawer.empty.assetsLibrary");
     if (filter === "history") return t("video.drawer.empty.history");
     if (filter === "generated") return t("video.drawer.empty.generated");
     if (filter === "elements") return t("video.drawer.empty.elements");
@@ -164,6 +170,7 @@ export function MediaPickerDrawer({
   function sourceLabel(source: UploadMediaItem["source"]) {
     if (source === "current_upload") return t("video.drawer.source.current");
     if (source === "reference_selected") return t("video.drawer.source.added");
+    if (source === "asset-library") return t("video.drawer.source.assetLibrary");
     if (source === "generated_result") return t("video.drawer.source.generated");
     if (source === "history") return t("video.drawer.source.history");
     return t("video.drawer.source.uploads");
@@ -208,23 +215,26 @@ export function MediaPickerDrawer({
     return t(display.titleKey);
   }
 
-  const allMedia = useMemo(() => mergeMediaAssets(currentMedia, localMedia, reusableMedia), [currentMedia, localMedia, reusableMedia]);
+  const nonAssetMedia = useMemo(() => mergeMediaAssets(currentMedia, localMedia, reusableMedia), [currentMedia, localMedia, reusableMedia]);
+  const allMedia = useMemo(() => mergeMediaAssets(nonAssetMedia, assetLibraryMedia), [assetLibraryMedia, nonAssetMedia]);
+  const selectionMedia = useMemo(() => [...assetLibraryMedia, ...allMedia], [allMedia, assetLibraryMedia]);
   const allowedTypes = useMemo(() => getAllowedReferenceTypes(modelRule), [modelRule]);
   const limitSummary = useMemo(() => getReferenceLimitSummary(modelRule), [modelRule]);
   const visibleMedia = useMemo(() => {
-    if (activeFilter === "uploads") return allMedia;
+    if (activeFilter === "uploads") return nonAssetMedia;
+    if (activeFilter === "assets") return assetLibraryMedia;
     if (activeFilter === "history") return allMedia.filter((item) => item.source === "history");
     if (activeFilter === "generated") return allMedia.filter((item) => item.source === "generated_result");
     if (activeFilter === "elements" || activeFilter === "liked") return [];
     return allMedia.filter((item) => item.type === activeFilter);
-  }, [activeFilter, allMedia]);
+  }, [activeFilter, allMedia, assetLibraryMedia, nonAssetMedia]);
 
   const allowedTypeLabel = allowedTypes.length ? allowedTypes.map((type) => localizedMediaTypeLabel(type).toLowerCase()).join(", ") : "";
   const selectionIssueById = useMemo(() => {
     const issues = new Map<string, string>();
-    const selectedItems = allMedia.filter((item) => selectedIds.has(item.id));
+    const selectedItems = selectionMedia.filter((item) => selectedIds.has(item.id));
 
-    allMedia.forEach((item) => {
+    selectionMedia.forEach((item) => {
       if (item.uploadStatus === "failed") {
         issues.set(item.id, item.errorMessage || "Upload failed.");
         return;
@@ -275,22 +285,29 @@ export function MediaPickerDrawer({
     });
 
     return issues;
-  }, [allMedia, modelRule, referenceMedia, selectedIds, slot]);
+  }, [modelRule, referenceMedia, selectedIds, selectionMedia, slot]);
   const unavailableNotice = useMemo(() => {
     if (notice || !visibleMedia.length) return "";
     const failedCount = visibleMedia.filter((item) => item.uploadStatus === "failed").length;
     return failedCount > 0 && failedCount === visibleMedia.length ? t("media.upload.unavailableNotice") : "";
   }, [notice, t, visibleMedia]);
+  const assetLibraryNotice = useMemo(() => {
+    if (activeFilter !== "assets") return "";
+    if (assetLibraryStatus === "loading") return t("video.drawer.assetsLoading");
+    if (assetLibraryStatus === "auth") return t("video.drawer.assetsAuthRequired");
+    if (assetLibraryStatus === "error") return t("video.drawer.assetsLoadError");
+    return "";
+  }, [activeFilter, assetLibraryStatus, t]);
   const validSelectedIds = useMemo(() => {
     const next = new Set<string>();
-    const selectedItems = allMedia.filter((item) => selectedIds.has(item.id));
+    const selectedItems = selectionMedia.filter((item) => selectedIds.has(item.id));
 
     selectedItems.forEach((item) => {
       if (!selectionIssueById.has(item.id)) next.add(item.id);
     });
 
     return next;
-  }, [allMedia, selectedIds, selectionIssueById]);
+  }, [selectedIds, selectionIssueById, selectionMedia]);
   const selectedCount = validSelectedIds.size;
   const rawSelectedCount = selectedIds.size;
   const invalidSelectedCount = Math.max(0, rawSelectedCount - selectedCount);
@@ -311,13 +328,46 @@ export function MediaPickerDrawer({
   useEffect(() => {
     if (!isOpen) return;
 
+    let cancelled = false;
+
+    async function loadAssets() {
+      setAssetLibraryStatus("loading");
+
+      try {
+        const result = await listMediaAssets({ limit: 100, status: "ready" });
+        if (cancelled) return;
+        setAssetLibraryMedia(
+          result.assets
+            .map(mediaAssetToUploadMediaItem)
+            .filter((item): item is UploadMediaItem => Boolean(item))
+            .filter((item) => item.type === "image" || item.type === "video" || item.type === "audio"),
+        );
+        setAssetLibraryStatus("idle");
+      } catch (error) {
+        if (cancelled) return;
+        setAssetLibraryMedia([]);
+        setAssetLibraryStatus(error instanceof ApiError && error.kind === "auth" ? "auth" : "error");
+      }
+    }
+
+    void loadAssets();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
     const previousStatuses = previousStatusesRef.current;
     if (!previousStatuses.size) {
-      previousStatusesRef.current = new Map(allMedia.map((item) => [item.id, item.uploadStatus]));
+      previousStatusesRef.current = new Map(selectionMedia.map((item) => [item.id, item.uploadStatus]));
       return;
     }
     const newlyReadyIds: string[] = [];
-    allMedia.forEach((item) => {
+    selectionMedia.forEach((item) => {
+      if (item.source === "asset-library") return;
       if (item.uploadStatus !== "ready" || previousStatuses.get(item.id) === "ready") return;
       if (!slotAllowsAssetType(slot, item.type) || !isReferenceTypeSupported(modelRule, item.type)) return;
       newlyReadyIds.push(item.id);
@@ -327,9 +377,9 @@ export function MediaPickerDrawer({
       setSelectedIds((current) => {
         const next = new Set(current);
         newlyReadyIds.forEach((id) => {
-          const item = allMedia.find((candidate) => candidate.id === id);
+          const item = selectionMedia.find((candidate) => candidate.id === id);
           if (!item) return;
-          const selectedItems = allMedia.filter((candidate) => next.has(candidate.id) || candidate.id === id);
+          const selectedItems = selectionMedia.filter((candidate) => next.has(candidate.id) || candidate.id === id);
           const newItems = selectedItems.filter(
             (candidate) =>
               !referenceMedia.some((currentItem) => currentItem.id === candidate.id || (currentItem.url && currentItem.url === candidate.url)),
@@ -341,8 +391,8 @@ export function MediaPickerDrawer({
       });
     }
 
-    previousStatusesRef.current = new Map(allMedia.map((item) => [item.id, item.uploadStatus]));
-  }, [allMedia, isOpen, modelRule, referenceMedia, slot]);
+    previousStatusesRef.current = new Map(selectionMedia.map((item) => [item.id, item.uploadStatus]));
+  }, [isOpen, modelRule, referenceMedia, selectionMedia, slot]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -428,7 +478,7 @@ export function MediaPickerDrawer({
   }
 
   function addSelected() {
-    const didAdd = onAddSelected(Array.from(validSelectedIds));
+    const didAdd = onAddSelected(Array.from(validSelectedIds), selectionMedia);
     if (didAdd) {
       setSelectedIds(new Set());
       onClose();
@@ -545,9 +595,9 @@ export function MediaPickerDrawer({
             <span className="text-xs font-bold text-white/38">{tf("video.drawer.shownCount", { count: visibleMedia.length })}</span>
           </div>
 
-          {notice || unavailableNotice ? (
+          {notice || unavailableNotice || assetLibraryNotice ? (
             <div className="mt-3 rounded-2xl border border-[#ffb44d]/25 bg-[#ffb44d]/10 px-3 py-2 text-xs font-bold text-[#ffd08a]">
-              {notice ? localizeIssue(notice) : unavailableNotice}
+              {notice ? localizeIssue(notice) : unavailableNotice || assetLibraryNotice}
             </div>
           ) : null}
 
@@ -561,7 +611,7 @@ export function MediaPickerDrawer({
                 const isFailed = item.uploadStatus === "failed";
                 const isAlreadyAdded = selectIssue === "Already added to references.";
                 const isUnsupported = Boolean(selectIssue) && !isAlreadyAdded && !isFailed && item.uploadStatus !== "uploading";
-                const canRemove = item.source !== "history" && item.source !== "generated_result";
+                const canRemove = item.source !== "history" && item.source !== "generated_result" && item.source !== "asset-library";
                 const displayName = getSafeMediaItemDisplayName(item, itemIndex, displayLocale);
                 const failedMediaMessage = isFailed ? localizedFailedMediaMessage(item.errorMessage) : "";
 
@@ -639,7 +689,7 @@ export function MediaPickerDrawer({
             </div>
           ) : (
             <div className="mt-3 rounded-[20px] border border-dashed border-white/12 p-8 text-center text-sm text-white/42">
-              {emptyLabel(activeFilter)}
+              {activeFilter === "assets" && assetLibraryStatus === "loading" ? t("video.drawer.assetsLoading") : emptyLabel(activeFilter)}
             </div>
           )}
         </div>

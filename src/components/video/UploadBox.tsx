@@ -186,6 +186,7 @@ export function UploadBox({
             duration: uploaded.duration || item.duration,
             errorMessage: "",
             file: undefined,
+            assetId: uploaded.assetId,
             filename: uploaded.filename,
             id: uploaded.id || item.id,
             mimeType: uploaded.mimeType || item.mimeType,
@@ -235,10 +236,10 @@ export function UploadBox({
     onChange((currentItems) => currentItems.filter((current) => current.id !== id && current.url !== url));
   }
 
-  function addSelectedToReferences(ids: string[]) {
+  function addSelectedToReferences(ids: string[], availableMedia = allPickerMedia) {
     setPickerNotice("");
 
-    const selectedItems = allPickerMedia.filter((item) => ids.includes(item.id) && item.uploadStatus === "ready" && item.url);
+    const selectedItems = mergeMediaAssets(availableMedia.filter((item) => ids.includes(item.id) && item.uploadStatus === "ready" && item.url));
     const selectedRemoteItems = selectedItems.filter((item) => item.url && isRemoteMediaUrl(item.url) && !isTransientMediaUrl(item.url));
 
     if (!selectedRemoteItems.length) {
