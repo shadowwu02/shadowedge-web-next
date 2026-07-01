@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { SaveToAssetsButton } from "@/components/assets/SaveToAssetsButton";
 import { VideoOutputDetailPanel } from "@/components/video/VideoOutputDetailPanel";
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { useI18n } from "@/i18n/useI18n";
@@ -398,6 +399,15 @@ function VideoGenerationCard({
                 <a className={outputActionClass("primary")} href={view.outputUrl} rel="noreferrer" target="_blank">
                   {t("video.generation.openResult")}
                 </a>
+                {isSuccess ? (
+                  <SaveToAssetsButton
+                    className={outputActionClass()}
+                    displayName={t("assets.save.generatedVideo")}
+                    jobId={record.dbJobId || record.jobId || record.providerJobId}
+                    kind="video"
+                    outputUrl={view.outputUrl}
+                  />
+                ) : null}
                 <a className={outputActionClass()} download={safeDownloadFilename(view)} href={view.outputUrl} rel="noreferrer" target="_blank">
                   {t("video.generation.downloadResult")}
                 </a>

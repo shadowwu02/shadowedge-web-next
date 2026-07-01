@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { SaveToAssetsButton } from "@/components/assets/SaveToAssetsButton";
 import { useI18n } from "@/i18n/useI18n";
 import { collectHistoryInputMediaAssets } from "@/lib/media-assets";
 import { getVideoUserFacingErrorDisplay } from "@/lib/video/videoErrorDisplay";
@@ -299,6 +300,15 @@ export function HistoryPanel({
                           >
                             {t("video.history.downloadOpen")}
                           </a>
+                        ) : null}
+                        {isSuccess ? (
+                          <SaveToAssetsButton
+                            className={actionButtonClass("normal")}
+                            displayName={t("assets.save.generatedVideo")}
+                            jobId={item.dbJobId || item.jobId || item.providerJobId}
+                            kind="video"
+                            outputUrl={view.outputUrl}
+                          />
                         ) : null}
                         {(isSuccess || isFailed) ? (
                           <button className={actionButtonClass("normal")} disabled={!view.title} onClick={() => void navigator.clipboard?.writeText(view.title || "")} type="button">

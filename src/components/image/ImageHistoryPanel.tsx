@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { SaveToAssetsButton } from "@/components/assets/SaveToAssetsButton";
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { getImageUserFacingErrorDisplay } from "@/lib/image/imageErrorDisplay";
 import { getLocalizedImageHistoryPublicErrorMessage, isImageActiveStatus, isImageCompletedStatus, isImageFailedStatus } from "@/lib/image/imageHistoryUtils";
@@ -276,6 +277,15 @@ export function ImageHistoryPanel({
                     <a className={imageActionClass("primary")} download={`shadowedge-image-${safeFilename}.png`} href={outputUrl} rel="noreferrer" target="_blank">
                       {t("image.actions.download")}
                     </a>
+                  ) : null}
+                  {isCompleted && outputUrl ? (
+                    <SaveToAssetsButton
+                      className={imageActionClass("normal")}
+                      displayName={t("assets.save.generatedImage")}
+                      jobId={item.dbJobId || item.jobId || item.id}
+                      kind="image"
+                      outputUrl={outputUrl}
+                    />
                   ) : null}
                   <button
                     className={imageActionClass("normal")}

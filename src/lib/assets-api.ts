@@ -35,6 +35,17 @@ export type ListMediaAssetsResult = {
   nextCursor: string | null;
 };
 
+export type SaveAssetFromJobInput = {
+  displayName?: string;
+  kind: "image" | "video";
+  outputUrl?: string;
+};
+
+export type SaveAssetFromJobResult = {
+  alreadyExists: boolean;
+  asset: MediaAssetRecord | null;
+};
+
 function appendParam(params: URLSearchParams, key: string, value: unknown) {
   if (value === undefined || value === null || value === "") return;
   params.set(key, String(value));
@@ -56,6 +67,29 @@ export async function listMediaAssets(options: ListMediaAssetsParams = {}): Prom
   return {
     assets: Array.isArray(payload.assets) ? payload.assets : [],
     nextCursor: payload.nextCursor || null,
+  };
+}
+
+export async function saveAssetFromJob(jobId: string, input: SaveAssetFromJobInput): Promise<SaveAssetFromJobResult> {
+  const cleanJobId = String(jobId || "").trim();
+  if (!cleanJobId) {
+    throw new Error("Missing job id");
+  }
+
+  const envelope = await apiRequest<SaveAssetFromJobResult>(`/api/assets/from-job/${encodeURIComponent(cleanJobId)}`, {
+    method: "POST",
+    body: JSON.stringify({
+      displayName: input.displayName,
+      kind: input.kind,
+      outputUrl: input.outputUrl,
+    }),
+  });
+
+  const payload = (envelope.data || envelope || {}) as Partial<SaveAssetFromJobResult>;
+
+  return {
+    alreadyExists: Boolean(payload.alreadyExists),
+    asset: payload.asset || null,
   };
 }
 

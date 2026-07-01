@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { SaveToAssetsButton } from "@/components/assets/SaveToAssetsButton";
 import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { useI18n } from "@/i18n/useI18n";
@@ -315,6 +316,15 @@ export function VideoOutputDetailPanel({
           >
             {t("video.generation.openResult")}
           </a>
+        ) : null}
+        {isSuccess ? (
+          <SaveToAssetsButton
+            className={actionButtonClass("normal")}
+            displayName={t("assets.save.generatedVideo")}
+            jobId={record.dbJobId || record.jobId || record.providerJobId}
+            kind="video"
+            outputUrl={view.outputUrl}
+          />
         ) : null}
         {onFill ? (
           <button aria-label={t("video.generation.reusePrompt")} className={actionButtonClass("normal")} onClick={() => onFill(record)} title={t("video.generation.reusePrompt")} type="button">

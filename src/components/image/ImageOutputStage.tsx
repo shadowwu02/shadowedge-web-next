@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { SaveToAssetsButton } from "@/components/assets/SaveToAssetsButton";
 import { getLocalizedImageHistoryPublicErrorMessage, isImageActiveStatus, isImageCompletedStatus, isImageFailedStatus } from "@/lib/image/imageHistoryUtils";
 import { getImageUserFacingErrorDisplay } from "@/lib/image/imageErrorDisplay";
 import { getReusableImageOutputUrl, sendImageFailedJobToImageDraft, sendImageResultToImageDraft } from "@/lib/image/imageResultDrafts";
@@ -219,6 +220,13 @@ export function ImageOutputStage({
                         <DownloadIcon />
                         {t("image.actions.download")}
                       </a>
+                      <SaveToAssetsButton
+                        className={outputActionClass("normal")}
+                        displayName={t("assets.save.generatedImage")}
+                        jobId={job.dbJobId || job.jobId || job.id}
+                        kind="image"
+                        outputUrl={url}
+                      />
                       <a className={outputActionClass("normal")} href={url} rel="noreferrer" target="_blank">
                         <ExternalIcon />
                         {t("image.actions.open")}

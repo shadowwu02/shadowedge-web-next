@@ -1,5 +1,6 @@
 "use client";
 
+import { SaveToAssetsButton } from "@/components/assets/SaveToAssetsButton";
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { getImageUserFacingErrorDisplay } from "@/lib/image/imageErrorDisplay";
 import { getLocalizedImageHistoryPublicErrorMessage, isImageActiveStatus, isImageCompletedStatus, isImageFailedStatus } from "@/lib/image/imageHistoryUtils";
@@ -72,6 +73,7 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
 
   const status = String(job.status || "");
   const isFailed = isImageFailedStatus(status);
+  const isCompleted = isImageCompletedStatus(status);
   const chargedCredits = job.cost || job.creditsCharged || 0;
   const modelLogoLookup = getImageHistoryModelLogoLookup(job);
   const failureDisplay = getImageUserFacingErrorDisplay(job.errorMessage, t, {
@@ -171,6 +173,15 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
                       <ExternalIcon />
                       {t("image.actions.open")}
                     </a>
+                    {isCompleted ? (
+                      <SaveToAssetsButton
+                        className="se-button-ghost inline-flex min-h-7 items-center gap-1.5 rounded-full px-2 text-[10px] font-semibold"
+                        displayName={t("assets.save.generatedImage")}
+                        jobId={job.dbJobId || job.jobId || job.id}
+                        kind="image"
+                        outputUrl={url}
+                      />
+                    ) : null}
                     <a
                       className="se-button-secondary inline-flex min-h-7 items-center gap-1.5 rounded-full px-2 text-[10px] font-semibold"
                       download={`shadowedge-image-${index + 1}.png`}
