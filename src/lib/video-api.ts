@@ -52,6 +52,42 @@ export type VideoRemakeReverseAnalyzeResponse = {
   storyboard: RemakeStoryboard;
 };
 
+export type VideoRemakeLongAnalysisStage =
+  | "queued"
+  | "reading_metadata"
+  | "extracting_keyframes"
+  | "building_storyboard"
+  | "completed"
+  | "failed";
+
+export type VideoRemakeLongAnalysisStatus = "queued" | "processing" | "completed" | "failed";
+
+export type VideoRemakeLongAnalysisJob = {
+  analysisJobId: string;
+  status: VideoRemakeLongAnalysisStatus;
+  progress: number;
+  stage: VideoRemakeLongAnalysisStage;
+  result?: {
+    note?: string;
+    remakePrompt?: string;
+    scenes?: unknown[];
+    segments?: RemakeSegment[];
+    shotList?: unknown[];
+    sourceVideo?: RemakeSourceVideoMetadata;
+    storyboard?: RemakeStoryboard;
+    summary?: string;
+  } | null;
+  sourceVideo?: RemakeSourceVideoMetadata;
+  errorCode?: string;
+  errorMessage?: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type VideoRemakeLongAnalysisCreateInput = {
+  sourceAssetId?: string;
+  sourceVideoUrl: string;
+};
+
 function buildDurationArray(config: unknown) {
   const item = (config || {}) as { values?: unknown[]; min?: number; max?: number };
   if (Array.isArray(item.values)) return item.values.map(Number).filter(Number.isFinite);
@@ -146,6 +182,55 @@ export async function reverseAnalyzeVideoRemake(input: VideoRemakeReverseAnalyze
     meta: asRecord(record.meta || data.meta) as VideoRemakeReverseAnalyzeResponse["meta"],
     storyboard,
   };
+}
+
+function normalizeLongAnalysisJob(payload: unknown): VideoRemakeLongAnalysisJob {
+  const record = asRecord(payload);
+  const job = asRecord(record.job || record.data || record);
+  const result = asRecord(job.result || record.result);
+  const sourceVideo = asRecord(job.sourceVideo || result.sourceVideo);
+  const analysisJobId = pickString(job.analysisJobId, job.id, record.analysisJobId, record.id) || "";
+
+  return {
+    analysisJobId,
+    errorCode: pickString(job.errorCode, job.error_code, record.errorCode, record.error),
+    errorMessage: pickString(job.errorMessage, job.error_message, record.errorMessage, record.message),
+    metadata: asRecord(job.metadata),
+    progress: Math.min(1, Math.max(0, Number(job.progress ?? record.progress ?? 0) || 0)),
+    result: Object.keys(result).length ? (result as VideoRemakeLongAnalysisJob["result"]) : null,
+    sourceVideo: Number(sourceVideo.duration)
+      ? {
+          codec: pickString(sourceVideo.codec),
+          duration: Number(sourceVideo.duration),
+          fps: Number(sourceVideo.fps) || undefined,
+          height: Number(sourceVideo.height) || undefined,
+          width: Number(sourceVideo.width) || undefined,
+        }
+      : undefined,
+    stage: (pickString(job.stage, record.stage) || "queued") as VideoRemakeLongAnalysisStage,
+    status: (pickString(job.status, record.status) || "queued") as VideoRemakeLongAnalysisStatus,
+  };
+}
+
+export async function createLongVideoRemakeAnalysis(input: VideoRemakeLongAnalysisCreateInput) {
+  const envelope = await apiRequest<VideoRemakeLongAnalysisJob>("/api/remake/analyze-long-video", {
+    method: "POST",
+    body: JSON.stringify({
+      mode: "long_video",
+      sourceAssetId: input.sourceAssetId,
+      sourceVideoUrl: input.sourceVideoUrl,
+    }),
+  });
+
+  return normalizeLongAnalysisJob(envelope.data || envelope);
+}
+
+export async function getLongVideoRemakeAnalysisStatus(analysisJobId: string) {
+  const envelope = await apiRequest<VideoRemakeLongAnalysisJob>(`/api/remake/analysis-status/${encodeURIComponent(analysisJobId)}`, {
+    method: "GET",
+  });
+
+  return normalizeLongAnalysisJob(envelope.data || envelope);
 }
 
 export async function getVideoModels() {

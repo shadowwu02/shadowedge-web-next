@@ -12,6 +12,7 @@ type RemakeSourceUploadProps = {
 
 const SINGLE_CLIP_RECOMMENDED_SECONDS = 60;
 const FULL_FILM_BETA_SECONDS = 120;
+const LONG_VIDEO_BETA_SECONDS = 600;
 
 function formatBytes(size: number) {
   if (!Number.isFinite(size) || size <= 0) return "--";
@@ -36,7 +37,8 @@ function getDurationStatusKey(duration?: number): DictionaryKey | "" {
   if (!Number.isFinite(duration || 0) || !duration) return "";
   if (duration <= SINGLE_CLIP_RECOMMENDED_SECONDS) return "video.remake.durationStatus.singleClipGood";
   if (duration <= FULL_FILM_BETA_SECONDS) return "video.remake.durationStatus.fullFilmLonger";
-  return "video.remake.durationStatus.tooLongBeta";
+  if (duration <= LONG_VIDEO_BETA_SECONDS) return "video.remake.durationStatus.longVideoReady";
+  return "video.remake.durationStatus.longVideoTooLong";
 }
 
 function readVideoDuration(file: File) {

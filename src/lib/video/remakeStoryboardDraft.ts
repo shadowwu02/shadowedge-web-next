@@ -14,7 +14,7 @@ export const REMAKE_STORYBOARD_DRAFT_KEY = "shadowedge_video_remake_storyboard_d
 export const REMAKE_STORYBOARD_DRAFT_VERSION = 1;
 export const REMAKE_STORYBOARD_DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
 
-const REMAKE_MODES = new Set<RemakeMode>(["single_clip", "full_film"]);
+const REMAKE_MODES = new Set<RemakeMode>(["single_clip", "full_film", "long_video"]);
 const REMAKE_TARGET_REGIONS = new Set<RemakeTargetRegion>(["US", "Middle East", "Japan", "Southeast Asia"]);
 const SENSITIVE_URL_PARAMS = ["access_token", "refresh_token", "token", "api_key", "apikey", "authorization", "session", "cookie"];
 
@@ -30,6 +30,7 @@ export type RemakeStoryboardDraft = {
   sourceVideoSize?: number;
   sourceVideoLastModified?: number;
   sourceVideoDuration?: number;
+  sourceVideoAssetId?: string;
   settings: RemakeSettings;
   createdAt: number;
   updatedAt: number;
@@ -280,6 +281,7 @@ function normalizeDraft(raw: unknown): RemakeStoryboardDraft | null {
       : [],
     settings,
     sourceVideo: sanitizeSourceVideoMetadata(record.sourceVideo),
+    sourceVideoAssetId: pickString(record.sourceVideoAssetId),
     sourceVideoDuration: pickNumber(record.sourceVideoDuration),
     sourceVideoLastModified: pickNumber(record.sourceVideoLastModified),
     sourceVideoName: pickString(record.sourceVideoName),
@@ -340,6 +342,7 @@ export function saveRemakeStoryboardDraft(input: SaveRemakeStoryboardDraftInput)
     segments: (input.segments || []).map(sanitizeSegment).filter((segment): segment is RemakeSegment => Boolean(segment)),
     settings,
     sourceVideo: sanitizeSourceVideoMetadata(input.sourceVideoMetadata),
+    sourceVideoAssetId: input.sourceVideo?.assetId,
     sourceVideoDuration: input.sourceVideo?.duration,
     sourceVideoLastModified: input.sourceVideo?.lastModified,
     sourceVideoName: input.sourceVideo?.name || storyboard.sourceTitle || "",
@@ -373,6 +376,7 @@ export function getRemakeSourceVideoFromDraft(draft: RemakeStoryboardDraft): Rem
 
   return {
     duration: draft.sourceVideoDuration || draft.sourceVideo?.duration,
+    assetId: draft.sourceVideoAssetId,
     lastModified: draft.sourceVideoLastModified || draft.updatedAt,
     name: draft.sourceVideoName || draft.storyboard.sourceTitle || "Restored source video",
     size: draft.sourceVideoSize || 0,

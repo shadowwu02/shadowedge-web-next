@@ -1,8 +1,9 @@
-export type RemakeMode = "single_clip" | "full_film";
+export type RemakeMode = "single_clip" | "full_film" | "long_video";
 
 export type RemakeTargetRegion = "US" | "Middle East" | "Japan" | "Southeast Asia";
 
 export type RemakeSourceVideo = {
+  assetId?: string;
   duration?: number;
   file?: File;
   lastModified: number;

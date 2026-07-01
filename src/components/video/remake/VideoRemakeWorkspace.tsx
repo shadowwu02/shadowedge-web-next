@@ -29,6 +29,11 @@ type VideoRemakeWorkspaceProps = {
 function getAnalyzeBlockedReasonKey(mode: RemakeMode, duration?: number): DictionaryKey | "" {
   if (!Number.isFinite(duration || 0) || !duration) return "";
   if (duration < 3) return "video.remake.sourceTooShort";
+  if (mode === "long_video") {
+    if (duration <= 120) return "video.remake.longVideo.tooShort";
+    if (duration > 600) return "video.remake.longVideo.tooLong";
+    return "";
+  }
   if (duration > 120) return "video.remake.analysisTooLong";
   if (mode === "single_clip" && duration > 60) return "video.remake.singleClipTooLong";
   return "";

@@ -44,7 +44,16 @@ import {
   saveWorkspaceToPromptStudioDraft,
   type PromptStudioBridgeDraft,
 } from "@/lib/prompt-studio-draft-bridge";
-import { getVideoModels, getVideoStatus, reverseAnalyzeVideoRemake, uploadMedia } from "@/lib/video-api";
+import {
+  createLongVideoRemakeAnalysis,
+  getLongVideoRemakeAnalysisStatus,
+  getVideoModels,
+  getVideoStatus,
+  reverseAnalyzeVideoRemake,
+  uploadMedia,
+  type VideoRemakeLongAnalysisJob,
+  type VideoRemakeLongAnalysisStage,
+} from "@/lib/video-api";
 import {
   getSafeHistoryOutputUrl,
   getLocalizedVideoHistoryPublicErrorMessage,
@@ -134,6 +143,8 @@ function isRemakeDurationLimitError(error: unknown) {
     "video_too_long",
     "source video must be at least",
     "source_video_too_short",
+    "long_video_too_long",
+    "long_video_too_short",
   ].some((token) => text.includes(token));
 }
 
@@ -169,11 +180,28 @@ function getRemakeUploadErrorMessage(error: unknown, t: (key: DictionaryKey) => 
 function getRemakeAnalysisErrorMessage(error: unknown, t: (key: DictionaryKey) => string) {
   const text = getErrorText(error);
   if (text.includes("source_video_too_short") || text.includes("at least 3 seconds")) return t("video.remake.sourceTooShort");
+  if (text.includes("long_video_too_short")) return t("video.remake.longVideo.tooShort");
+  if (text.includes("long_video_too_long")) return t("video.remake.longVideo.tooLong");
   if (isRemakeDurationLimitError(error)) return t("video.remake.analysisTooLong");
   if (error instanceof ApiError && (error.kind === "auth" || error.status === 401)) return t("video.remake.uploadError.auth");
   if (error instanceof ApiError && error.kind === "network") return t("video.remake.analysisNetworkError");
   if (/network|timeout|timed out|failed to fetch|connection/.test(text)) return t("video.remake.analysisNetworkError");
   return t("video.remake.analysisFailed");
+}
+
+function getLongVideoStageNotice(stage: VideoRemakeLongAnalysisStage | undefined, t: (key: DictionaryKey) => string) {
+  if (stage === "reading_metadata") return t("video.remake.longVideo.stage.readingMetadata");
+  if (stage === "extracting_keyframes") return t("video.remake.longVideo.stage.extractingKeyframes");
+  if (stage === "building_storyboard") return t("video.remake.longVideo.stage.buildingStoryboard");
+  if (stage === "completed") return t("video.remake.longVideo.stage.completed");
+  if (stage === "failed") return t("video.remake.longVideo.stage.failed");
+  return t("video.remake.longVideo.stage.queued");
+}
+
+function waitForLongVideoPollDelay(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
 }
 
 type MainPanel = "history" | "guide";
@@ -1278,7 +1306,22 @@ export function VideoWorkspace() {
         setRemakeStoryboard(null);
         return;
       }
-      if (sourceDuration > 120) {
+      if (remakeMode === "long_video") {
+        if (sourceDuration <= 120) {
+          setRemakeAnalysisError(t("video.remake.longVideo.tooShort"));
+          setRemakeAnalysisNotice("");
+          setRemakeAnalysisMeta(null);
+          setRemakeStoryboard(null);
+          return;
+        }
+        if (sourceDuration > 600) {
+          setRemakeAnalysisError(t("video.remake.longVideo.tooLong"));
+          setRemakeAnalysisNotice("");
+          setRemakeAnalysisMeta(null);
+          setRemakeStoryboard(null);
+          return;
+        }
+      } else if (sourceDuration > 120) {
         setRemakeAnalysisError(t("video.remake.analysisTooLong"));
         setRemakeAnalysisNotice("");
         setRemakeAnalysisMeta(null);
@@ -1319,12 +1362,14 @@ export function VideoWorkspace() {
           sourceVideoUrl = uploaded.url;
           sourceVideoForAnalyze = {
             ...remakeSourceVideo,
+            assetId: uploaded.assetId,
             url: uploaded.url,
           };
           setRemakeSourceVideo((current) =>
             current?.lastModified === remakeSourceVideo.lastModified && current.name === remakeSourceVideo.name
               ? {
                   ...current,
+                  assetId: uploaded.assetId,
                   url: uploaded.url,
                 }
               : current,
@@ -1339,6 +1384,68 @@ export function VideoWorkspace() {
       }
 
       if (remakeSourceRevisionRef.current !== analysisRevision) return;
+      if (remakeMode === "long_video") {
+        setRemakeAnalysisNotice(t("video.remake.longVideo.stage.queued"));
+        const createdJob = await createLongVideoRemakeAnalysis({
+          sourceAssetId: sourceVideoForAnalyze?.assetId,
+          sourceVideoUrl,
+        });
+        if (remakeSourceRevisionRef.current !== analysisRevision) return;
+
+        let longVideoJob: VideoRemakeLongAnalysisJob = createdJob;
+        setRemakeAnalysisNotice(getLongVideoStageNotice(longVideoJob.stage, t));
+
+        for (let attempt = 0; attempt < 150 && longVideoJob.status !== "completed" && longVideoJob.status !== "failed"; attempt += 1) {
+          await waitForLongVideoPollDelay(attempt < 3 ? 1200 : 2000);
+          if (remakeSourceRevisionRef.current !== analysisRevision) return;
+          longVideoJob = await getLongVideoRemakeAnalysisStatus(longVideoJob.analysisJobId);
+          if (remakeSourceRevisionRef.current !== analysisRevision) return;
+          setRemakeAnalysisNotice(getLongVideoStageNotice(longVideoJob.stage, t));
+        }
+
+        if (longVideoJob.status !== "completed") {
+          throw new ApiError(longVideoJob.errorMessage || t("video.remake.longVideo.failed"), {
+            code: longVideoJob.errorCode || "LONG_VIDEO_ANALYSIS_FAILED",
+            kind: "server",
+          });
+        }
+
+        const longVideoStoryboard = longVideoJob.result?.storyboard;
+        if (!longVideoStoryboard?.shots?.length) {
+          throw new Error(t("video.remake.longVideo.failed"));
+        }
+
+        const analyzedStoryboard: RemakeStoryboard = {
+          ...longVideoStoryboard,
+          analysisSource: "fallback",
+          fallbackReason: longVideoStoryboard.fallbackReason || longVideoJob.result?.note || t("video.remake.longVideo.mockNotice"),
+          mock: true,
+        };
+
+        setRemakeStoryboard(analyzedStoryboard);
+        setRemakeAnalysisMeta({
+          analysisSource: "fallback",
+          fallbackReason: analyzedStoryboard.fallbackReason,
+          mock: true,
+          segments: longVideoJob.result?.segments,
+          sourceVideo: longVideoJob.sourceVideo || longVideoJob.result?.sourceVideo,
+        });
+        const draftResult = saveRemakeStoryboardDraft({
+          segments: longVideoJob.result?.segments,
+          settings,
+          sourceVideo: sourceVideoForAnalyze,
+          sourceVideoMetadata: longVideoJob.sourceVideo || longVideoJob.result?.sourceVideo,
+          sourceVideoUrl,
+          storyboard: analyzedStoryboard,
+        });
+        if (!draftResult.ok) {
+          setWorkspaceNotice(t("video.remake.draftSaveFailed"));
+        }
+        setIsRemakeDraftRestored(false);
+        setRemakeAnalysisNotice(t("video.remake.longVideo.stage.completed"));
+        return;
+      }
+
       setRemakeAnalysisNotice(t("video.remake.vlmAnalyzing"));
       const result = await reverseAnalyzeVideoRemake({
         ...settings,
@@ -1439,6 +1546,7 @@ export function VideoWorkspace() {
         isSameSource && remakeSourceVideo?.url && !source.url
           ? {
               ...source,
+              assetId: remakeSourceVideo.assetId,
               url: remakeSourceVideo.url,
             }
           : source,
@@ -2759,8 +2867,12 @@ export function VideoWorkspace() {
   const remakeAnalyzeLabel = isRemakeSourceUploading
     ? t("video.remake.analyzingSourceVideo")
     : isRemakeAnalyzing
-      ? t("video.remake.analyzingSourceVideo")
-      : t("video.remake.analyzeSourceVideo");
+      ? remakeMode === "long_video"
+        ? t("video.remake.longVideo.analyzing")
+        : t("video.remake.analyzingSourceVideo")
+      : remakeMode === "long_video"
+        ? t("video.remake.longVideo.start")
+        : t("video.remake.analyzeSourceVideo");
 
   return (
     <div className="se-scrollbar h-full min-h-0 space-y-4 overflow-y-auto overflow-x-hidden xl:grid xl:grid-cols-[minmax(340px,370px)_minmax(0,1fr)] xl:gap-4 xl:space-y-0 xl:overflow-hidden 2xl:grid-cols-[380px_minmax(0,1fr)]">
