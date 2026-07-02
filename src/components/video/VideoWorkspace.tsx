@@ -898,6 +898,9 @@ export function VideoWorkspace() {
   const [remakeAnalysisError, setRemakeAnalysisError] = useState("");
   const [remakeAnalysisNotice, setRemakeAnalysisNotice] = useState("");
   const [remakeLongVideoCostEstimate, setRemakeLongVideoCostEstimate] = useState<VideoRemakeLongAnalysisCostEstimate | null>(null);
+  const [isRemakeEstimateOnlyLoading, setIsRemakeEstimateOnlyLoading] = useState(false);
+  const [remakeEstimateOnlyResult, setRemakeEstimateOnlyResult] = useState<VideoRemakeLongAnalysisCostEstimate | null>(null);
+  const [remakeEstimateOnlyError, setRemakeEstimateOnlyError] = useState("");
   const [isRemakeDraftRestored, setIsRemakeDraftRestored] = useState(false);
   const [remakeShotGenerations, setRemakeShotGenerations] = useState<Record<string, RemakeShotGenerationState>>({});
   const [remakeShotQueue, setRemakeShotQueue] = useState<RemakeShotQueueState>(idleRemakeShotQueue);
@@ -1319,6 +1322,9 @@ export function VideoWorkspace() {
     setRemakeAnalysisError("");
     setRemakeAnalysisNotice("");
     setRemakeLongVideoCostEstimate(null);
+    setIsRemakeEstimateOnlyLoading(false);
+    setRemakeEstimateOnlyResult(null);
+    setRemakeEstimateOnlyError("");
     setIsRemakeDraftRestored(false);
     setRemakeShotGenerations({});
     setRemakeShotQueue(idleRemakeShotQueue);
@@ -1628,6 +1634,40 @@ export function VideoWorkspace() {
     t,
     tf,
   ]);
+
+  const handleEstimateLongVideoCostOnly = useCallback(async () => {
+    const estimateRevision = remakeSourceRevisionRef.current;
+
+    if (remakeMode !== "long_video" || !remakeSourceVideo?.assetId) {
+      setRemakeEstimateOnlyResult(null);
+      setRemakeEstimateOnlyError(t("video.remake.longVideo.error.chooseVideoAsset"));
+      return;
+    }
+
+    setIsRemakeEstimateOnlyLoading(true);
+    setRemakeEstimateOnlyResult(null);
+    setRemakeEstimateOnlyError("");
+
+    try {
+      const estimate = await estimateLongVideoRemakeAnalysisCost({
+        analysisEngine: "mock",
+        sourceAssetId: remakeSourceVideo.assetId,
+        sourceVideoUrl: remakeSourceVideo.url || "",
+      });
+
+      if (remakeSourceRevisionRef.current !== estimateRevision) return;
+      setRemakeLongVideoCostEstimate(estimate);
+      setRemakeEstimateOnlyResult(estimate);
+    } catch {
+      if (remakeSourceRevisionRef.current !== estimateRevision) return;
+      setRemakeEstimateOnlyResult(null);
+      setRemakeEstimateOnlyError(t("video.remake.longVideo.cost.estimateOnlyFailed"));
+    } finally {
+      if (remakeSourceRevisionRef.current === estimateRevision) {
+        setIsRemakeEstimateOnlyLoading(false);
+      }
+    }
+  }, [remakeMode, remakeSourceVideo, t]);
 
   const handleRemakeSourceVideoChange = useCallback(
     (source: RemakeSourceVideo | null) => {
@@ -2988,6 +3028,25 @@ export function VideoWorkspace() {
     return t("video.remake.longVideo.cost.mockNoChargeNotice");
   }, [remakeLongVideoCostEstimate, remakeMode, remakeSourceVideo, t, tf]);
 
+  const remakeEstimateOnlySummary = useMemo(() => {
+    if (!remakeEstimateOnlyResult) return "";
+    const adapter = remakeEstimateOnlyResult.adapterStatus;
+    const headline = remakeEstimateOnlyResult.requiresRealVlmEnabled
+      ? t("video.remake.longVideo.cost.realVlmCurrentlyDisabled")
+      : t("video.remake.longVideo.cost.estimateOnlyMockNoCharge");
+
+    return `${headline} ${tf("video.remake.longVideo.cost.estimateOnlySummary", {
+      analysisMode: remakeEstimateOnlyResult.analysisMode,
+      billableNow: String(remakeEstimateOnlyResult.billableNow),
+      chargeCreditsNow: remakeEstimateOnlyResult.chargeCreditsNow,
+      dryRunOnly: String(adapter?.dryRunOnly === true),
+      estimatedCredits: remakeEstimateOnlyResult.estimatedCredits,
+      providerCallMade: String(adapter?.providerCallMade === true),
+      requiresConfirmation: String(remakeEstimateOnlyResult.requiresConfirmation),
+      supportsRealCalls: String(adapter?.supportsRealCalls === true),
+    })}`;
+  }, [remakeEstimateOnlyResult, t, tf]);
+
   const remakeAnalyzeLabel = isRemakeSourceUploading
     ? t("video.remake.analyzingSourceVideo")
     : isRemakeAnalyzing
@@ -3037,12 +3096,16 @@ export function VideoWorkspace() {
               analysisNotice={remakeAnalysisNotice}
               analyzeLabel={remakeAnalyzeLabel}
               characterRules={remakeCharacterRules}
-              isAnalyzing={isRemakeAnalyzing || isRemakeSourceUploading}
+              estimateOnlyError={remakeEstimateOnlyError}
+              estimateOnlySummary={remakeEstimateOnlySummary}
+              isAnalyzing={isRemakeAnalyzing || isRemakeSourceUploading || isRemakeEstimateOnlyLoading}
+              isEstimateOnlyLoading={isRemakeEstimateOnlyLoading}
               longVideoCostNotice={remakeLongVideoCostNotice}
               mode={remakeMode}
               onAnalyze={handleAnalyzeRemakeStoryboard}
               onCharacterRulesChange={setRemakeCharacterRules}
               onClearSourceVideo={handleClearRemakeSourceVideo}
+              onEstimateLongVideoCost={handleEstimateLongVideoCostOnly}
               onModeChange={handleRemakeModeChange}
               onSceneStyleChange={setRemakeSceneStyle}
               onSourceVideoChange={handleRemakeSourceVideoChange}

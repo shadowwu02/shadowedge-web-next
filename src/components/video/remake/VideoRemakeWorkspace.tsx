@@ -10,11 +10,15 @@ type VideoRemakeWorkspaceProps = {
   analysisError?: string;
   analysisNotice?: string;
   characterRules: string;
+  estimateOnlyError?: string;
+  estimateOnlySummary?: string;
   isAnalyzing?: boolean;
+  isEstimateOnlyLoading?: boolean;
   longVideoCostNotice?: string;
   mode: RemakeMode;
   onAnalyze: () => void;
   onCharacterRulesChange: (value: string) => void;
+  onEstimateLongVideoCost?: () => void;
   onClearSourceVideo: () => void;
   onModeChange: (mode: RemakeMode) => void;
   onSceneStyleChange: (value: string) => void;
@@ -45,11 +49,15 @@ export function VideoRemakeWorkspace({
   analysisError = "",
   analysisNotice = "",
   characterRules,
+  estimateOnlyError = "",
+  estimateOnlySummary = "",
   isAnalyzing = false,
+  isEstimateOnlyLoading = false,
   longVideoCostNotice = "",
   mode,
   onAnalyze,
   onCharacterRulesChange,
+  onEstimateLongVideoCost,
   onClearSourceVideo,
   onModeChange,
   onSceneStyleChange,
@@ -63,6 +71,8 @@ export function VideoRemakeWorkspace({
 }: VideoRemakeWorkspaceProps) {
   const { t } = useI18n();
   const analyzeBlockedReasonKey = getAnalyzeBlockedReasonKey(mode, sourceVideo?.duration);
+  const canEstimateLongVideoCost =
+    mode === "long_video" && Boolean(sourceVideo?.assetId) && Boolean(onEstimateLongVideoCost) && !isAnalyzing && !isEstimateOnlyLoading;
 
   return (
     <div className="grid content-start gap-3">
@@ -82,6 +92,35 @@ export function VideoRemakeWorkspace({
         <p className="rounded-[18px] border border-[#ffb44d]/24 bg-[#ffb44d]/9 p-3 text-xs leading-5 text-[#ffd08a]/86">
           {longVideoCostNotice}
         </p>
+      ) : null}
+      {mode === "long_video" ? (
+        <section className="se-card grid gap-2 rounded-[24px] p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="se-eyebrow">{t("video.remake.longVideo.cost.estimateOnlyTitle")}</p>
+              <p className="mt-1 text-xs leading-5 text-[#b9b9b9]/62">{t("video.remake.longVideo.cost.estimateOnlyHelp")}</p>
+            </div>
+            <button
+              aria-busy={isEstimateOnlyLoading}
+              className="se-button-secondary min-h-10 rounded-[16px] px-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!canEstimateLongVideoCost}
+              onClick={onEstimateLongVideoCost}
+              type="button"
+            >
+              {isEstimateOnlyLoading ? t("video.remake.longVideo.cost.estimateOnlyLoading") : t("video.remake.longVideo.cost.estimateOnly")}
+            </button>
+          </div>
+          {estimateOnlySummary ? (
+            <p className="rounded-[16px] border border-[#ffb44d]/24 bg-[#ffb44d]/9 p-3 text-xs leading-5 text-[#ffd08a]/86">
+              {estimateOnlySummary}
+            </p>
+          ) : null}
+          {estimateOnlyError ? (
+            <p className="rounded-[16px] border border-[#7f2d2d]/42 bg-[#2a1012]/70 p-3 text-xs leading-5 text-[#f1b4b4]/86">
+              {estimateOnlyError}
+            </p>
+          ) : null}
+        </section>
       ) : null}
       <RemakeSettingsPanel
         analyzeLabel={analyzeLabel}

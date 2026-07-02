@@ -98,8 +98,21 @@ export type VideoRemakeLongAnalysisCostEstimateInput = {
   sourceVideoUrl: string;
 };
 
+export type VideoRemakeLongAnalysisAdapterStatus = {
+  connected: boolean;
+  dryRunOnly: boolean;
+  maxDurationSeconds?: number;
+  maxFrames?: number;
+  maxSegments?: number;
+  provider: string;
+  providerCallMade?: boolean;
+  requestBuilderReady?: boolean;
+  supportsRealCalls: boolean;
+};
+
 export type VideoRemakeLongAnalysisCostEstimate = {
   analysisMode: "mock_only" | "real_vlm";
+  adapterStatus?: VideoRemakeLongAnalysisAdapterStatus;
   balance: number | null;
   billableNow: boolean;
   chargeCreditsNow: number;
@@ -115,7 +128,9 @@ export type VideoRemakeLongAnalysisCostEstimate = {
   requiresMetadataProbe: boolean;
   requiresRealVlmEnabled: boolean;
   safety: {
+    adapterDryRunOnly?: boolean;
     mockOnly: boolean;
+    supportsRealCalls?: boolean;
     vlmEnabled: boolean;
     willCallProvider: boolean;
     willChargeCredits: boolean;
@@ -249,11 +264,25 @@ function normalizeLongAnalysisJob(payload: unknown): VideoRemakeLongAnalysisJob 
 function normalizeLongAnalysisCostEstimate(payload: unknown): VideoRemakeLongAnalysisCostEstimate {
   const record = asRecord(payload);
   const estimate = asRecord(record.estimate || asRecord(record.data).estimate || record);
+  const adapter = asRecord(estimate.adapterStatus || record.adapterStatus || asRecord(record.data).adapterStatus);
   const safety = asRecord(estimate.safety);
   const analysisMode = pickString(estimate.analysisMode) === "real_vlm" ? "real_vlm" : "mock_only";
 
   return {
     analysisMode,
+    adapterStatus: Object.keys(adapter).length
+      ? {
+          connected: adapter.connected === true,
+          dryRunOnly: adapter.dryRunOnly === true,
+          maxDurationSeconds: Number.isFinite(Number(adapter.maxDurationSeconds)) ? Number(adapter.maxDurationSeconds) : undefined,
+          maxFrames: Number.isFinite(Number(adapter.maxFrames)) ? Number(adapter.maxFrames) : undefined,
+          maxSegments: Number.isFinite(Number(adapter.maxSegments)) ? Number(adapter.maxSegments) : undefined,
+          provider: pickString(adapter.provider) || "disabled",
+          providerCallMade: adapter.providerCallMade === true,
+          requestBuilderReady: adapter.requestBuilderReady === true,
+          supportsRealCalls: adapter.supportsRealCalls === true,
+        }
+      : undefined,
     balance: Number.isFinite(Number(estimate.balance)) ? Number(estimate.balance) : null,
     billableNow: estimate.billableNow === true,
     chargeCreditsNow: Number(estimate.chargeCreditsNow || 0),
@@ -269,7 +298,9 @@ function normalizeLongAnalysisCostEstimate(payload: unknown): VideoRemakeLongAna
     requiresMetadataProbe: estimate.requiresMetadataProbe === true,
     requiresRealVlmEnabled: estimate.requiresRealVlmEnabled === true,
     safety: {
+      adapterDryRunOnly: safety.adapterDryRunOnly === true,
       mockOnly: safety.mockOnly !== false,
+      supportsRealCalls: safety.supportsRealCalls === true,
       vlmEnabled: safety.vlmEnabled === true,
       willCallProvider: safety.willCallProvider === true,
       willChargeCredits: safety.willChargeCredits === true,
