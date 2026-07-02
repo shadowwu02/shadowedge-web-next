@@ -84,8 +84,42 @@ export type VideoRemakeLongAnalysisJob = {
 };
 
 export type VideoRemakeLongAnalysisCreateInput = {
+  analysisEngine?: "mock" | "real_vlm";
+  clientRequestId?: string;
+  confirmCost?: boolean;
+  estimateId?: string;
   sourceAssetId?: string;
   sourceVideoUrl: string;
+};
+
+export type VideoRemakeLongAnalysisCostEstimateInput = {
+  analysisEngine?: "mock" | "real_vlm";
+  sourceAssetId?: string;
+  sourceVideoUrl: string;
+};
+
+export type VideoRemakeLongAnalysisCostEstimate = {
+  analysisMode: "mock_only" | "real_vlm";
+  balance: number | null;
+  billableNow: boolean;
+  chargeCreditsNow: number;
+  estimatedCredits: number;
+  estimatedCreditsIfRealVlm: number;
+  estimatedCostUnits: number | null;
+  estimatedKeyframeCount: number | null;
+  estimatedSegmentCount: number | null;
+  hasEnoughCredits: boolean;
+  message: string;
+  mode: "long_video";
+  requiresConfirmation: boolean;
+  requiresMetadataProbe: boolean;
+  requiresRealVlmEnabled: boolean;
+  safety: {
+    mockOnly: boolean;
+    vlmEnabled: boolean;
+    willCallProvider: boolean;
+    willChargeCredits: boolean;
+  };
 };
 
 function buildDurationArray(config: unknown) {
@@ -212,11 +246,61 @@ function normalizeLongAnalysisJob(payload: unknown): VideoRemakeLongAnalysisJob 
   };
 }
 
+function normalizeLongAnalysisCostEstimate(payload: unknown): VideoRemakeLongAnalysisCostEstimate {
+  const record = asRecord(payload);
+  const estimate = asRecord(record.estimate || asRecord(record.data).estimate || record);
+  const safety = asRecord(estimate.safety);
+  const analysisMode = pickString(estimate.analysisMode) === "real_vlm" ? "real_vlm" : "mock_only";
+
+  return {
+    analysisMode,
+    balance: Number.isFinite(Number(estimate.balance)) ? Number(estimate.balance) : null,
+    billableNow: estimate.billableNow === true,
+    chargeCreditsNow: Number(estimate.chargeCreditsNow || 0),
+    estimatedCredits: Number(estimate.estimatedCredits || 0),
+    estimatedCreditsIfRealVlm: Number(estimate.estimatedCreditsIfRealVlm || 0),
+    estimatedCostUnits: Number.isFinite(Number(estimate.estimatedCostUnits)) ? Number(estimate.estimatedCostUnits) : null,
+    estimatedKeyframeCount: Number.isFinite(Number(estimate.estimatedKeyframeCount)) ? Number(estimate.estimatedKeyframeCount) : null,
+    estimatedSegmentCount: Number.isFinite(Number(estimate.estimatedSegmentCount)) ? Number(estimate.estimatedSegmentCount) : null,
+    hasEnoughCredits: estimate.hasEnoughCredits !== false,
+    message: pickString(estimate.message) || "",
+    mode: "long_video",
+    requiresConfirmation: estimate.requiresConfirmation === true,
+    requiresMetadataProbe: estimate.requiresMetadataProbe === true,
+    requiresRealVlmEnabled: estimate.requiresRealVlmEnabled === true,
+    safety: {
+      mockOnly: safety.mockOnly !== false,
+      vlmEnabled: safety.vlmEnabled === true,
+      willCallProvider: safety.willCallProvider === true,
+      willChargeCredits: safety.willChargeCredits === true,
+    },
+  };
+}
+
+export async function estimateLongVideoRemakeAnalysisCost(input: VideoRemakeLongAnalysisCostEstimateInput) {
+  const sourceAssetId = input.sourceAssetId?.trim() || undefined;
+  const envelope = await apiRequest<VideoRemakeLongAnalysisCostEstimate>("/api/remake/long-video-cost-estimate", {
+    method: "POST",
+    body: JSON.stringify({
+      analysisEngine: input.analysisEngine || "mock",
+      mode: "long_video",
+      sourceAssetId,
+      sourceVideoUrl: sourceAssetId ? undefined : input.sourceVideoUrl,
+    }),
+  });
+
+  return normalizeLongAnalysisCostEstimate(envelope.data || envelope);
+}
+
 export async function createLongVideoRemakeAnalysis(input: VideoRemakeLongAnalysisCreateInput) {
   const sourceAssetId = input.sourceAssetId?.trim() || undefined;
   const envelope = await apiRequest<VideoRemakeLongAnalysisJob>("/api/remake/analyze-long-video", {
     method: "POST",
     body: JSON.stringify({
+      analysisEngine: input.analysisEngine || "mock",
+      clientRequestId: input.clientRequestId,
+      confirmCost: input.confirmCost,
+      estimateId: input.estimateId,
       mode: "long_video",
       sourceAssetId,
       sourceVideoUrl: sourceAssetId ? undefined : input.sourceVideoUrl,

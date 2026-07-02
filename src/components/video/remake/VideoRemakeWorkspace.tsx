@@ -11,6 +11,7 @@ type VideoRemakeWorkspaceProps = {
   analysisNotice?: string;
   characterRules: string;
   isAnalyzing?: boolean;
+  longVideoCostNotice?: string;
   mode: RemakeMode;
   onAnalyze: () => void;
   onCharacterRulesChange: (value: string) => void;
@@ -45,6 +46,7 @@ export function VideoRemakeWorkspace({
   analysisNotice = "",
   characterRules,
   isAnalyzing = false,
+  longVideoCostNotice = "",
   mode,
   onAnalyze,
   onCharacterRulesChange,
@@ -76,6 +78,11 @@ export function VideoRemakeWorkspace({
         onChange={onSourceVideoChange}
         sourceVideo={sourceVideo}
       />
+      {mode === "long_video" && longVideoCostNotice ? (
+        <p className="rounded-[18px] border border-[#ffb44d]/24 bg-[#ffb44d]/9 p-3 text-xs leading-5 text-[#ffd08a]/86">
+          {longVideoCostNotice}
+        </p>
+      ) : null}
       <RemakeSettingsPanel
         analyzeLabel={analyzeLabel}
         analyzeBlockedReason={analyzeBlockedReasonKey ? t(analyzeBlockedReasonKey) : ""}
