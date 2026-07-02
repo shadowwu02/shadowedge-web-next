@@ -93,7 +93,8 @@ export type VideoRemakeLongAnalysisCreateInput = {
 };
 
 export type VideoRemakeLongAnalysisCostEstimateInput = {
-  analysisEngine?: "mock" | "real_vlm";
+  analysisEngine?: "mock" | "real_vlm" | "sandbox_vlm";
+  provider?: string;
   sourceAssetId?: string;
   sourceVideoUrl: string;
 };
@@ -111,7 +112,7 @@ export type VideoRemakeLongAnalysisAdapterStatus = {
 };
 
 export type VideoRemakeLongAnalysisCostEstimate = {
-  analysisMode: "mock_only" | "real_vlm";
+  analysisMode: "mock_only" | "real_vlm" | "sandbox_vlm";
   adapterStatus?: VideoRemakeLongAnalysisAdapterStatus;
   balance: number | null;
   billableNow: boolean;
@@ -127,6 +128,7 @@ export type VideoRemakeLongAnalysisCostEstimate = {
   requiresConfirmation: boolean;
   requiresMetadataProbe: boolean;
   requiresRealVlmEnabled: boolean;
+  sandboxAllowed?: boolean;
   safety: {
     adapterDryRunOnly?: boolean;
     mockOnly: boolean;
@@ -266,7 +268,8 @@ function normalizeLongAnalysisCostEstimate(payload: unknown): VideoRemakeLongAna
   const estimate = asRecord(record.estimate || asRecord(record.data).estimate || record);
   const adapter = asRecord(estimate.adapterStatus || record.adapterStatus || asRecord(record.data).adapterStatus);
   const safety = asRecord(estimate.safety);
-  const analysisMode = pickString(estimate.analysisMode) === "real_vlm" ? "real_vlm" : "mock_only";
+  const rawAnalysisMode = pickString(estimate.analysisMode);
+  const analysisMode = rawAnalysisMode === "real_vlm" || rawAnalysisMode === "sandbox_vlm" ? rawAnalysisMode : "mock_only";
 
   return {
     analysisMode,
@@ -297,6 +300,7 @@ function normalizeLongAnalysisCostEstimate(payload: unknown): VideoRemakeLongAna
     requiresConfirmation: estimate.requiresConfirmation === true,
     requiresMetadataProbe: estimate.requiresMetadataProbe === true,
     requiresRealVlmEnabled: estimate.requiresRealVlmEnabled === true,
+    sandboxAllowed: typeof estimate.sandboxAllowed === "boolean" ? estimate.sandboxAllowed : undefined,
     safety: {
       adapterDryRunOnly: safety.adapterDryRunOnly === true,
       mockOnly: safety.mockOnly !== false,
@@ -315,6 +319,7 @@ export async function estimateLongVideoRemakeAnalysisCost(input: VideoRemakeLong
     body: JSON.stringify({
       analysisEngine: input.analysisEngine || "mock",
       mode: "long_video",
+      provider: input.provider,
       sourceAssetId,
       sourceVideoUrl: sourceAssetId ? undefined : input.sourceVideoUrl,
     }),
