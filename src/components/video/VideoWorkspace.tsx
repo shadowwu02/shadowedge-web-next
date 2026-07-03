@@ -19,6 +19,7 @@ import { VideoRemakeWorkspace } from "@/components/video/remake/VideoRemakeWorks
 import { buildMockRemakeStoryboard } from "@/components/video/remake/remakeMockData";
 import { getRemakeShotGenerationKey } from "@/components/video/remake/remakeTypes";
 import type {
+  RemakeAnalysisSource,
   RemakeKeyframe,
   RemakeMode,
   RemakeSegment,
@@ -243,6 +244,19 @@ function getLongVideoStageNotice(stage: VideoRemakeLongAnalysisStage | undefined
   return t("video.remake.longVideo.stage.queued");
 }
 
+function getRemakeAnalysisSource(value: unknown): RemakeAnalysisSource | undefined {
+  if (value === "fallback" || value === "vlm" || value === "sandbox_vlm" || value === "real_vlm") return value;
+  return undefined;
+}
+
+function getPlainRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function hasTrueFlag(...values: unknown[]) {
+  return values.some((value) => value === true);
+}
+
 function waitForLongVideoPollDelay(ms: number) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
@@ -282,6 +296,17 @@ type RemakeActiveShotRecoveryState = {
 type RemakeOutputsView = {
   items: RemakeOutputItem[];
   scope: RemakeOutputScope;
+};
+type RemakeAnalysisMeta = {
+  analysisSource?: RemakeAnalysisSource;
+  fallbackReason?: string;
+  mock?: boolean;
+  providerCallMade?: boolean;
+  sandboxVlm?: boolean;
+  segments?: RemakeSegment[];
+  sourceVideo?: RemakeSourceVideoMetadata;
+  vlmCalled?: boolean;
+  vlmProvider?: string;
 };
 
 const idleRemakeShotQueue: RemakeShotQueueState = {
@@ -887,14 +912,7 @@ export function VideoWorkspace() {
   const [remakeStoryboard, setRemakeStoryboard] = useState<RemakeStoryboard | null>(null);
   const [isRemakeAnalyzing, setIsRemakeAnalyzing] = useState(false);
   const [isRemakeSourceUploading, setIsRemakeSourceUploading] = useState(false);
-  const [remakeAnalysisMeta, setRemakeAnalysisMeta] = useState<{
-    analysisSource?: "fallback" | "vlm";
-    fallbackReason?: string;
-    mock?: boolean;
-    segments?: RemakeSegment[];
-    sourceVideo?: RemakeSourceVideoMetadata;
-    vlmProvider?: string;
-  } | null>(null);
+  const [remakeAnalysisMeta, setRemakeAnalysisMeta] = useState<RemakeAnalysisMeta | null>(null);
   const [remakeAnalysisError, setRemakeAnalysisError] = useState("");
   const [remakeAnalysisNotice, setRemakeAnalysisNotice] = useState("");
   const [remakeLongVideoCostEstimate, setRemakeLongVideoCostEstimate] = useState<VideoRemakeLongAnalysisCostEstimate | null>(null);
@@ -1135,8 +1153,11 @@ export function VideoWorkspace() {
         analysisSource: draft.storyboard.analysisSource,
         fallbackReason: draft.storyboard.fallbackReason,
         mock: draft.storyboard.mock,
+        providerCallMade: draft.storyboard.providerCallMade,
+        sandboxVlm: draft.storyboard.sandboxVlm,
         segments: draft.segments,
         sourceVideo: draft.sourceVideo,
+        vlmCalled: draft.storyboard.vlmCalled,
         vlmProvider: draft.storyboard.vlmProvider,
       });
       setRemakeAnalysisError("");
@@ -1522,20 +1543,46 @@ export function VideoWorkspace() {
           throw new Error(t("video.remake.longVideo.failed"));
         }
 
+        const longVideoJobMetadata = getPlainRecord(longVideoJob.metadata);
+        const longVideoResultMetadata = getPlainRecord(longVideoJob.result?.metadata);
+        const longVideoAnalysisSource = getRemakeAnalysisSource(longVideoStoryboard.analysisSource) || "fallback";
+        const longVideoVlmCalled = hasTrueFlag(
+          longVideoJobMetadata.vlmCalled,
+          longVideoResultMetadata.vlmCalled,
+          longVideoStoryboard.vlmCalled,
+        );
+        const longVideoProviderCallMade = hasTrueFlag(
+          longVideoJobMetadata.providerCallMade,
+          longVideoResultMetadata.providerCallMade,
+          longVideoStoryboard.providerCallMade,
+        );
+        const longVideoSandboxVlm = hasTrueFlag(
+          longVideoJobMetadata.sandboxVlm,
+          longVideoResultMetadata.sandboxVlm,
+          longVideoStoryboard.sandboxVlm,
+          longVideoAnalysisSource === "sandbox_vlm",
+        );
+
         const analyzedStoryboard: RemakeStoryboard = {
           ...longVideoStoryboard,
-          analysisSource: "fallback",
+          analysisSource: longVideoAnalysisSource === "real_vlm" || longVideoAnalysisSource === "vlm" ? longVideoAnalysisSource : "fallback",
           fallbackReason: longVideoStoryboard.fallbackReason || longVideoJob.result?.note || t("video.remake.longVideo.mockNotice"),
+          providerCallMade: longVideoProviderCallMade,
+          sandboxVlm: longVideoSandboxVlm,
           mock: true,
+          vlmCalled: longVideoVlmCalled,
         };
 
         setRemakeStoryboard(analyzedStoryboard);
         setRemakeAnalysisMeta({
-          analysisSource: "fallback",
+          analysisSource: analyzedStoryboard.analysisSource,
           fallbackReason: analyzedStoryboard.fallbackReason,
           mock: true,
+          providerCallMade: longVideoProviderCallMade,
+          sandboxVlm: longVideoSandboxVlm,
           segments: longVideoJob.result?.segments,
           sourceVideo: longVideoJob.sourceVideo || longVideoJob.result?.sourceVideo,
+          vlmCalled: longVideoVlmCalled,
         });
         const draftResult = saveRemakeStoryboardDraft({
           segments: longVideoJob.result?.segments,
@@ -1564,18 +1611,19 @@ export function VideoWorkspace() {
       if (remakeSourceRevisionRef.current !== analysisRevision) return;
 
       const analysisSource =
-        result.meta?.analysisSource === "vlm"
-          ? "vlm"
-          : result.meta?.analysisSource === "fallback" || result.meta?.mock
-            ? "fallback"
-            : result.meta?.vlmProvider
-              ? "vlm"
-              : undefined;
+        getRemakeAnalysisSource(result.meta?.analysisSource) ||
+        (result.meta?.mock ? "fallback" : result.meta?.vlmProvider ? "vlm" : undefined);
+      const vlmCalled = hasTrueFlag(result.meta?.vlmCalled, analysisSource === "vlm" || analysisSource === "real_vlm");
+      const providerCallMade = hasTrueFlag(result.meta?.providerCallMade, vlmCalled);
+      const sandboxVlm = hasTrueFlag(result.meta?.sandboxVlm, analysisSource === "sandbox_vlm");
       const analyzedStoryboard: RemakeStoryboard = {
         ...result.storyboard,
         analysisSource,
         fallbackReason: result.meta?.fallbackReason,
         mock: Boolean(result.meta?.mock),
+        providerCallMade,
+        sandboxVlm,
+        vlmCalled,
         vlmProvider: result.meta?.vlmProvider,
       };
 
@@ -1584,8 +1632,11 @@ export function VideoWorkspace() {
         analysisSource,
         fallbackReason: result.meta?.fallbackReason,
         mock: Boolean(result.meta?.mock),
+        providerCallMade,
+        sandboxVlm,
         segments: result.meta?.segments,
         sourceVideo: result.meta?.sourceVideo,
+        vlmCalled,
         vlmProvider: result.meta?.vlmProvider,
       });
       const draftResult = saveRemakeStoryboardDraft({

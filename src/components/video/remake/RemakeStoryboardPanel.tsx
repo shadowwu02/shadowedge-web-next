@@ -4,7 +4,9 @@ import { useI18n } from "@/i18n/useI18n";
 import { getRemakeShotGenerationKey } from "@/components/video/remake/remakeTypes";
 import { getVideoUserFacingError } from "@/lib/video/videoErrorDisplay";
 import type {
+  RemakeAnalysisSource,
   RemakeKeyframe,
+  RemakeMode,
   RemakeSegment,
   RemakeSettings,
   RemakeShot,
@@ -24,11 +26,14 @@ type RemakeStoryboardPanelProps = {
   hasSourceVideo?: boolean;
   isAnalyzing?: boolean;
   metadata?: {
-    analysisSource?: "fallback" | "vlm";
+    analysisSource?: RemakeAnalysisSource;
     fallbackReason?: string;
     mock?: boolean;
+    providerCallMade?: boolean;
+    sandboxVlm?: boolean;
     segments?: RemakeSegment[];
     sourceVideo?: RemakeSourceVideoMetadata;
+    vlmCalled?: boolean;
     vlmProvider?: string;
   };
   onCancelQueue?: () => void;
@@ -159,6 +164,12 @@ function outputStatusClass(statusKind: RemakeOutputItem["statusKind"]) {
   if (statusKind === "failed") return "se-status-failed";
   if (statusKind === "processing") return "se-status-processing";
   return "se-status-neutral";
+}
+
+function getRemakeModeLabelKey(mode: RemakeMode) {
+  if (mode === "single_clip") return "video.remake.mode.singleClip";
+  if (mode === "long_video") return "video.remake.mode.longVideoAnalysis";
+  return "video.remake.mode.fullFilm";
 }
 
 function RemakeOutputsPanel({
@@ -346,12 +357,17 @@ export function RemakeStoryboardPanel({
   const isRetryQueue = queueIntent === "retry_failed" || queueIntent === "retry_single";
   const hasQueueStatus = queueStatus === "running" || queueStatus === "paused" || queueStatus === "completed" || queueStatus === "cancelled";
   const analysisSource = metadata?.analysisSource || storyboard?.analysisSource || (metadata?.mock || storyboard?.mock ? "fallback" : "");
+  const vlmCalled = metadata?.vlmCalled === true || storyboard?.vlmCalled === true || analysisSource === "vlm" || analysisSource === "real_vlm";
+  const providerCallMade = metadata?.providerCallMade === true || storyboard?.providerCallMade === true || vlmCalled;
+  const isSandboxStoryboard = metadata?.sandboxVlm === true || storyboard?.sandboxVlm === true || analysisSource === "sandbox_vlm";
+  const isFallbackStoryboard = Boolean(storyboard && (analysisSource === "fallback" || metadata?.mock || storyboard?.mock || isSandboxStoryboard || !vlmCalled || !providerCallMade));
   const analysisSourceLabel =
-    analysisSource === "vlm"
+    analysisSource === "vlm" || analysisSource === "real_vlm"
       ? t("video.remake.analysisSource.vlm")
-      : analysisSource === "fallback"
+      : analysisSource === "fallback" || analysisSource === "sandbox_vlm"
         ? t("video.remake.analysisSource.fallback")
         : "";
+  const displayedAnalysisSourceLabel = analysisSourceLabel || (isFallbackStoryboard ? t("video.remake.analysisSource.fallback") : "");
   const emptyStateTitle = isAnalyzing
     ? t("video.remake.analyzingSourceVideoTitle")
     : hasSourceVideo
@@ -384,18 +400,33 @@ export function RemakeStoryboardPanel({
           <p className="se-eyebrow">{t("video.remake.storyboard")}</p>
           <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-[#f4f4f4]">{t("video.remake.aiStoryboard")}</h1>
           <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/66">{t("video.remake.storyboardSubtitle")}</p>
-          {analysisSourceLabel ? (
+          {displayedAnalysisSourceLabel ? (
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span
                 className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                  analysisSource === "vlm"
+                  analysisSource === "vlm" || analysisSource === "real_vlm"
                     ? "border-emerald-300/24 bg-emerald-400/10 text-emerald-200"
                     : "border-[#ffb44d]/28 bg-[#ffb44d]/10 text-[#ffd08a]"
                 }`}
               >
-                {analysisSourceLabel}
+                {displayedAnalysisSourceLabel}
               </span>
-              {analysisSource === "fallback" ? (
+              {isFallbackStoryboard ? (
+                <>
+                  <span className="rounded-full border border-[#ffb44d]/28 bg-[#ffb44d]/10 px-3 py-1.5 text-xs font-semibold text-[#ffd08a]">
+                    {t("video.remake.resultBadge.fallbackStoryboard")}
+                  </span>
+                  <span className="rounded-full border border-[#f2b3a1]/24 bg-[#2a1012]/62 px-3 py-1.5 text-xs font-semibold text-[#f2b3a1]">
+                    {t("video.remake.resultBadge.notRealVisualReverse")}
+                  </span>
+                  {!vlmCalled && !providerCallMade ? (
+                    <span className="rounded-full border border-[#7dd3fc]/24 bg-[#0b2a3a]/60 px-3 py-1.5 text-xs font-semibold text-[#b7e8ff]">
+                      {t("video.remake.resultBadge.noVisionModel")}
+                    </span>
+                  ) : null}
+                </>
+              ) : null}
+              {isFallbackStoryboard ? (
                 <span className="text-xs font-medium leading-5 text-[#b9b9b9]/68">{t("video.remake.analysisFallbackHint")}</span>
               ) : null}
             </div>
@@ -403,7 +434,7 @@ export function RemakeStoryboardPanel({
         </div>
         <div className="grid gap-2 text-right text-xs text-[#b9b9b9]/58">
           <span className="rounded-full border border-[#ffb44d]/28 bg-[#ffb44d]/10 px-3 py-1.5 font-semibold text-[#ffb44d]">
-            {settings.mode === "single_clip" ? t("video.remake.mode.singleClip") : t("video.remake.mode.fullFilm")}
+            {t(getRemakeModeLabelKey(settings.mode))}
           </span>
           <span>{settings.targetRegion}</span>
           {storyboard && onClearDraft ? (
@@ -475,6 +506,7 @@ export function RemakeStoryboardPanel({
       {storyboard ? (
         <div className="mb-5 grid gap-2 rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/58 p-3 text-sm leading-6 text-[#b9b9b9]/72">
           {draftNotice ? <p className="font-semibold text-[#ffd08a]/88">{draftNotice}</p> : null}
+          {isFallbackStoryboard ? <p className="font-semibold text-[#ffd08a]/88">{t("video.remake.resultFallbackBoundaryNotice")}</p> : null}
           <p>{t("video.remake.queueCreditNotice")}</p>
           {hasQueueStatus ? (
             <p className="font-semibold text-[#f4f4f4]/82">

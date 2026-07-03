@@ -1,4 +1,5 @@
 export type RemakeMode = "single_clip" | "full_film" | "long_video";
+export type RemakeAnalysisSource = "fallback" | "vlm" | "sandbox_vlm" | "real_vlm";
 
 export type RemakeTargetRegion = "US" | "Middle East" | "Japan" | "Southeast Asia";
 
@@ -93,14 +94,17 @@ export type RemakeShotGenerationState = {
 export type RemakeStoryboard = {
   id: string;
   mode: RemakeMode;
-  analysisSource?: "fallback" | "vlm";
+  analysisSource?: RemakeAnalysisSource;
   fallbackReason?: string;
   mock?: boolean;
+  providerCallMade?: boolean;
+  sandboxVlm?: boolean;
   sourceTitle?: string;
   targetRegion: RemakeTargetRegion;
   characterRules: string;
   sceneStyle: string;
   translateDialogue: boolean;
+  vlmCalled?: boolean;
   vlmProvider?: string;
   shots: RemakeShot[];
 };

@@ -100,6 +100,16 @@ export function VideoRemakeWorkspace({
         <p className="se-eyebrow">{t("video.remake.title")}</p>
         <h1 className="mt-2 text-lg font-semibold tracking-[-0.02em] text-[#f4f4f4]">{t("video.remake.subtitle")}</h1>
         <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/68">{t("video.remake.workflowDescription")}</p>
+        {mode === "long_video" ? (
+          <p className="mt-3 rounded-[18px] border border-[#ffb44d]/24 bg-[#ffb44d]/9 p-3 text-xs leading-5 text-[#ffd08a]/86">
+            {t("video.remake.longVideo.betaStructureNotice")}
+          </p>
+        ) : null}
+        {mode === "full_film" ? (
+          <p className="mt-3 rounded-[18px] border border-[#7dd3fc]/24 bg-[#0b2a3a]/60 p-3 text-xs leading-5 text-[#b7e8ff]/90">
+            {t("video.remake.fullEpisodeLimit")}
+          </p>
+        ) : null}
       </section>
 
       <RemakeSourceUpload

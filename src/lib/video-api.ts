@@ -2,6 +2,7 @@ import { apiRequest } from "@/lib/api";
 import { getStoredAuthToken } from "@/lib/auth";
 import { ApiError } from "@/types/api";
 import type {
+  RemakeAnalysisSource,
   RemakeMode,
   RemakeSegment,
   RemakeSourceVideoMetadata,
@@ -36,7 +37,7 @@ export type VideoRemakeReverseAnalyzeInput = {
 export type VideoRemakeReverseAnalyzeResponse = {
   meta?: {
     analysisId?: string;
-    analysisSource?: "fallback" | "vlm";
+    analysisSource?: RemakeAnalysisSource;
     estimatedCredits?: number;
     metadataOnly?: boolean;
     mock?: boolean;
@@ -44,6 +45,9 @@ export type VideoRemakeReverseAnalyzeResponse = {
     segments?: RemakeSegment[];
     sourceVideo?: RemakeSourceVideoMetadata;
     fallbackReason?: string;
+    providerCallMade?: boolean;
+    sandboxVlm?: boolean;
+    vlmCalled?: boolean;
     vlmFailed?: boolean;
     vlmModel?: string;
     vlmProvider?: string;
@@ -68,6 +72,7 @@ export type VideoRemakeLongAnalysisJob = {
   progress: number;
   stage: VideoRemakeLongAnalysisStage;
   result?: {
+    metadata?: Record<string, unknown>;
     note?: string;
     remakePrompt?: string;
     scenes?: unknown[];

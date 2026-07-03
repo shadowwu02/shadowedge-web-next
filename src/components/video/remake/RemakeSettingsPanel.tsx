@@ -84,6 +84,9 @@ export function RemakeSettingsPanel({
                   ) : null}
                 </span>
                 <span className="mt-1 block text-xs leading-5 text-[#b9b9b9]/62">{t(modeHintKey(item))}</span>
+                {item === "full_film" ? (
+                  <span className="mt-2 block text-xs leading-5 text-[#b7e8ff]/82">{t("video.remake.fullEpisodeLimit")}</span>
+                ) : null}
                 {item === "long_video" ? (
                   <>
                     <span className="mt-2 flex flex-wrap gap-1.5">
@@ -97,7 +100,7 @@ export function RemakeSettingsPanel({
                         {t("video.remake.longVideo.remakeStoryboard")}
                       </span>
                     </span>
-                    <span className="mt-2 block text-xs leading-5 text-[#ffd08a]/72">{t("video.remake.longVideo.processingNotice")}</span>
+                    <span className="mt-2 block text-xs leading-5 text-[#ffd08a]/72">{t("video.remake.longVideo.betaStructureNotice")}</span>
                   </>
                 ) : null}
               </button>
