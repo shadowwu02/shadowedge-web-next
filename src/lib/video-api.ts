@@ -3,6 +3,9 @@ import { getStoredAuthToken } from "@/lib/auth";
 import { ApiError } from "@/types/api";
 import type {
   RemakeAnalysisSource,
+  RemakeEpisodeChunk,
+  RemakeEpisodeCoverage,
+  RemakeEpisodeResult,
   RemakeMode,
   RemakeSegment,
   RemakeSourceVideoMetadata,
@@ -86,6 +89,19 @@ export type VideoRemakeLongAnalysisJob = {
   errorCode?: string;
   errorMessage?: string;
   metadata?: Record<string, unknown>;
+};
+
+export type VideoRemakeFullEpisodeAnalysisJob = Omit<VideoRemakeLongAnalysisJob, "result"> & {
+  chunks?: RemakeEpisodeChunk[];
+  coverage?: RemakeEpisodeCoverage | null;
+  episodeStage?: string;
+  result?: (VideoRemakeLongAnalysisJob["result"] & RemakeEpisodeResult) | null;
+};
+
+export type VideoRemakeFullEpisodeAnalysisCreateInput = {
+  clientRequestId?: string;
+  sourceAssetId?: string;
+  sourceVideoUrl: string;
 };
 
 export type VideoRemakeLongAnalysisCreateInput = {
@@ -268,6 +284,70 @@ function normalizeLongAnalysisJob(payload: unknown): VideoRemakeLongAnalysisJob 
   };
 }
 
+function normalizeEpisodeCoverage(value: unknown): RemakeEpisodeCoverage | null {
+  const record = asRecord(value);
+  if (!Object.keys(record).length) return null;
+
+  return {
+    actualShotCount: Number(record.actualShotCount || 0),
+    coverageRatio: Number(record.coverageRatio || 0),
+    durationSeconds: Number.isFinite(Number(record.durationSeconds)) ? Number(record.durationSeconds) : undefined,
+    firstTimestamp: Number.isFinite(Number(record.firstTimestamp)) ? Number(record.firstTimestamp) : null,
+    gapCount: Number.isFinite(Number(record.gapCount)) ? Number(record.gapCount) : undefined,
+    lastTimestamp: Number.isFinite(Number(record.lastTimestamp)) ? Number(record.lastTimestamp) : null,
+    ok: record.ok === true,
+    reason: pickString(record.reason) || null,
+    recommendedMinShotCount: Number(record.recommendedMinShotCount || 0),
+  };
+}
+
+function normalizeEpisodeChunk(value: unknown): RemakeEpisodeChunk {
+  const record = asRecord(value);
+  return {
+    chunkIndex: Number(record.chunkIndex || 0),
+    coverage: normalizeEpisodeCoverage(record.coverage) || undefined,
+    duration: Number(record.duration || 0),
+    end: Number(record.end || 0),
+    id: pickString(record.id) || "",
+    shotBeatCount: Number(record.shotBeatCount || 0),
+    start: Number(record.start || 0),
+    status: pickString(record.status) || undefined,
+  };
+}
+
+function normalizeFullEpisodeAnalysisJob(payload: unknown): VideoRemakeFullEpisodeAnalysisJob {
+  const job = normalizeLongAnalysisJob(payload) as VideoRemakeFullEpisodeAnalysisJob;
+  const record = asRecord(payload);
+  const rawJob = asRecord(record.job || record.data || record);
+  const result = asRecord(rawJob.result || record.result);
+  const chunks = Array.isArray(record.chunks) ? record.chunks : Array.isArray(result.chunks) ? result.chunks : [];
+  const coverage = normalizeEpisodeCoverage(record.coverage || result.coverage);
+
+  return {
+    ...job,
+    chunks: chunks.map(normalizeEpisodeChunk),
+    coverage,
+    episodeStage: pickString(rawJob.metadata && asRecord(rawJob.metadata).episodeStage, record.episodeStage, result.episodeStage),
+    result: job.result
+      ? {
+          ...job.result,
+          chunks: chunks.map(normalizeEpisodeChunk),
+          coverage: coverage || undefined,
+          episode: result.episode === true,
+          episodeStage: pickString(result.episodeStage),
+          mode: result.mode === "full_episode" ? "full_episode" : undefined,
+          mock: result.mock === true,
+          note: pickString(result.note),
+          providerCallMade: result.providerCallMade === true,
+          remakePlan: Array.isArray(result.remakePlan) ? result.remakePlan.map(String) : undefined,
+          shotList: Array.isArray(result.shotList) ? result.shotList : undefined,
+          summary: pickString(result.summary),
+          vlmCalled: result.vlmCalled === true,
+        }
+      : null,
+  };
+}
+
 function normalizeLongAnalysisCostEstimate(payload: unknown): VideoRemakeLongAnalysisCostEstimate {
   const record = asRecord(payload);
   const estimate = asRecord(record.estimate || asRecord(record.data).estimate || record);
@@ -357,6 +437,29 @@ export async function getLongVideoRemakeAnalysisStatus(analysisJobId: string) {
   });
 
   return normalizeLongAnalysisJob(envelope.data || envelope);
+}
+
+export async function createFullEpisodeRemakeAnalysis(input: VideoRemakeFullEpisodeAnalysisCreateInput) {
+  const sourceAssetId = input.sourceAssetId?.trim() || undefined;
+  const envelope = await apiRequest<VideoRemakeFullEpisodeAnalysisJob>("/api/remake/full-episode/analyze", {
+    method: "POST",
+    body: JSON.stringify({
+      clientRequestId: input.clientRequestId,
+      mode: "full_episode",
+      sourceAssetId,
+      sourceVideoUrl: sourceAssetId ? undefined : input.sourceVideoUrl,
+    }),
+  });
+
+  return normalizeFullEpisodeAnalysisJob(envelope.data || envelope);
+}
+
+export async function getFullEpisodeRemakeAnalysisStatus(analysisJobId: string) {
+  const envelope = await apiRequest<VideoRemakeFullEpisodeAnalysisJob>(`/api/remake/full-episode/status/${encodeURIComponent(analysisJobId)}`, {
+    method: "GET",
+  });
+
+  return normalizeFullEpisodeAnalysisJob(envelope.data || envelope);
 }
 
 export async function getVideoModels() {

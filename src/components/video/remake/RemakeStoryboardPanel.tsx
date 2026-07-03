@@ -5,6 +5,7 @@ import { getRemakeShotGenerationKey } from "@/components/video/remake/remakeType
 import { getVideoUserFacingError } from "@/lib/video/videoErrorDisplay";
 import type {
   RemakeAnalysisSource,
+  RemakeEpisodeResult,
   RemakeKeyframe,
   RemakeMode,
   RemakeSegment,
@@ -28,6 +29,7 @@ type RemakeStoryboardPanelProps = {
   metadata?: {
     analysisSource?: RemakeAnalysisSource;
     fallbackReason?: string;
+    fullEpisode?: RemakeEpisodeResult;
     mock?: boolean;
     providerCallMade?: boolean;
     sandboxVlm?: boolean;
@@ -100,6 +102,80 @@ function ShotMeta({
     <div className="rounded-[18px] border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/58 p-3">
       <p className="se-eyebrow">{label}</p>
       <p className="mt-1 text-sm font-medium leading-6 text-[#f4f4f4]/84">{value}</p>
+    </div>
+  );
+}
+
+function FullEpisodeCoveragePanel({ result }: { result: RemakeEpisodeResult }) {
+  const { t, tf } = useI18n();
+  const coverage = result.coverage;
+  const chunks = result.chunks || [];
+  const coveragePercent = coverage ? Math.round((coverage.coverageRatio || 0) * 100) : 0;
+
+  return (
+    <div className="mb-5 grid gap-3 rounded-[24px] border border-[#7dd3fc]/22 bg-[#0b2a3a]/42 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="se-eyebrow">{t("video.remake.fullEpisode.resultTitle")}</p>
+          <h2 className="mt-1 text-lg font-semibold text-[#f4f4f4]">{t("video.remake.fullEpisode.coverageTitle")}</h2>
+          <p className="mt-1 text-sm leading-6 text-[#b7e8ff]/78">{result.summary || t("video.remake.fullEpisode.betaWarning")}</p>
+        </div>
+        <span
+          className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
+            coverage?.ok
+              ? "border-emerald-300/24 bg-emerald-400/10 text-emerald-200"
+              : "border-[#ffb44d]/30 bg-[#ffb44d]/10 text-[#ffd08a]"
+          }`}
+        >
+          {coverage?.ok ? t("video.remake.fullEpisode.coverageCovered") : t("video.remake.fullEpisode.coverageIncomplete")}
+        </span>
+      </div>
+
+      <div className="grid gap-2 md:grid-cols-4">
+        <ShotMeta label={t("video.remake.fullEpisode.coverageRatio")} value={`${coveragePercent}%`} />
+        <ShotMeta label={t("video.remake.fullEpisode.actualShots")} value={coverage?.actualShotCount ?? "--"} />
+        <ShotMeta label={t("video.remake.fullEpisode.recommendedShots")} value={coverage?.recommendedMinShotCount ?? "--"} />
+        <ShotMeta
+          label={t("video.remake.fullEpisode.timelineRange")}
+          value={
+            coverage
+              ? `${formatTime(Number(coverage.firstTimestamp || 0))} - ${formatTime(Number(coverage.lastTimestamp || coverage.durationSeconds || 0))}`
+              : "--"
+          }
+        />
+      </div>
+
+      {chunks.length ? (
+        <div>
+          <p className="se-eyebrow mb-2">{t("video.remake.fullEpisode.chunkPlan")}</p>
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {chunks.map((chunk) => (
+              <div className="rounded-[18px] border border-[rgba(244,244,244,0.08)] bg-[#05070b]/42 p-3" key={chunk.id || chunk.chunkIndex}>
+                <p className="text-sm font-semibold text-[#f4f4f4]">
+                  {tf("video.remake.fullEpisode.chunkLabel", { index: chunk.chunkIndex })}
+                </p>
+                <p className="mt-1 text-xs leading-5 text-[#b9b9b9]/70">
+                  {formatTime(chunk.start)} - {formatTime(chunk.end)}
+                </p>
+                <p className="mt-1 text-xs leading-5 text-[#b7e8ff]/76">
+                  {tf("video.remake.fullEpisode.chunkShotBeats", { count: chunk.shotBeatCount })}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {result.remakePlan?.length ? (
+        <div className="rounded-[18px] border border-[rgba(244,244,244,0.08)] bg-[#05070b]/42 p-3">
+          <p className="se-eyebrow">{t("video.remake.fullEpisode.mergedPlan")}</p>
+          <ul className="mt-2 grid gap-1 text-sm leading-6 text-[#f4f4f4]/78">
+            {result.remakePlan.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -351,6 +427,7 @@ export function RemakeStoryboardPanel({
   const { t, tf } = useI18n();
   const shots = storyboard?.shots || [];
   const segments = metadata?.segments || [];
+  const fullEpisodeResult = metadata?.fullEpisode;
   const isQueueRunning = queueStatus === "running";
   const isQueuePaused = queueStatus === "paused";
   const isQueueInterrupted = isQueuePaused && queueWasInterrupted;
@@ -539,6 +616,8 @@ export function RemakeStoryboardPanel({
           {analysisNotice}
         </p>
       ) : null}
+
+      {fullEpisodeResult ? <FullEpisodeCoveragePanel result={fullEpisodeResult} /> : null}
 
       {shots.length ? (
         <div className="grid gap-4">

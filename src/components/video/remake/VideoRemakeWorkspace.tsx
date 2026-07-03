@@ -43,6 +43,10 @@ function getAnalyzeBlockedReasonKey(mode: RemakeMode, duration?: number): Dictio
     if (duration > 600) return "video.remake.longVideo.tooLong";
     return "";
   }
+  if (mode === "full_film") {
+    if (duration > 600) return "video.remake.fullEpisode.tooLong";
+    return "";
+  }
   if (duration > 120) return "video.remake.analysisTooLong";
   if (mode === "single_clip" && duration > 60) return "video.remake.singleClipTooLong";
   return "";
@@ -106,9 +110,10 @@ export function VideoRemakeWorkspace({
           </p>
         ) : null}
         {mode === "full_film" ? (
-          <p className="mt-3 rounded-[18px] border border-[#7dd3fc]/24 bg-[#0b2a3a]/60 p-3 text-xs leading-5 text-[#b7e8ff]/90">
-            {t("video.remake.fullEpisodeLimit")}
-          </p>
+          <div className="mt-3 grid gap-2 rounded-[18px] border border-[#7dd3fc]/24 bg-[#0b2a3a]/60 p-3 text-xs leading-5 text-[#b7e8ff]/90">
+            <p>{t("video.remake.fullEpisode.betaWarning")}</p>
+            <p>{t("video.remake.fullEpisodeLimit")}</p>
+          </div>
         ) : null}
       </section>
 

@@ -20,6 +20,7 @@ import { buildMockRemakeStoryboard } from "@/components/video/remake/remakeMockD
 import { getRemakeShotGenerationKey } from "@/components/video/remake/remakeTypes";
 import type {
   RemakeAnalysisSource,
+  RemakeEpisodeResult,
   RemakeKeyframe,
   RemakeMode,
   RemakeSegment,
@@ -46,13 +47,16 @@ import {
   type PromptStudioBridgeDraft,
 } from "@/lib/prompt-studio-draft-bridge";
 import {
+  createFullEpisodeRemakeAnalysis,
   createLongVideoRemakeAnalysis,
   estimateLongVideoRemakeAnalysisCost,
+  getFullEpisodeRemakeAnalysisStatus,
   getLongVideoRemakeAnalysisStatus,
   getVideoModels,
   getVideoStatus,
   reverseAnalyzeVideoRemake,
   uploadMedia,
+  type VideoRemakeFullEpisodeAnalysisJob,
   type VideoRemakeLongAnalysisCostEstimate,
   type VideoRemakeLongAnalysisJob,
   type VideoRemakeLongAnalysisStage,
@@ -244,6 +248,29 @@ function getLongVideoStageNotice(stage: VideoRemakeLongAnalysisStage | undefined
   return t("video.remake.longVideo.stage.queued");
 }
 
+function getFullEpisodeStageNotice(stage: string | undefined, t: (key: DictionaryKey) => string) {
+  if (stage === "reading_metadata") return t("video.remake.fullEpisode.stage.readingMetadata");
+  if (stage === "planning_chunks" || stage === "extracting_keyframes") return t("video.remake.fullEpisode.stage.planningChunks");
+  if (stage === "analyzing_chunks") return t("video.remake.fullEpisode.stage.analyzingChunks");
+  if (stage === "merging_episode" || stage === "building_storyboard") return t("video.remake.fullEpisode.stage.mergingEpisode");
+  if (stage === "completed") return t("video.remake.fullEpisode.stage.completed");
+  if (stage === "failed") return t("video.remake.fullEpisode.stage.failed");
+  return t("video.remake.fullEpisode.stage.queued");
+}
+
+function getFullEpisodeCreateErrorMessage(error: unknown, t: (key: DictionaryKey) => string) {
+  const text = getErrorText(error);
+
+  if (error instanceof ApiError && (error.kind === "auth" || error.status === 401)) return t("video.remake.uploadError.auth");
+  if (text.includes("full_episode_upload_required") || text.includes("source_video_upload_required")) return t("video.remake.fullEpisode.uploadRequired");
+  if (text.includes("full_episode_too_long")) return t("video.remake.fullEpisode.tooLong");
+  if (text.includes("source_video_not_owned") || text.includes("source_video_asset_mismatch")) return t("video.remake.longVideo.error.assetUnavailable");
+  if (text.includes("source_video_required") || text.includes("video asset")) return t("video.remake.longVideo.error.chooseVideoAsset");
+  if (error instanceof ApiError && error.kind === "network") return t("video.remake.analysisNetworkError");
+  if (/network|timeout|timed out|failed to fetch|connection/.test(text)) return t("video.remake.analysisNetworkError");
+  return t("video.remake.fullEpisode.failed");
+}
+
 function getRemakeAnalysisSource(value: unknown): RemakeAnalysisSource | undefined {
   if (value === "fallback" || value === "vlm" || value === "sandbox_vlm" || value === "real_vlm") return value;
   return undefined;
@@ -300,6 +327,7 @@ type RemakeOutputsView = {
 type RemakeAnalysisMeta = {
   analysisSource?: RemakeAnalysisSource;
   fallbackReason?: string;
+  fullEpisode?: RemakeEpisodeResult;
   mock?: boolean;
   providerCallMade?: boolean;
   sandboxVlm?: boolean;
@@ -1401,6 +1429,14 @@ export function VideoWorkspace() {
           setRemakeStoryboard(null);
           return;
         }
+      } else if (remakeMode === "full_film") {
+        if (sourceDuration > 600) {
+          setRemakeAnalysisError(t("video.remake.fullEpisode.tooLong"));
+          setRemakeAnalysisNotice("");
+          setRemakeAnalysisMeta(null);
+          setRemakeStoryboard(null);
+          return;
+        }
       } else if (sourceDuration > 120) {
         setRemakeAnalysisError(t("video.remake.analysisTooLong"));
         setRemakeAnalysisNotice("");
@@ -1600,6 +1636,81 @@ export function VideoWorkspace() {
         return;
       }
 
+      if (remakeMode === "full_film") {
+        if (!sourceVideoForAnalyze?.assetId && !sourceVideoUrl) {
+          setRemakeAnalysisError(t("video.remake.longVideo.error.chooseVideoAsset"));
+          setRemakeAnalysisNotice("");
+          return;
+        }
+
+        setRemakeAnalysisNotice(t("video.remake.fullEpisode.stage.queued"));
+        const createdJob = await createFullEpisodeRemakeAnalysis({
+          clientRequestId: `full-episode-${Date.now()}`,
+          sourceAssetId: sourceVideoForAnalyze?.assetId,
+          sourceVideoUrl,
+        });
+        if (remakeSourceRevisionRef.current !== analysisRevision) return;
+
+        let fullEpisodeJob: VideoRemakeFullEpisodeAnalysisJob = createdJob;
+        setRemakeAnalysisNotice(getFullEpisodeStageNotice(fullEpisodeJob.episodeStage || fullEpisodeJob.stage, t));
+
+        for (let attempt = 0; attempt < 150 && fullEpisodeJob.status !== "completed" && fullEpisodeJob.status !== "failed"; attempt += 1) {
+          await waitForLongVideoPollDelay(attempt < 3 ? 1200 : 2000);
+          if (remakeSourceRevisionRef.current !== analysisRevision) return;
+          fullEpisodeJob = await getFullEpisodeRemakeAnalysisStatus(fullEpisodeJob.analysisJobId);
+          if (remakeSourceRevisionRef.current !== analysisRevision) return;
+          setRemakeAnalysisNotice(getFullEpisodeStageNotice(fullEpisodeJob.episodeStage || fullEpisodeJob.stage, t));
+        }
+
+        if (fullEpisodeJob.status !== "completed") {
+          throw new ApiError(fullEpisodeJob.errorMessage || t("video.remake.fullEpisode.failed"), {
+            code: fullEpisodeJob.errorCode || "FULL_EPISODE_ANALYSIS_FAILED",
+            kind: "server",
+          });
+        }
+
+        const fullEpisodeStoryboard = fullEpisodeJob.result?.storyboard;
+        if (!fullEpisodeStoryboard?.shots?.length) {
+          throw new Error(t("video.remake.fullEpisode.failed"));
+        }
+
+        const fullEpisodeResult = fullEpisodeJob.result as RemakeEpisodeResult;
+        const analyzedStoryboard: RemakeStoryboard = {
+          ...fullEpisodeStoryboard,
+          analysisSource: "fallback",
+          fallbackReason: fullEpisodeStoryboard.fallbackReason || fullEpisodeJob.result?.note || t("video.remake.fullEpisode.betaWarning"),
+          mock: true,
+          providerCallMade: false,
+          vlmCalled: false,
+        };
+
+        setRemakeStoryboard(analyzedStoryboard);
+        setRemakeAnalysisMeta({
+          analysisSource: "fallback",
+          fallbackReason: analyzedStoryboard.fallbackReason,
+          fullEpisode: fullEpisodeResult,
+          mock: true,
+          providerCallMade: false,
+          segments: fullEpisodeJob.result?.segments,
+          sourceVideo: fullEpisodeJob.sourceVideo || fullEpisodeJob.result?.sourceVideo,
+          vlmCalled: false,
+        });
+        const draftResult = saveRemakeStoryboardDraft({
+          segments: fullEpisodeJob.result?.segments,
+          settings,
+          sourceVideo: sourceVideoForAnalyze,
+          sourceVideoMetadata: fullEpisodeJob.sourceVideo || fullEpisodeJob.result?.sourceVideo,
+          sourceVideoUrl,
+          storyboard: analyzedStoryboard,
+        });
+        if (!draftResult.ok) {
+          setWorkspaceNotice(t("video.remake.draftSaveFailed"));
+        }
+        setIsRemakeDraftRestored(false);
+        setRemakeAnalysisNotice(t("video.remake.fullEpisode.stage.completed"));
+        return;
+      }
+
       setRemakeAnalysisNotice(t("video.remake.vlmAnalyzing"));
       const result = await reverseAnalyzeVideoRemake({
         ...settings,
@@ -1666,6 +1777,13 @@ export function VideoWorkspace() {
         setRemakeStoryboard(null);
         setRemakeAnalysisMeta(null);
         setRemakeAnalysisError(getLongVideoCreateErrorMessage(error, t));
+        setRemakeAnalysisNotice("");
+        return;
+      }
+      if (remakeMode === "full_film") {
+        setRemakeStoryboard(null);
+        setRemakeAnalysisMeta(null);
+        setRemakeAnalysisError(getFullEpisodeCreateErrorMessage(error, t));
         setRemakeAnalysisNotice("");
         return;
       }
@@ -3167,11 +3285,15 @@ export function VideoWorkspace() {
     : isRemakeAnalyzing
       ? remakeMode === "long_video"
         ? t("video.remake.longVideo.analyzing")
+        : remakeMode === "full_film"
+          ? t("video.remake.fullEpisode.analyzing")
         : t("video.remake.analyzingSourceVideo")
       : remakeMode === "long_video"
         ? remakeLongVideoCostEstimate?.requiresConfirmation
           ? t("video.remake.longVideo.cost.estimateAndContinue")
           : t("video.remake.longVideo.cost.startBeta")
+        : remakeMode === "full_film"
+          ? t("video.remake.fullEpisode.analyzeBeta")
         : t("video.remake.analyzeSourceVideo");
 
   return (

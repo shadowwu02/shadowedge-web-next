@@ -37,6 +37,44 @@ export type RemakeSegment = {
   start: number;
 };
 
+export type RemakeEpisodeCoverage = {
+  actualShotCount: number;
+  coverageRatio: number;
+  durationSeconds?: number;
+  firstTimestamp?: number | null;
+  gapCount?: number;
+  lastTimestamp?: number | null;
+  ok: boolean;
+  reason?: string | null;
+  recommendedMinShotCount: number;
+};
+
+export type RemakeEpisodeChunk = {
+  chunkIndex: number;
+  coverage?: RemakeEpisodeCoverage;
+  duration: number;
+  end: number;
+  id: string;
+  shotBeatCount: number;
+  start: number;
+  status?: string;
+};
+
+export type RemakeEpisodeResult = {
+  coverage?: RemakeEpisodeCoverage;
+  chunks?: RemakeEpisodeChunk[];
+  episode?: boolean;
+  episodeStage?: string;
+  mode?: "full_episode";
+  mock?: boolean;
+  note?: string;
+  providerCallMade?: boolean;
+  remakePlan?: string[];
+  shotList?: unknown[];
+  summary?: string;
+  vlmCalled?: boolean;
+};
+
 export type RemakeShot = {
   shotGroupId: string;
   shot: number;

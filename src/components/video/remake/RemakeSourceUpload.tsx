@@ -69,6 +69,13 @@ function getLongVideoAssetWarningKey(asset: MediaAssetRecord): DictionaryKey | "
   return "";
 }
 
+function getFullEpisodeAssetWarningKey(asset: MediaAssetRecord): DictionaryKey | "" {
+  if (asset.source && asset.source !== "uploaded") return "video.remake.assetPicker.fullEpisode.uploadedOnly";
+  if (typeof asset.durationSeconds !== "number") return "video.remake.assetPicker.longVideo.durationUnknown";
+  if (asset.durationSeconds > LONG_VIDEO_BETA_SECONDS) return "video.remake.assetPicker.fullEpisode.tooLong";
+  return "";
+}
+
 function formatAssetDate(value?: string | null) {
   if (!value) return "";
   const date = new Date(value);
@@ -397,9 +404,14 @@ export function RemakeSourceUpload({ mode, onChange, onClear, sourceVideo }: Rem
                     const assetSize = formatBytes(asset.sizeBytes || 0);
                     const assetDate = formatAssetDate(asset.createdAt);
                     const assetName = getAssetName(asset);
-                    const longVideoWarningKey = mode === "long_video" ? getLongVideoAssetWarningKey(asset) : "";
+                    const longVideoWarningKey =
+                      mode === "long_video"
+                        ? getLongVideoAssetWarningKey(asset)
+                        : mode === "full_film"
+                          ? getFullEpisodeAssetWarningKey(asset)
+                          : "";
                     const isBlockedForLongVideo =
-                      mode === "long_video" &&
+                      (mode === "long_video" || mode === "full_film") &&
                       Boolean(
                         longVideoWarningKey &&
                           longVideoWarningKey !== "video.remake.assetPicker.longVideo.durationUnknown",
