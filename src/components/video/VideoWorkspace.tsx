@@ -284,6 +284,113 @@ function hasTrueFlag(...values: unknown[]) {
   return values.some((value) => value === true);
 }
 
+function getRecordText(record: Record<string, unknown>, keys: string[], fallback = "") {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return fallback;
+}
+
+function getRecordNumber(record: Record<string, unknown>, keys: string[], fallback = 0) {
+  for (const key of keys) {
+    const value = Number(record[key]);
+    if (Number.isFinite(value)) return value;
+  }
+  return fallback;
+}
+
+function clampRemakeShotDuration(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return 5;
+  return Math.max(3, Math.min(15, Math.round(value)));
+}
+
+function getEpisodeShotRange(record: Record<string, unknown>, fallbackStart = 0, fallbackEnd = fallbackStart + 5) {
+  const sourceTimeRange = getPlainRecord(record.sourceTimeRange);
+  const timeRange = getPlainRecord(record.timeRange);
+  const range = Object.keys(sourceTimeRange).length ? sourceTimeRange : timeRange;
+  const start = getRecordNumber(range, ["start", "startSeconds"], getRecordNumber(record, ["start", "startSeconds"], fallbackStart));
+  const end = getRecordNumber(range, ["end", "endSeconds"], getRecordNumber(record, ["end", "endSeconds"], fallbackEnd));
+  return {
+    end: end > start ? end : start + 5,
+    start,
+  };
+}
+
+function buildFullEpisodeStoryboardFromResult(input: {
+  fallbackReason: string;
+  result?: RemakeEpisodeResult | null;
+  sourceTitle: string;
+}): RemakeStoryboard | null {
+  const result = input.result;
+  if (!result) return null;
+
+  const rawShotList = Array.isArray(result.shotList) ? result.shotList : [];
+  const rawChunks = Array.isArray(result.chunks) ? result.chunks : [];
+  const rawItems = rawShotList.length
+    ? rawShotList
+    : rawChunks.map((chunk, index) => ({
+        ...chunk,
+        globalShotIndex: index + 1,
+        prompt: `Review chunk ${chunk.chunkIndex || index + 1} and adapt it into structural remake shots.`,
+        summary: `Chunk ${chunk.chunkIndex || index + 1} covers ${chunk.start}s-${chunk.end}s.`,
+      }));
+
+  if (!rawItems.length) return null;
+
+  const shots: RemakeShot[] = rawItems.map((item, index) => {
+    const record = getPlainRecord(item);
+    const range = getEpisodeShotRange(record, getRecordNumber(record, ["start"], index * 5), getRecordNumber(record, ["end"], index * 5 + 5));
+    const shotNumber = Math.max(1, Math.round(getRecordNumber(record, ["globalShotIndex", "shot", "beatIndex"], index + 1)));
+    const chunkIndex = Math.max(1, Math.round(getRecordNumber(record, ["chunkIndex"], 1)));
+    const duration = clampRemakeShotDuration(getRecordNumber(record, ["duration"], range.end - range.start));
+
+    return {
+      action: getRecordText(record, ["action", "summary"], `Review structural beat ${shotNumber}.`),
+      audio: getRecordText(record, ["audio"], "Use original rhythm only as a structural reference."),
+      camera: getRecordText(record, ["camera"], shotNumber % 2 === 0 ? "wide continuity shot" : "medium source-matched shot"),
+      dialogue: getRecordText(record, ["dialogue"], "Draft localized dialogue after reviewing the source chunk."),
+      duration,
+      emotion: getRecordText(record, ["emotion"], "Preserve the emotional rhythm implied by the timeline."),
+      generationParams: {
+        duration,
+        modelId: "seedance_2_0",
+        quality: "720p",
+        ratio: "16:9",
+      },
+      keyframes: [],
+      motion: getRecordText(record, ["motion"], "Keep continuity with adjacent episode beats."),
+      position: getRecordText(record, ["position"], "Maintain clear spatial continuity across the merged episode plan."),
+      prompt: getRecordText(record, ["prompt", "summary"], `Full episode structural remake beat ${shotNumber}.`),
+      referenceHints: {
+        audios: ["episode rhythm"],
+        characters: ["review source manually before generation"],
+        images: ["no real visual model was called"],
+        videos: [input.sourceTitle],
+      },
+      shot: shotNumber,
+      shotGroupId: getRecordText(record, ["chunkId", "shotGroupId"], `episode_chunk_${chunkIndex}`),
+      sourceTimeRange: range,
+    };
+  });
+
+  return {
+    analysisSource: "fallback",
+    characterRules: "Preserve continuity across episode chunks after manual review.",
+    fallbackReason: input.fallbackReason,
+    id: `remake_episode_${Date.now()}`,
+    mock: true,
+    mode: "full_film",
+    providerCallMade: false,
+    sceneStyle: "full episode structural remake beta plan",
+    shots,
+    sourceTitle: input.sourceTitle,
+    targetRegion: "US",
+    translateDialogue: true,
+    vlmCalled: false,
+  };
+}
+
 function waitForLongVideoPollDelay(ms: number) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
@@ -1669,16 +1776,23 @@ export function VideoWorkspace() {
           });
         }
 
-        const fullEpisodeStoryboard = fullEpisodeJob.result?.storyboard;
+        const fullEpisodeResult = fullEpisodeJob.result as RemakeEpisodeResult;
+        const fullEpisodeFallbackReason = fullEpisodeResult?.storyboard?.fallbackReason || fullEpisodeResult?.note || t("video.remake.fullEpisode.betaWarning");
+        const fullEpisodeStoryboard =
+          fullEpisodeResult?.storyboard ||
+          buildFullEpisodeStoryboardFromResult({
+            fallbackReason: fullEpisodeFallbackReason,
+            result: fullEpisodeResult,
+            sourceTitle: sourceVideoForAnalyze?.name || "Full episode source video",
+          });
         if (!fullEpisodeStoryboard?.shots?.length) {
           throw new Error(t("video.remake.fullEpisode.failed"));
         }
 
-        const fullEpisodeResult = fullEpisodeJob.result as RemakeEpisodeResult;
         const analyzedStoryboard: RemakeStoryboard = {
           ...fullEpisodeStoryboard,
           analysisSource: "fallback",
-          fallbackReason: fullEpisodeStoryboard.fallbackReason || fullEpisodeJob.result?.note || t("video.remake.fullEpisode.betaWarning"),
+          fallbackReason: fullEpisodeFallbackReason,
           mock: true,
           providerCallMade: false,
           vlmCalled: false,

@@ -320,29 +320,46 @@ function normalizeFullEpisodeAnalysisJob(payload: unknown): VideoRemakeFullEpiso
   const record = asRecord(payload);
   const rawJob = asRecord(record.job || record.data || record);
   const result = asRecord(rawJob.result || record.result);
+  const baseResult = asRecord(job.result);
   const chunks = Array.isArray(record.chunks) ? record.chunks : Array.isArray(result.chunks) ? result.chunks : [];
   const coverage = normalizeEpisodeCoverage(record.coverage || result.coverage);
+  const hasEpisodeResult =
+    Object.keys(baseResult).length > 0 ||
+    Object.keys(result).length > 0 ||
+    chunks.length > 0 ||
+    Boolean(coverage);
+  const storyboard = asRecord(result.storyboard || baseResult.storyboard);
+  const metadata = asRecord(result.metadata || baseResult.metadata);
 
   return {
     ...job,
     chunks: chunks.map(normalizeEpisodeChunk),
     coverage,
     episodeStage: pickString(rawJob.metadata && asRecord(rawJob.metadata).episodeStage, record.episodeStage, result.episodeStage),
-    result: job.result
+    result: hasEpisodeResult
       ? {
-          ...job.result,
+          ...baseResult,
+          ...result,
+          analysisSource: (pickString(result.analysisSource, baseResult.analysisSource) as RemakeAnalysisSource | undefined) || "fallback",
           chunks: chunks.map(normalizeEpisodeChunk),
           coverage: coverage || undefined,
-          episode: result.episode === true,
-          episodeStage: pickString(result.episodeStage),
-          mode: result.mode === "full_episode" ? "full_episode" : undefined,
-          mock: result.mock === true,
-          note: pickString(result.note),
-          providerCallMade: result.providerCallMade === true,
-          remakePlan: Array.isArray(result.remakePlan) ? result.remakePlan.map(String) : undefined,
-          shotList: Array.isArray(result.shotList) ? result.shotList : undefined,
-          summary: pickString(result.summary),
-          vlmCalled: result.vlmCalled === true,
+          episode: result.episode === true || baseResult.episode === true,
+          episodeStage: pickString(result.episodeStage, baseResult.episodeStage),
+          metadata: Object.keys(metadata).length ? metadata : undefined,
+          mode: result.mode === "full_episode" || baseResult.mode === "full_episode" ? "full_episode" : undefined,
+          mock: result.mock === true || baseResult.mock === true,
+          note: pickString(result.note, baseResult.note),
+          providerCallMade: result.providerCallMade === true || baseResult.providerCallMade === true,
+          remakePlan: Array.isArray(result.remakePlan)
+            ? result.remakePlan.map(String)
+            : Array.isArray(baseResult.remakePlan)
+              ? baseResult.remakePlan.map(String)
+              : undefined,
+          shotList: Array.isArray(result.shotList) ? result.shotList : Array.isArray(baseResult.shotList) ? baseResult.shotList : undefined,
+          storyboard: Object.keys(storyboard).length ? (storyboard as RemakeStoryboard) : undefined,
+          summary: pickString(result.summary, baseResult.summary),
+          timeline: Array.isArray(result.timeline) ? result.timeline : Array.isArray(baseResult.timeline) ? baseResult.timeline : undefined,
+          vlmCalled: result.vlmCalled === true || baseResult.vlmCalled === true,
         }
       : null,
   };

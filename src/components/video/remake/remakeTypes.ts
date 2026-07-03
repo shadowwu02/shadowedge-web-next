@@ -61,17 +61,22 @@ export type RemakeEpisodeChunk = {
 };
 
 export type RemakeEpisodeResult = {
+  analysisSource?: RemakeAnalysisSource;
   coverage?: RemakeEpisodeCoverage;
   chunks?: RemakeEpisodeChunk[];
   episode?: boolean;
   episodeStage?: string;
+  metadata?: Record<string, unknown>;
   mode?: "full_episode";
   mock?: boolean;
   note?: string;
   providerCallMade?: boolean;
+  realVisualUnderstanding?: boolean;
   remakePlan?: string[];
   shotList?: unknown[];
+  storyboard?: RemakeStoryboard;
   summary?: string;
+  timeline?: unknown[];
   vlmCalled?: boolean;
 };
 
