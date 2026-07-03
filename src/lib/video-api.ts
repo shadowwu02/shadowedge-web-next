@@ -258,40 +258,69 @@ export async function reverseAnalyzeVideoRemake(input: VideoRemakeReverseAnalyze
   };
 }
 
-function normalizeLongAnalysisJob(payload: unknown): VideoRemakeLongAnalysisJob {
-  const record = asRecord(payload);
-  const job = asRecord(record.job || record.data || record);
-  const result = asRecord(job.result || record.result);
-  const metadata = asRecord(job.metadata);
-  const sourceVideo = asRecord(job.sourceVideo || result.sourceVideo);
-  const analysisJobId = pickString(job.analysisJobId, job.id, record.analysisJobId, record.id) || "";
-  const canonicalResult = normalizeVideoAnalysisResult(record.canonicalResult || job.canonicalResult, {
+function hasRecordKeys(record: RawRecord) {
+  return Object.keys(record).length > 0;
+}
+
+function unwrapRemakeAnalysisPayload(payload: unknown) {
+  const root = asRecord(payload);
+  const data = asRecord(root.data);
+  const rootJob = asRecord(root.job);
+  const dataJob = asRecord(data.job);
+  const job = hasRecordKeys(dataJob) ? dataJob : hasRecordKeys(rootJob) ? rootJob : hasRecordKeys(data) ? data : root;
+  const result = asRecord(job.result || data.result || root.result);
+  const metadata = asRecord(job.metadata || data.metadata || root.metadata || result.metadata);
+  const sourceVideo = asRecord(job.sourceVideo || data.sourceVideo || root.sourceVideo || result.sourceVideo);
+  const canonicalResult =
+    root.canonicalResult ||
+    data.canonicalResult ||
+    rootJob.canonicalResult ||
+    dataJob.canonicalResult ||
+    job.canonicalResult;
+
+  return {
+    canonicalResult,
+    data,
     job,
     metadata,
-    mode: result.mode === "full_episode" ? "full_episode" : "long_video",
     result,
-    status: pickString(job.status, record.status) || "queued",
+    root,
+    sourceVideo,
+  };
+}
+
+function normalizeLongAnalysisJob(payload: unknown): VideoRemakeLongAnalysisJob {
+  const { canonicalResult: rawCanonicalResult, data, job, metadata, result, root, sourceVideo } = unwrapRemakeAnalysisPayload(payload);
+  const analysisJobId = pickString(job.analysisJobId, job.id, data.analysisJobId, data.id, root.analysisJobId, root.id) || "";
+  const status = pickString(job.status, data.status, root.status) || "queued";
+  const canonicalResult = normalizeVideoAnalysisResult(rawCanonicalResult, {
+    job,
+    metadata,
+    mode: pickString(result.mode, job.mode, data.mode, root.mode) === "full_episode" ? "full_episode" : "long_video",
+    result,
+    status,
   });
+  const sourceDuration = Number(sourceVideo.duration ?? sourceVideo.durationSeconds);
 
   return {
     analysisJobId,
     canonicalResult,
-    errorCode: pickString(job.errorCode, job.error_code, record.errorCode, record.error),
-    errorMessage: pickString(job.errorMessage, job.error_message, record.errorMessage, record.message),
+    errorCode: pickString(job.errorCode, job.error_code, data.errorCode, data.error_code, root.errorCode, root.error_code, root.error),
+    errorMessage: pickString(job.errorMessage, job.error_message, data.errorMessage, data.error_message, root.errorMessage, root.message),
     metadata,
-    progress: Math.min(1, Math.max(0, Number(job.progress ?? record.progress ?? 0) || 0)),
+    progress: Math.min(1, Math.max(0, Number(job.progress ?? data.progress ?? root.progress ?? 0) || 0)),
     result: Object.keys(result).length ? (result as VideoRemakeLongAnalysisJob["result"]) : null,
-    sourceVideo: Number(sourceVideo.duration)
+    sourceVideo: Number(sourceDuration)
       ? {
           codec: pickString(sourceVideo.codec),
-          duration: Number(sourceVideo.duration),
+          duration: sourceDuration,
           fps: Number(sourceVideo.fps) || undefined,
           height: Number(sourceVideo.height) || undefined,
           width: Number(sourceVideo.width) || undefined,
         }
       : undefined,
-    stage: (pickString(job.stage, record.stage) || "queued") as VideoRemakeLongAnalysisStage,
-    status: (pickString(job.status, record.status) || "queued") as VideoRemakeLongAnalysisStatus,
+    stage: (pickString(job.stage, data.stage, root.stage) || "queued") as VideoRemakeLongAnalysisStage,
+    status: status as VideoRemakeLongAnalysisStatus,
   };
 }
 
@@ -308,7 +337,7 @@ function normalizeEpisodeCoverage(value: unknown): RemakeEpisodeCoverage | null 
     lastTimestamp: Number.isFinite(Number(record.lastTimestamp)) ? Number(record.lastTimestamp) : null,
     ok: record.ok === true,
     reason: pickString(record.reason) || null,
-    recommendedMinShotCount: Number(record.recommendedMinShotCount || 0),
+    recommendedMinShotCount: Number(record.recommendedMinShotCount ?? record.recommendedShotCount ?? 0),
   };
 }
 
@@ -320,7 +349,7 @@ function normalizeEpisodeChunk(value: unknown): RemakeEpisodeChunk {
     duration: Number(record.duration || 0),
     end: Number(record.end || 0),
     id: pickString(record.id) || "",
-    shotBeatCount: Number(record.shotBeatCount || 0),
+    shotBeatCount: Number(record.shotBeatCount ?? record.shotCount ?? 0),
     start: Number(record.start || 0),
     status: pickString(record.status) || undefined,
   };
@@ -542,25 +571,35 @@ export function normalizeVideoAnalysisResult(
 
 function normalizeFullEpisodeAnalysisJob(payload: unknown): VideoRemakeFullEpisodeAnalysisJob {
   const job = normalizeLongAnalysisJob(payload) as VideoRemakeFullEpisodeAnalysisJob;
-  const record = asRecord(payload);
-  const rawJob = asRecord(record.job || record.data || record);
-  const result = asRecord(rawJob.result || record.result);
+  const { data, job: rawJob, result, root } = unwrapRemakeAnalysisPayload(payload);
   const baseResult = asRecord(job.result);
-  const chunks = Array.isArray(record.chunks) ? record.chunks : Array.isArray(result.chunks) ? result.chunks : [];
-  const coverage = normalizeEpisodeCoverage(record.coverage || result.coverage);
+  const canonicalResult = job.canonicalResult;
+  const chunks = Array.isArray(root.chunks)
+    ? root.chunks
+    : Array.isArray(data.chunks)
+      ? data.chunks
+      : Array.isArray(rawJob.chunks)
+        ? rawJob.chunks
+        : Array.isArray(result.chunks)
+          ? result.chunks
+          : Array.isArray(canonicalResult?.chunks)
+            ? canonicalResult.chunks
+            : [];
+  const coverage = normalizeEpisodeCoverage(root.coverage || data.coverage || rawJob.coverage || result.coverage || canonicalResult?.coverage);
   const hasEpisodeResult =
     Object.keys(baseResult).length > 0 ||
     Object.keys(result).length > 0 ||
     chunks.length > 0 ||
-    Boolean(coverage);
+    Boolean(coverage) ||
+    Boolean(canonicalResult);
   const storyboard = asRecord(result.storyboard || baseResult.storyboard);
-  const metadata = asRecord(result.metadata || baseResult.metadata);
+  const metadata = asRecord(result.metadata || baseResult.metadata || rawJob.metadata);
 
   return {
     ...job,
     chunks: chunks.map(normalizeEpisodeChunk),
     coverage,
-    episodeStage: pickString(rawJob.metadata && asRecord(rawJob.metadata).episodeStage, record.episodeStage, result.episodeStage),
+    episodeStage: pickString(asRecord(rawJob.metadata).episodeStage, data.episodeStage, root.episodeStage, result.episodeStage, job.stage),
     result: hasEpisodeResult
       ? {
           ...baseResult,
@@ -573,21 +612,39 @@ function normalizeFullEpisodeAnalysisJob(payload: unknown): VideoRemakeFullEpiso
           metadata: Object.keys(metadata).length ? metadata : undefined,
           mode: result.mode === "full_episode" || baseResult.mode === "full_episode" ? "full_episode" : undefined,
           mock: result.mock === true || baseResult.mock === true,
-          note: pickString(result.note, baseResult.note),
+          note: pickString(result.note, baseResult.note, canonicalResult?.storyboard.summary),
           providerCallMade: result.providerCallMade === true || baseResult.providerCallMade === true,
           remakePlan: Array.isArray(result.remakePlan)
             ? result.remakePlan.map(String)
             : Array.isArray(baseResult.remakePlan)
               ? baseResult.remakePlan.map(String)
-              : undefined,
-          shotList: Array.isArray(result.shotList) ? result.shotList : Array.isArray(baseResult.shotList) ? baseResult.shotList : undefined,
+              : Array.isArray(canonicalResult?.remakePlan)
+                ? canonicalResult.remakePlan.map((item) => item.prompt || item.title)
+                : undefined,
+          shotList: Array.isArray(result.shotList)
+            ? result.shotList
+            : Array.isArray(baseResult.shotList)
+              ? baseResult.shotList
+              : Array.isArray(canonicalResult?.shots)
+                ? canonicalResult.shots
+                : undefined,
           storyboard: Object.keys(storyboard).length ? (storyboard as RemakeStoryboard) : undefined,
-          summary: pickString(result.summary, baseResult.summary),
-          timeline: Array.isArray(result.timeline) ? result.timeline : Array.isArray(baseResult.timeline) ? baseResult.timeline : undefined,
+          summary: pickString(result.summary, baseResult.summary, canonicalResult?.storyboard.summary),
+          timeline: Array.isArray(result.timeline)
+            ? result.timeline
+            : Array.isArray(baseResult.timeline)
+              ? baseResult.timeline
+              : Array.isArray(canonicalResult?.timeline)
+                ? canonicalResult.timeline
+                : undefined,
           vlmCalled: result.vlmCalled === true || baseResult.vlmCalled === true,
         }
       : null,
   };
+}
+
+export function normalizeFullEpisodeStatusResponse(raw: unknown) {
+  return normalizeFullEpisodeAnalysisJob(raw);
 }
 
 function normalizeLongAnalysisCostEstimate(payload: unknown): VideoRemakeLongAnalysisCostEstimate {
@@ -670,7 +727,7 @@ export async function createLongVideoRemakeAnalysis(input: VideoRemakeLongAnalys
     }),
   });
 
-  return normalizeLongAnalysisJob(envelope.data || envelope);
+  return normalizeLongAnalysisJob(envelope);
 }
 
 export async function getLongVideoRemakeAnalysisStatus(analysisJobId: string) {
@@ -678,7 +735,7 @@ export async function getLongVideoRemakeAnalysisStatus(analysisJobId: string) {
     method: "GET",
   });
 
-  return normalizeLongAnalysisJob(envelope.data || envelope);
+  return normalizeLongAnalysisJob(envelope);
 }
 
 export async function createFullEpisodeRemakeAnalysis(input: VideoRemakeFullEpisodeAnalysisCreateInput) {
@@ -693,7 +750,7 @@ export async function createFullEpisodeRemakeAnalysis(input: VideoRemakeFullEpis
     }),
   });
 
-  return normalizeFullEpisodeAnalysisJob(envelope.data || envelope);
+  return normalizeFullEpisodeAnalysisJob(envelope);
 }
 
 export async function getFullEpisodeRemakeAnalysisStatus(analysisJobId: string) {
@@ -701,7 +758,7 @@ export async function getFullEpisodeRemakeAnalysisStatus(analysisJobId: string) 
     method: "GET",
   });
 
-  return normalizeFullEpisodeAnalysisJob(envelope.data || envelope);
+  return normalizeFullEpisodeStatusResponse(envelope);
 }
 
 export async function getVideoModels() {
