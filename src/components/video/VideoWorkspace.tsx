@@ -33,6 +33,7 @@ import type {
   RemakeSourceVideoMetadata,
   RemakeStoryboard,
   RemakeTargetRegion,
+  VideoAnalysisCanonicalResult,
 } from "@/components/video/remake/remakeTypes";
 import { useTaskPolling } from "@/hooks/useTaskPolling";
 import { useAuthSession } from "@/hooks/useAuthSession";
@@ -318,15 +319,17 @@ function getEpisodeShotRange(record: Record<string, unknown>, fallbackStart = 0,
 }
 
 function buildFullEpisodeStoryboardFromResult(input: {
+  canonicalResult?: VideoAnalysisCanonicalResult | null;
   fallbackReason: string;
   result?: RemakeEpisodeResult | null;
   sourceTitle: string;
 }): RemakeStoryboard | null {
   const result = input.result;
-  if (!result) return null;
+  const canonicalResult = input.canonicalResult;
+  if (!result && !canonicalResult) return null;
 
-  const rawShotList = Array.isArray(result.shotList) ? result.shotList : [];
-  const rawChunks = Array.isArray(result.chunks) ? result.chunks : [];
+  const rawShotList = canonicalResult?.shots?.length ? canonicalResult.shots : Array.isArray(result?.shotList) ? result.shotList : [];
+  const rawChunks = canonicalResult?.chunks?.length ? canonicalResult.chunks : Array.isArray(result?.chunks) ? result.chunks : [];
   const rawItems = rawShotList.length
     ? rawShotList
     : rawChunks.map((chunk, index) => ({
@@ -341,7 +344,7 @@ function buildFullEpisodeStoryboardFromResult(input: {
   const shots: RemakeShot[] = rawItems.map((item, index) => {
     const record = getPlainRecord(item);
     const range = getEpisodeShotRange(record, getRecordNumber(record, ["start"], index * 5), getRecordNumber(record, ["end"], index * 5 + 5));
-    const shotNumber = Math.max(1, Math.round(getRecordNumber(record, ["globalShotIndex", "shot", "beatIndex"], index + 1)));
+    const shotNumber = Math.max(1, Math.round(getRecordNumber(record, ["globalShotIndex", "shotIndex", "shot", "beatIndex"], index + 1)));
     const chunkIndex = Math.max(1, Math.round(getRecordNumber(record, ["chunkIndex"], 1)));
     const duration = clampRemakeShotDuration(getRecordNumber(record, ["duration"], range.end - range.start));
 
@@ -391,6 +394,69 @@ function buildFullEpisodeStoryboardFromResult(input: {
   };
 }
 
+function buildLongVideoStoryboardFromCanonical(input: {
+  canonicalResult?: VideoAnalysisCanonicalResult | null;
+  fallbackReason: string;
+  sourceTitle: string;
+}): RemakeStoryboard | null {
+  const canonicalResult = input.canonicalResult;
+  if (!canonicalResult?.shots?.length) return null;
+
+  const shots: RemakeShot[] = canonicalResult.shots.map((shot, index) => {
+    const start = Number.isFinite(shot.start) ? shot.start : index * 5;
+    const end = Number.isFinite(shot.end) && shot.end > start ? shot.end : start + 5;
+    const duration = clampRemakeShotDuration(end - start);
+
+    return {
+      action: shot.action || `Review structural shot ${shot.shotIndex || index + 1}.`,
+      audio: "Use source rhythm only as a structural reference.",
+      camera: shot.cameraMotion || "source-matched camera language",
+      dialogue: "Draft localized dialogue after reviewing the source segment.",
+      duration,
+      emotion: "Preserve the emotional rhythm implied by the source timing.",
+      generationParams: {
+        duration,
+        modelId: "seedance_2_0",
+        quality: "720p",
+        ratio: "16:9",
+      },
+      keyframes: [],
+      motion: shot.cameraMotion || "Keep continuity with adjacent beats.",
+      position: shot.composition || "Maintain clear spatial continuity.",
+      prompt: shot.prompt || shot.action || `Long video structural remake shot ${shot.shotIndex || index + 1}.`,
+      referenceHints: {
+        audios: ["source rhythm"],
+        characters: ["review source manually before generation"],
+        images: ["no real visual model was called"],
+        videos: [input.sourceTitle],
+      },
+      shot: shot.shotIndex || index + 1,
+      shotGroupId: `canonical_shot_${shot.shotIndex || index + 1}`,
+      sourceTimeRange: {
+        end,
+        start,
+      },
+    };
+  });
+
+  return {
+    analysisSource: canonicalResult.analysisSource === "vlm" ? "vlm" : canonicalResult.analysisSource === "sandbox" ? "sandbox_vlm" : "fallback",
+    characterRules: "Preserve source continuity after manual review.",
+    fallbackReason: input.fallbackReason,
+    id: `remake_canonical_${Date.now()}`,
+    mock: canonicalResult.visualUnderstanding.mock,
+    mode: "long_video",
+    providerCallMade: canonicalResult.visualUnderstanding.providerCallMade,
+    sandboxVlm: canonicalResult.visualUnderstanding.sandbox,
+    sceneStyle: "canonical video analysis remake draft",
+    shots,
+    sourceTitle: input.sourceTitle,
+    targetRegion: "US",
+    translateDialogue: true,
+    vlmCalled: canonicalResult.visualUnderstanding.vlmCalled,
+  };
+}
+
 function waitForLongVideoPollDelay(ms: number) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
@@ -433,6 +499,7 @@ type RemakeOutputsView = {
 };
 type RemakeAnalysisMeta = {
   analysisSource?: RemakeAnalysisSource;
+  canonicalResult?: VideoAnalysisCanonicalResult | null;
   fallbackReason?: string;
   fullEpisode?: RemakeEpisodeResult;
   mock?: boolean;
@@ -1681,25 +1748,42 @@ export function VideoWorkspace() {
           });
         }
 
-        const longVideoStoryboard = longVideoJob.result?.storyboard;
+        const longVideoCanonical = longVideoJob.canonicalResult;
+        const longVideoFallbackReason = longVideoJob.result?.storyboard?.fallbackReason || longVideoJob.result?.note || t("video.remake.longVideo.mockNotice");
+        const longVideoStoryboard =
+          longVideoJob.result?.storyboard ||
+          buildLongVideoStoryboardFromCanonical({
+            canonicalResult: longVideoCanonical,
+            fallbackReason: longVideoFallbackReason,
+            sourceTitle: sourceVideoForAnalyze?.name || "Long source video",
+          });
         if (!longVideoStoryboard?.shots?.length) {
           throw new Error(t("video.remake.longVideo.failed"));
         }
 
         const longVideoJobMetadata = getPlainRecord(longVideoJob.metadata);
         const longVideoResultMetadata = getPlainRecord(longVideoJob.result?.metadata);
-        const longVideoAnalysisSource = getRemakeAnalysisSource(longVideoStoryboard.analysisSource) || "fallback";
+        const longVideoCanonicalVisual = longVideoCanonical?.visualUnderstanding;
+        const longVideoAnalysisSource =
+          longVideoCanonical?.analysisSource === "vlm"
+            ? "vlm"
+            : longVideoCanonical?.analysisSource === "sandbox"
+              ? "sandbox_vlm"
+              : getRemakeAnalysisSource(longVideoStoryboard.analysisSource) || "fallback";
         const longVideoVlmCalled = hasTrueFlag(
+          longVideoCanonicalVisual?.vlmCalled,
           longVideoJobMetadata.vlmCalled,
           longVideoResultMetadata.vlmCalled,
           longVideoStoryboard.vlmCalled,
         );
         const longVideoProviderCallMade = hasTrueFlag(
+          longVideoCanonicalVisual?.providerCallMade,
           longVideoJobMetadata.providerCallMade,
           longVideoResultMetadata.providerCallMade,
           longVideoStoryboard.providerCallMade,
         );
         const longVideoSandboxVlm = hasTrueFlag(
+          longVideoCanonicalVisual?.sandbox,
           longVideoJobMetadata.sandboxVlm,
           longVideoResultMetadata.sandboxVlm,
           longVideoStoryboard.sandboxVlm,
@@ -1709,7 +1793,7 @@ export function VideoWorkspace() {
         const analyzedStoryboard: RemakeStoryboard = {
           ...longVideoStoryboard,
           analysisSource: longVideoAnalysisSource === "real_vlm" || longVideoAnalysisSource === "vlm" ? longVideoAnalysisSource : "fallback",
-          fallbackReason: longVideoStoryboard.fallbackReason || longVideoJob.result?.note || t("video.remake.longVideo.mockNotice"),
+          fallbackReason: longVideoStoryboard.fallbackReason || longVideoFallbackReason,
           providerCallMade: longVideoProviderCallMade,
           sandboxVlm: longVideoSandboxVlm,
           mock: true,
@@ -1719,6 +1803,7 @@ export function VideoWorkspace() {
         setRemakeStoryboard(analyzedStoryboard);
         setRemakeAnalysisMeta({
           analysisSource: analyzedStoryboard.analysisSource,
+          canonicalResult: longVideoCanonical,
           fallbackReason: analyzedStoryboard.fallbackReason,
           mock: true,
           providerCallMade: longVideoProviderCallMade,
@@ -1776,13 +1861,64 @@ export function VideoWorkspace() {
           });
         }
 
+        const fullEpisodeCanonical = fullEpisodeJob.canonicalResult;
         const fullEpisodeResult = fullEpisodeJob.result as RemakeEpisodeResult;
         const fullEpisodeFallbackReason = fullEpisodeResult?.storyboard?.fallbackReason || fullEpisodeResult?.note || t("video.remake.fullEpisode.betaWarning");
+        const canonicalEpisodeResult: RemakeEpisodeResult | undefined = fullEpisodeCanonical
+          ? {
+              analysisSource: "fallback",
+              chunks: fullEpisodeCanonical.chunks.map((chunk) => ({
+                chunkIndex: chunk.chunkIndex,
+                coverage: chunk.coverage
+                  ? {
+                      actualShotCount: chunk.coverage.actualShotCount,
+                      coverageRatio: chunk.coverage.coverageRatio,
+                      durationSeconds: chunk.coverage.durationSeconds,
+                      firstTimestamp: chunk.coverage.firstTimestamp,
+                      gapCount: chunk.coverage.gapCount,
+                      lastTimestamp: chunk.coverage.lastTimestamp,
+                      ok: chunk.coverage.ok,
+                      reason: chunk.coverage.reason,
+                      recommendedMinShotCount: chunk.coverage.recommendedShotCount,
+                    }
+                  : undefined,
+                duration: chunk.duration,
+                end: chunk.end,
+                id: chunk.id || `chunk_${chunk.chunkIndex}`,
+                shotBeatCount: chunk.shotCount,
+                start: chunk.start,
+                status: chunk.status,
+              })),
+              coverage: {
+                actualShotCount: fullEpisodeCanonical.coverage.actualShotCount,
+                coverageRatio: fullEpisodeCanonical.coverage.coverageRatio,
+                durationSeconds: fullEpisodeCanonical.coverage.durationSeconds,
+                firstTimestamp: fullEpisodeCanonical.coverage.firstTimestamp,
+                gapCount: fullEpisodeCanonical.coverage.gapCount,
+                lastTimestamp: fullEpisodeCanonical.coverage.lastTimestamp,
+                ok: fullEpisodeCanonical.coverage.ok,
+                reason: fullEpisodeCanonical.coverage.reason,
+                recommendedMinShotCount: fullEpisodeCanonical.coverage.recommendedShotCount,
+              },
+              episode: true,
+              mode: "full_episode",
+              mock: fullEpisodeCanonical.visualUnderstanding.mock,
+              note: fullEpisodeCanonical.storyboard.summary,
+              providerCallMade: fullEpisodeCanonical.visualUnderstanding.providerCallMade,
+              realVisualUnderstanding: fullEpisodeCanonical.visualUnderstanding.realVisualUnderstanding,
+              remakePlan: fullEpisodeCanonical.remakePlan.map((item) => item.prompt || item.title),
+              shotList: fullEpisodeCanonical.shots,
+              summary: fullEpisodeCanonical.storyboard.summary,
+              timeline: fullEpisodeCanonical.timeline,
+              vlmCalled: fullEpisodeCanonical.visualUnderstanding.vlmCalled,
+            }
+          : undefined;
         const fullEpisodeStoryboard =
           fullEpisodeResult?.storyboard ||
           buildFullEpisodeStoryboardFromResult({
+            canonicalResult: fullEpisodeCanonical,
             fallbackReason: fullEpisodeFallbackReason,
-            result: fullEpisodeResult,
+            result: fullEpisodeResult || canonicalEpisodeResult,
             sourceTitle: sourceVideoForAnalyze?.name || "Full episode source video",
           });
         if (!fullEpisodeStoryboard?.shots?.length) {
@@ -1801,8 +1937,9 @@ export function VideoWorkspace() {
         setRemakeStoryboard(analyzedStoryboard);
         setRemakeAnalysisMeta({
           analysisSource: "fallback",
+          canonicalResult: fullEpisodeCanonical,
           fallbackReason: analyzedStoryboard.fallbackReason,
-          fullEpisode: fullEpisodeResult,
+          fullEpisode: fullEpisodeResult || canonicalEpisodeResult,
           mock: true,
           providerCallMade: false,
           segments: fullEpisodeJob.result?.segments,

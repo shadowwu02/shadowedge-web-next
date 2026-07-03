@@ -11,6 +11,7 @@ import type {
   RemakeSourceVideoMetadata,
   RemakeStoryboard,
   RemakeTargetRegion,
+  VideoAnalysisCanonicalResult,
 } from "@/components/video/remake/remakeTypes";
 import { getSafeHistoryOutputUrl, getSafeHistoryThumbnailUrl } from "@/lib/video/historyUtils";
 import type {
@@ -71,6 +72,7 @@ export type VideoRemakeLongAnalysisStatus = "queued" | "processing" | "completed
 
 export type VideoRemakeLongAnalysisJob = {
   analysisJobId: string;
+  canonicalResult?: VideoAnalysisCanonicalResult | null;
   status: VideoRemakeLongAnalysisStatus;
   progress: number;
   stage: VideoRemakeLongAnalysisStage;
@@ -260,14 +262,23 @@ function normalizeLongAnalysisJob(payload: unknown): VideoRemakeLongAnalysisJob 
   const record = asRecord(payload);
   const job = asRecord(record.job || record.data || record);
   const result = asRecord(job.result || record.result);
+  const metadata = asRecord(job.metadata);
   const sourceVideo = asRecord(job.sourceVideo || result.sourceVideo);
   const analysisJobId = pickString(job.analysisJobId, job.id, record.analysisJobId, record.id) || "";
+  const canonicalResult = normalizeVideoAnalysisResult(record.canonicalResult || job.canonicalResult, {
+    job,
+    metadata,
+    mode: result.mode === "full_episode" ? "full_episode" : "long_video",
+    result,
+    status: pickString(job.status, record.status) || "queued",
+  });
 
   return {
     analysisJobId,
+    canonicalResult,
     errorCode: pickString(job.errorCode, job.error_code, record.errorCode, record.error),
     errorMessage: pickString(job.errorMessage, job.error_message, record.errorMessage, record.message),
-    metadata: asRecord(job.metadata),
+    metadata,
     progress: Math.min(1, Math.max(0, Number(job.progress ?? record.progress ?? 0) || 0)),
     result: Object.keys(result).length ? (result as VideoRemakeLongAnalysisJob["result"]) : null,
     sourceVideo: Number(sourceVideo.duration)
@@ -312,6 +323,220 @@ function normalizeEpisodeChunk(value: unknown): RemakeEpisodeChunk {
     shotBeatCount: Number(record.shotBeatCount || 0),
     start: Number(record.start || 0),
     status: pickString(record.status) || undefined,
+  };
+}
+
+function normalizeCanonicalCoverage(value: unknown, fallback?: Partial<VideoAnalysisCanonicalResult["coverage"]>) {
+  const record = asRecord(value);
+  const coverageRatio = Number(record.coverageRatio ?? fallback?.coverageRatio ?? (record.ok === true ? 1 : 0)) || 0;
+  const firstTimestamp = Number.isFinite(Number(record.firstTimestamp)) ? Number(record.firstTimestamp) : (fallback?.firstTimestamp ?? null);
+  const lastTimestamp = Number.isFinite(Number(record.lastTimestamp)) ? Number(record.lastTimestamp) : (fallback?.lastTimestamp ?? null);
+  const durationSeconds = Number.isFinite(Number(record.durationSeconds)) ? Number(record.durationSeconds) : fallback?.durationSeconds;
+  return {
+    actualShotCount: Number(record.actualShotCount ?? record.shotCount ?? fallback?.actualShotCount ?? 0) || 0,
+    coverageRatio,
+    durationSeconds,
+    endsAtDuration: record.endsAtDuration === true || fallback?.endsAtDuration === true,
+    firstTimestamp,
+    gapCount: Number(record.gapCount ?? fallback?.gapCount ?? 0) || 0,
+    lastTimestamp,
+    ok: record.ok === true || fallback?.ok === true,
+    reason: pickString(record.reason, fallback?.reason) || null,
+    recommendedShotCount: Number(record.recommendedShotCount ?? record.recommendedMinShotCount ?? fallback?.recommendedShotCount ?? 0) || 0,
+    startsAtZero: record.startsAtZero === true || fallback?.startsAtZero === true,
+  };
+}
+
+function normalizeCanonicalShot(value: unknown, index: number): VideoAnalysisCanonicalResult["shots"][number] {
+  const record = asRecord(value);
+  const range = asRecord(record.sourceTimeRange || record.timeRange);
+  const start = Number(range.start ?? record.start ?? index * 5) || 0;
+  const end = Number(range.end ?? record.end ?? start + 5) || start;
+  const shotIndex = Number(record.shotIndex ?? record.globalShotIndex ?? record.shot ?? index + 1) || index + 1;
+  return {
+    action: pickString(record.action, record.summary),
+    cameraMotion: pickString(record.cameraMotion, record.camera, record.motion),
+    composition: pickString(record.composition, record.position),
+    end,
+    prompt: pickString(record.prompt, record.summary),
+    shotIndex,
+    start,
+    timestamp: pickString(record.timestamp) || `${start}-${end}s`,
+  };
+}
+
+function normalizeCanonicalChunk(value: unknown): VideoAnalysisCanonicalResult["chunks"][number] {
+  const record = asRecord(value);
+  const start = Number(record.start) || 0;
+  const end = Number(record.end) || start;
+  const chunkIndex = Number(record.chunkIndex ?? record.index ?? 1) || 1;
+  return {
+    chunkIndex,
+    coverage: Object.keys(asRecord(record.coverage)).length ? normalizeCanonicalCoverage(record.coverage) : undefined,
+    duration: Number(record.duration ?? Math.max(0, end - start)) || 0,
+    end,
+    id: pickString(record.id) || `chunk_${chunkIndex}`,
+    shotCount: Number(record.shotCount ?? record.shotBeatCount ?? 0) || 0,
+    start,
+    status: pickString(record.status) || undefined,
+  };
+}
+
+function normalizeCanonicalRemakePlan(value: unknown): VideoAnalysisCanonicalResult["remakePlan"] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item, index) => {
+    if (typeof item === "string") {
+      return {
+        index: index + 1,
+        prompt: item,
+        title: `Step ${index + 1}`,
+      };
+    }
+    const record = asRecord(item);
+    return {
+      index: Number(record.index ?? index + 1) || index + 1,
+      prompt: pickString(record.prompt, record.description, record.summary) || "",
+      title: pickString(record.title, record.label) || `Step ${index + 1}`,
+    };
+  });
+}
+
+export function normalizeVideoAnalysisResult(
+  value: unknown,
+  fallback?: {
+    job?: RawRecord;
+    metadata?: RawRecord;
+    mode?: "long_video" | "full_episode" | "clip_reverse";
+    result?: RawRecord;
+    status?: string;
+  },
+): VideoAnalysisCanonicalResult | null {
+  const canonical = asRecord(value);
+  const fallbackResult = asRecord(fallback?.result);
+  const fallbackMetadata = asRecord(fallback?.metadata || fallbackResult.metadata);
+  const storyboard = asRecord(canonical.storyboard || fallbackResult.storyboard);
+  const rawShots = Array.isArray(canonical.shots)
+    ? canonical.shots
+    : Array.isArray(fallbackResult.shotList)
+      ? fallbackResult.shotList
+      : Array.isArray(storyboard.shots)
+        ? storyboard.shots
+        : [];
+  const rawChunks = Array.isArray(canonical.chunks)
+    ? canonical.chunks
+    : Array.isArray(fallbackResult.chunks)
+      ? fallbackResult.chunks
+      : [];
+  const mode =
+    pickString(canonical.mode, fallbackResult.mode, fallback?.mode) === "full_episode"
+      ? "full_episode"
+      : pickString(canonical.mode, fallback?.mode) === "clip_reverse"
+        ? "clip_reverse"
+        : "long_video";
+  const analysisEngine =
+    pickString(canonical.analysisEngine, fallbackMetadata.analysisEngine) === "real_vlm"
+      ? "real_vlm"
+      : pickString(canonical.analysisEngine, fallbackMetadata.analysisEngine) === "sandbox_vlm"
+        ? "sandbox_vlm"
+        : mode === "full_episode"
+          ? "mock_episode_beta"
+          : "mock_only";
+  const analysisSource =
+    pickString(canonical.analysisSource, fallbackResult.analysisSource, storyboard.analysisSource) === "vlm" ||
+    pickString(canonical.analysisSource, fallbackResult.analysisSource, storyboard.analysisSource) === "real_vlm"
+      ? "vlm"
+      : analysisEngine === "sandbox_vlm" ||
+          pickString(canonical.analysisSource, fallbackResult.analysisSource, storyboard.analysisSource) === "sandbox"
+        ? "sandbox"
+        : analysisEngine === "mock_episode_beta"
+          ? "mock_episode_beta"
+          : "fallback";
+  const shots = rawShots.map(normalizeCanonicalShot);
+  const coverage = normalizeCanonicalCoverage(canonical.coverage || fallbackResult.coverage, {
+    actualShotCount: shots.length,
+    ok: false,
+    reason: "COVERAGE_UNKNOWN",
+  });
+  const visualRecord = asRecord(canonical.visualUnderstanding);
+  const vlmCalled = visualRecord.vlmCalled === true || fallbackMetadata.vlmCalled === true || fallbackResult.vlmCalled === true || storyboard.vlmCalled === true;
+  const providerCallMade =
+    visualRecord.providerCallMade === true ||
+    fallbackMetadata.providerCallMade === true ||
+    fallbackResult.providerCallMade === true ||
+    storyboard.providerCallMade === true;
+  const sandbox =
+    visualRecord.sandbox === true ||
+    fallbackMetadata.sandboxVlm === true ||
+    fallbackResult.sandboxVlm === true ||
+    storyboard.sandbox === true ||
+    storyboard.sandboxVlm === true ||
+    analysisEngine === "sandbox_vlm";
+  const realVisualUnderstanding =
+    visualRecord.realVisualUnderstanding === true || fallbackMetadata.realVisualUnderstanding === true || fallbackResult.realVisualUnderstanding === true;
+  const mock =
+    visualRecord.mock === true ||
+    fallbackMetadata.mock === true ||
+    fallbackResult.mock === true ||
+    storyboard.mock === true ||
+    (!vlmCalled && !providerCallMade && !realVisualUnderstanding);
+  const badges = Array.isArray(canonical.badges)
+    ? canonical.badges.map(String)
+    : [
+        ...(!realVisualUnderstanding ? ["fallback_storyboard", "not_real_visual_reverse", "no_vision_model"] : []),
+        ...(sandbox ? ["sandbox_vlm"] : []),
+        ...(!coverage.ok ? ["partial_result"] : []),
+      ];
+  const warnings = Array.isArray(canonical.warnings)
+    ? canonical.warnings.map(String)
+    : [coverage.reason || "", !shots.length ? "SHOTS_UNKNOWN" : ""].filter(Boolean);
+
+  if (!Object.keys(canonical).length && !Object.keys(fallbackResult).length && !shots.length) return null;
+
+  return {
+    analysisEngine,
+    analysisSource,
+    badges: Array.from(new Set(badges)) as VideoAnalysisCanonicalResult["badges"],
+    chunks: rawChunks.map(normalizeCanonicalChunk),
+    coverage,
+    durationSeconds: Number(canonical.durationSeconds ?? asRecord(fallbackResult.sourceVideo).duration ?? 0) || 0,
+    mode,
+    remakePlan: normalizeCanonicalRemakePlan(canonical.remakePlan || fallbackResult.remakePlan),
+    shots,
+    status: pickString(canonical.status, fallback?.status) || "completed",
+    storyboard: {
+      mock,
+      sandbox,
+      shots,
+      summary: pickString(asRecord(canonical.storyboard).summary, fallbackResult.summary, fallbackResult.note),
+    },
+    timeline: Array.isArray(canonical.timeline)
+      ? canonical.timeline.map((item, index) => {
+          const record = asRecord(item);
+          return {
+            end: Number(record.end ?? index * 5 + 5) || 0,
+            index: Number(record.index ?? record.shot ?? index + 1) || index + 1,
+            label: pickString(record.label, record.title) || `Beat ${index + 1}`,
+            start: Number(record.start ?? index * 5) || 0,
+            summary: pickString(record.summary, record.action, record.prompt),
+          };
+        })
+      : shots.map((shot) => ({
+          end: shot.end,
+          index: shot.shotIndex,
+          label: `Beat ${shot.shotIndex}`,
+          start: shot.start,
+          summary: shot.action || shot.prompt,
+        })),
+    version: pickString(canonical.version) || "video-analysis-result-v1",
+    visualUnderstanding: {
+      mock,
+      provider: pickString(visualRecord.provider, fallbackMetadata.provider, fallbackResult.provider) || (sandbox ? "sandbox" : "disabled"),
+      providerCallMade,
+      realVisualUnderstanding,
+      sandbox,
+      vlmCalled,
+    },
+    warnings,
   };
 }
 

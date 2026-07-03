@@ -1,5 +1,11 @@
 export type RemakeMode = "single_clip" | "full_film" | "long_video";
 export type RemakeAnalysisSource = "fallback" | "vlm" | "sandbox_vlm" | "real_vlm";
+export type VideoAnalysisBadge =
+  | "fallback_storyboard"
+  | "not_real_visual_reverse"
+  | "no_vision_model"
+  | "sandbox_vlm"
+  | "partial_result";
 
 export type RemakeTargetRegion = "US" | "Middle East" | "Japan" | "Southeast Asia";
 
@@ -41,12 +47,15 @@ export type RemakeEpisodeCoverage = {
   actualShotCount: number;
   coverageRatio: number;
   durationSeconds?: number;
+  endsAtDuration?: boolean;
   firstTimestamp?: number | null;
   gapCount?: number;
   lastTimestamp?: number | null;
   ok: boolean;
   reason?: string | null;
   recommendedMinShotCount: number;
+  recommendedShotCount?: number;
+  startsAtZero?: boolean;
 };
 
 export type RemakeEpisodeChunk = {
@@ -78,6 +87,88 @@ export type RemakeEpisodeResult = {
   summary?: string;
   timeline?: unknown[];
   vlmCalled?: boolean;
+};
+
+export type VideoAnalysisVisualUnderstanding = {
+  mock: boolean;
+  provider: string;
+  providerCallMade: boolean;
+  realVisualUnderstanding: boolean;
+  sandbox: boolean;
+  vlmCalled: boolean;
+};
+
+export type VideoAnalysisCoverage = {
+  actualShotCount: number;
+  coverageRatio: number;
+  durationSeconds?: number;
+  endsAtDuration: boolean;
+  firstTimestamp: number | null;
+  gapCount: number;
+  lastTimestamp: number | null;
+  ok: boolean;
+  reason?: string | null;
+  recommendedShotCount: number;
+  startsAtZero: boolean;
+};
+
+export type VideoAnalysisChunk = {
+  chunkIndex: number;
+  coverage?: VideoAnalysisCoverage;
+  duration: number;
+  end: number;
+  id?: string;
+  shotCount: number;
+  start: number;
+  status?: string;
+};
+
+export type VideoAnalysisShot = {
+  action?: string;
+  cameraMotion?: string;
+  composition?: string;
+  end: number;
+  prompt?: string;
+  shotIndex: number;
+  start: number;
+  timestamp?: string;
+};
+
+export type VideoAnalysisTimelineItem = {
+  end: number;
+  index: number;
+  label?: string;
+  start: number;
+  summary?: string;
+};
+
+export type VideoAnalysisRemakePlanItem = {
+  index: number;
+  prompt: string;
+  title: string;
+};
+
+export type VideoAnalysisCanonicalResult = {
+  analysisEngine: "mock_only" | "mock_episode_beta" | "sandbox_vlm" | "real_vlm";
+  analysisSource: "mock" | "fallback" | "sandbox" | "mock_episode_beta" | "vlm";
+  badges: VideoAnalysisBadge[];
+  chunks: VideoAnalysisChunk[];
+  coverage: VideoAnalysisCoverage;
+  durationSeconds: number;
+  mode: "long_video" | "full_episode" | "clip_reverse";
+  remakePlan: VideoAnalysisRemakePlanItem[];
+  shots: VideoAnalysisShot[];
+  status: string;
+  storyboard: {
+    mock: boolean;
+    sandbox: boolean;
+    shots: VideoAnalysisShot[];
+    summary?: string;
+  };
+  timeline: VideoAnalysisTimelineItem[];
+  version: "video-analysis-result-v1" | string;
+  visualUnderstanding: VideoAnalysisVisualUnderstanding;
+  warnings: string[];
 };
 
 export type RemakeShot = {

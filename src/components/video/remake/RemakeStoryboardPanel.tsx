@@ -16,6 +16,7 @@ import type {
   RemakeShotQueueStatus,
   RemakeSourceVideoMetadata,
   RemakeStoryboard,
+  VideoAnalysisCanonicalResult,
 } from "@/components/video/remake/remakeTypes";
 
 type RemakeStoryboardPanelProps = {
@@ -28,6 +29,7 @@ type RemakeStoryboardPanelProps = {
   isAnalyzing?: boolean;
   metadata?: {
     analysisSource?: RemakeAnalysisSource;
+    canonicalResult?: VideoAnalysisCanonicalResult | null;
     fallbackReason?: string;
     fullEpisode?: RemakeEpisodeResult;
     mock?: boolean;
@@ -427,17 +429,43 @@ export function RemakeStoryboardPanel({
   const { t, tf } = useI18n();
   const shots = storyboard?.shots || [];
   const segments = metadata?.segments || [];
+  const canonicalResult = metadata?.canonicalResult;
+  const canonicalVisual = canonicalResult?.visualUnderstanding;
   const fullEpisodeResult = metadata?.fullEpisode;
   const isQueueRunning = queueStatus === "running";
   const isQueuePaused = queueStatus === "paused";
   const isQueueInterrupted = isQueuePaused && queueWasInterrupted;
   const isRetryQueue = queueIntent === "retry_failed" || queueIntent === "retry_single";
   const hasQueueStatus = queueStatus === "running" || queueStatus === "paused" || queueStatus === "completed" || queueStatus === "cancelled";
-  const analysisSource = metadata?.analysisSource || storyboard?.analysisSource || (metadata?.mock || storyboard?.mock ? "fallback" : "");
-  const vlmCalled = metadata?.vlmCalled === true || storyboard?.vlmCalled === true || analysisSource === "vlm" || analysisSource === "real_vlm";
-  const providerCallMade = metadata?.providerCallMade === true || storyboard?.providerCallMade === true || vlmCalled;
-  const isSandboxStoryboard = metadata?.sandboxVlm === true || storyboard?.sandboxVlm === true || analysisSource === "sandbox_vlm";
-  const isFallbackStoryboard = Boolean(storyboard && (analysisSource === "fallback" || metadata?.mock || storyboard?.mock || isSandboxStoryboard || !vlmCalled || !providerCallMade));
+  const canonicalSource =
+    canonicalResult?.analysisSource === "vlm" ? "vlm" : canonicalResult?.analysisSource === "sandbox" ? "sandbox_vlm" : undefined;
+  const analysisSource = canonicalSource || metadata?.analysisSource || storyboard?.analysisSource || (metadata?.mock || storyboard?.mock ? "fallback" : "");
+  const vlmCalled =
+    canonicalVisual?.vlmCalled === true ||
+    metadata?.vlmCalled === true ||
+    storyboard?.vlmCalled === true ||
+    analysisSource === "vlm" ||
+    analysisSource === "real_vlm";
+  const providerCallMade = canonicalVisual?.providerCallMade === true || metadata?.providerCallMade === true || storyboard?.providerCallMade === true || vlmCalled;
+  const isSandboxStoryboard =
+    canonicalVisual?.sandbox === true ||
+    metadata?.sandboxVlm === true ||
+    storyboard?.sandboxVlm === true ||
+    analysisSource === "sandbox_vlm";
+  const canonicalFallback = Boolean(
+    canonicalResult?.badges?.some((badge) => badge === "fallback_storyboard" || badge === "not_real_visual_reverse" || badge === "no_vision_model"),
+  );
+  const isFallbackStoryboard = Boolean(
+    storyboard &&
+      (canonicalFallback ||
+        analysisSource === "fallback" ||
+        metadata?.mock ||
+        storyboard?.mock ||
+        isSandboxStoryboard ||
+        canonicalVisual?.realVisualUnderstanding === false ||
+        !vlmCalled ||
+        !providerCallMade),
+  );
   const analysisSourceLabel =
     analysisSource === "vlm" || analysisSource === "real_vlm"
       ? t("video.remake.analysisSource.vlm")
