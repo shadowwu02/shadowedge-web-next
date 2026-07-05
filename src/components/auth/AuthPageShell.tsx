@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { LanguageSwitch } from "@/components/common/LanguageSwitch";
+import { activeBrand } from "@/config/brand";
 import { useI18n, type DictionaryKey } from "@/i18n/useI18n";
 
 type AuthPageMode = "signIn" | "signUp" | "forgotPassword" | "resetPassword";
@@ -38,7 +39,7 @@ export function AuthPageShell({ children, mode }: { children: ReactNode; mode: A
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(255,180,77,.16),transparent_34%),#08090d] px-5 py-8 text-white">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
         <Link className="text-sm font-black uppercase tracking-[.22em] text-[#ffcf83]" href="/">
-          ShadowEdge
+          {activeBrand.name}
         </Link>
         <LanguageSwitch locale={locale} onChange={setLocale} />
       </div>

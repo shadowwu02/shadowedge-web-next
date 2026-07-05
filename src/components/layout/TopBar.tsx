@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CreditBadge } from "@/components/common/CreditBadge";
 import { LanguageSwitch } from "@/components/common/LanguageSwitch";
 import { UserAvatar, type UserAvatarLabels } from "@/components/common/UserAvatar";
+import { activeBrand } from "@/config/brand";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useCredits } from "@/hooks/useCredits";
 import type { Locale } from "@/i18n/dictionary";
@@ -46,15 +47,15 @@ export function TopBar({
       <div className="flex min-w-0 items-center gap-4">
         <Link href="/" className="flex shrink-0 items-center gap-2.5">
           <Image
-            alt="ShadowEdge"
+            alt={activeBrand.name}
             className="h-8 w-auto max-w-[150px] object-contain"
             height={40}
             priority
-            src="/brand/shadowedge-logo.png"
+            src={activeBrand.assets.logo}
             width={136}
           />
           <span className="hidden text-[10px] font-medium uppercase tracking-[.18em] text-[#b9b9b9]/42 sm:block">
-            AI Studio
+            {activeBrand.slogan}
           </span>
         </Link>
 

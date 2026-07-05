@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { WorkspaceNavItem } from "@/components/layout/TopBar";
+import { activeBrand } from "@/config/brand";
 import { cn } from "@/lib/utils";
 
 export function Sidebar({ items }: { items: WorkspaceNavItem[] }) {
@@ -7,11 +8,11 @@ export function Sidebar({ items }: { items: WorkspaceNavItem[] }) {
     <aside className="hidden min-h-0 w-[248px] shrink-0 border-r border-[rgba(244,244,244,0.08)] bg-[#05070b]/84 p-4 lg:flex lg:flex-col">
       <Link href="/" className="mb-8 flex items-center gap-3 px-2">
         <span className="grid size-10 place-items-center rounded-[18px] bg-[#ffb44d] text-lg font-semibold text-[#16171c] shadow-lg shadow-[#ffb44d]/16">
-          S
+          {activeBrand.assets.mark}
         </span>
         <span>
-          <span className="block text-lg font-semibold tracking-tight text-[#f4f4f4]">ShadowEdge</span>
-          <span className="block text-xs font-medium uppercase tracking-[.18em] text-[#b9b9b9]/44">AI Studio</span>
+          <span className="block text-lg font-semibold tracking-tight text-[#f4f4f4]">{activeBrand.shortName}</span>
+          <span className="block text-xs font-medium uppercase tracking-[.18em] text-[#b9b9b9]/44">{activeBrand.slogan}</span>
         </span>
       </Link>
 
@@ -35,7 +36,7 @@ export function Sidebar({ items }: { items: WorkspaceNavItem[] }) {
       <div className="mt-auto rounded-[24px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/74 p-4 shadow-inner shadow-black/10">
         <p className="text-xs font-semibold uppercase tracking-[.14em] text-[#b9b9b9]/44">Backend</p>
         <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/72">
-          Calls stay routed through the existing ShadowEdge VPS API.
+          {activeBrand.copy.backendNotice}
         </p>
       </div>
     </aside>

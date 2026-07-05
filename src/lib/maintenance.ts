@@ -1,3 +1,4 @@
+import { activeBrand } from "@/config/brand";
 import { apiRequest } from "@/lib/api";
 import { getStoredAuthToken } from "@/lib/auth";
 
@@ -14,8 +15,8 @@ export type MaintenanceMode = {
 
 export const DEFAULT_MAINTENANCE_MODE: MaintenanceMode = {
   enabled: false,
-  title: "ShadowEdge is under maintenance",
-  message: "We are upgrading ShadowEdge. Please check back soon.",
+  title: `${activeBrand.name} is under maintenance`,
+  message: `We are upgrading ${activeBrand.name}. Please check back soon.`,
   estimatedRestoreAt: "",
   allowAdminBypass: true,
   scope: "all",

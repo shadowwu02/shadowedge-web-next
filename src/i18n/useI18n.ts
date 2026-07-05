@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { activeBrand } from "@/config/brand";
 import { dictionary, type Locale } from "@/i18n/dictionary";
 
 const languageStorageKey = "se_lang";
@@ -13,6 +14,11 @@ export function formatI18nText(template: string, values?: Record<string, string 
     const value = values[key];
     return value === null || value === undefined ? match : String(value);
   });
+}
+
+function applyBrandText(template: string) {
+  if (activeBrand.name === "ShadowEdge") return template;
+  return template.replace(/\bShadowEdge\b/g, activeBrand.name);
 }
 
 export function useI18n() {
@@ -62,7 +68,7 @@ export function useI18n() {
   }, []);
 
   const t = useCallback(
-    (key: DictionaryKey) => dictionary[locale][key] || dictionary.en[key] || String(key),
+    (key: DictionaryKey) => applyBrandText(dictionary[locale][key] || dictionary.en[key] || String(key)),
     [locale],
   );
 

@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { MaintenanceGate } from "@/components/maintenance/MaintenanceGate";
+import { activeBrand } from "@/config/brand";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ShadowEdge",
-  description: "AI creative workspace for image and video generation.",
+  title: activeBrand.seo.title,
+  description: activeBrand.seo.description,
 };
 
 export default function RootLayout({

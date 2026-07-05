@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { activeBrand } from "@/config/brand";
 import { useI18n } from "@/i18n/useI18n";
 import { getMaintenanceMode, DEFAULT_MAINTENANCE_MODE, type MaintenanceMode } from "@/lib/maintenance";
 
@@ -71,7 +72,7 @@ export function MaintenancePageClient() {
       <section className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-3xl items-center">
         <div className="w-full rounded-[32px] border border-white/10 bg-[#10131d]/88 p-7 shadow-[0_28px_90px_rgba(0,0,0,.45)] backdrop-blur md:p-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#c8a45d]/35 bg-[#c8a45d]/10 px-4 py-2 text-[11px] font-black uppercase tracking-[.24em] text-[#e5c97b]">
-            ShadowEdge Status
+            {activeBrand.copy.statusLabel}
           </div>
 
           <h1 className="mt-7 text-4xl font-black tracking-tight text-[#f7f8fa] md:text-6xl">
