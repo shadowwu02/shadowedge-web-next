@@ -1,14 +1,21 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { WorkspaceNavItem } from "@/components/layout/TopBar";
 import { activeBrand } from "@/config/brand";
 import { cn } from "@/lib/utils";
 
 export function Sidebar({ items }: { items: WorkspaceNavItem[] }) {
+  const hasImageMark = activeBrand.assets.mark.startsWith("/");
+
   return (
     <aside className="hidden min-h-0 w-[248px] shrink-0 border-r border-[rgba(244,244,244,0.08)] bg-[#05070b]/84 p-4 lg:flex lg:flex-col">
       <Link href="/" className="mb-8 flex items-center gap-3 px-2">
         <span className="grid size-10 place-items-center rounded-[18px] bg-[#ffb44d] text-lg font-semibold text-[#16171c] shadow-lg shadow-[#ffb44d]/16">
-          {activeBrand.assets.mark}
+          {hasImageMark ? (
+            <Image alt={`${activeBrand.name} mark`} className="h-6 w-6 object-contain" height={32} src={activeBrand.assets.mark} width={32} />
+          ) : (
+            activeBrand.assets.mark
+          )}
         </span>
         <span>
           <span className="block text-lg font-semibold tracking-tight text-[#f4f4f4]">{activeBrand.shortName}</span>

@@ -1,6 +1,7 @@
+import { newbrandBrand } from "@/config/brands/newbrand";
 import { shadowedgeBrand } from "@/config/brands/shadowedge";
 
-export type BrandId = "shadowedge";
+export type BrandId = "shadowedge" | "newbrand";
 
 export type BrandConfig = {
   id: BrandId;
@@ -31,6 +32,7 @@ export type BrandConfig = {
 };
 
 const brands: Record<BrandId, BrandConfig> = {
+  newbrand: newbrandBrand,
   shadowedge: shadowedgeBrand,
 };
 
