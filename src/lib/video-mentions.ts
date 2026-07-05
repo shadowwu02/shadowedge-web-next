@@ -1,5 +1,6 @@
 import type { UploadMediaItem, UploadMediaType, VideoGenerationRequest } from "@/types/video";
 import type { VideoMentionBinding } from "@/lib/video/videoMentionBindings";
+import { normalizeMediaAssetUrl } from "@/lib/media-assets";
 
 export type MentionableMediaItem = {
   id: string;
@@ -64,8 +65,13 @@ export function getReadyMentionableMediaItems(media: UploadMediaItem[]): Mention
   const counters: Record<UploadMediaType, number> = { image: 0, video: 0, audio: 0 };
 
   return media
-    .filter((item) => item.uploadStatus === "ready" && item.url && isRemoteUrl(item.url))
-    .map((item) => {
+    .map((item) => ({
+      item,
+      previewUrl: normalizeMediaAssetUrl(item.previewUrl) || normalizeMediaAssetUrl(item.url),
+      url: normalizeMediaAssetUrl(item.url),
+    }))
+    .filter(({ item, url }) => item.uploadStatus === "ready" && url && isRemoteUrl(url))
+    .map(({ item, previewUrl, url }) => {
       counters[item.type] += 1;
       const index = counters[item.type];
 
@@ -75,8 +81,8 @@ export function getReadyMentionableMediaItems(media: UploadMediaItem[]): Mention
         index,
         display: getMentionDisplay(item.type, index),
         token: getMentionToken(item.type, index),
-        url: item.url || "",
-        previewUrl: item.previewUrl || item.url,
+        url,
+        previewUrl,
         title: item.name || `${getMentionKind(item.type)}${index}`,
         name: item.name,
         mimeType: item.mimeType,

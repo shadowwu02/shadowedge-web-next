@@ -1,7 +1,7 @@
 "use client";
 
 import { useI18n } from "@/i18n/useI18n";
-import { getMediaUploadErrorDisplayKeys, getSafeMediaItemDisplayName } from "@/lib/media-assets";
+import { getMediaUploadErrorDisplayKeys, getSafeMediaItemDisplayName, normalizeMediaAssetUrl } from "@/lib/media-assets";
 import type { UploadMediaItem } from "@/types/video";
 
 export function MediaCard({
@@ -13,7 +13,8 @@ export function MediaCard({
   onRemove?: (id: string) => void;
   compact?: boolean;
 }) {
-  const isImage = item.type === "image" && item.previewUrl;
+  const previewUrl = normalizeMediaAssetUrl(item.previewUrl) || normalizeMediaAssetUrl(item.url);
+  const isImage = item.type === "image" && Boolean(previewUrl);
   const isFailed = item.uploadStatus === "failed";
   const { locale, t } = useI18n();
   const displayName = getSafeMediaItemDisplayName(item, 0, locale === "zh" ? "zh" : "en");
@@ -41,7 +42,7 @@ export function MediaCard({
       <div className="relative grid aspect-video place-items-center overflow-hidden bg-[#1a1c22]">
         {isImage ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img alt="" className="h-full w-full object-cover" src={item.previewUrl} />
+          <img alt="" className="h-full w-full object-cover" src={previewUrl} />
         ) : (
           <span className="grid size-12 place-items-center rounded-2xl bg-[#33323a]/55 text-[11px] font-semibold uppercase tracking-[.14em] text-[#b9b9b9]/70">
             {item.type}

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, DragEvent, RefObject } from "react";
 import { listMediaAssets, mediaAssetToUploadMediaItem } from "@/lib/assets-api";
-import { getMediaUploadErrorDisplayKeys, getSafeMediaItemDisplayName, mergeMediaAssets } from "@/lib/media-assets";
+import { getMediaUploadErrorDisplayKeys, getSafeMediaItemDisplayName, mergeMediaAssets, normalizeMediaAssetUrl } from "@/lib/media-assets";
 import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
 import { slotAllowsAssetType } from "@/lib/upload-rules";
 import {
@@ -614,6 +614,7 @@ export function MediaPickerDrawer({
                 const canRemove = item.source !== "history" && item.source !== "generated_result" && item.source !== "asset-library";
                 const displayName = getSafeMediaItemDisplayName(item, itemIndex, displayLocale);
                 const failedMediaMessage = isFailed ? localizedFailedMediaMessage(item.errorMessage) : "";
+                const previewUrl = normalizeMediaAssetUrl(item.previewUrl) || normalizeMediaAssetUrl(item.url);
 
                 return (
                   <article
@@ -638,9 +639,9 @@ export function MediaPickerDrawer({
                       type="button"
                     >
                       <span className="relative grid aspect-square place-items-center overflow-hidden bg-white/[.045]">
-                        {item.type === "image" && item.previewUrl ? (
+                        {item.type === "image" && previewUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img alt="" className="h-full w-full object-cover" src={item.previewUrl} />
+                          <img alt="" className="h-full w-full object-cover" src={previewUrl} />
                         ) : item.type === "video" && item.url ? (
                           <video className="h-full w-full object-cover" muted playsInline preload="metadata" src={item.url} />
                         ) : (

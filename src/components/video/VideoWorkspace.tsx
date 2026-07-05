@@ -41,7 +41,7 @@ import { useAuthSession } from "@/hooks/useAuthSession";
 import { useCredits } from "@/hooks/useCredits";
 import { useVideoGeneration } from "@/hooks/useVideoGeneration";
 import { type DictionaryKey, useI18n } from "@/i18n/useI18n";
-import { collectHistoryInputMediaAssets, collectReusableVideoAssets, mergeMediaAssets } from "@/lib/media-assets";
+import { collectHistoryInputMediaAssets, collectReusableVideoAssets, mergeMediaAssets, normalizeMediaAssetUrl } from "@/lib/media-assets";
 import {
   consumePromptStudioToVideoDraft,
   getPromptStudioDraftLocale,
@@ -656,6 +656,7 @@ function findDraftModel(draft: VideoWorkspaceDraft | null, modelList: VideoModel
 
 function getPromptStudioVideoReferences(draft: PromptStudioBridgeDraft | null): UploadMediaItem[] {
   return (draft?.referenceImages || [])
+    .map((reference) => ({ ...reference, url: normalizeMediaAssetUrl(reference.url) }))
     .filter((reference) => isSafePromptStudioReferenceUrl(reference.url))
     .map((reference) => {
       const fileName = reference.fileName || reference.name || "Prompt Studio reference";
@@ -715,23 +716,32 @@ function buildRetryMedia(
   getFallbackName: (type: UploadMediaItem["type"], index: number) => string = (type, index) => `Retry ${type} ${index + 1}`,
 ) {
   const mediaList = Array.isArray(record.mediaList) ? record.mediaList : [];
-  const fromMediaList = mediaList.map((item, index) => ({
-    id: item.id || `retry-media-${index}`,
-    type: item.type,
-    name: item.name || getFallbackName(item.type, index),
-    url: item.url,
-    previewUrl: item.type === "image" ? item.url : "",
-    size: item.size,
-    mimeType: item.mimeType,
-    duration: item.duration,
-    uploadStatus: "ready" as const,
-  }));
+  const fromMediaList = mediaList
+    .map((item, index) => {
+      const rawItem = item as typeof item & { previewUrl?: string };
+      const url = normalizeMediaAssetUrl(item.url);
+      const previewUrl = normalizeMediaAssetUrl(rawItem.previewUrl) || (item.type === "image" ? url : "");
+      return {
+        id: item.id || `retry-media-${index}`,
+        type: item.type,
+        name: item.name || getFallbackName(item.type, index),
+        url,
+        previewUrl,
+        size: item.size,
+        mimeType: item.mimeType,
+        duration: item.duration,
+        uploadStatus: "ready" as const,
+      };
+    })
+    .filter((item) => item.url);
 
   const fromRefs = [
     ...(record.reference_images || []).map((url, index) => ({ type: "image" as const, url, index })),
     ...(record.reference_videos || []).map((url, index) => ({ type: "video" as const, url, index })),
     ...(record.reference_audios || []).map((url, index) => ({ type: "audio" as const, url, index })),
   ]
+    .map((item) => ({ ...item, url: normalizeMediaAssetUrl(item.url) }))
+    .filter((item) => item.url)
     .filter((item) => !fromMediaList.some((mediaItem) => mediaItem.url === item.url))
     .map((item) => ({
       id: `retry-${item.type}-${item.index}-${item.url}`,

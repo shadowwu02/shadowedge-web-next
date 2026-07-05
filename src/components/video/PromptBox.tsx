@@ -14,7 +14,7 @@ import {
   findMentionBindingForToken,
   type VideoMentionBinding,
 } from "@/lib/video/videoMentionBindings";
-import { sanitizeMediaDisplayName } from "@/lib/media-assets";
+import { normalizeMediaAssetUrl, sanitizeMediaDisplayName } from "@/lib/media-assets";
 import {
   VIDEO_PROMPT_FRONTEND_LIMIT,
   VIDEO_PROMPT_FRONTEND_LIMIT_LABEL,
@@ -538,6 +538,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
                     {mentionGroupTitle(type)}
                   </div>
                   {groupItems.map((item) => {
+                    const previewUrl = normalizeMediaAssetUrl(item.previewUrl);
                     const itemTitle = sanitizeMediaDisplayName({
                       index: Math.max(0, item.index - 1),
                       locale: displayLocale,
@@ -552,9 +553,9 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
                         onClick={() => insertMention(item)}
                         type="button"
                       >
-                        {item.type === "image" && item.previewUrl ? (
+                        {item.type === "image" && previewUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img alt="" className="size-9 rounded-lg object-cover" src={item.previewUrl} />
+                          <img alt="" className="size-9 rounded-lg object-cover" src={previewUrl} />
                         ) : (
                           <span className="grid size-9 place-items-center rounded-lg border border-white/10 bg-[#ffb44d]/10 text-[#ffd08a]/78">
                             <MediaTypeIcon className="size-[18px]" type={item.type} />
