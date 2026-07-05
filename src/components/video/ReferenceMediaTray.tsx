@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
-import { getMediaUploadErrorDisplayKeys, getSafeMediaItemDisplayName } from "@/lib/media-assets";
+import { getMediaUploadErrorDisplayKeys, getSafeMediaItemDisplayName, normalizeMediaAssetUrl } from "@/lib/media-assets";
 import { getReadyMentionableMediaItems } from "@/lib/video-mentions";
 import type { MentionableMediaItem } from "@/lib/video-mentions";
 import type { UploadMediaItem, UploadMediaRole, UploadMediaType } from "@/types/video";
@@ -70,7 +70,7 @@ function CheckIcon() {
 }
 
 function getPreviewUrl(item: UploadMediaItem) {
-  return item.previewUrl || item.url || "";
+  return normalizeMediaAssetUrl(item.previewUrl) || normalizeMediaAssetUrl(item.url);
 }
 
 function getRoleMenuPosition(trigger: HTMLElement): RoleMenuPosition {

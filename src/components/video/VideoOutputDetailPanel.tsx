@@ -5,7 +5,7 @@ import { SaveToAssetsButton } from "@/components/assets/SaveToAssetsButton";
 import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { useI18n } from "@/i18n/useI18n";
-import { collectHistoryInputMediaAssets } from "@/lib/media-assets";
+import { collectHistoryInputMediaAssets, normalizeMediaAssetUrl } from "@/lib/media-assets";
 import { getLocalizedVideoHistoryPublicErrorMessage, getSafeVideoHistoryView, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
 import { getVideoUserFacingErrorDisplay } from "@/lib/video/videoErrorDisplay";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
@@ -246,6 +246,8 @@ export function VideoOutputDetailPanel({
               {mappedReferences.map(({ asset, label, readable }) => {
                 const issue = getAddReferenceIssue?.(asset) || "";
                 const isBlocked = Boolean(issue);
+                const imagePreviewUrl = normalizeMediaAssetUrl(asset.previewUrl) || normalizeMediaAssetUrl(asset.url);
+                const videoPreviewUrl = normalizeMediaAssetUrl(asset.previewUrl);
                 return (
                   <button
                     className="group/ref grid w-full grid-cols-[42px_minmax(0,1fr)] items-center gap-2 rounded-[16px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/66 p-1.5 text-left transition-colors hover:border-[#ffb44d]/30 hover:bg-[#ffb44d]/8 disabled:cursor-not-allowed disabled:opacity-45"
@@ -256,12 +258,12 @@ export function VideoOutputDetailPanel({
                     type="button"
                   >
                     <span className="grid aspect-square place-items-center overflow-hidden rounded-[12px] bg-[#05070b] text-[10px] font-semibold text-[#b9b9b9]/65">
-                      {asset.type === "image" && (asset.previewUrl || asset.url) ? (
+                      {asset.type === "image" && imagePreviewUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img alt="" className="h-full w-full object-cover" src={asset.previewUrl || asset.url} />
-                      ) : asset.type === "video" && asset.previewUrl ? (
+                        <img alt="" className="h-full w-full object-cover" src={imagePreviewUrl} />
+                      ) : asset.type === "video" && videoPreviewUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img alt="" className="h-full w-full object-cover" src={asset.previewUrl} />
+                        <img alt="" className="h-full w-full object-cover" src={videoPreviewUrl} />
                       ) : (
                         <MediaTypeIcon className="size-4 text-[#ffd08a]/70" type={asset.type} />
                       )}

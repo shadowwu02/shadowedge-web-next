@@ -1,5 +1,6 @@
 import { apiRequest } from "@/lib/api";
 import { getStoredAuthToken } from "@/lib/auth";
+import { normalizeMediaAssetUrl } from "@/lib/media-assets";
 import { ApiError } from "@/types/api";
 import type {
   RemakeAnalysisSource,
@@ -789,7 +790,7 @@ function normalizeMediaList(value: unknown): VideoGenerationRequest["mediaList"]
   return pickArray(value)
     .map((item) => {
       if (typeof item === "string") {
-        const url = item.trim();
+        const url = normalizeMediaAssetUrl(item);
         return {
           type: inferUploadType(url),
           url,
@@ -797,7 +798,28 @@ function normalizeMediaList(value: unknown): VideoGenerationRequest["mediaList"]
       }
 
       const raw = asRecord(item);
-      const url = pickString(raw.url, raw.uri, raw.remoteUri, raw.videoUrl, raw.audioUrl, raw.imageUrl) || "";
+      const url = normalizeMediaAssetUrl(
+        pickString(
+          raw.signedUrl,
+          raw.signed_url,
+          raw.publicUrl,
+          raw.public_url,
+          raw.mediaUrl,
+          raw.media_url,
+          raw.imageUrl,
+          raw.image_url,
+          raw.url,
+          raw.uri,
+          raw.remoteUri,
+          raw.remote_url,
+          raw.videoUrl,
+          raw.video_url,
+          raw.audioUrl,
+          raw.audio_url,
+          raw.previewUrl,
+          raw.preview_url,
+        ) || "",
+      );
       return {
         id: pickString(raw.id, raw.mediaId, raw.media_id),
         type: inferUploadType(raw.type || raw.mimeType || raw.mime_type || url),
@@ -861,9 +883,15 @@ export function normalizeVideoHistoryItem(item: unknown): VideoHistoryItem {
     uploadAssets.last_frame_image,
     uploadAssets.lastFrameImage,
   );
-  const referenceImages = pickArray(record.reference_images, record.referenceImages, meta.reference_images, meta.referenceImages).map(String);
-  const referenceVideos = pickArray(record.reference_videos, record.referenceVideos, meta.reference_videos, meta.referenceVideos).map(String);
-  const referenceAudios = pickArray(record.reference_audios, record.referenceAudios, meta.reference_audios, meta.referenceAudios).map(String);
+  const referenceImages = pickArray(record.reference_images, record.referenceImages, meta.reference_images, meta.referenceImages)
+    .map(normalizeMediaAssetUrl)
+    .filter(Boolean);
+  const referenceVideos = pickArray(record.reference_videos, record.referenceVideos, meta.reference_videos, meta.referenceVideos)
+    .map(normalizeMediaAssetUrl)
+    .filter(Boolean);
+  const referenceAudios = pickArray(record.reference_audios, record.referenceAudios, meta.reference_audios, meta.referenceAudios)
+    .map(normalizeMediaAssetUrl)
+    .filter(Boolean);
   const mediaList = normalizeMediaList([
     ...pickArray(record.mediaList, meta.mediaList, uploadAssets.media),
     ...(firstFrameImage ? [{ type: "image", url: firstFrameImage, role: "start_frame" }] : []),

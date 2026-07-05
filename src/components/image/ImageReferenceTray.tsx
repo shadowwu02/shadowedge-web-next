@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/i18n/useI18n";
 import { listMediaAssets, mediaAssetToImageReferenceItem } from "@/lib/assets-api";
-import { getMediaUploadErrorDisplayKeys, getSafeMediaItemDisplayName } from "@/lib/media-assets";
+import { getMediaUploadErrorDisplayKeys, getSafeMediaItemDisplayName, normalizeMediaAssetUrl } from "@/lib/media-assets";
 import { ApiError } from "@/types/api";
 import type { ImageModel, ImageReferenceItem } from "@/types/image";
 
@@ -46,6 +46,10 @@ function isSameReference(left: ImageReferenceItem, right: ImageReferenceItem) {
     Boolean(left.url && right.url && left.url === right.url) ||
     Boolean(left.assetId && right.assetId && left.assetId === right.assetId)
   );
+}
+
+function getReferencePreviewUrl(reference: ImageReferenceItem) {
+  return normalizeMediaAssetUrl(reference.previewUrl) || normalizeMediaAssetUrl(reference.url);
 }
 
 export function ImageReferenceTray({
@@ -217,15 +221,16 @@ export function ImageReferenceTray({
               referenceIndex,
               displayLocale,
             );
+            const previewUrl = getReferencePreviewUrl(reference);
             const failedDisplay =
               reference.uploadStatus === "failed" ? getMediaUploadErrorDisplayKeys(reference.errorMessage, { fallbackKind: "unavailable" }) : null;
 
             return (
               <article className="group overflow-hidden rounded-[18px] border border-white/10 bg-[#05070b]/62" key={reference.id}>
                 <div className="relative aspect-square bg-black/40">
-                  {reference.previewUrl || reference.url ? (
+                  {previewUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img alt={displayName} className="h-full w-full object-cover" src={reference.previewUrl || reference.url} />
+                    <img alt={displayName} className="h-full w-full object-cover" src={previewUrl} />
                   ) : (
                     <div className="grid h-full place-items-center text-[#ffd08a]/70">
                       <ImageIcon />
@@ -321,6 +326,7 @@ export function ImageReferenceTray({
                     const isAlreadyAdded = references.some((current) => isSameReference(current, reference));
                     const isSelected = selectedAssetIds.has(reference.id);
                     const isLimitBlocked = !isSelected && !isAlreadyAdded && selectedAssetReferences.length >= remainingSlots;
+                    const previewUrl = getReferencePreviewUrl(reference);
                     const displayName = getSafeMediaItemDisplayName(
                       { ...reference, source: "asset-library", type: "image" },
                       assetIndex,
@@ -348,9 +354,9 @@ export function ImageReferenceTray({
                           type="button"
                         >
                           <span className="relative grid aspect-square place-items-center overflow-hidden bg-white/[.045]">
-                            {reference.previewUrl || reference.url ? (
+                            {previewUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img alt="" className="h-full w-full object-cover" src={reference.previewUrl || reference.url} />
+                              <img alt="" className="h-full w-full object-cover" src={previewUrl} />
                             ) : (
                               <span className="grid size-11 place-items-center rounded-2xl border border-white/10 bg-[#111318]/78 text-[#ffd08a]/78 shadow-inner shadow-black/20">
                                 <ImageIcon />

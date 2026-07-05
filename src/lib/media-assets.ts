@@ -1,4 +1,5 @@
 import type { UploadMediaItem, UploadMediaRole, UploadMediaSource, UploadMediaType, VideoTaskRecord } from "@/types/video";
+import { getApiBaseUrl } from "@/lib/api";
 import { getMediaTypeFromUrl, isRemoteMediaUrl, isTransientMediaUrl } from "@/lib/upload-rules";
 
 export const LOCAL_MEDIA_ASSETS_KEY = "shadowedge_local_upload_assets_v1";
@@ -83,6 +84,48 @@ function safeLocalStorage() {
 
 function pickString(...values: unknown[]) {
   return values.find((value) => typeof value === "string" && value.trim()) as string | undefined;
+}
+
+function getApiAssetOrigin() {
+  try {
+    return new URL(getApiBaseUrl()).origin;
+  } catch {
+    return "https://api.shadowedgeai.com";
+  }
+}
+
+function isUploadApiPath(value: string) {
+  return value === "/api/uploads" || value.startsWith("/api/uploads/");
+}
+
+function isUploadStaticPath(value: string) {
+  return value === "/uploads" || value.startsWith("/uploads/");
+}
+
+function rewriteUploadApiPath(value: string) {
+  return value.replace(/^\/api\/uploads(?=\/|$)/, "/uploads");
+}
+
+export function normalizeMediaAssetUrl(value: unknown) {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return "";
+
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      const parsed = new URL(raw);
+      if (isUploadApiPath(parsed.pathname)) {
+        parsed.pathname = rewriteUploadApiPath(parsed.pathname);
+        return parsed.toString();
+      }
+    } catch {
+      return raw;
+    }
+    return raw;
+  }
+
+  if (isUploadApiPath(raw)) return `${getApiAssetOrigin()}${rewriteUploadApiPath(raw)}`;
+  if (isUploadStaticPath(raw)) return `${getApiAssetOrigin()}${raw}`;
+  return raw;
 }
 
 function cleanFilename(value: unknown) {
@@ -296,8 +339,9 @@ function isMediaAsset(item: UploadMediaItem | null): item is UploadMediaItem {
 }
 
 function safePreviewUrl(value: string | undefined) {
-  if (!value || isTransientMediaUrl(value)) return "";
-  return value;
+  const normalized = normalizeMediaAssetUrl(value);
+  if (!normalized || isTransientMediaUrl(normalized)) return "";
+  return normalized;
 }
 
 function fileSignature(item: Partial<UploadMediaItem>) {
@@ -327,8 +371,27 @@ export function getMediaAssetSourceLabel(source: UploadMediaItem["source"]) {
 
 export function normalizeMediaAsset(item: unknown, source: MediaAssetSourceInput = "uploads"): UploadMediaItem | null {
   const raw = (item || {}) as RawMediaAsset;
-  const url =
-    pickString(raw.url, raw.previewUrl, raw.mediaUrl, raw.publicUrl, raw.fileUrl, raw.imageUrl, raw.videoUrl, raw.audioUrl) || "";
+  const url = normalizeMediaAssetUrl(
+    pickString(
+      raw.signedUrl,
+      raw.signed_url,
+      raw.publicUrl,
+      raw.public_url,
+      raw.mediaUrl,
+      raw.media_url,
+      raw.imageUrl,
+      raw.image_url,
+      raw.url,
+      raw.fileUrl,
+      raw.file_url,
+      raw.videoUrl,
+      raw.video_url,
+      raw.audioUrl,
+      raw.audio_url,
+      raw.previewUrl,
+      raw.preview_url,
+    ) || "",
+  );
 
   if (!url || isTransientMediaUrl(url) || !isRemoteMediaUrl(url)) return null;
 
@@ -353,8 +416,8 @@ export function normalizeMediaAsset(item: unknown, source: MediaAssetSourceInput
   });
   const rawPreviewUrl =
     type === "image"
-      ? pickString(raw.previewUrl, raw.thumbnailUrl, raw.thumbnail_url, url) || url
-      : pickString(raw.previewUrl, raw.thumbnailUrl, raw.thumbnail_url) || "";
+      ? pickString(raw.previewUrl, raw.preview_url, raw.thumbnailUrl, raw.thumbnail_url, url) || url
+      : pickString(raw.previewUrl, raw.preview_url, raw.thumbnailUrl, raw.thumbnail_url) || "";
 
   return {
     id: pickString(raw.id, raw.mediaId, raw.media_id, raw.key, url) || url,
@@ -463,22 +526,24 @@ function getHistoryMeta(record: ReusableHistoryRecord) {
 }
 
 function getHistoryUrlFromItem(item: unknown) {
-  if (typeof item === "string") return item;
+  if (typeof item === "string") return normalizeMediaAssetUrl(item);
   const raw = asRecord(item);
-  return (
+  return normalizeMediaAssetUrl(
     pickString(
+      raw.signedUrl,
+      raw.signed_url,
+      raw.publicUrl,
+      raw.public_url,
+      raw.mediaUrl,
+      raw.media_url,
+      raw.imageUrl,
+      raw.image_url,
       raw.url,
       raw.uri,
       raw.remoteUri,
       raw.remote_url,
-      raw.mediaUrl,
-      raw.media_url,
-      raw.publicUrl,
-      raw.public_url,
       raw.fileUrl,
       raw.file_url,
-      raw.imageUrl,
-      raw.image_url,
       raw.videoUrl,
       raw.video_url,
       raw.audioUrl,
