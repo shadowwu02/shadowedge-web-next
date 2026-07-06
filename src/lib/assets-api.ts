@@ -1,5 +1,5 @@
 import { apiRequest } from "@/lib/api";
-import { normalizeMediaAsset } from "@/lib/media-assets";
+import { normalizeMediaAsset, normalizeMediaAssetUrl } from "@/lib/media-assets";
 import type { ImageReferenceItem } from "@/types/image";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
 
@@ -47,9 +47,86 @@ export type SaveAssetFromJobResult = {
   asset: MediaAssetRecord | null;
 };
 
+export type AssetKind = UploadMediaType;
+export type AssetSource = "generated" | "imported" | "prompt_studio" | "unknown" | "uploaded";
+export type AssetStatus = "deleted" | "failed" | "ready" | "unavailable" | "unknown";
+
+export type AssetSourceTrace = {
+  jobId?: string;
+  model?: string;
+  outputType?: string;
+  originalName?: string;
+  promptSummary?: string;
+  provider?: string;
+  providerJobId?: string;
+  uploadType?: string;
+};
+
+export type UserAsset = {
+  createdAt?: string;
+  displayName: string;
+  durationSeconds?: number;
+  filename?: string;
+  height?: number;
+  id: string;
+  kind: AssetKind;
+  mimeType?: string;
+  previewUrl: string;
+  publicUrl: string;
+  sizeBytes?: number;
+  source: AssetSource;
+  sourceTrace: AssetSourceTrace;
+  status: AssetStatus;
+  thumbnailUrl: string;
+  width?: number;
+};
+
 function appendParam(params: URLSearchParams, key: string, value: unknown) {
   if (value === undefined || value === null || value === "") return;
   params.set(key, String(value));
+}
+
+function pickString(...values: unknown[]) {
+  return values.find((value) => typeof value === "string" && value.trim()) as string | undefined;
+}
+
+function pickPositiveNumber(...values: unknown[]) {
+  return values.map((value) => Number(value)).find((value) => Number.isFinite(value) && value > 0) || undefined;
+}
+
+function asMetadata(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function normalizeAssetKind(value: unknown): AssetKind | null {
+  const raw = String(value || "").toLowerCase();
+  if (raw === "image" || raw === "video" || raw === "audio") return raw;
+  return null;
+}
+
+function normalizeAssetSource(value: unknown): AssetSource {
+  const raw = String(value || "").toLowerCase();
+  if (raw === "uploaded" || raw === "generated" || raw === "prompt_studio" || raw === "imported") return raw;
+  return "unknown";
+}
+
+function normalizeAssetStatus(value: unknown): AssetStatus {
+  const raw = String(value || "").toLowerCase();
+  if (raw === "ready" || raw === "failed" || raw === "unavailable" || raw === "deleted") return raw;
+  return "unknown";
+}
+
+function getSafeSourceTrace(metadata: Record<string, unknown>, asset: MediaAssetRecord): AssetSourceTrace {
+  return {
+    jobId: pickString(metadata.jobId, metadata.job_id),
+    model: pickString(metadata.model),
+    originalName: pickString(metadata.originalName, metadata.original_name, asset.filename),
+    outputType: pickString(metadata.outputType, metadata.output_type),
+    promptSummary: pickString(metadata.promptSummary, metadata.prompt_summary),
+    provider: pickString(metadata.provider),
+    providerJobId: pickString(metadata.providerJobId, metadata.provider_job_id),
+    uploadType: pickString(metadata.uploadType, metadata.upload_type),
+  };
 }
 
 export async function listMediaAssets(options: ListMediaAssetsParams = {}): Promise<ListMediaAssetsResult> {
@@ -92,6 +169,43 @@ export async function saveAssetFromJob(jobId: string, input: SaveAssetFromJobInp
     alreadyExists: Boolean(payload.alreadyExists),
     asset: payload.asset || null,
   };
+}
+
+export function mapMediaAssetToUserAsset(asset: MediaAssetRecord): UserAsset | null {
+  const publicUrl = normalizeMediaAssetUrl(
+    pickString(asset.publicUrl, asset.url) || "",
+  );
+  const kind = normalizeAssetKind(asset.type);
+  if (!asset.id || !kind) return null;
+
+  const metadata = asMetadata(asset.metadata);
+  const displayName =
+    pickString(asset.displayName, asset.filename, getSafeSourceTrace(metadata, asset).originalName) ||
+    `${kind[0].toUpperCase()}${kind.slice(1)} asset`;
+  const previewUrl = kind === "image" ? publicUrl : "";
+
+  return {
+    createdAt: asset.createdAt || undefined,
+    displayName,
+    durationSeconds: pickPositiveNumber(asset.durationSeconds, metadata.durationSeconds, metadata.duration_seconds),
+    filename: asset.filename || undefined,
+    height: pickPositiveNumber(asset.height, metadata.height),
+    id: asset.id,
+    kind,
+    mimeType: asset.mimeType || undefined,
+    previewUrl,
+    publicUrl,
+    sizeBytes: pickPositiveNumber(asset.sizeBytes),
+    source: normalizeAssetSource(asset.source),
+    sourceTrace: getSafeSourceTrace(metadata, asset),
+    status: normalizeAssetStatus(asset.status),
+    thumbnailUrl: previewUrl,
+    width: pickPositiveNumber(asset.width, metadata.width),
+  };
+}
+
+export function mapMediaAssetsToUserAssets(assets: MediaAssetRecord[]): UserAsset[] {
+  return assets.map(mapMediaAssetToUserAsset).filter((asset): asset is UserAsset => Boolean(asset));
 }
 
 export function mediaAssetToUploadMediaItem(asset: MediaAssetRecord): UploadMediaItem | null {
