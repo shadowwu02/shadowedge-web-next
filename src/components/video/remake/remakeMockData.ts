@@ -1,5 +1,12 @@
 import type { RemakeSettings, RemakeShot, RemakeSourceVideo, RemakeStoryboard } from "@/components/video/remake/remakeTypes";
 
+const supportedRemakeRatios = new Set(["9:16", "16:9", "1:1", "4:3", "3:4", "2.39:1", "21:9", "3:2", "2:3", "5:4", "4:5", "9:21"]);
+
+function normalizeRemakeTargetRatio(value?: string) {
+  const raw = String(value || "").trim();
+  return supportedRemakeRatios.has(raw) ? raw : "16:9";
+}
+
 function buildShotPrompt(input: {
   action: string;
   camera: string;
@@ -30,6 +37,7 @@ export function buildMockRemakeStoryboard(settings: RemakeSettings, sourceVideo:
   const sourceTitle = sourceVideo?.name || "Authorized source clip";
   const defaultStyle = settings.sceneStyle || "Reconstruct the scene using the uploaded reference frames.";
   const defaultCharacters = settings.characterRules || "Preserve original characters from the uploaded reference frames.";
+  const targetRatio = normalizeRemakeTargetRatio(settings.targetRatio || settings.aspectRatio);
 
   const baseShots: Omit<RemakeShot, "generationParams" | "prompt" | "referenceHints">[] = [
     {
@@ -79,7 +87,7 @@ export function buildMockRemakeStoryboard(settings: RemakeSettings, sourceVideo:
       duration: Math.round(shot.duration),
       modelId: "seedance_2_0",
       quality: "720p",
-      ratio: "16:9",
+      ratio: targetRatio,
     },
     prompt: buildShotPrompt({
       action: shot.action,
@@ -103,11 +111,13 @@ export function buildMockRemakeStoryboard(settings: RemakeSettings, sourceVideo:
 
   return {
     characterRules: defaultCharacters,
+    aspectRatio: targetRatio,
     id: storyId,
     mode: settings.mode,
     sceneStyle: defaultStyle,
     shots,
     sourceTitle,
+    targetRatio,
     targetRegion: settings.targetRegion,
     translateDialogue: settings.translateDialogue,
   };

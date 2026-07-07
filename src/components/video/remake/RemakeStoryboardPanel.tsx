@@ -21,9 +21,6 @@ import type {
 
 type RemakeStoryboardPanelProps = {
   analysisNotice?: string;
-  canGenerateAllShots?: boolean;
-  canRetryAllFailedShots?: boolean;
-  disableGenerationActions?: boolean;
   draftNotice?: string;
   hasSourceVideo?: boolean;
   isAnalyzing?: boolean;
@@ -42,11 +39,6 @@ type RemakeStoryboardPanelProps = {
   };
   onCancelQueue?: () => void;
   onClearDraft?: () => void;
-  onContinueQueue?: () => void;
-  onGenerateAllShots?: () => void;
-  onGenerateShot: (shot: RemakeShot) => void;
-  onRetryAllFailedShots?: () => void;
-  onSkipFailedShot?: () => void;
   onUsePrompt: (prompt: string) => void;
   outputs?: RemakeOutputItem[];
   outputsScope?: RemakeOutputScope;
@@ -251,13 +243,9 @@ function getRemakeModeLabelKey(mode: RemakeMode) {
 }
 
 function RemakeOutputsPanel({
-  disableRetry,
-  onRetryShot,
   outputs,
   scope,
 }: {
-  disableRetry: boolean;
-  onRetryShot: (shot: RemakeShot) => void;
   outputs: RemakeOutputItem[];
   scope: RemakeOutputScope;
 }) {
@@ -291,8 +279,6 @@ function RemakeOutputsPanel({
       {outputs.length ? (
         <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
           {outputs.map((output) => {
-            const canRetryShot = Boolean(output.shot) && output.statusKind !== "processing";
-
             return (
               <article
                 className="se-card-interactive overflow-hidden rounded-[24px] shadow-inner shadow-black/10"
@@ -365,22 +351,10 @@ function RemakeOutputsPanel({
                         href={output.outputUrl}
                         rel="noreferrer"
                         target="_blank"
-                      >
-                        {t("video.remake.openOutput")}
-                      </a>
-                    ) : null}
-                    {canRetryShot ? (
-                      <button
-                        className="se-button-ghost min-h-9 rounded-[15px] px-3 text-xs font-semibold"
-                        disabled={disableRetry}
-                        onClick={() => {
-                          if (output.shot) onRetryShot(output.shot);
-                        }}
-                        type="button"
-                      >
-                        {t("video.remake.retryShot")}
-                      </button>
-                    ) : null}
+                    >
+                      {t("video.remake.openOutput")}
+                    </a>
+                  ) : null}
                   </div>
                 </div>
               </article>
@@ -399,20 +373,12 @@ function RemakeOutputsPanel({
 
 export function RemakeStoryboardPanel({
   analysisNotice = "",
-  canGenerateAllShots = false,
-  canRetryAllFailedShots = false,
-  disableGenerationActions = false,
   draftNotice = "",
   hasSourceVideo = false,
   isAnalyzing = false,
   metadata,
   onCancelQueue,
   onClearDraft,
-  onContinueQueue,
-  onGenerateAllShots,
-  onGenerateShot,
-  onRetryAllFailedShots,
-  onSkipFailedShot,
   onUsePrompt,
   outputs = [],
   outputsScope = "recent",
@@ -551,24 +517,6 @@ export function RemakeStoryboardPanel({
               {t("video.remake.clearDraft")}
             </button>
           ) : null}
-          {canGenerateAllShots ? (
-            <button
-              className="se-button-primary min-h-9 rounded-[14px] px-3 text-xs font-semibold"
-              onClick={onGenerateAllShots}
-              type="button"
-            >
-              {t("video.remake.generateAllShots")}
-            </button>
-          ) : null}
-          {canRetryAllFailedShots ? (
-            <button
-              className="se-button-secondary min-h-9 rounded-[14px] px-3 text-xs font-semibold"
-              onClick={onRetryAllFailedShots}
-              type="button"
-            >
-              {t("video.remake.retryAllFailed")}
-            </button>
-          ) : null}
           {isQueueRunning ? (
             <button
               className="se-button-danger min-h-9 rounded-[14px] px-3 text-xs font-semibold"
@@ -580,22 +528,6 @@ export function RemakeStoryboardPanel({
           ) : null}
           {isQueuePaused ? (
             <div className="grid gap-1.5">
-              <button
-                className="se-button-primary min-h-9 rounded-[14px] px-3 text-xs font-semibold"
-                onClick={onContinueQueue}
-                type="button"
-              >
-                {isQueueInterrupted ? t("video.remake.resumeQueue") : t("video.remake.continueQueue")}
-              </button>
-              {!isQueueInterrupted ? (
-                <button
-                  className="se-button-secondary min-h-9 rounded-[14px] px-3 text-xs font-semibold"
-                  onClick={onSkipFailedShot}
-                  type="button"
-                >
-                  {t("video.remake.skipShot")}
-                </button>
-              ) : null}
               <button
                 className="se-button-danger min-h-9 rounded-[14px] px-3 text-xs font-semibold"
                 onClick={onCancelQueue}
@@ -612,7 +544,6 @@ export function RemakeStoryboardPanel({
         <div className="mb-5 grid gap-2 rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/58 p-3 text-sm leading-6 text-[#b9b9b9]/72">
           {draftNotice ? <p className="font-semibold text-[#ffd08a]/88">{draftNotice}</p> : null}
           {isFallbackStoryboard ? <p className="font-semibold text-[#ffd08a]/88">{t("video.remake.resultFallbackBoundaryNotice")}</p> : null}
-          <p>{t("video.remake.queueCreditNotice")}</p>
           {hasQueueStatus ? (
             <p className="font-semibold text-[#f4f4f4]/82">
               {queueStatusLabel}
@@ -652,10 +583,8 @@ export function RemakeStoryboardPanel({
           {shots.map((shot) => {
             const keyframes = getShotKeyframes(shot, segments);
             const generation = shotGenerations[getRemakeShotGenerationKey(storyboard?.id, shot)];
-            const isGenerating = generation?.status === "generating";
             const isQueued = generation?.status === "queued";
             const isSkipped = generation?.status === "skipped";
-            const isGenerateDisabled = disableGenerationActions || isGenerating || isQueued || isQueueRunning;
             const hasGeneratedOutput = generation?.status === "success" && Boolean(generation.outputUrl);
 
             return (
@@ -748,24 +677,6 @@ export function RemakeStoryboardPanel({
                       {t("video.remake.openResult")}
                     </a>
                   ) : null}
-                  <button
-                    className={`min-h-10 rounded-[16px] px-3 text-sm font-semibold ${
-                      isGenerateDisabled
-                        ? "se-button-secondary cursor-wait"
-                        : "se-button-primary"
-                    }`}
-                    disabled={isGenerateDisabled}
-                    onClick={() => onGenerateShot(shot)}
-                    type="button"
-                  >
-                    {isQueued
-                      ? t("video.remake.queued")
-                      : isGenerating
-                      ? t("video.remake.generatingShot")
-                      : generation?.status === "success" || generation?.status === "failed"
-                        ? t("video.remake.retryShot")
-                        : t("video.remake.generateShot")}
-                  </button>
                   {generation?.status === "success" ? (
                     <p className="se-status se-status-completed rounded-[16px] p-2 text-xs leading-5">
                       {t("video.remake.shotGenerated")}
@@ -799,8 +710,6 @@ export function RemakeStoryboardPanel({
         </div>
       )}
       <RemakeOutputsPanel
-        disableRetry={disableGenerationActions || isQueueRunning}
-        onRetryShot={onGenerateShot}
         outputs={outputs}
         scope={outputsScope}
       />

@@ -229,11 +229,13 @@ export type RemakeStoryboard = {
   id: string;
   mode: RemakeMode;
   analysisSource?: RemakeAnalysisSource;
+  aspectRatio?: string;
   fallbackReason?: string;
   mock?: boolean;
   providerCallMade?: boolean;
   sandboxVlm?: boolean;
   sourceTitle?: string;
+  targetRatio?: string;
   targetRegion: RemakeTargetRegion;
   characterRules: string;
   sceneStyle: string;
@@ -244,9 +246,11 @@ export type RemakeStoryboard = {
 };
 
 export type RemakeSettings = {
+  aspectRatio?: string;
   characterRules: string;
   mode: RemakeMode;
   sceneStyle: string;
+  targetRatio?: string;
   targetRegion: RemakeTargetRegion;
   translateDialogue: boolean;
 };

@@ -16,6 +16,7 @@ export const REMAKE_STORYBOARD_DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
 
 const REMAKE_MODES = new Set<RemakeMode>(["single_clip", "full_film", "long_video"]);
 const REMAKE_TARGET_REGIONS = new Set<RemakeTargetRegion>(["US", "Middle East", "Japan", "Southeast Asia"]);
+const REMAKE_TARGET_RATIOS = new Set(["9:16", "16:9", "1:1", "4:3", "3:4", "2.39:1", "21:9", "3:2", "2:3", "5:4", "4:5", "9:21"]);
 const SENSITIVE_URL_PARAMS = ["access_token", "refresh_token", "token", "api_key", "apikey", "authorization", "session", "cookie"];
 
 export type RemakeStoryboardDraft = {
@@ -77,6 +78,14 @@ function pickNumber(...values: unknown[]) {
 
 function pickBoolean(value: unknown, fallback = false) {
   return typeof value === "boolean" ? value : fallback;
+}
+
+function normalizeRemakeTargetRatio(...values: unknown[]) {
+  for (const value of values) {
+    const raw = String(value || "").trim();
+    if (REMAKE_TARGET_RATIOS.has(raw)) return raw;
+  }
+  return "16:9";
 }
 
 function sanitizeStoredUrl(value: unknown) {
@@ -175,11 +184,14 @@ function sanitizeSettings(value: unknown, fallback?: RemakeSettings): RemakeSett
   const raw = asRecord(value);
   const mode = pickString(raw.mode);
   const targetRegion = pickString(raw.targetRegion);
+  const targetRatio = normalizeRemakeTargetRatio(raw.targetRatio, raw.aspectRatio, fallback?.targetRatio, fallback?.aspectRatio);
 
   return {
+    aspectRatio: targetRatio,
     characterRules: pickString(raw.characterRules) ?? fallback?.characterRules ?? "",
     mode: mode && REMAKE_MODES.has(mode as RemakeMode) ? (mode as RemakeMode) : fallback?.mode ?? "single_clip",
     sceneStyle: pickString(raw.sceneStyle) ?? fallback?.sceneStyle ?? "",
+    targetRatio,
     targetRegion:
       targetRegion && REMAKE_TARGET_REGIONS.has(targetRegion as RemakeTargetRegion)
         ? (targetRegion as RemakeTargetRegion)
@@ -199,6 +211,7 @@ function sanitizeStoryboard(value: unknown): RemakeStoryboard | null {
 
   return {
     analysisSource: pickString(raw.analysisSource) === "vlm" ? "vlm" : pickString(raw.analysisSource) === "fallback" ? "fallback" : undefined,
+    aspectRatio: normalizeRemakeTargetRatio(raw.targetRatio, raw.aspectRatio),
     characterRules: settings.characterRules,
     fallbackReason: pickString(raw.fallbackReason),
     id,
@@ -207,6 +220,7 @@ function sanitizeStoryboard(value: unknown): RemakeStoryboard | null {
     sceneStyle: settings.sceneStyle,
     shots,
     sourceTitle: pickString(raw.sourceTitle),
+    targetRatio: normalizeRemakeTargetRatio(raw.targetRatio, raw.aspectRatio),
     targetRegion: settings.targetRegion,
     translateDialogue: settings.translateDialogue,
     vlmProvider: pickString(raw.vlmProvider),

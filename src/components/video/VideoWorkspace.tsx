@@ -137,6 +137,12 @@ function isMaintenanceApiError(error: unknown) {
 }
 
 const remakeSourceMaxFileSizeBytes = 250 * 1024 * 1024;
+const remakeSupportedTargetRatios = new Set(["9:16", "16:9", "1:1", "4:3", "3:4", "2.39:1", "21:9", "3:2", "2:3", "5:4", "4:5", "9:21"]);
+
+function normalizeRemakeTargetRatio(value?: unknown) {
+  const raw = String(value || "").trim();
+  return remakeSupportedTargetRatios.has(raw) ? raw : "16:9";
+}
 
 function getErrorText(error: unknown) {
   if (error instanceof ApiError) {
@@ -325,6 +331,7 @@ function buildFullEpisodeStoryboardFromResult(input: {
   fallbackReason: string;
   result?: RemakeEpisodeResult | null;
   sourceTitle: string;
+  targetRatio?: string;
 }): RemakeStoryboard | null {
   const result = input.result;
   const canonicalResult = input.canonicalResult;
@@ -342,6 +349,7 @@ function buildFullEpisodeStoryboardFromResult(input: {
       }));
 
   if (!rawItems.length) return null;
+  const targetRatio = normalizeRemakeTargetRatio(input.targetRatio);
 
   const shots: RemakeShot[] = rawItems.map((item, index) => {
     const record = getPlainRecord(item);
@@ -361,7 +369,7 @@ function buildFullEpisodeStoryboardFromResult(input: {
         duration,
         modelId: "seedance_2_0",
         quality: "720p",
-        ratio: "16:9",
+        ratio: targetRatio,
       },
       keyframes: [],
       motion: getRecordText(record, ["motion"], "Keep continuity with adjacent episode beats."),
@@ -381,6 +389,7 @@ function buildFullEpisodeStoryboardFromResult(input: {
 
   return {
     analysisSource: "fallback",
+    aspectRatio: targetRatio,
     characterRules: "Preserve continuity across episode chunks after manual review.",
     fallbackReason: input.fallbackReason,
     id: `remake_episode_${Date.now()}`,
@@ -390,6 +399,7 @@ function buildFullEpisodeStoryboardFromResult(input: {
     sceneStyle: "full episode structural remake beta plan",
     shots,
     sourceTitle: input.sourceTitle,
+    targetRatio,
     targetRegion: "US",
     translateDialogue: true,
     vlmCalled: false,
@@ -452,9 +462,11 @@ function buildLongVideoStoryboardFromCanonical(input: {
   canonicalResult?: VideoAnalysisCanonicalResult | null;
   fallbackReason: string;
   sourceTitle: string;
+  targetRatio?: string;
 }): RemakeStoryboard | null {
   const canonicalResult = input.canonicalResult;
   if (!canonicalResult?.shots?.length) return null;
+  const targetRatio = normalizeRemakeTargetRatio(input.targetRatio);
 
   const shots: RemakeShot[] = canonicalResult.shots.map((shot, index) => {
     const start = Number.isFinite(shot.start) ? shot.start : index * 5;
@@ -472,7 +484,7 @@ function buildLongVideoStoryboardFromCanonical(input: {
         duration,
         modelId: "seedance_2_0",
         quality: "720p",
-        ratio: "16:9",
+        ratio: targetRatio,
       },
       keyframes: [],
       motion: shot.cameraMotion || "Keep continuity with adjacent beats.",
@@ -495,6 +507,7 @@ function buildLongVideoStoryboardFromCanonical(input: {
 
   return {
     analysisSource: canonicalResult.analysisSource === "vlm" ? "vlm" : canonicalResult.analysisSource === "sandbox" ? "sandbox_vlm" : "fallback",
+    aspectRatio: targetRatio,
     characterRules: "Preserve source continuity after manual review.",
     fallbackReason: input.fallbackReason,
     id: `remake_canonical_${Date.now()}`,
@@ -505,6 +518,7 @@ function buildLongVideoStoryboardFromCanonical(input: {
     sceneStyle: "canonical video analysis remake draft",
     shots,
     sourceTitle: input.sourceTitle,
+    targetRatio,
     targetRegion: "US",
     translateDialogue: true,
     vlmCalled: canonicalResult.visualUnderstanding.vlmCalled,
@@ -553,6 +567,7 @@ type RemakeOutputsView = {
 };
 type RemakeAnalysisMeta = {
   analysisSource?: RemakeAnalysisSource;
+  aspectRatio?: string;
   canonicalResult?: VideoAnalysisCanonicalResult | null;
   fallbackReason?: string;
   fullEpisode?: RemakeEpisodeResult;
@@ -561,6 +576,7 @@ type RemakeAnalysisMeta = {
   sandboxVlm?: boolean;
   segments?: RemakeSegment[];
   sourceVideo?: RemakeSourceVideoMetadata;
+  targetRatio?: string;
   vlmCalled?: boolean;
   vlmProvider?: string;
 };
@@ -577,10 +593,6 @@ type RemakeHistoryShotCandidate = RemakeShotGenerationState & {
   historyTime: number;
   matchPriority: number;
 };
-
-function createRemakeShotQueueRunId() {
-  return `remake_queue_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-}
 
 function createRemakeRetryQueueRunId() {
   return `remake_retry_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -1192,7 +1204,7 @@ export function VideoWorkspace() {
   const [isRemakeDraftRestored, setIsRemakeDraftRestored] = useState(false);
   const [remakeShotGenerations, setRemakeShotGenerations] = useState<Record<string, RemakeShotGenerationState>>({});
   const [remakeShotQueue, setRemakeShotQueue] = useState<RemakeShotQueueState>(idleRemakeShotQueue);
-  const [remakeActiveShotRecovery, setRemakeActiveShotRecovery] = useState<RemakeActiveShotRecoveryState | null>(null);
+  const [, setRemakeActiveShotRecovery] = useState<RemakeActiveShotRecoveryState | null>(null);
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const remakeDraftHydratedRef = useRef(false);
   const remakeQueueDraftHydratedRef = useRef("");
@@ -1592,6 +1604,7 @@ export function VideoWorkspace() {
         sourceTitle?: string;
         sourceVideo?: RemakeSourceVideo | null;
         sourceVideoUrl?: string;
+        targetRatio?: string;
       } = {},
     ) => {
       const fullEpisodeCanonical = fullEpisodeJob.canonicalResult;
@@ -1600,6 +1613,19 @@ export function VideoWorkspace() {
       const effectiveEpisodeResult = fullEpisodeResult || canonicalEpisodeResult;
       const sourceVideoMetadata = fullEpisodeJob.sourceVideo || fullEpisodeJob.result?.sourceVideo;
       const sourceTitle = options.sourceTitle || options.sourceVideo?.name || "Full episode source video";
+      const fullEpisodeJobMetadata = getPlainRecord(fullEpisodeJob.metadata);
+      const fullEpisodeResultMetadata = getPlainRecord(fullEpisodeJob.result?.metadata);
+      const targetRatio = normalizeRemakeTargetRatio(
+        options.targetRatio ||
+          options.settings?.targetRatio ||
+          options.settings?.aspectRatio ||
+          fullEpisodeResult?.storyboard?.targetRatio ||
+          fullEpisodeResult?.storyboard?.aspectRatio ||
+          fullEpisodeResultMetadata.targetRatio ||
+          fullEpisodeResultMetadata.aspectRatio ||
+          fullEpisodeJobMetadata.targetRatio ||
+          fullEpisodeJobMetadata.aspectRatio,
+      );
       const fullEpisodeFallbackReason =
         fullEpisodeResult?.storyboard?.fallbackReason ||
         fullEpisodeResult?.note ||
@@ -1612,6 +1638,7 @@ export function VideoWorkspace() {
           fallbackReason: fullEpisodeFallbackReason,
           result: effectiveEpisodeResult,
           sourceTitle,
+          targetRatio,
         });
 
       setRemakeAnalysisError("");
@@ -1622,6 +1649,7 @@ export function VideoWorkspace() {
         setRemakeStoryboard(null);
         setRemakeAnalysisMeta({
           analysisSource: "fallback",
+          aspectRatio: targetRatio,
           canonicalResult: fullEpisodeCanonical,
           fallbackReason: fullEpisodeFallbackReason,
           fullEpisode: effectiveEpisodeResult,
@@ -1629,6 +1657,7 @@ export function VideoWorkspace() {
           providerCallMade: false,
           segments: fullEpisodeJob.result?.segments,
           sourceVideo: sourceVideoMetadata,
+          targetRatio,
           vlmCalled: false,
         });
         return false;
@@ -1637,15 +1666,18 @@ export function VideoWorkspace() {
       const analyzedStoryboard: RemakeStoryboard = {
         ...fullEpisodeStoryboard,
         analysisSource: "fallback",
+        aspectRatio: fullEpisodeStoryboard.aspectRatio || targetRatio,
         fallbackReason: fullEpisodeFallbackReason,
         mock: true,
         providerCallMade: false,
+        targetRatio: fullEpisodeStoryboard.targetRatio || targetRatio,
         vlmCalled: false,
       };
 
       setRemakeStoryboard(analyzedStoryboard);
       setRemakeAnalysisMeta({
         analysisSource: "fallback",
+        aspectRatio: targetRatio,
         canonicalResult: fullEpisodeCanonical,
         fallbackReason: analyzedStoryboard.fallbackReason,
         fullEpisode: effectiveEpisodeResult,
@@ -1653,6 +1685,7 @@ export function VideoWorkspace() {
         providerCallMade: false,
         segments: fullEpisodeJob.result?.segments,
         sourceVideo: sourceVideoMetadata,
+        targetRatio,
         vlmCalled: false,
       });
 
@@ -1811,10 +1844,13 @@ export function VideoWorkspace() {
 
   const handleAnalyzeRemakeStoryboard = useCallback(async () => {
     const analysisRevision = remakeSourceRevisionRef.current;
+    const targetRatio = normalizeRemakeTargetRatio(params.ratio);
     const settings = {
+      aspectRatio: targetRatio,
       characterRules: remakeCharacterRules,
       mode: remakeMode,
       sceneStyle: remakeSceneStyle,
+      targetRatio,
       targetRegion: remakeTargetRegion,
       translateDialogue: remakeTranslateDialogue,
     };
@@ -1929,8 +1965,10 @@ export function VideoWorkspace() {
         try {
           costEstimate = await estimateLongVideoRemakeAnalysisCost({
             analysisEngine: "mock",
+            aspectRatio: targetRatio,
             sourceAssetId: sourceVideoForAnalyze?.assetId,
             sourceVideoUrl,
+            targetRatio,
           });
         } catch (estimateError) {
           if (remakeSourceRevisionRef.current !== analysisRevision) return;
@@ -1972,10 +2010,12 @@ export function VideoWorkspace() {
         setRemakeAnalysisNotice(t("video.remake.longVideo.stage.queued"));
         const createdJob = await createLongVideoRemakeAnalysis({
           analysisEngine: "mock",
+          aspectRatio: targetRatio,
           clientRequestId: `long-video-${Date.now()}`,
           confirmCost,
           sourceAssetId: sourceVideoForAnalyze?.assetId,
           sourceVideoUrl,
+          targetRatio,
         });
         if (remakeSourceRevisionRef.current !== analysisRevision) return;
 
@@ -1999,19 +2039,28 @@ export function VideoWorkspace() {
 
         const longVideoCanonical = longVideoJob.canonicalResult;
         const longVideoFallbackReason = longVideoJob.result?.storyboard?.fallbackReason || longVideoJob.result?.note || t("video.remake.longVideo.mockNotice");
+        const longVideoJobMetadata = getPlainRecord(longVideoJob.metadata);
+        const longVideoResultMetadata = getPlainRecord(longVideoJob.result?.metadata);
         const longVideoStoryboard =
           longVideoJob.result?.storyboard ||
           buildLongVideoStoryboardFromCanonical({
             canonicalResult: longVideoCanonical,
             fallbackReason: longVideoFallbackReason,
             sourceTitle: sourceVideoForAnalyze?.name || "Long source video",
+            targetRatio: normalizeRemakeTargetRatio(
+              longVideoJob.result?.storyboard?.targetRatio ||
+              longVideoJob.result?.storyboard?.aspectRatio ||
+              longVideoResultMetadata.targetRatio ||
+              longVideoResultMetadata.aspectRatio ||
+              longVideoJobMetadata.targetRatio ||
+              longVideoJobMetadata.aspectRatio ||
+              targetRatio,
+            ),
           });
         if (!longVideoStoryboard?.shots?.length) {
           throw new Error(t("video.remake.longVideo.failed"));
         }
 
-        const longVideoJobMetadata = getPlainRecord(longVideoJob.metadata);
-        const longVideoResultMetadata = getPlainRecord(longVideoJob.result?.metadata);
         const longVideoCanonicalVisual = longVideoCanonical?.visualUnderstanding;
         const longVideoAnalysisSource =
           longVideoCanonical?.analysisSource === "vlm"
@@ -2042,16 +2091,19 @@ export function VideoWorkspace() {
         const analyzedStoryboard: RemakeStoryboard = {
           ...longVideoStoryboard,
           analysisSource: longVideoAnalysisSource === "real_vlm" || longVideoAnalysisSource === "vlm" ? longVideoAnalysisSource : "fallback",
+          aspectRatio: longVideoStoryboard.aspectRatio || targetRatio,
           fallbackReason: longVideoStoryboard.fallbackReason || longVideoFallbackReason,
           providerCallMade: longVideoProviderCallMade,
           sandboxVlm: longVideoSandboxVlm,
           mock: true,
+          targetRatio: longVideoStoryboard.targetRatio || targetRatio,
           vlmCalled: longVideoVlmCalled,
         };
 
         setRemakeStoryboard(analyzedStoryboard);
         setRemakeAnalysisMeta({
           analysisSource: analyzedStoryboard.analysisSource,
+          aspectRatio: analyzedStoryboard.aspectRatio || targetRatio,
           canonicalResult: longVideoCanonical,
           fallbackReason: analyzedStoryboard.fallbackReason,
           mock: true,
@@ -2059,6 +2111,7 @@ export function VideoWorkspace() {
           sandboxVlm: longVideoSandboxVlm,
           segments: longVideoJob.result?.segments,
           sourceVideo: longVideoJob.sourceVideo || longVideoJob.result?.sourceVideo,
+          targetRatio: analyzedStoryboard.targetRatio || targetRatio,
           vlmCalled: longVideoVlmCalled,
         });
         const draftResult = saveRemakeStoryboardDraft({
@@ -2086,9 +2139,11 @@ export function VideoWorkspace() {
 
         setRemakeAnalysisNotice(t("video.remake.fullEpisode.stage.queued"));
         const createdJob = await createFullEpisodeRemakeAnalysis({
+          aspectRatio: targetRatio,
           clientRequestId: `full-episode-${Date.now()}`,
           sourceAssetId: sourceVideoForAnalyze?.assetId,
           sourceVideoUrl,
+          targetRatio,
         });
         if (remakeSourceRevisionRef.current !== analysisRevision) return;
         fullEpisodeJobIdForRecovery = createdJob.analysisJobId;
@@ -2117,6 +2172,7 @@ export function VideoWorkspace() {
           sourceTitle: sourceVideoForAnalyze?.name || "Full episode source video",
           sourceVideo: sourceVideoForAnalyze,
           sourceVideoUrl,
+          targetRatio,
         });
         return;
       }
@@ -2140,10 +2196,12 @@ export function VideoWorkspace() {
       const analyzedStoryboard: RemakeStoryboard = {
         ...result.storyboard,
         analysisSource,
+        aspectRatio: result.storyboard.aspectRatio || result.meta?.targetRatio || result.meta?.aspectRatio || targetRatio,
         fallbackReason: result.meta?.fallbackReason,
         mock: Boolean(result.meta?.mock),
         providerCallMade,
         sandboxVlm,
+        targetRatio: result.storyboard.targetRatio || result.meta?.targetRatio || result.meta?.aspectRatio || targetRatio,
         vlmCalled,
         vlmProvider: result.meta?.vlmProvider,
       };
@@ -2151,12 +2209,14 @@ export function VideoWorkspace() {
       setRemakeStoryboard(analyzedStoryboard);
       setRemakeAnalysisMeta({
         analysisSource,
+        aspectRatio: analyzedStoryboard.aspectRatio || targetRatio,
         fallbackReason: result.meta?.fallbackReason,
         mock: Boolean(result.meta?.mock),
         providerCallMade,
         sandboxVlm,
         segments: result.meta?.segments,
         sourceVideo: result.meta?.sourceVideo,
+        targetRatio: analyzedStoryboard.targetRatio || targetRatio,
         vlmCalled,
         vlmProvider: result.meta?.vlmProvider,
       });
@@ -2202,6 +2262,7 @@ export function VideoWorkspace() {
                 sourceTitle: sourceVideoForAnalyze?.name || "Full episode source video",
                 sourceVideo: sourceVideoForAnalyze,
                 sourceVideoUrl,
+                targetRatio,
               });
               return;
             }
@@ -2229,6 +2290,7 @@ export function VideoWorkspace() {
   }, [
     applyCompletedFullEpisodeAnalysisJob,
     getRemakeVlmProviderLabel,
+    params.ratio,
     remakeCharacterRules,
     remakeMode,
     remakeSceneStyle,
@@ -2257,8 +2319,10 @@ export function VideoWorkspace() {
     try {
       const estimate = await estimateLongVideoRemakeAnalysisCost({
         analysisEngine: "mock",
+        aspectRatio: normalizeRemakeTargetRatio(params.ratio),
         sourceAssetId: remakeSourceVideo.assetId,
         sourceVideoUrl: remakeSourceVideo.url || "",
+        targetRatio: normalizeRemakeTargetRatio(params.ratio),
       });
 
       if (remakeSourceRevisionRef.current !== estimateRevision) return;
@@ -2273,7 +2337,7 @@ export function VideoWorkspace() {
         setIsRemakeEstimateOnlyLoading(false);
       }
     }
-  }, [remakeMode, remakeSourceVideo, t]);
+  }, [params.ratio, remakeMode, remakeSourceVideo, t]);
 
   const handleEstimateLongVideoSandboxOnly = useCallback(async () => {
     const estimateRevision = remakeSourceRevisionRef.current;
@@ -2293,9 +2357,11 @@ export function VideoWorkspace() {
     try {
       const estimate = await estimateLongVideoRemakeAnalysisCost({
         analysisEngine: "sandbox_vlm",
+        aspectRatio: normalizeRemakeTargetRatio(params.ratio),
         provider: "sandbox",
         sourceAssetId: remakeSourceVideo.assetId,
         sourceVideoUrl: remakeSourceVideo.url || "",
+        targetRatio: normalizeRemakeTargetRatio(params.ratio),
       });
 
       if (remakeSourceRevisionRef.current !== estimateRevision) return;
@@ -2309,7 +2375,7 @@ export function VideoWorkspace() {
         setIsRemakeSandboxEstimateOnlyLoading(false);
       }
     }
-  }, [remakeMode, remakeSourceVideo, t]);
+  }, [params.ratio, remakeMode, remakeSourceVideo, t]);
 
   const handleRemakeSourceVideoChange = useCallback(
     (source: RemakeSourceVideo | null) => {
@@ -2992,46 +3058,6 @@ export function VideoWorkspace() {
   );
 
   const remakeShots = useMemo(() => remakeStoryboard?.shots || [], [remakeStoryboard]);
-  const unfinishedRemakeShots = useMemo(
-    () =>
-      remakeShots.filter((shot) => {
-        const generation = displayedRemakeShotGenerations[getRemakeShotGenerationKey(remakeStoryboard?.id, shot)];
-        return generation?.status !== "success" && generation?.status !== "skipped";
-      }),
-    [displayedRemakeShotGenerations, remakeShots, remakeStoryboard?.id],
-  );
-  const failedRemakeShots = useMemo(
-    () =>
-      remakeShots.filter((shot) => {
-        const generation = displayedRemakeShotGenerations[getRemakeShotGenerationKey(remakeStoryboard?.id, shot)];
-        return generation?.status === "failed";
-      }),
-    [displayedRemakeShotGenerations, remakeShots, remakeStoryboard?.id],
-  );
-  const isRemakeQueueActive = remakeShotQueue.status === "running" || remakeShotQueue.status === "paused";
-  const isRemakeActiveRecoveryPending =
-    remakeActiveShotRecovery?.status === "checking" || remakeActiveShotRecovery?.status === "processing";
-  const canGenerateAllRemakeShots = Boolean(
-    remakeStoryboard &&
-      unfinishedRemakeShots.length > 0 &&
-      !isProcessing &&
-      !isSubmitting &&
-      !isRemakeQueueActive &&
-      !isRemakeAnalyzing &&
-      !isRemakeSourceUploading &&
-      (token || isSignedIn),
-  );
-  const canRetryAllFailedRemakeShots = Boolean(
-    remakeStoryboard &&
-      failedRemakeShots.length > 0 &&
-      !isProcessing &&
-      !isSubmitting &&
-      remakeShotQueue.status !== "running" &&
-      !isRemakeActiveRecoveryPending &&
-      !isRemakeAnalyzing &&
-      !isRemakeSourceUploading &&
-      (token || isSignedIn),
-  );
   const remakeQueueCompletedCount = useMemo(() => {
     if (!remakeShotQueue.queueRunId) return 0;
 
@@ -3114,96 +3140,6 @@ export function VideoWorkspace() {
     remakeStoryboard,
   ]);
 
-  const handleGenerateAllRemakeShots = useCallback(() => {
-    if (!remakeStoryboard || !unfinishedRemakeShots.length) return;
-
-    if (!canGenerateAllRemakeShots) {
-      setWorkspaceNotice(concurrencyLimitNotice);
-      return;
-    }
-
-    const queueRunId = createRemakeShotQueueRunId();
-    const queueTotal = unfinishedRemakeShots.length;
-    const now = Date.now();
-
-    setRemakeShotQueue({
-      ignoredShotKeys: [],
-      queueIntent: "generate_all",
-      queueRunId,
-      queueTotal,
-      status: "running",
-    });
-    setRemakeShotGenerations((current) => {
-      const next = { ...current };
-      unfinishedRemakeShots.forEach((shot, index) => {
-        const shotKey = getRemakeShotGenerationKey(remakeStoryboard.id, shot);
-        next[shotKey] = {
-          ...(next[shotKey] || {}),
-          error: "",
-          outputUrl: "",
-          queueIndex: index + 1,
-          queueMode: "serial",
-          queueRunId,
-          queueTotal,
-          status: "queued",
-          updatedAt: now,
-        };
-      });
-      return next;
-    });
-    setWorkspaceNotice(t("video.remake.queueRunning"));
-  }, [canGenerateAllRemakeShots, concurrencyLimitNotice, remakeStoryboard, t, unfinishedRemakeShots]);
-
-  const handleRetryAllFailedRemakeShots = useCallback(() => {
-    if (!remakeStoryboard) return;
-
-    if (!failedRemakeShots.length) {
-      setWorkspaceNotice(t("video.remake.noFailedShots"));
-      return;
-    }
-
-    if (!canRetryAllFailedRemakeShots) {
-      setWorkspaceNotice(concurrencyLimitNotice);
-      return;
-    }
-
-    const queueRunId = createRemakeRetryQueueRunId();
-    const queueTotal = failedRemakeShots.length;
-    const now = Date.now();
-
-    setRemakeShotQueue({
-      ignoredShotKeys: [],
-      queueIntent: "retry_failed",
-      queueRunId,
-      queueTotal,
-      status: "running",
-    });
-    setRemakeShotGenerations((current) => {
-      const next = { ...current };
-      failedRemakeShots.forEach((shot, index) => {
-        const shotKey = getRemakeShotGenerationKey(remakeStoryboard.id, shot);
-        const previous = displayedRemakeShotGenerations[shotKey] || next[shotKey];
-        next[shotKey] = {
-          ...(previous || {}),
-          error: "",
-          outputUrl: "",
-          queueIndex: index + 1,
-          queueMode: "retry_serial",
-          queueRunId,
-          queueTotal,
-          retryAttempt: getNextRemakeRetryAttempt(previous),
-          retryOfShotKey: shotKey,
-          retryOfTaskId: previous?.taskId || previous?.retryOfTaskId || "",
-          retryQueueRunId: queueRunId,
-          status: "queued",
-          updatedAt: now,
-        };
-      });
-      return next;
-    });
-    setWorkspaceNotice(t("video.remake.retryingFailedShots"));
-  }, [canRetryAllFailedRemakeShots, concurrencyLimitNotice, displayedRemakeShotGenerations, failedRemakeShots, remakeStoryboard, t]);
-
   const handleCancelRemakeQueue = useCallback(() => {
     const cancelledRunId = remakeShotQueue.queueRunId;
     clearRemakeShotQueueDraft();
@@ -3235,67 +3171,6 @@ export function VideoWorkspace() {
     });
     setWorkspaceNotice(t("video.remake.queueCancelled"));
   }, [remakeShotQueue.queueRunId, t]);
-
-  const handleContinueRemakeQueue = useCallback(() => {
-    if (
-      remakeActiveShotRecovery &&
-      (remakeActiveShotRecovery.status === "checking" || remakeActiveShotRecovery.status === "processing") &&
-      remakeActiveShotRecovery.shotKey === remakeShotQueue.activeShotKey
-    ) {
-      setWorkspaceNotice(t("video.remake.activeShotStillProcessing"));
-      return;
-    }
-
-    setRemakeShotQueue((current) => {
-      if (current.status !== "paused") return current;
-      const interruptedActiveShotKey = current.wasInterruptedFromDraft ? current.activeShotKey : undefined;
-      const ignoredShotKeys = current.pausedShotKey || interruptedActiveShotKey
-        ? Array.from(new Set([...current.ignoredShotKeys, current.pausedShotKey, interruptedActiveShotKey].filter(Boolean) as string[]))
-        : current.ignoredShotKeys;
-
-      return {
-        ...current,
-        activeShotKey: undefined,
-        ignoredShotKeys,
-        pausedShotKey: undefined,
-        status: "running",
-        wasInterruptedFromDraft: false,
-      };
-    });
-    setWorkspaceNotice(
-      remakeShotQueue.queueIntent === "retry_failed" || remakeShotQueue.queueIntent === "retry_single"
-        ? t("video.remake.retryingFailedShots")
-        : t("video.remake.queueRunning"),
-    );
-  }, [remakeActiveShotRecovery, remakeShotQueue.activeShotKey, remakeShotQueue.queueIntent, t]);
-
-  const handleSkipFailedRemakeShot = useCallback(() => {
-    const failedShotKey = remakeShotQueue.pausedShotKey;
-    if (!failedShotKey) return;
-
-    setRemakeShotGenerations((current) => ({
-      ...current,
-      [failedShotKey]: {
-        ...(current[failedShotKey] || { status: "idle" }),
-        error: "",
-        status: "skipped",
-        updatedAt: Date.now(),
-      },
-    }));
-    setRemakeShotQueue((current) => ({
-      ...current,
-      activeShotKey: undefined,
-      ignoredShotKeys: Array.from(new Set([...current.ignoredShotKeys, failedShotKey])),
-      pausedShotKey: undefined,
-      status: "running",
-      wasInterruptedFromDraft: false,
-    }));
-    setWorkspaceNotice(
-      remakeShotQueue.queueIntent === "retry_failed" || remakeShotQueue.queueIntent === "retry_single"
-        ? t("video.remake.retryingFailedShots")
-        : t("video.remake.queueRunning"),
-    );
-  }, [remakeShotQueue.pausedShotKey, remakeShotQueue.queueIntent, t]);
 
   useEffect(() => {
     if (remakeShotQueue.status !== "running" || !remakeStoryboard) return;
@@ -3937,20 +3812,12 @@ export function VideoWorkspace() {
         {workspaceMode === "remake" ? (
           <RemakeStoryboardPanel
             analysisNotice={remakeAnalysisNotice}
-            canGenerateAllShots={canGenerateAllRemakeShots}
-            canRetryAllFailedShots={canRetryAllFailedRemakeShots}
-            disableGenerationActions={Boolean(isRemakeActiveRecoveryPending)}
             draftNotice={isRemakeDraftRestored ? t("video.remake.restoredDraft") : ""}
             hasSourceVideo={Boolean(remakeSourceVideo)}
             isAnalyzing={isRemakeAnalyzing || isRemakeSourceUploading}
             metadata={remakeAnalysisMeta || undefined}
             onCancelQueue={handleCancelRemakeQueue}
             onClearDraft={handleClearRemakeDraft}
-            onContinueQueue={handleContinueRemakeQueue}
-            onGenerateAllShots={handleGenerateAllRemakeShots}
-            onGenerateShot={handleGenerateRemakeShot}
-            onRetryAllFailedShots={handleRetryAllFailedRemakeShots}
-            onSkipFailedShot={handleSkipFailedRemakeShot}
             outputs={remakeOutputsView.items}
             outputsScope={remakeOutputsView.scope}
             queueCompletedCount={remakeQueueCompletedCount}
@@ -3961,9 +3828,11 @@ export function VideoWorkspace() {
             queueWasInterrupted={Boolean(remakeShotQueue.wasInterruptedFromDraft)}
             onUsePrompt={handleUseRemakePrompt}
             settings={{
+              aspectRatio: normalizeRemakeTargetRatio(params.ratio),
               characterRules: remakeCharacterRules,
               mode: remakeMode,
               sceneStyle: remakeSceneStyle,
+              targetRatio: normalizeRemakeTargetRatio(params.ratio),
               targetRegion: remakeTargetRegion,
               translateDialogue: remakeTranslateDialogue,
             }}

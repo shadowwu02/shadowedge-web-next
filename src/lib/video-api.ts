@@ -28,6 +28,7 @@ type RawModel = Record<string, unknown>;
 type RawRecord = Record<string, unknown>;
 
 export type VideoRemakeReverseAnalyzeInput = {
+  aspectRatio?: string;
   characterRules: string;
   mode: RemakeMode;
   sceneStyle: string;
@@ -35,6 +36,7 @@ export type VideoRemakeReverseAnalyzeInput = {
   sourceLanguage?: string;
   sourceVideoUrl?: string;
   targetLanguage?: string;
+  targetRatio?: string;
   targetRegion: RemakeTargetRegion;
   translateDialogue: boolean;
 };
@@ -43,6 +45,7 @@ export type VideoRemakeReverseAnalyzeResponse = {
   meta?: {
     analysisId?: string;
     analysisSource?: RemakeAnalysisSource;
+    aspectRatio?: string;
     estimatedCredits?: number;
     metadataOnly?: boolean;
     mock?: boolean;
@@ -52,6 +55,7 @@ export type VideoRemakeReverseAnalyzeResponse = {
     fallbackReason?: string;
     providerCallMade?: boolean;
     sandboxVlm?: boolean;
+    targetRatio?: string;
     vlmCalled?: boolean;
     vlmFailed?: boolean;
     vlmModel?: string;
@@ -102,25 +106,31 @@ export type VideoRemakeFullEpisodeAnalysisJob = Omit<VideoRemakeLongAnalysisJob,
 };
 
 export type VideoRemakeFullEpisodeAnalysisCreateInput = {
+  aspectRatio?: string;
   clientRequestId?: string;
   sourceAssetId?: string;
   sourceVideoUrl: string;
+  targetRatio?: string;
 };
 
 export type VideoRemakeLongAnalysisCreateInput = {
   analysisEngine?: "mock" | "real_vlm";
+  aspectRatio?: string;
   clientRequestId?: string;
   confirmCost?: boolean;
   estimateId?: string;
   sourceAssetId?: string;
   sourceVideoUrl: string;
+  targetRatio?: string;
 };
 
 export type VideoRemakeLongAnalysisCostEstimateInput = {
   analysisEngine?: "mock" | "real_vlm" | "sandbox_vlm";
+  aspectRatio?: string;
   provider?: string;
   sourceAssetId?: string;
   sourceVideoUrl: string;
+  targetRatio?: string;
 };
 
 export type VideoRemakeLongAnalysisAdapterStatus = {
@@ -699,14 +709,17 @@ function normalizeLongAnalysisCostEstimate(payload: unknown): VideoRemakeLongAna
 
 export async function estimateLongVideoRemakeAnalysisCost(input: VideoRemakeLongAnalysisCostEstimateInput) {
   const sourceAssetId = input.sourceAssetId?.trim() || undefined;
+  const targetRatio = input.targetRatio || input.aspectRatio;
   const envelope = await apiRequest<VideoRemakeLongAnalysisCostEstimate>("/api/remake/long-video-cost-estimate", {
     method: "POST",
     body: JSON.stringify({
       analysisEngine: input.analysisEngine || "mock",
+      aspectRatio: targetRatio,
       mode: "long_video",
       provider: input.provider,
       sourceAssetId,
       sourceVideoUrl: sourceAssetId ? undefined : input.sourceVideoUrl,
+      targetRatio,
     }),
   });
 
@@ -715,16 +728,19 @@ export async function estimateLongVideoRemakeAnalysisCost(input: VideoRemakeLong
 
 export async function createLongVideoRemakeAnalysis(input: VideoRemakeLongAnalysisCreateInput) {
   const sourceAssetId = input.sourceAssetId?.trim() || undefined;
+  const targetRatio = input.targetRatio || input.aspectRatio;
   const envelope = await apiRequest<VideoRemakeLongAnalysisJob>("/api/remake/analyze-long-video", {
     method: "POST",
     body: JSON.stringify({
       analysisEngine: input.analysisEngine || "mock",
+      aspectRatio: targetRatio,
       clientRequestId: input.clientRequestId,
       confirmCost: input.confirmCost,
       estimateId: input.estimateId,
       mode: "long_video",
       sourceAssetId,
       sourceVideoUrl: sourceAssetId ? undefined : input.sourceVideoUrl,
+      targetRatio,
     }),
   });
 
@@ -741,13 +757,16 @@ export async function getLongVideoRemakeAnalysisStatus(analysisJobId: string) {
 
 export async function createFullEpisodeRemakeAnalysis(input: VideoRemakeFullEpisodeAnalysisCreateInput) {
   const sourceAssetId = input.sourceAssetId?.trim() || undefined;
+  const targetRatio = input.targetRatio || input.aspectRatio;
   const envelope = await apiRequest<VideoRemakeFullEpisodeAnalysisJob>("/api/remake/full-episode/analyze", {
     method: "POST",
     body: JSON.stringify({
+      aspectRatio: targetRatio,
       clientRequestId: input.clientRequestId,
       mode: "full_episode",
       sourceAssetId,
       sourceVideoUrl: sourceAssetId ? undefined : input.sourceVideoUrl,
+      targetRatio,
     }),
   });
 
