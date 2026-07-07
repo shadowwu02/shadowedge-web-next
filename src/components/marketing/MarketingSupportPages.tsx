@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { activeBrand } from "@/config/brand";
 import { useI18n, type DictionaryKey } from "@/i18n/useI18n";
 
 type CtaItem = {
@@ -99,13 +100,19 @@ const contactCtas: CtaItem[] = [
 
 function PageShell({
   children,
+  eyebrowText,
   eyebrowKey,
+  subtitleText,
   subtitleKey,
+  titleText,
   titleKey,
 }: {
   children: ReactNode;
+  eyebrowText?: string;
   eyebrowKey: DictionaryKey;
+  subtitleText?: string;
   subtitleKey: DictionaryKey;
+  titleText?: string;
   titleKey: DictionaryKey;
 }) {
   const { t } = useI18n();
@@ -115,9 +122,9 @@ function PageShell({
       <div className="mx-auto flex min-h-full w-full max-w-[1480px] flex-col gap-4 pb-5">
         <section className="se-card-quiet rounded-[30px] p-5 md:p-6">
           <div className="max-w-3xl">
-            <p className="se-eyebrow">{t(eyebrowKey)}</p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight text-[#f4f4f4] md:text-4xl">{t(titleKey)}</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-[#b9b9b9]/68">{t(subtitleKey)}</p>
+            <p className="se-eyebrow">{eyebrowText || t(eyebrowKey)}</p>
+            <h1 className="mt-2 text-3xl font-black tracking-tight text-[#f4f4f4] md:text-4xl">{titleText || t(titleKey)}</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-[#b9b9b9]/68">{subtitleText || t(subtitleKey)}</p>
           </div>
         </section>
         {children}
@@ -220,18 +227,36 @@ export function FaqMarketingPage() {
 
 export function ContactMarketingPage() {
   const { t } = useI18n();
+  const isGoldTide = activeBrand.id === "newbrand";
+  const supportCopy = `For account, credits, or workspace support, contact ${activeBrand.supportEmail}.`;
 
   return (
-    <PageShell eyebrowKey="contact.eyebrow" subtitleKey="contact.subtitle" titleKey="contact.title">
+    <PageShell
+      eyebrowKey="contact.eyebrow"
+      eyebrowText={isGoldTide ? "Support" : undefined}
+      subtitleKey="contact.subtitle"
+      subtitleText={isGoldTide ? supportCopy : undefined}
+      titleKey="contact.title"
+    >
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <section className="se-card-quiet rounded-[28px] p-5 md:p-6">
-          <p className="se-eyebrow">{t("contact.betaEyebrow")}</p>
-          <h2 className="mt-2 text-2xl font-black text-[#f4f4f4]">{t("contact.betaTitle")}</h2>
-          <p className="mt-3 text-sm leading-6 text-[#b9b9b9]/72">{t("contact.betaBody")}</p>
+          <p className="se-eyebrow">{isGoldTide ? "Customer support" : t("contact.betaEyebrow")}</p>
+          <h2 className="mt-2 text-2xl font-black text-[#f4f4f4]">
+            {isGoldTide ? `Contact ${activeBrand.name} support` : t("contact.betaTitle")}
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-[#b9b9b9]/72">
+            {isGoldTide
+              ? `${supportCopy} Include the details below so we can investigate safely. Do not send passwords, tokens, cookies, or private credentials.`
+              : t("contact.betaBody")}
+          </p>
 
           <div className="mt-5 rounded-[22px] border border-[#ffb44d]/18 bg-[#ffb44d]/8 p-4">
-            <p className="text-sm font-black text-[#ffd08a]">{t("contact.noFormTitle")}</p>
-            <p className="mt-2 text-sm leading-6 text-[#f4f4f4]/72">{t("contact.noFormBody")}</p>
+            <p className="text-sm font-black text-[#ffd08a]">{isGoldTide ? "Email support" : t("contact.noFormTitle")}</p>
+            <p className="mt-2 text-sm leading-6 text-[#f4f4f4]/72">
+              {isGoldTide
+                ? `Online form submission is not connected yet. Please email ${activeBrand.supportEmail} with account, credits, or workspace context and the checklist fields below.`
+                : t("contact.noFormBody")}
+            </p>
           </div>
 
           <div className="mt-5">
@@ -256,8 +281,12 @@ export function ContactMarketingPage() {
             <p className="se-eyebrow">{t("contact.channelsTitle")}</p>
             <div className="mt-4 grid gap-3">
               <div className="rounded-[18px] border border-white/8 bg-[#05070b]/42 p-4">
-                <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#b9b9b9]/42">{t("contact.channel.admin")}</p>
-                <p className="mt-1 text-sm font-black text-[#f4f4f4]">{t("contact.channel.adminValue")}</p>
+                <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#b9b9b9]/42">
+                  {isGoldTide ? "Email" : t("contact.channel.admin")}
+                </p>
+                <p className="mt-1 text-sm font-black text-[#f4f4f4]">
+                  {isGoldTide ? activeBrand.supportEmail : t("contact.channel.adminValue")}
+                </p>
               </div>
               <div className="rounded-[18px] border border-white/8 bg-[#05070b]/42 p-4">
                 <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#b9b9b9]/42">{t("contact.channel.response")}</p>

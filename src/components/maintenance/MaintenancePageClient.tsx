@@ -17,6 +17,24 @@ function formatRestoreTime(value?: string) {
   }).format(date);
 }
 
+function brandMaintenanceTitle(maintenance: MaintenanceMode) {
+  const title = maintenance.title || DEFAULT_MAINTENANCE_MODE.title;
+  if (activeBrand.id === "shadowedge") return title;
+  return title.replace(/\bShadowEdge\b/g, activeBrand.name);
+}
+
+function brandMaintenanceMessage(maintenance: MaintenanceMode) {
+  const message = maintenance.message || DEFAULT_MAINTENANCE_MODE.message;
+  if (activeBrand.id === "shadowedge") return message;
+
+  const branded = message.replace(/\bShadowEdge\b/g, activeBrand.name);
+  if (new RegExp(`^We are upgrading ${activeBrand.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.?(?: Please check back soon\\.)?$`).test(branded)) {
+    return `We are upgrading ${activeBrand.name} to improve your creative workspace.`;
+  }
+
+  return branded;
+}
+
 export function MaintenancePageClient() {
   const router = useRouter();
   const { t } = useI18n();
@@ -63,6 +81,8 @@ export function MaintenancePageClient() {
   }, [getReturnPath, router]);
 
   const restoreTime = formatRestoreTime(maintenance.estimatedRestoreAt);
+  const displayTitle = brandMaintenanceTitle(maintenance);
+  const displayMessage = brandMaintenanceMessage(maintenance);
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#05060a] px-5 py-8 text-white">
@@ -76,10 +96,10 @@ export function MaintenancePageClient() {
           </div>
 
           <h1 className="mt-7 text-4xl font-black tracking-tight text-[#f7f8fa] md:text-6xl">
-            {maintenance.title || DEFAULT_MAINTENANCE_MODE.title}
+            {displayTitle}
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-8 text-[#a7adbb] md:text-lg">
-            {maintenance.message || DEFAULT_MAINTENANCE_MODE.message}
+            {displayMessage}
           </p>
 
           <div className="mt-8 grid gap-3 sm:grid-cols-2">
