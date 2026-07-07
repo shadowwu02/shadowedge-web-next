@@ -4,7 +4,7 @@ export const newbrandBrand: BrandConfig = {
   id: "newbrand",
   name: "Gold-Tide AI",
   shortName: "Gold-Tide",
-  slogan: "Premium AI Creative Studio",
+  slogan: "Gold-Tide AI Creative Studio",
   domain: "gold-tide.com",
   appUrl: "https://gold-tide.com",
   supportEmail: "support@gold-tide.com",
