@@ -204,7 +204,9 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
   const menuAnchorRef = useRef<HTMLElement | null>(null);
   const menuCaretIndexRef = useRef<number | null>(null);
   const menuRafRef = useRef<number | null>(null);
+  const expandedTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isExpandedEditorOpen, setIsExpandedEditorOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<MenuPosition>({ left: 0, maxHeight: 360, top: 0, width: 286 });
   const [replaceRange, setReplaceRange] = useState<ReplaceRange | null>(null);
 
@@ -251,6 +253,18 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     setReplaceRange(null);
     menuAnchorRef.current = null;
     menuCaretIndexRef.current = null;
+  }
+
+  function openExpandedEditor() {
+    closeMentionMenu();
+    setIsExpandedEditorOpen(true);
+  }
+
+  function closeExpandedEditor() {
+    setIsExpandedEditorOpen(false);
+    window.requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+    });
   }
 
   function handleChange(event: ChangeEvent<HTMLTextAreaElement>) {
@@ -389,6 +403,28 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
   });
 
   useEffect(() => {
+    if (!isExpandedEditorOpen) return;
+
+    window.requestAnimationFrame(() => {
+      const textarea = expandedTextareaRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    });
+
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        closeExpandedEditor();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isExpandedEditorOpen]);
+
+  useEffect(() => {
     if (!isMenuOpen) return;
 
     function isRectVisible(rect: DOMRect) {
@@ -468,17 +504,27 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     <section className="se-card rounded-[24px] p-3.5">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-[#f4f4f4]">{t("video.prompt.title")}</h2>
-        <span
-          className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
-            isPromptTooLong
-              ? "border-[#ef4444]/30 bg-[#ef4444]/10 text-[#fecaca]"
-              : isPromptNearLimit
-                ? "border-[#ffb44d]/26 bg-[#ffb44d]/10 text-[#ffd08a]"
-                : "border-[rgba(244,244,244,0.08)] bg-[#05070b]/30 text-[#b9b9b9]/50"
-          }`}
-        >
-          {tf("video.prompt.characterCount", { count: promptLength, limit: VIDEO_PROMPT_FRONTEND_LIMIT })}
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            aria-label={t("video.prompt.expand")}
+            className="rounded-full border border-[#ffb44d]/22 bg-[#ffb44d]/10 px-2.5 py-1 text-[11px] font-semibold text-[#ffd08a]/82 transition hover:border-[#ffb44d]/36 hover:bg-[#ffb44d]/16 hover:text-[#ffe0a3] focus:border-[#ffb44d]/50 focus:outline-none"
+            onClick={openExpandedEditor}
+            type="button"
+          >
+            {t("video.prompt.expand")}
+          </button>
+          <span
+            className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+              isPromptTooLong
+                ? "border-[#ef4444]/30 bg-[#ef4444]/10 text-[#fecaca]"
+                : isPromptNearLimit
+                  ? "border-[#ffb44d]/26 bg-[#ffb44d]/10 text-[#ffd08a]"
+                  : "border-[rgba(244,244,244,0.08)] bg-[#05070b]/30 text-[#b9b9b9]/50"
+            }`}
+          >
+            {tf("video.prompt.characterCount", { count: promptLength, limit: VIDEO_PROMPT_FRONTEND_LIMIT })}
+          </span>
+        </div>
       </div>
       <textarea
         className="se-scrollbar h-[180px] min-h-[160px] w-full resize-y rounded-[24px] border border-white/10 bg-[#10141f]/92 px-4 py-3.5 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70 md:h-[220px] md:min-h-[210px]"
@@ -576,6 +622,60 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
               {t("video.prompt.mentionEmpty")}
             </div>
           )}
+        </div>
+        , document.body) : null}
+      {isExpandedEditorOpen ? createPortal(
+        <div
+          aria-labelledby="video-prompt-expanded-title"
+          aria-modal="true"
+          className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/64 p-3 backdrop-blur-md sm:p-6"
+          role="dialog"
+        >
+          <div className="flex h-[88vh] w-[calc(100vw-24px)] max-w-[1040px] flex-col overflow-hidden rounded-[28px] border border-[#ffb44d]/24 bg-[#10141f]/98 shadow-[0_28px_90px_rgba(0,0,0,.58)] sm:h-[72vh] sm:w-[70vw] lg:w-[62vw]">
+            <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-3.5 sm:px-5">
+              <div className="min-w-0">
+                <h3 className="text-base font-black text-white" id="video-prompt-expanded-title">
+                  {t("video.prompt.editorTitle")}
+                </h3>
+                <p className="mt-1 text-xs leading-5 text-white/48">{t("video.prompt.editorSubtitle")}</p>
+              </div>
+              <span
+                className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                  isPromptTooLong
+                    ? "border-[#ef4444]/30 bg-[#ef4444]/10 text-[#fecaca]"
+                    : isPromptNearLimit
+                      ? "border-[#ffb44d]/26 bg-[#ffb44d]/10 text-[#ffd08a]"
+                      : "border-white/10 bg-white/[.04] text-white/48"
+                }`}
+              >
+                {tf("video.prompt.characterCount", { count: promptLength, limit: VIDEO_PROMPT_FRONTEND_LIMIT })}
+              </span>
+            </div>
+
+            <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4">
+              <textarea
+                className="se-scrollbar min-h-0 flex-1 resize-none rounded-[22px] border border-white/10 bg-[#05070b]/72 px-4 py-3.5 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70"
+                onChange={(event) => onChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") closeExpandedEditor();
+                }}
+                placeholder={t("video.prompt.placeholder")}
+                ref={expandedTextareaRef}
+                value={value}
+              />
+              <p className="mt-2 text-xs leading-5 text-white/44">{t("video.prompt.editorHelper")}</p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-white/10 px-4 py-3 sm:px-5">
+              <button
+                className="min-h-10 rounded-full border border-[#ffb44d]/28 bg-[#ffb44d]/14 px-4 text-sm font-semibold text-[#ffe0a3] transition hover:bg-[#ffb44d]/20 focus:border-[#ffb44d]/50 focus:outline-none"
+                onClick={closeExpandedEditor}
+                type="button"
+              >
+                {t("video.prompt.editorDone")}
+              </button>
+            </div>
+          </div>
         </div>
         , document.body) : null}
     </section>
