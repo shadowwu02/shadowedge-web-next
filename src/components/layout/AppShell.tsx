@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
+import { activeBrand } from "@/config/brand";
 import { useI18n } from "@/i18n/useI18n";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +19,7 @@ export function AppShell({
 }) {
   const { locale, setLocale, t } = useI18n();
   const pathname = usePathname() || "/workspace/video";
+  const isGoldTideWorkspace = activeBrand.id === "newbrand" && (pathname.startsWith("/workspace") || pathname.startsWith("/prompt-studio"));
   const isActiveRoute = (href: string) => {
     if (href === "/workspace/video") return pathname === href || pathname.startsWith(`${href}/`);
     if (href === "/workspace/image") return pathname === href || pathname.startsWith(`${href}/`);
@@ -45,11 +47,26 @@ export function AppShell({
   const signInNext = pathname.startsWith("/") && !pathname.startsWith("//") ? pathname : "/workspace/video";
 
   return (
-    <div className="flex h-screen min-h-0 overflow-hidden bg-[radial-gradient(circle_at_top_right,rgba(255,180,77,.13),transparent_34%),#08090d] text-white">
-      {hideSidebar ? null : <Sidebar items={workspaceLinks} />}
+    <div
+      className={cn(
+        "relative flex h-screen min-h-0 overflow-hidden text-white",
+        isGoldTideWorkspace
+          ? "bg-[linear-gradient(135deg,#070707_0%,#0b0b0a_46%,#12100b_100%)]"
+          : "bg-[radial-gradient(circle_at_top_right,rgba(255,180,77,.13),transparent_34%),#08090d]",
+      )}
+      data-brand-surface={isGoldTideWorkspace ? "gold-tide-workspace" : undefined}
+    >
+      {isGoldTideWorkspace ? (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(217,181,109,.045)_0,transparent_18%,transparent_82%,rgba(217,181,109,.035)_100%)]"
+        />
+      ) : null}
+      {hideSidebar ? null : <Sidebar goldTideShell={isGoldTideWorkspace} items={workspaceLinks} />}
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar
           creditLabel={t("account.credits")}
+          goldTideShell={isGoldTideWorkspace}
           locale={locale}
           onLocaleChange={setLocale}
           signInNext={signInNext}
@@ -61,7 +78,13 @@ export function AppShell({
           workspaceLinks={workspaceLinks}
           workspaceNav={workspaceNav}
         />
-        <main className={cn("min-h-0 flex-1 overflow-hidden", hideSidebar ? "p-2.5 md:p-3" : "p-3 md:p-4")}>
+        <main
+          className={cn(
+            "relative min-h-0 flex-1 overflow-hidden",
+            isGoldTideWorkspace ? "bg-[linear-gradient(180deg,rgba(217,181,109,.028),transparent_24%)]" : "",
+            hideSidebar ? "p-2.5 md:p-3" : "p-3 md:p-4",
+          )}
+        >
           {children}
         </main>
       </div>
