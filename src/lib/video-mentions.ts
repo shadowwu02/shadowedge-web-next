@@ -27,6 +27,16 @@ export type PromptMention = {
   end: number;
 };
 
+export type ReferencePromptBinding = MentionableMediaItem & {
+  fallbackLabel: string;
+  label: string;
+  mention?: PromptMention;
+};
+
+type BuildMediaAwarePromptOptions = {
+  aspectRatio?: string;
+};
+
 const mentionKindByType: Record<UploadMediaType, string> = {
   image: "图",
   video: "视频",
@@ -43,6 +53,45 @@ const mentionRegex = /【@(图|视频|音频)(\d+)】|@(图|视频|音频)(\d+)/
 
 function isRemoteUrl(url: string) {
   return /^https?:\/\//i.test(url);
+}
+
+function getReferenceKindLabel(type: UploadMediaType, index: number) {
+  if (type === "video") return `reference video ${index}`;
+  if (type === "audio") return `reference audio ${index}`;
+  return `reference image ${index}`;
+}
+
+function extractUserPromptFromStructuredPrompt(prompt: string) {
+  const source = String(prompt || "").trim();
+  const userPromptMarker = "\nUser prompt:";
+  const userPromptIndex = source.indexOf(userPromptMarker);
+  const fallbackUserPromptIndex = source.startsWith("User prompt:") ? 0 : -1;
+  const markerIndex = userPromptIndex >= 0 ? userPromptIndex + userPromptMarker.length : fallbackUserPromptIndex + "User prompt:".length;
+
+  if (userPromptIndex < 0 && fallbackUserPromptIndex < 0) return source;
+
+  const tail = source.slice(markerIndex).trim();
+  const nextSectionIndex = tail.search(/\n(?:Style and safety constraints|Reference media mapping|Character and scene binding):/i);
+  return (nextSectionIndex >= 0 ? tail.slice(0, nextSectionIndex) : tail).trim();
+}
+
+function cleanMentionLabel(value: string) {
+  const normalized = String(value || "")
+    .replace(/^[\s:：,，、\-—–|]+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const [firstClause] = normalized.split(/[。！？!?；;，,\r\n]/);
+  return String(firstClause || "").trim().slice(0, 48);
+}
+
+function extractMentionLabel(prompt: string, mention: PromptMention) {
+  const tail = String(prompt || "").slice(mention.end);
+  const sameLine = tail.split(/\r?\n/)[0] || "";
+  return cleanMentionLabel(sameLine);
+}
+
+function getMediaFallbackLabel(item: MentionableMediaItem) {
+  return String(item.name || item.title || getReferenceKindLabel(item.type, item.index)).trim();
 }
 
 export function getMentionKind(type: UploadMediaType) {
@@ -179,28 +228,85 @@ function getMediaAwarePromptItemsFromPrompt(
   return mappedItems;
 }
 
+export function getReferencePromptBindings(
+  promptText: string,
+  mediaItems: MentionableMediaItem[],
+  mentionBindings: VideoMentionBinding[] = [],
+): ReferencePromptBinding[] {
+  const validItems = mediaItems.filter((item) => item.url && isRemoteUrl(item.url));
+  const promptSource = extractUserPromptFromStructuredPrompt(promptText);
+  const mentions = findPromptMentions(promptSource);
+  const promptMappedItems = getMediaAwarePromptItemsFromPrompt(promptSource, mediaItems, mentionBindings);
+  const mappingItems = mentions.length ? promptMappedItems : validItems;
+
+  return mappingItems.map((item) => {
+    const mention = mentions.find((candidate) => candidate.type === item.type && candidate.index === item.index);
+    const fallbackLabel = getMediaFallbackLabel(item);
+    const extractedLabel = mention ? extractMentionLabel(promptSource, mention) : "";
+    const label = extractedLabel || fallbackLabel || getReferenceKindLabel(item.type, item.index);
+
+    return {
+      ...item,
+      fallbackLabel,
+      label,
+      mention,
+    };
+  });
+}
+
+function buildStyleConstraints(aspectRatio?: string) {
+  const ratio = String(aspectRatio || "").trim();
+  const constraints = [
+    "Keep the same people and scene identity from the referenced media.",
+    "Use the referenced images as visual identity and scene references.",
+    "Do not invent unrelated main characters.",
+    "Do not show ghosts, monsters, zombies, supernatural entities, gore, or bloody close-ups unless explicitly allowed by the user prompt.",
+  ];
+
+  if (ratio === "9:16") {
+    constraints.push("Preserve vertical 9:16 if selected by the user.");
+  } else if (ratio && ratio !== "auto") {
+    constraints.push(`Preserve ${ratio} aspect ratio if selected by the user.`);
+  }
+
+  return constraints;
+}
+
 export function buildMediaAwarePrompt(
   promptText: string,
   mediaItems: MentionableMediaItem[],
   mentionBindings: VideoMentionBinding[] = [],
+  options: BuildMediaAwarePromptOptions = {},
 ) {
-  const cleanPrompt = convertVisibleMentionsToTokens(String(promptText || "").trim());
-  const validItems = mediaItems.filter((item) => item.url && isRemoteUrl(item.url));
-  const promptMentions = findPromptMentions(promptText);
-  const promptMappedItems = mentionBindings.length ? getMediaAwarePromptItemsFromPrompt(promptText, mediaItems, mentionBindings) : [];
-  const mappingItems = mentionBindings.length && promptMentions.length ? promptMappedItems : validItems;
+  const userPrompt = extractUserPromptFromStructuredPrompt(promptText);
+  const cleanPrompt = convertVisibleMentionsToTokens(userPrompt);
+  const mappingItems = getReferencePromptBindings(userPrompt, mediaItems, mentionBindings);
 
   if (!mappingItems.length) return cleanPrompt;
 
   const mapping = mappingItems
-    .map((item) => {
-      if (item.type === "video") return `${item.token} = reference video ${item.index}`;
-      if (item.type === "audio") return `${item.token} = reference audio ${item.index}`;
-      return `${item.token} = reference image ${item.index}`;
-    })
+    .map((item) => `${item.token} = ${getReferenceKindLabel(item.type, item.index)}`)
+    .join("\n");
+  const bindingLines = mappingItems
+    .map((item) => `${item.token}${item.label ? ` ${item.label}` : ""}`)
+    .join("\n");
+  const styleConstraints = buildStyleConstraints(options.aspectRatio)
+    .map((item) => `- ${item}`)
     .join("\n");
 
-  return ["Reference media mapping:", mapping, "", "User prompt:", cleanPrompt].join("\n");
+  return [
+    "Reference media mapping:",
+    mapping,
+    "",
+    "Character and scene binding:",
+    bindingLines,
+    "",
+    "User prompt:",
+    cleanPrompt,
+    "",
+    "Style and safety constraints:",
+    styleConstraints,
+  ].join("\n");
 }
 
 export function toGenerationMediaList(items: MentionableMediaItem[]): VideoGenerationRequest["mediaList"] {

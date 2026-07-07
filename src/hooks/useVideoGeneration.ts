@@ -90,7 +90,9 @@ function buildVideoRequest(options: SubmitVideoOptions): VideoGenerationRequest 
     serializeMentionBindings(options.mentionBindings || []),
     options.media,
   ).mentionBindings;
-  const enhancedPrompt = buildMediaAwarePrompt(options.prompt, mentionMediaItems, mentionBindings);
+  const enhancedPrompt = buildMediaAwarePrompt(options.prompt, mentionMediaItems, mentionBindings, {
+    aspectRatio: options.ratio,
+  });
   const primaryImageUrl = images[0] || "";
   const primaryVideoUrl = videos[0] || "";
   const estimatedCredits = estimateVideoCreditsForParams(

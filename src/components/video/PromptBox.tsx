@@ -6,8 +6,10 @@ import { createPortal } from "react-dom";
 import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
 import {
   findPromptMentions,
+  getReferencePromptBindings,
   getReadyMentionableMediaItems,
   type MentionableMediaItem,
+  type ReferencePromptBinding,
 } from "@/lib/video-mentions";
 import {
   createMentionBinding,
@@ -211,6 +213,10 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
   const [replaceRange, setReplaceRange] = useState<ReplaceRange | null>(null);
 
   const mentionItems = useMemo(() => getReadyMentionableMediaItems(media), [media]);
+  const referenceBindings = useMemo(
+    () => getReferencePromptBindings(value, mentionItems, mentionBindings),
+    [mentionBindings, mentionItems, value],
+  );
   const missingMentions = useMemo(
     () => getMissingMentionsWithBindings(value, media, mentionBindings),
     [media, mentionBindings, value],
@@ -369,12 +375,37 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
 
   function insertMention(item: MentionableMediaItem) {
     insertMentionText({
-      display: item.display,
+      display: item.token,
       index: item.index,
       mediaId: item.id,
       token: item.token,
       type: item.type,
       url: item.url,
+    });
+  }
+
+  function handleReferenceBindingClick(binding: ReferencePromptBinding, anchorEl: HTMLElement) {
+    if (binding.mention && isExpandedEditorOpen && expandedTextareaRef.current) {
+      expandedTextareaRef.current.focus();
+      expandedTextareaRef.current.setSelectionRange(binding.mention.start, binding.mention.end);
+      return;
+    }
+
+    if (binding.mention && textareaRef.current && !isExpandedEditorOpen) {
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(binding.mention.start, binding.mention.end);
+      setReplaceRange({ start: binding.mention.start, end: binding.mention.end });
+      openMentionMenuFromExternal(anchorEl);
+      return;
+    }
+
+    insertMentionText({
+      display: binding.token,
+      index: binding.index,
+      mediaId: binding.id,
+      token: binding.token,
+      type: binding.type,
+      url: binding.url,
     });
   }
 
@@ -500,6 +531,57 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     return t("video.prompt.group.audios");
   }
 
+  function referenceTypeLabel(type: UploadMediaType) {
+    if (type === "image") return t("video.prompt.group.images");
+    if (type === "video") return t("video.prompt.group.videos");
+    return t("video.prompt.group.audios");
+  }
+
+  function renderReferenceBindings(compact = false) {
+    if (!referenceBindings.length) return null;
+
+    return (
+      <div
+        className={`rounded-[18px] border border-[#4da3ff]/18 bg-[#4da3ff]/7 ${
+          compact ? "mt-3 px-3 py-2" : "mt-3 px-3.5 py-3"
+        }`}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-[11px] font-bold uppercase tracking-[.14em] text-[#9fd0ff]/78">
+            {t("video.prompt.referenceBindings")}
+          </span>
+          <span className="text-[11px] font-semibold text-white/42">{t("video.prompt.referenceBindingHint")}</span>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {referenceBindings.map((binding) => {
+            const itemTitle = sanitizeMediaDisplayName({
+              index: Math.max(0, binding.index - 1),
+              locale: displayLocale,
+              rawName: binding.label || binding.fallbackLabel || binding.title,
+              type: binding.type,
+            });
+
+            return (
+              <button
+                className="inline-flex min-h-8 max-w-full items-center gap-2 rounded-full border border-[#4da3ff]/30 bg-[#123b6d]/34 px-2.5 py-1 text-left text-[11px] font-semibold text-[#d7ecff] transition hover:border-[#79bdff]/48 hover:bg-[#164d88]/46 focus:border-[#9fd0ff]/70 focus:outline-none"
+                key={`${binding.type}-${binding.index}-${binding.id}`}
+                onClick={(event) => handleReferenceBindingClick(binding, event.currentTarget)}
+                type="button"
+              >
+                <span className="shrink-0 rounded-full bg-[#4da3ff]/18 px-2 py-0.5 font-black text-[#bde1ff]">
+                  {binding.token}
+                </span>
+                <span className="truncate text-white/80">{itemTitle}</span>
+                <span className="shrink-0 text-white/36">{referenceTypeLabel(binding.type)}</span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-xs leading-5 text-white/38">{t("video.prompt.complexPromptHint")}</p>
+      </div>
+    );
+  }
+
   return (
     <section className="se-card rounded-[24px] p-3.5">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -534,6 +616,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
         ref={textareaRef}
         value={value}
       />
+      {renderReferenceBindings()}
 
       <div className="mt-3 grid gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs leading-5 text-white/42">
@@ -653,8 +736,9 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4">
+              {renderReferenceBindings(true)}
               <textarea
-                className="se-scrollbar min-h-0 flex-1 resize-none rounded-[22px] border border-white/10 bg-[#05070b]/72 px-4 py-3.5 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70"
+                className="se-scrollbar mt-3 min-h-0 flex-1 resize-none rounded-[22px] border border-white/10 bg-[#05070b]/72 px-4 py-3.5 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70"
                 onChange={(event) => onChange(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Escape") closeExpandedEditor();
