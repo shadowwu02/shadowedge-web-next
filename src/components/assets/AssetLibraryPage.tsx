@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { listMediaAssets, mapMediaAssetsToUserAssets, type AssetKind, type AssetSource, type UserAsset } from "@/lib/assets-api";
+import { saveAssetLibraryImageHandoff } from "@/lib/assets/assetLibraryImageHandoff";
 import { ApiError } from "@/types/api";
 
 type KindFilter = "all" | AssetKind;
@@ -106,6 +108,13 @@ function sourceTraceRows(asset: UserAsset) {
   ].filter((row): row is [string, string] => Boolean(row));
 }
 
+function getUseInImageDisabledReason(asset: UserAsset) {
+  if (asset.kind !== "image") return "Image workspace only accepts image assets.";
+  if (asset.status !== "ready") return "This asset is unavailable.";
+  if (!asset.publicUrl) return "Missing renderable asset URL.";
+  return "";
+}
+
 function FilterButton({
   active,
   children,
@@ -165,16 +174,20 @@ function AssetCard({
   asset,
   copiedLabel,
   onCopy,
+  onUseInImage,
 }: {
   asset: UserAsset;
   copiedLabel: string;
   onCopy: (value: string, label: "Job ID" | "URL") => void;
+  onUseInImage: (asset: UserAsset) => void;
 }) {
   const rows = sourceTraceRows(asset);
   const dimensions = asset.width && asset.height ? `${asset.width} x ${asset.height}` : "";
   const details = [dimensions, formatDuration(asset.durationSeconds), formatBytes(asset.sizeBytes)].filter(Boolean);
   const hasPublicUrl = Boolean(asset.publicUrl);
   const canCopyJobId = Boolean(asset.sourceTrace.jobId);
+  const useInImageDisabledReason = getUseInImageDisabledReason(asset);
+  const canUseInImage = !useInImageDisabledReason;
 
   return (
     <article className="overflow-hidden rounded-[24px] border border-white/10 bg-white/[.035]">
@@ -262,12 +275,17 @@ function AssetCard({
             </button>
           )}
           <button
-            className="rounded-full border border-dashed border-white/14 px-3 py-2 text-xs font-black text-white/35"
-            disabled
-            title="Draft-only reuse will be connected after the asset-to-workspace draft contract is approved."
+            className={`rounded-full border px-3 py-2 text-xs font-black transition ${
+              canUseInImage
+                ? "border-[#ffcf83]/25 bg-[#ffcf83]/10 text-[#ffe6b8] hover:border-[#ffcf83]/45 hover:bg-[#ffcf83]/16"
+                : "border-dashed border-white/14 text-white/35"
+            }`}
+            disabled={!canUseInImage}
+            onClick={() => onUseInImage(asset)}
+            title={useInImageDisabledReason || "Add this image to the Image workspace as a draft reference. No generation starts automatically."}
             type="button"
           >
-            Reuse in Image
+            Use in Image
           </button>
           <button
             className="rounded-full border border-dashed border-white/14 px-3 py-2 text-xs font-black text-white/35"
@@ -284,6 +302,7 @@ function AssetCard({
 }
 
 export function AssetLibraryPage() {
+  const router = useRouter();
   const [assets, setAssets] = useState<UserAsset[]>([]);
   const [copiedLabel, setCopiedLabel] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -351,6 +370,24 @@ export function AssetLibraryPage() {
     } catch {
       setErrorMessage(`Could not copy ${label}.`);
     }
+  }
+
+  function handleUseInImage(asset: UserAsset) {
+    const result = saveAssetLibraryImageHandoff(asset);
+    if (!result.ok) {
+      const message =
+        result.reason === "missing_url"
+          ? "Missing renderable asset URL."
+          : result.reason === "unsupported_kind"
+            ? "Image workspace only accepts image assets."
+            : result.reason === "invalid_asset"
+              ? "This asset is unavailable."
+              : "Could not prepare this asset for Image workspace draft reuse.";
+      setErrorMessage(message);
+      return;
+    }
+
+    router.push("/workspace/image?from=asset-library");
   }
 
   return (
@@ -441,6 +478,7 @@ export function AssetLibraryPage() {
                 copiedLabel={copiedLabel}
                 key={asset.id}
                 onCopy={(value, label) => void handleCopy(asset, value, label)}
+                onUseInImage={handleUseInImage}
               />
             ))}
           </div>

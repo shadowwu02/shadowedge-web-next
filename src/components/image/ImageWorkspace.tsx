@@ -8,6 +8,7 @@ import { ImageOutputStage } from "@/components/image/ImageOutputStage";
 import { ImagePromptPanel } from "@/components/image/ImagePromptPanel";
 import { useImageGeneration } from "@/hooks/useImageGeneration";
 import { useI18n } from "@/i18n/useI18n";
+import { assetLibraryImageHandoffToReference, consumeAssetLibraryImageHandoff } from "@/lib/assets/assetLibraryImageHandoff";
 import { getImageUserFacingError } from "@/lib/image/imageErrorDisplay";
 import { isImageActiveStatus } from "@/lib/image/imageHistoryUtils";
 import { IMAGE_PROMPT_FRONTEND_LIMIT_LABEL } from "@/lib/image/imagePromptLimits";
@@ -64,6 +65,7 @@ export function ImageWorkspace() {
   const router = useRouter();
   const isZh = getPromptStudioDraftLocale(locale) === "zh";
   const image = useImageGeneration();
+  const assetLibraryHandoffCheckedRef = useRef(false);
   const promptStudioDraftCheckedRef = useRef(false);
   const promptStudioImportTargetRef = useRef<HTMLDivElement | null>(null);
   const promptStudioImportHighlightTimerRef = useRef<number | null>(null);
@@ -153,6 +155,58 @@ export function ImageWorkspace() {
 
     return () => window.clearTimeout(timer);
   }, [focusPromptStudioImportTarget, image, image.draftReady, image.prompt, image.references.length, isZh]);
+
+  useEffect(() => {
+    if (!image.draftReady || assetLibraryHandoffCheckedRef.current) return;
+    assetLibraryHandoffCheckedRef.current = true;
+
+    const timer = window.setTimeout(() => {
+      const handoff = consumeAssetLibraryImageHandoff();
+      if (!handoff) return;
+
+      const reference = assetLibraryImageHandoffToReference(handoff);
+      if (!reference?.url) {
+        setPromptStudioNotice("Asset Library image could not be added because its URL is unavailable.");
+        focusPromptStudioImportTarget();
+        return;
+      }
+
+      const isDuplicate = image.references.some(
+        (item) =>
+          item.id === reference.id ||
+          (item.assetId && reference.assetId && item.assetId === reference.assetId) ||
+          (item.url && reference.url && item.url === reference.url),
+      );
+      if (isDuplicate) {
+        setPromptStudioNotice("This asset is already in the Image workspace draft.");
+        focusPromptStudioImportTarget();
+        return;
+      }
+
+      const maxReferences = Math.max(0, image.selectedModel?.capabilities.maxReferences || 0);
+      if (!maxReferences) {
+        setPromptStudioNotice("The selected Image model does not accept reference images.");
+        focusPromptStudioImportTarget();
+        return;
+      }
+
+      if (image.references.length >= maxReferences) {
+        setPromptStudioNotice(`Reference limit reached for the selected Image model (${maxReferences}).`);
+        focusPromptStudioImportTarget();
+        return;
+      }
+
+      const added = image.addReferenceItems([reference]);
+      setPromptStudioNotice(
+        added
+          ? "Asset added as a draft reference. Review it, then click Generate manually."
+          : "Asset Library image could not be added to the draft reference tray.",
+      );
+      focusPromptStudioImportTarget();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [focusPromptStudioImportTarget, image, image.draftReady, image.references, image.selectedModel?.capabilities.maxReferences]);
 
   const handleImportPromptStudioDraft = useCallback(() => {
     if (!pendingPromptStudioDraft?.prompt) return;
