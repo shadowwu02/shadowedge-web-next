@@ -6,6 +6,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: activeBrand.seo.title,
   description: activeBrand.seo.description,
+  icons: {
+    icon: activeBrand.assets.favicon,
+  },
 };
 
 export default function RootLayout({
