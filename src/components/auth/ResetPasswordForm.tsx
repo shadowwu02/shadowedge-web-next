@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PasswordRuleList } from "@/components/auth/PasswordRuleList";
+import { activeBrand } from "@/config/brand";
 import { isAuthRateLimitError, isInvalidResetLinkError, resetPassword } from "@/lib/auth-api";
 import { isStrongAuthPassword } from "@/lib/auth-password";
 import { useI18n } from "@/i18n/useI18n";
@@ -42,6 +43,19 @@ export function ResetPasswordForm() {
   const isPasswordValid = isStrongAuthPassword(password);
   const passwordsMatch = Boolean(confirmPassword) && password === confirmPassword;
   const canSubmit = hasResetCredential && isPasswordValid && passwordsMatch && !isLoading;
+  const isGoldTide = activeBrand.id === "newbrand";
+  const cardClass = isGoldTide
+    ? "w-full max-w-md rounded-[28px] border border-[#d9b56d]/20 bg-[#12110f]/88 p-6 shadow-2xl shadow-black/45 md:p-8"
+    : "w-full max-w-md rounded-[28px] border border-white/10 bg-white/[.045] p-6 shadow-2xl shadow-black/35 md:p-8";
+  const passwordInputClass = isGoldTide
+    ? "h-12 w-full rounded-2xl border border-[#d9b56d]/14 bg-black/30 px-4 pr-20 text-sm font-semibold text-white outline-none transition placeholder:text-white/25 focus:border-[#d9b56d]/70 focus:ring-4 focus:ring-[#d9b56d]/10"
+    : "h-12 w-full rounded-2xl border border-white/10 bg-black/30 px-4 pr-20 text-sm font-semibold text-white outline-none transition placeholder:text-white/25 focus:border-[#ffb44d]/65 focus:ring-4 focus:ring-[#ffb44d]/10";
+  const toggleClass = isGoldTide
+    ? "absolute right-2 top-1/2 -translate-y-1/2 rounded-xl border border-[#d9b56d]/16 bg-[#d9b56d]/[.07] px-3 py-1 text-xs font-black text-[#f2d899] transition hover:border-[#d9b56d]/50 hover:bg-[#d9b56d]/12 disabled:cursor-not-allowed disabled:opacity-50"
+    : "absolute right-2 top-1/2 -translate-y-1/2 rounded-xl border border-white/10 bg-white/[.06] px-3 py-1 text-xs font-black text-[#ffcf83] transition hover:border-[#ffb44d]/50 hover:bg-[#ffb44d]/12 hover:text-[#ffe2ad]";
+  const primaryButtonClass = isGoldTide
+    ? "mt-2 h-12 rounded-2xl bg-[#d9b56d] px-5 text-sm font-black text-[#10100e] transition hover:bg-[#f2d899] focus:outline-none focus:ring-4 focus:ring-[#d9b56d]/20 disabled:cursor-not-allowed disabled:opacity-50"
+    : "se-button-primary mt-2 h-12 rounded-2xl px-5 text-sm font-black focus:outline-none focus:ring-4 focus:ring-[#f6a935]/20";
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -106,11 +120,15 @@ export function ResetPasswordForm() {
   }
 
   return (
-    <div className="w-full max-w-md rounded-[28px] border border-white/10 bg-white/[.045] p-6 shadow-2xl shadow-black/35 md:p-8">
+    <div className={cardClass}>
       <div className="mb-7">
-        <p className="text-xs font-black uppercase tracking-[.22em] text-[#ffcf83]">{t("auth.accountLabel")}</p>
-        <h1 className="mt-3 text-3xl font-black tracking-tight text-white">{t("auth.resetPassword")}</h1>
-        <p className="mt-3 text-sm leading-6 text-white/58">{t("auth.resetPasswordIntro")}</p>
+        <p className={`text-xs font-black uppercase tracking-[.22em] ${isGoldTide ? "text-[#d9b56d]" : "text-[#ffcf83]"}`}>
+          {isGoldTide ? "Gold-Tide secure reset" : t("auth.accountLabel")}
+        </p>
+        <h1 className="mt-3 text-3xl font-black tracking-tight text-white">{isGoldTide ? "Set a new Gold-Tide AI password" : t("auth.resetPassword")}</h1>
+        <p className="mt-3 text-sm leading-6 text-white/58">
+          {isGoldTide ? "Choose a strong password, then continue into your Gold-Tide AI workspace." : t("auth.resetPasswordIntro")}
+        </p>
       </div>
 
       <form className="grid gap-4" onSubmit={handleSubmit}>
@@ -119,7 +137,7 @@ export function ResetPasswordForm() {
           <div className="relative">
             <input
               autoComplete="new-password"
-              className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 px-4 pr-20 text-sm font-semibold text-white outline-none transition placeholder:text-white/25 focus:border-[#ffb44d]/65 focus:ring-4 focus:ring-[#ffb44d]/10"
+              className={passwordInputClass}
               disabled={!hasResetCredential}
               onChange={(event) => setPassword(event.target.value)}
               placeholder={t("auth.passwordPlaceholder")}
@@ -128,7 +146,7 @@ export function ResetPasswordForm() {
             />
             <button
               aria-label={showPassword ? t("auth.hidePassword") : t("auth.showPassword")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl border border-white/10 bg-white/[.06] px-3 py-1 text-xs font-black text-[#ffcf83] transition hover:border-[#ffb44d]/50 hover:bg-[#ffb44d]/12 hover:text-[#ffe2ad]"
+              className={toggleClass}
               disabled={!hasResetCredential}
               onClick={() => setShowPassword((value) => !value)}
               type="button"
@@ -145,7 +163,7 @@ export function ResetPasswordForm() {
           <div className="relative">
             <input
               autoComplete="new-password"
-              className="h-12 w-full rounded-2xl border border-white/10 bg-black/30 px-4 pr-20 text-sm font-semibold text-white outline-none transition placeholder:text-white/25 focus:border-[#ffb44d]/65 focus:ring-4 focus:ring-[#ffb44d]/10"
+              className={passwordInputClass}
               disabled={!hasResetCredential}
               onChange={(event) => setConfirmPassword(event.target.value)}
               placeholder={t("auth.confirmPasswordPlaceholder")}
@@ -154,7 +172,7 @@ export function ResetPasswordForm() {
             />
             <button
               aria-label={showConfirmPassword ? t("auth.hidePassword") : t("auth.showPassword")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl border border-white/10 bg-white/[.06] px-3 py-1 text-xs font-black text-[#ffcf83] transition hover:border-[#ffb44d]/50 hover:bg-[#ffb44d]/12 hover:text-[#ffe2ad]"
+              className={toggleClass}
               disabled={!hasResetCredential}
               onClick={() => setShowConfirmPassword((value) => !value)}
               type="button"
@@ -165,7 +183,7 @@ export function ResetPasswordForm() {
         </label>
 
         <button
-          className="se-button-primary mt-2 h-12 rounded-2xl px-5 text-sm font-black focus:outline-none focus:ring-4 focus:ring-[#f6a935]/20"
+          className={primaryButtonClass}
           disabled={!canSubmit}
           type="submit"
         >
@@ -180,7 +198,7 @@ export function ResetPasswordForm() {
       ) : null}
 
       <div className="mt-6 flex flex-col gap-3 text-sm text-white/48 sm:flex-row sm:items-center sm:justify-between">
-        <Link className="font-bold text-[#ffcf83] hover:text-[#ffc766]" href="/sign-in">
+        <Link className={`font-bold ${isGoldTide ? "text-[#d9b56d] hover:text-[#f2d899]" : "text-[#ffcf83] hover:text-[#ffc766]"}`} href="/sign-in">
           {t("auth.backToSignIn")}
         </Link>
         <span>{t("auth.passwordResetSafety")}</span>
