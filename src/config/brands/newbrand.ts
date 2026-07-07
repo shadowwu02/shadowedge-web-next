@@ -9,9 +9,9 @@ export const newbrandBrand: BrandConfig = {
   appUrl: "https://gold-tide.com",
   supportEmail: "support@gold-tide.com",
   assets: {
-    logo: "/brands/newbrand/logo.png",
-    mark: "/brands/newbrand/mark.png",
-    favicon: "/brands/newbrand/favicon.ico",
+    logo: "/brands/newbrand/gold-tide-logo.png",
+    mark: "/brands/newbrand/gold-tide-mark.png",
+    favicon: "/brands/newbrand/gold-tide-favicon.ico",
   },
   seo: {
     title: "Gold-Tide AI",
