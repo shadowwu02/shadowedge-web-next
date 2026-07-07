@@ -102,6 +102,10 @@ export type PromptStudioStyleBible = {
 };
 
 export type PromptStudioGenerateResult = {
+  originalBrief?: string;
+  originalIntent?: string;
+  originalExistingPrompt?: string;
+  originalTransformGoal?: string;
   basicPrompt: string;
   standardPrompt: string;
   enhancedPrompt: string;

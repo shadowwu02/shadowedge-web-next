@@ -58,6 +58,39 @@ type ProjectAssetItem =
   | PromptStudioProjectPlanResult["assetPlan"]["locations"][number]
   | PromptStudioProjectPlanResult["assetPlan"]["props"][number];
 type BridgeReferenceImage = NonNullable<Parameters<typeof savePromptStudioToImageDraft>[0]["referenceImages"]>[number];
+type IsolatedTextMode = "generate" | "optimize" | "convert";
+type PromptStudioModeDraft = {
+  intent: string;
+  existingPrompt: string;
+  transformGoal: string;
+  result: PromptStudioGenerateResult | null;
+};
+
+const isolatedTextModes = new Set<TextMode>(["generate", "optimize", "convert"]);
+const defaultPromptStudioModeDrafts: Record<IsolatedTextMode, PromptStudioModeDraft> = {
+  generate: {
+    intent: "帮我写一个王家卫风格的雨夜便利店重逢短视频提示词，竖屏，孤独但温柔。",
+    existingPrompt: "",
+    transformGoal: "",
+    result: null,
+  },
+  optimize: {
+    intent: "",
+    existingPrompt: "rainy night, a woman standing outside a store, cinematic",
+    transformGoal: "更像王家卫电影，增加孤独感、霓虹反光、浅景深，但不要改变主体",
+    result: null,
+  },
+  convert: {
+    intent: "",
+    existingPrompt: "rainy night, a woman standing outside a store, cinematic",
+    transformGoal: "Convert this into a vertical short-video prompt while preserving the subject and mood.",
+    result: null,
+  },
+};
+
+function isIsolatedTextMode(value: TextMode): value is IsolatedTextMode {
+  return isolatedTextModes.has(value);
+}
 
 function isPromptStudioAuthError(error: unknown) {
   if (error instanceof ApiError) {
@@ -2887,6 +2920,7 @@ export function PromptStudioPage() {
   const [catalog, setCatalog] = useState<PromptStudioCatalog>(fallbackCatalog);
   const [catalogError, setCatalogError] = useState("");
   const [mode, setMode] = useState<TextMode>("generate");
+  const [textModeDrafts, setTextModeDrafts] = useState<Record<IsolatedTextMode, PromptStudioModeDraft>>(defaultPromptStudioModeDrafts);
   const [intent, setIntent] = useState("帮我写一个王家卫风格的雨夜便利店重逢短视频提示词，竖屏，孤独但温柔。");
   const [target, setTarget] = useState<Target>("video");
   const [existingPrompt, setExistingPrompt] = useState("rainy night, a woman standing outside a store, cinematic");
@@ -2938,6 +2972,45 @@ export function PromptStudioPage() {
 
   const [bridgeLocale, setBridgeLocale] = useState<"zh" | "en">(locale === "zh" ? "zh" : "en");
   const isZh = bridgeLocale === "zh";
+  const activeTextModeDraft = isIsolatedTextMode(mode) ? textModeDrafts[mode] : null;
+  const activeIntent = activeTextModeDraft?.intent ?? intent;
+  const activeExistingPrompt = activeTextModeDraft?.existingPrompt ?? existingPrompt;
+  const activeTransformGoal = activeTextModeDraft?.transformGoal ?? transformGoal;
+  const activePromptResult = activeTextModeDraft?.result ?? result;
+
+  function updateTextModeDraft(modeKey: IsolatedTextMode, patch: Partial<PromptStudioModeDraft>) {
+    setTextModeDrafts((current) => ({
+      ...current,
+      [modeKey]: {
+        ...current[modeKey],
+        ...patch,
+      },
+    }));
+  }
+
+  function setActiveIntent(value: string) {
+    if (isIsolatedTextMode(mode)) {
+      updateTextModeDraft(mode, { intent: value });
+      return;
+    }
+    setIntent(value);
+  }
+
+  function setActiveExistingPrompt(value: string) {
+    if (isIsolatedTextMode(mode)) {
+      updateTextModeDraft(mode, { existingPrompt: value });
+      return;
+    }
+    setExistingPrompt(value);
+  }
+
+  function setActiveTransformGoal(value: string) {
+    if (isIsolatedTextMode(mode)) {
+      updateTextModeDraft(mode, { transformGoal: value });
+      return;
+    }
+    setTransformGoal(value);
+  }
 
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0, behavior: "auto" });
@@ -2957,11 +3030,12 @@ export function PromptStudioPage() {
 
     const timer = window.setTimeout(() => {
       setMode("optimize");
-      setExistingPrompt(draft.prompt);
-      setIntent(draft.prompt);
+      updateTextModeDraft("optimize", {
+        existingPrompt: draft.prompt,
+        result: null,
+      });
       setTarget(draft.target === "image" ? "image" : "video");
       setEngine(draft.target === "image" ? "gpt-image" : "seedance");
-      setResult(null);
       setError("");
       setNotice(
         getPromptStudioDraftLocale(locale) === "zh"
@@ -3091,20 +3165,20 @@ export function PromptStudioPage() {
       ? referenceStylePrompt
       : mode === "project"
         ? projectPrompt
-    : result
+    : activePromptResult
     ? mode === "optimize"
-      ? result.optimizedPrompt || result.standardPrompt || ""
+      ? activePromptResult.optimizedPrompt || activePromptResult.standardPrompt || ""
       : mode === "convert"
-        ? result.convertedPrompt || result.standardPrompt || ""
+        ? activePromptResult.convertedPrompt || activePromptResult.standardPrompt || ""
           : mode === "layerEdit"
-            ? result.revisedPrompt || result.standardPrompt || ""
+            ? activePromptResult.revisedPrompt || activePromptResult.standardPrompt || ""
             : mode === "storyboard"
-            ? [styleBibleToText(result), storyboardToText(result.shots), listToText(result.continuityChecklist)].filter(Boolean).join("\n\n") ||
-              result.standardPrompt ||
-              result.enhancedPrompt ||
-              result.basicPrompt ||
+            ? [styleBibleToText(activePromptResult), storyboardToText(activePromptResult.shots), listToText(activePromptResult.continuityChecklist)].filter(Boolean).join("\n\n") ||
+              activePromptResult.standardPrompt ||
+              activePromptResult.enhancedPrompt ||
+              activePromptResult.basicPrompt ||
               ""
-            : result[activeResult] || ""
+            : activePromptResult[activeResult] || ""
     : "";
   const activeResultTab = resultTabs.find((tab) => tab.key === activeResult) || resultTabs[1];
   const usageTips = mode === "styleCard"
@@ -3113,7 +3187,7 @@ export function PromptStudioPage() {
       ? referenceStyleResult?.usageTips || []
       : mode === "project"
         ? projectResult?.productionTips || []
-      : result?.usageTips || [];
+      : activePromptResult?.usageTips || [];
   const knowledgeUsed: Array<{
     id: string;
     label: string;
@@ -3142,8 +3216,8 @@ export function PromptStudioPage() {
         detail: `${item.category} · ${Math.round(item.confidence * 100)}%`,
         phrases: [item.reason],
       }))
-    : result?.selectedKnowledge?.length
-      ? result.selectedKnowledge.map((item) => ({
+    : activePromptResult?.selectedKnowledge?.length
+      ? activePromptResult.selectedKnowledge.map((item) => ({
         id: item.id,
         label: item.nameZh,
         detail: item.appliedAs || item.category,
@@ -3158,7 +3232,7 @@ export function PromptStudioPage() {
   const isProjectMode = mode === "project";
   const isReferenceImageMode = isStyleCardMode || isReferenceStyleMode;
   const isBusy = isLoading || isReferenceLoading;
-  const isGenerateDisabled = isBusy || (isReferenceImageMode ? !referenceImageFile : needsExistingPrompt ? !existingPrompt.trim() : !intent.trim());
+  const isGenerateDisabled = isBusy || (isReferenceImageMode ? !referenceImageFile : needsExistingPrompt ? !activeExistingPrompt.trim() : !activeIntent.trim());
   const generateButtonLabel = isBusy
     ? isZh
       ? "生成中..."
@@ -3422,16 +3496,20 @@ export function PromptStudioPage() {
     const matchedModuleIds = styleCardResult.matchedLibraries.map((item) => item.id).filter((id) => moduleIds.has(id));
     setSelectedStyles((current) => Array.from(new Set([...current, ...matchedStyleIds])));
     setSelectedModules((current) => Array.from(new Set([...current, ...matchedModuleIds])));
-    setIntent(`${isZh ? "基于参考图风格卡生成新的提示词，不要复制原图主体。" : "Use the reference style card to create a new prompt without copying the original subject."}\n\n${styleCardToGuidance(styleCardResult)}`);
+    updateTextModeDraft("generate", {
+      intent: `${isZh ? "基于参考图风格卡生成新的提示词，不要复制原图主体。" : "Use the reference style card to create a new prompt without copying the original subject."}\n\n${styleCardToGuidance(styleCardResult)}`,
+      result: null,
+    });
     setMode("generate");
-    setResult(null);
     setNotice(isZh ? "已套用风格卡到 Generate 模式。不会自动生成，请手动点击生成三档 Prompt。" : "Style card applied to Generate mode. It will not run automatically.");
     mainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function handleModeChange(nextMode: TextMode) {
     setMode(nextMode);
-    setResult(null);
+    if (!isIsolatedTextMode(nextMode)) {
+      setResult(null);
+    }
     setProjectResult(null);
     setSavedProjectId(undefined);
     setHasUnsavedAssetReferenceChanges(false);
@@ -3456,12 +3534,13 @@ export function PromptStudioPage() {
   }
 
   async function handleGenerate() {
+    const requestMode = mode;
     const needsExistingPrompt = mode === "optimize" || mode === "convert" || mode === "layerEdit";
-    if (needsExistingPrompt && !existingPrompt.trim()) {
+    if (needsExistingPrompt && !activeExistingPrompt.trim()) {
       setError(isZh ? "请先输入已有 Prompt。" : "Please enter an existing prompt first.");
       return;
     }
-    if (!needsExistingPrompt && !intent.trim()) {
+    if (!needsExistingPrompt && !activeIntent.trim()) {
       setError(isZh ? "请先输入中文想法。" : "Please enter an idea first.");
       return;
     }
@@ -3470,8 +3549,8 @@ export function PromptStudioPage() {
     setNotice("");
     try {
       const data = await generatePromptStudioPrompt({
-        intent: needsExistingPrompt ? `${existingPrompt}\n${transformGoal}` : intent,
-        existingPrompt,
+        intent: needsExistingPrompt ? `${activeExistingPrompt}\n${activeTransformGoal}` : activeIntent,
+        existingPrompt: activeExistingPrompt,
         target: mode === "storyboard" ? "storyboard" : target,
         engine,
         aspectRatio,
@@ -3480,12 +3559,16 @@ export function PromptStudioPage() {
         duration,
         language: locale,
         mode,
-        transformGoal,
+        transformGoal: activeTransformGoal,
         layerEditType,
         preserveOriginal: true,
         advancedControls,
       });
-      setResult(data || null);
+      if (isIsolatedTextMode(requestMode)) {
+        updateTextModeDraft(requestMode, { result: data || null });
+      } else {
+        setResult(data || null);
+      }
       setProjectResult(null);
       setSavedProjectId(undefined);
       setActiveResult("standardPrompt");
@@ -3893,7 +3976,11 @@ export function PromptStudioPage() {
   }
 
   function clearResult() {
-    setResult(null);
+    if (isIsolatedTextMode(mode)) {
+      updateTextModeDraft(mode, { result: null });
+    } else {
+      setResult(null);
+    }
     setProjectResult(null);
     setSavedProjectId(undefined);
     setHasUnsavedAssetReferenceChanges(false);
@@ -3965,11 +4052,11 @@ export function PromptStudioPage() {
                         <textarea
                           className={cx("h-40 w-full resize-y rounded-2xl border border-white/[.06] bg-black/18 p-4 text-[14px] leading-6 text-white outline-none placeholder:text-white/30 focus:border-[#f6a935]/28", subtleScrollbar)}
                           maxLength={3200}
-                          onChange={(event) => setIntent(event.target.value)}
+                          onChange={(event) => setActiveIntent(event.target.value)}
                           placeholder={isZh ? "例如：我要做一部中世纪黑暗奇幻短片第二幕，主角进入废弃教堂，发现核心道具。" : "Example: a medieval dark fantasy short film act two, the protagonist enters an abandoned cathedral and discovers a key relic."}
-                          value={intent}
+                          value={activeIntent}
                         />
-                        <div className="mt-2 text-right text-xs font-semibold text-white/34">{intent.length} / 3200</div>
+                        <div className="mt-2 text-right text-xs font-semibold text-white/34">{activeIntent.length} / 3200</div>
                       </label>
                       <div className="grid gap-4 lg:grid-cols-2">
                         <div>
@@ -4115,9 +4202,9 @@ export function PromptStudioPage() {
                             <textarea
                               className={cx("h-24 w-full resize-y rounded-2xl border border-white/[.06] bg-black/18 p-4 text-[14px] leading-6 text-white outline-none placeholder:text-white/30 focus:border-[#f6a935]/28", subtleScrollbar)}
                               maxLength={2400}
-                              onChange={(event) => setIntent(event.target.value)}
+                              onChange={(event) => setActiveIntent(event.target.value)}
                               placeholder={isZh ? "例如：保留室内空间构图，改成高端改造广告视觉。" : "Example: preserve the interior layout and transform it into a premium renovation commercial."}
-                              value={intent}
+                              value={activeIntent}
                             />
                           </label>
                         </div>
@@ -4132,9 +4219,9 @@ export function PromptStudioPage() {
                         <textarea
                           className={cx("h-36 w-full resize-y rounded-2xl border border-white/[.06] bg-black/18 p-4 text-[14px] leading-6 text-white outline-none placeholder:text-white/30 focus:border-[#f6a935]/28", subtleScrollbar)}
                           maxLength={6000}
-                          onChange={(event) => setExistingPrompt(event.target.value)}
+                          onChange={(event) => setActiveExistingPrompt(event.target.value)}
                           placeholder="Paste an existing prompt here..."
-                          value={existingPrompt}
+                          value={activeExistingPrompt}
                         />
                       </label>
                       {mode === "layerEdit" ? (
@@ -4168,9 +4255,9 @@ export function PromptStudioPage() {
                         <textarea
                           className={cx("h-24 w-full resize-y rounded-2xl border border-white/[.06] bg-black/18 p-4 text-[14px] leading-6 text-white outline-none placeholder:text-white/30 focus:border-[#f6a935]/28", subtleScrollbar)}
                           maxLength={2400}
-                          onChange={(event) => setTransformGoal(event.target.value)}
+                          onChange={(event) => setActiveTransformGoal(event.target.value)}
                           placeholder={isZh ? "例如：保留主体，只增强王家卫雨夜、霓虹反光和孤独感。" : "Example: preserve the subject, add Wong Kar-wai rain-night neon reflections and loneliness."}
-                          value={transformGoal}
+                          value={activeTransformGoal}
                         />
                       </label>
                     </div>
@@ -4181,9 +4268,9 @@ export function PromptStudioPage() {
                       subtleScrollbar,
                     )}
                     maxLength={2400}
-                    onChange={(event) => setIntent(event.target.value)}
+                    onChange={(event) => setActiveIntent(event.target.value)}
                     placeholder={isZh ? "例如：雨夜便利店，旧恋人重逢，竖屏短视频，孤独但温柔。" : "Example: a rainy night convenience store, former lovers reunite, vertical short video, lonely yet gentle."}
-                    value={intent}
+                    value={activeIntent}
                   />
                   <div className={cx("mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-white/[.06] pt-3", needsExistingPrompt || isReferenceImageMode || isProjectMode ? "hidden" : "")}>
                     <div className="flex flex-wrap gap-2">
@@ -4191,14 +4278,14 @@ export function PromptStudioPage() {
                         <button
                           className="rounded-full border border-white/[.07] bg-white/[.035] px-3 py-1.5 text-xs font-semibold text-white/56 transition hover:border-[#f6a935]/22 hover:text-white/82"
                           key={item.label}
-                          onClick={() => setIntent(item.value)}
+                          onClick={() => setActiveIntent(item.value)}
                           type="button"
                         >
                           {item.label}
                         </button>
                       ))}
                     </div>
-                    <span className="text-xs font-semibold text-white/34">{intent.length} / 2400</span>
+                    <span className="text-xs font-semibold text-white/34">{activeIntent.length} / 2400</span>
                   </div>
                 </div>
                 {mode !== "generate" ? (
@@ -4565,26 +4652,36 @@ export function PromptStudioPage() {
                     Copy
                   </button>
                 </div>
-                {result ? (
-                  <pre
-                    className={cx(
-                      "h-[460px] overflow-y-auto whitespace-pre-wrap break-words pr-2 font-mono text-[13px] leading-6 text-white/80 2xl:h-[520px]",
-                      subtleScrollbar,
-                    )}
-                  >
-                    {currentPrompt}
-                  </pre>
+                {activePromptResult ? (
+                  <div className="grid gap-3">
+                    {activePromptResult.originalBrief ? (
+                      <section className="rounded-2xl border border-[#f6a935]/16 bg-[#f6a935]/8 p-3">
+                        <div className="text-[11px] font-black uppercase tracking-[.16em] text-[#ffd48a]/62">
+                          {isZh ? "原始需求" : "Original brief"}
+                        </div>
+                        <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-[#ffe1a8]/84">{activePromptResult.originalBrief}</p>
+                      </section>
+                    ) : null}
+                    <pre
+                      className={cx(
+                        "h-[420px] overflow-y-auto whitespace-pre-wrap break-words pr-2 font-mono text-[13px] leading-6 text-white/80 2xl:h-[480px]",
+                        subtleScrollbar,
+                      )}
+                    >
+                      {currentPrompt}
+                    </pre>
+                  </div>
                 ) : (
                   <EmptyOutputState locale={locale} />
                 )}
               </div>
 
-              {result && mode === "optimize" ? (
+              {activePromptResult && mode === "optimize" ? (
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <section className="rounded-[22px] border border-white/[.06] bg-white/[.025] p-4">
                     <div className="text-xs font-black uppercase tracking-[.18em] text-[#ffd48a]/72">Diagnosis</div>
                     <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/62">
-                      {(result.diagnosis || []).map((item) => (
+                      {(activePromptResult.diagnosis || []).map((item) => (
                         <li key={item}>- {item}</li>
                       ))}
                     </ul>
@@ -4592,7 +4689,7 @@ export function PromptStudioPage() {
                   <section className="rounded-[22px] border border-white/[.06] bg-white/[.025] p-4">
                     <div className="text-xs font-black uppercase tracking-[.18em] text-[#ffd48a]/72">Changes</div>
                     <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/62">
-                      {(result.changes || []).map((item) => (
+                      {(activePromptResult.changes || []).map((item) => (
                         <li key={item}>- {item}</li>
                       ))}
                     </ul>
@@ -4600,12 +4697,12 @@ export function PromptStudioPage() {
                 </div>
               ) : null}
 
-              {result && mode === "convert" ? (
+              {activePromptResult && mode === "convert" ? (
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <section className="rounded-[22px] border border-white/[.06] bg-white/[.025] p-4">
                     <div className="text-xs font-black uppercase tracking-[.18em] text-[#ffd48a]/72">Preserved</div>
                     <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/62">
-                      {(result.preservedElements || []).map((item) => (
+                      {(activePromptResult.preservedElements || []).map((item) => (
                         <li key={item}>- {item}</li>
                       ))}
                     </ul>
@@ -4613,7 +4710,7 @@ export function PromptStudioPage() {
                   <section className="rounded-[22px] border border-white/[.06] bg-white/[.025] p-4">
                     <div className="text-xs font-black uppercase tracking-[.18em] text-[#ffd48a]/72">Changed</div>
                     <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/62">
-                      {(result.changedElements || []).map((item) => (
+                      {(activePromptResult.changedElements || []).map((item) => (
                         <li key={item}>- {item}</li>
                       ))}
                     </ul>
@@ -4621,43 +4718,43 @@ export function PromptStudioPage() {
                 </div>
               ) : null}
 
-              {result && mode === "layerEdit" ? (
+              {activePromptResult && mode === "layerEdit" ? (
                 <div className="mt-4 grid gap-3 md:grid-cols-[1fr_.7fr]">
                   <section className="rounded-[22px] border border-white/[.06] bg-white/[.025] p-4">
                     <div className="text-xs font-black uppercase tracking-[.18em] text-[#ffd48a]/72">Unchanged Elements</div>
                     <ul className="mt-3 grid gap-2 text-sm leading-6 text-white/62">
-                      {(result.unchangedElements || []).map((item) => (
+                      {(activePromptResult.unchangedElements || []).map((item) => (
                         <li key={item}>- {item}</li>
                       ))}
                     </ul>
                   </section>
                   <section className="rounded-[22px] border border-[#f6a935]/18 bg-[#f6a935]/8 p-4">
                     <div className="text-xs font-black uppercase tracking-[.18em] text-[#ffd48a]/72">Edited Layer</div>
-                    <div className="mt-3 text-sm font-black text-white/82">{result.editedLayer?.type || layerEditType}</div>
-                    <p className="mt-2 text-sm leading-6 text-white/58">{result.editedLayer?.instruction || transformGoal}</p>
+                    <div className="mt-3 text-sm font-black text-white/82">{activePromptResult.editedLayer?.type || layerEditType}</div>
+                    <p className="mt-2 text-sm leading-6 text-white/58">{activePromptResult.editedLayer?.instruction || activeTransformGoal}</p>
                   </section>
                 </div>
               ) : null}
 
-              {result && mode === "storyboard" ? (
+              {activePromptResult && mode === "storyboard" ? (
                 <div className="mt-4 grid gap-3">
-                  {result.styleBible ? (
+                  {activePromptResult.styleBible ? (
                     <section className="rounded-[22px] border border-[#f6a935]/18 bg-[#f6a935]/8 p-4">
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div className="text-xs font-black uppercase tracking-[.18em] text-[#ffd48a]/72">Style Bible</div>
                         <button
                           className="rounded-full border border-white/[.08] bg-white/[.04] px-3 py-1.5 text-xs font-black text-white/72"
-                          onClick={() => void copyPrompt(styleBibleToText(result))}
+                          onClick={() => void copyPrompt(styleBibleToText(activePromptResult))}
                           type="button"
                         >
                           Copy
                         </button>
                       </div>
-                      <pre className="whitespace-pre-wrap break-words text-sm leading-6 text-white/68">{styleBibleToText(result)}</pre>
+                      <pre className="whitespace-pre-wrap break-words text-sm leading-6 text-white/68">{styleBibleToText(activePromptResult)}</pre>
                     </section>
                   ) : null}
                   <div className="grid gap-3">
-                    {(result.shots || []).map((shot) => (
+                    {(activePromptResult.shots || []).map((shot) => (
                       <section className="rounded-[22px] border border-white/[.06] bg-white/[.025] p-4" key={shot.shotNumber}>
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
@@ -4704,7 +4801,7 @@ export function PromptStudioPage() {
                 </button>
                 <button
                   className="min-h-11 rounded-2xl border border-white/[.07] bg-white/[.035] px-4 text-sm font-black text-white/68 disabled:opacity-35"
-                  disabled={!result}
+                  disabled={!activePromptResult}
                   onClick={saveForVideo}
                   type="button"
                 >
@@ -4712,7 +4809,7 @@ export function PromptStudioPage() {
                 </button>
                 <button
                   className="min-h-11 rounded-2xl border border-white/[.07] bg-white/[.035] px-4 text-sm font-black text-white/68 disabled:opacity-35"
-                  disabled={!result}
+                  disabled={!activePromptResult}
                   onClick={saveForImage}
                   type="button"
                 >
@@ -4732,7 +4829,7 @@ export function PromptStudioPage() {
               {isStyleCardMode ? (
                 <ReferenceDetectedSignalsPanel locale={locale} result={styleCardResult} />
               ) : (
-                <DetectedSignalsPanel locale={locale} result={result} />
+                <DetectedSignalsPanel locale={locale} result={activePromptResult} />
               )}
               <section className="rounded-[28px] border border-white/[.065] bg-[#101216]/86 p-4">
                 <SectionLabel>{isZh ? "使用的知识" : "Knowledge Used"}</SectionLabel>
@@ -4801,11 +4898,11 @@ export function PromptStudioPage() {
                   ))}
                 </ul>
               </section>
-              {result?.warnings?.length ? (
+              {activePromptResult?.warnings?.length ? (
                 <section className="rounded-[28px] border border-[#f6a935]/16 bg-[#f6a935]/7 p-4">
                   <SectionLabel>Warnings</SectionLabel>
                   <ul className="mt-3 grid gap-2 text-sm leading-6 text-[#ffd48a]/76">
-                    {result.warnings.map((warning) => (
+                    {activePromptResult.warnings.map((warning) => (
                       <li key={warning}>- {warning}</li>
                     ))}
                   </ul>
