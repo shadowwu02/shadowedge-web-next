@@ -170,13 +170,14 @@ function createTokenSpan(node: ReturnType<typeof parsePromptTextToRichNodes>[num
   span.dataset.displayToken = node.displayToken;
   span.dataset.beautifulMention = `@${node.mediaType}_${node.index}`;
   span.className = [
-    "mx-0.5 inline-flex min-h-7 items-center gap-1 rounded-full border border-[#d1fe17]/24",
-    "bg-[#d1fe17]/10 px-2 py-0.5 align-middle text-xs font-black text-[#d1fe17]",
-    "shadow-[inset_0_1px_0_rgba(255,255,255,.08)] transition hover:border-[#d1fe17]/42",
+    "mx-0.5 inline-flex min-h-7 items-center gap-1 rounded-full border border-[#ffb44d]/30",
+    "bg-[#0b0d12]/78 px-2 py-0.5 align-middle text-xs font-black text-[#ffd08a]",
+    "shadow-[inset_0_1px_0_rgba(255,255,255,.08)] transition hover:border-[#ffb44d]/55 hover:bg-[#ffb44d]/12",
+    "data-[reference-selected=true]:border-[#ffb44d]/70 data-[reference-selected=true]:bg-[#ffb44d]/18",
   ].join(" ");
 
   const icon = document.createElement("span");
-  icon.className = "grid size-4 shrink-0 place-items-center rounded-full bg-[#05070b]/48 text-[10px]";
+  icon.className = "grid size-4 shrink-0 place-items-center rounded-full bg-[#ffb44d]/14 text-[10px] text-[#ffcf92]";
   icon.textContent = node.mediaType === "video" ? "▶" : node.mediaType === "audio" ? "♪" : "◧";
 
   const label = document.createElement("span");

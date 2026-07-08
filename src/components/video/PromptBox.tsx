@@ -477,7 +477,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
         }`}
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[11px] font-bold uppercase tracking-[.14em] text-[#d1fe17]/74">
+          <span className="text-[11px] font-bold uppercase tracking-[.14em] text-[#ffd08a]/78">
             {t("video.prompt.referenceBindings")}
           </span>
           <span className="text-[11px] font-semibold text-white/42">{t("video.prompt.referenceBindingHint")}</span>
@@ -497,7 +497,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
 
             return (
               <button
-                className="group inline-flex min-h-9 max-w-[260px] shrink-0 items-center gap-1.5 rounded-full border border-[#d1fe17]/20 bg-white/[.075] px-1.5 py-1 text-left text-[11px] font-semibold text-white/86 shadow-[inset_0_1px_0_rgba(255,255,255,.06)] transition hover:border-[#d1fe17]/36 hover:bg-white/[.11] focus:border-[#d1fe17]/60 focus:outline-none"
+                className="group inline-flex min-h-9 max-w-[260px] shrink-0 items-center gap-1.5 rounded-full border border-[#ffb44d]/24 bg-[#0b0d12]/62 px-1.5 py-1 text-left text-[11px] font-semibold text-white/86 shadow-[inset_0_1px_0_rgba(255,255,255,.06)] transition hover:border-[#ffb44d]/44 hover:bg-[#ffb44d]/10 focus:border-[#ffb44d]/64 focus:outline-none"
                 key={`${binding.type}-${binding.index}-${binding.id}`}
                 onClick={(event) => handleReferenceBindingClick(binding, event.currentTarget)}
                 title={`${displayToken} · ${itemTitle} · ${canonicalToken}`}
@@ -507,11 +507,11 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
                   // eslint-disable-next-line @next/next/no-img-element
                   <img alt="" className="size-5 shrink-0 rounded-full object-cover ring-1 ring-white/12" src={previewUrl} />
                 ) : (
-                  <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[#05070b]/45 text-[#d1fe17]/82 ring-1 ring-white/10">
+                  <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[#ffb44d]/14 text-[#ffcf92] ring-1 ring-[#ffb44d]/18">
                     <MediaTypeIcon className="size-3" type={binding.type} />
                   </span>
                 )}
-                <span className="shrink-0 font-black text-[#d1fe17]">
+                <span className="shrink-0 font-black text-[#ffd08a]">
                   {displayToken}
                 </span>
                 <span className="shrink-0 text-white/28">·</span>
@@ -642,7 +642,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
 
                     return (
                       <button
-                        className="flex min-h-11 w-full items-center gap-2.5 rounded-xl border border-transparent px-2 py-1.5 text-left transition hover:border-[#d1fe17]/24 hover:bg-white/[.07] focus:border-[#d1fe17]/36 focus:bg-white/[.08] focus:outline-none"
+                        className="flex min-h-11 w-full items-center gap-2.5 rounded-xl border border-transparent px-2 py-1.5 text-left transition hover:border-[#ffb44d]/28 hover:bg-[#ffb44d]/8 focus:border-[#ffb44d]/40 focus:bg-[#ffb44d]/10 focus:outline-none"
                         key={`${item.type}-${item.index}-${item.id}`}
                         onClick={() => insertMention(item)}
                         title={`${displayToken} · ${item.display} · ${item.token}`}
@@ -652,12 +652,12 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
                           // eslint-disable-next-line @next/next/no-img-element
                           <img alt="" className="size-9 rounded-xl object-cover ring-1 ring-white/10" src={previewUrl} />
                         ) : (
-                          <span className="grid size-9 place-items-center rounded-xl border border-white/10 bg-[#d1fe17]/9 text-[#d1fe17]/78">
+                          <span className="grid size-9 place-items-center rounded-xl border border-[#ffb44d]/18 bg-[#ffb44d]/10 text-[#ffcf92]">
                             <MediaTypeIcon className="size-[18px]" type={item.type} />
                           </span>
                         )}
                         <span className="min-w-0">
-                          <span className="block text-[12px] font-black leading-4 text-[#d1fe17]">{displayToken}</span>
+                          <span className="block text-[12px] font-black leading-4 text-[#ffd08a]">{displayToken}</span>
                           <span className="mt-0.5 block truncate text-[10px] leading-3 text-white/45">
                             {item.display} · {itemTitle}
                           </span>

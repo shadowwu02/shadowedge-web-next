@@ -109,8 +109,8 @@ function getMediaStatus(item: UploadMediaItem, issues: string[]): MediaStatus {
 }
 
 function getStatusClass(status: MediaStatus) {
-  if (status === "ready") return "border-[#79d88a]/28 bg-[#79d88a]/10 text-[#9be8a6]";
-  if (status === "uploading") return "border-[#d1fe17]/25 bg-[#d1fe17]/8 text-[#d1fe17]";
+  if (status === "ready") return "border-[#ffb44d]/26 bg-[#ffb44d]/12 text-[#ffd08a]";
+  if (status === "uploading") return "border-[#ffb44d]/24 bg-[#ffb44d]/10 text-[#ffcf92]";
   if (status === "failed") return "border-[#ff6b6b]/32 bg-[#ff6b6b]/10 text-[#ff8b8b]";
   if (status === "unsupported") return "border-[#ffb44d]/32 bg-[#ffb44d]/10 text-[#ffb44d]";
   return "border-[rgba(244,244,244,0.08)] bg-[#111318]/70 text-[#b9b9b9]/58";
@@ -267,7 +267,7 @@ export function ReferenceMediaTray({
   }
 
   function frameSlotToneClass(supported: boolean, hasItems = false) {
-    if (hasItems) return "border-[#79d88a]/18 bg-[#79d88a]/7";
+    if (hasItems) return "border-[#ffb44d]/20 bg-[#ffb44d]/8";
     if (supported) return "border-[rgba(255,180,77,0.13)] bg-[#05070b]/18";
     return "border-[rgba(244,244,244,0.06)] bg-[#05070b]/14";
   }
@@ -361,15 +361,15 @@ export function ReferenceMediaTray({
 
             return (
               <article
-                className={`group relative flex w-[112px] shrink-0 flex-col gap-2 rounded-[18px] border bg-[#05070b]/28 p-1.5 transition-colors ${
-                  issues.length ? "border-[#ffb44d]/35" : "border-[rgba(244,244,244,0.08)] hover:border-[#ffb44d]/24"
+                className={`group relative h-[124px] w-[112px] shrink-0 overflow-hidden rounded-[18px] border bg-[#05070b]/34 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,.04)] transition-colors ${
+                  issues.length ? "border-[#ffb44d]/38" : "border-[rgba(244,244,244,0.09)] hover:border-[#ffb44d]/36"
                 }`}
                 key={item.id}
                 title={issueTitle}
               >
                 <button
                   aria-label={tf("video.references.previewAsset", { name: displayName })}
-                  className="relative grid h-20 w-full shrink-0 place-items-center overflow-hidden rounded-[14px] border border-[rgba(244,244,244,0.08)] bg-[#111318]"
+                  className="relative grid h-full w-full place-items-center overflow-hidden rounded-[14px] border border-[rgba(244,244,244,0.08)] bg-[#111318]"
                   onClick={() => setPreviewItem(item)}
                   type="button"
                 >
@@ -381,68 +381,64 @@ export function ReferenceMediaTray({
                   ) : (
                     <MediaTypeIcon className="size-5 text-[#ffd08a]/72" type={item.type} />
                   )}
+                  <span className="absolute inset-0 bg-gradient-to-t from-[#05070b]/86 via-[#05070b]/14 to-[#05070b]/18 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100" />
                   {shortRole ? (
-                    <span className="absolute bottom-1 left-1 rounded-full bg-[#05070b]/78 px-1.5 py-px text-[8px] font-bold uppercase tracking-[.08em] text-[#ffd08a]">
+                    <span className="absolute bottom-1 left-1 rounded-full bg-[#05070b]/82 px-1.5 py-px text-[8px] font-bold uppercase tracking-[.08em] text-[#ffd08a] opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                       {shortRole}
                     </span>
                   ) : null}
-                  <span className={`absolute left-1 top-1 rounded-full border px-1.5 py-px text-[8px] font-black uppercase tracking-[.06em] ${getStatusClass(status)}`}>
+                  <span className={`absolute left-1 top-1 rounded-full border px-1.5 py-px text-[8px] font-black uppercase tracking-[.06em] shadow-sm shadow-black/20 ${getStatusClass(status)}`}>
                     {mediaStatusLabel(status)}
                   </span>
                 </button>
 
-                <div className="min-w-0">
-                  <div className="grid min-w-0 gap-1">
-                    <button
-                      className="inline-flex min-h-6 max-w-full items-center justify-center gap-1 rounded-full border border-[#d1fe17]/22 bg-white/[.075] px-2 py-0.5 text-[10px] font-black text-[#d1fe17] disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={!mention}
-                      onClick={() => {
-                        if (mention) insertMention(mention);
-                      }}
-                      title={mention ? `${displayToken} · ${mention.display} · ${mention.token}` : displayName}
-                      type="button"
-                    >
-                      {displayToken}
-                    </button>
-                  </div>
-                  <p className="mt-1 truncate text-[11px] font-semibold text-[#f4f4f4]/78">{displayName}</p>
-                  <p className="mt-0.5 flex flex-wrap items-center gap-1 text-[9px] text-[#b9b9b9]/45">
-                    <span>{allowedTypeLabel(item.type)}</span>
-                    {durationLabel ? <span>{durationLabel}</span> : null}
-                    {issues.length ? <span>{t("video.references.notUsedShort")}</span> : null}
-                  </p>
-                  {failedDetail ? (
-                    <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-[#f2b3a1]/78">{failedDetail}</p>
-                  ) : null}
-                </div>
+                <button
+                  aria-label={tf("video.references.removeAsset", { name: displayName })}
+                  className="absolute right-2 top-2 z-10 grid size-6 place-items-center rounded-full border border-white/10 bg-[#05070b]/86 text-[11px] font-semibold text-white/72 opacity-0 shadow-lg shadow-black/30 backdrop-blur transition hover:border-[#ff6b6b]/36 hover:bg-[#ff6b6b]/18 hover:text-[#ffb0b0] group-hover:opacity-100 group-focus-within:opacity-100"
+                  onClick={() => onRemove(item.id)}
+                  type="button"
+                >
+                  x
+                </button>
 
-                <div className="absolute right-1 top-1 flex shrink-0 items-center gap-1 opacity-95 transition-opacity group-hover:opacity-100">
+                <button
+                  aria-label={tf("video.references.openRoleMenu", { name: displayName })}
+                  className="absolute bottom-2 right-2 z-10 grid size-6 place-items-center rounded-full border border-white/10 bg-[#05070b]/82 text-[#b9b9b9]/66 opacity-0 shadow-lg shadow-black/25 backdrop-blur transition hover:border-[#ffb44d]/36 hover:text-[#ffcf92] group-hover:opacity-100 group-focus-within:opacity-100"
+                  onClick={(event) => {
+                    setRoleMenuPosition(getRoleMenuPosition(event.currentTarget));
+                    setOpenRoleId((current) => (current === item.id ? "" : item.id));
+                  }}
+                  type="button"
+                >
+                  <MoreIcon />
+                </button>
+
+                {mention ? (
                   <button
-                    aria-label={tf("video.references.openRoleMenu", { name: displayName })}
-                    className="grid size-6 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#05070b]/78 text-[#b9b9b9]/62 backdrop-blur transition-colors hover:border-[#ffb44d]/30 hover:text-[#ffb44d]"
-                    onClick={(event) => {
-                      setRoleMenuPosition(getRoleMenuPosition(event.currentTarget));
-                      setOpenRoleId((current) => (current === item.id ? "" : item.id));
-                    }}
+                    className="absolute bottom-2 left-2 right-9 z-10 flex min-w-0 flex-col items-start gap-0.5 rounded-[12px] border border-[#ffb44d]/26 bg-[#05070b]/82 px-2 py-1 text-left opacity-0 shadow-lg shadow-black/25 backdrop-blur transition hover:border-[#ffb44d]/46 hover:bg-[#ffb44d]/12 focus:border-[#ffb44d]/55 focus:opacity-100 focus:outline-none group-hover:opacity-100 group-focus-within:opacity-100"
+                    onClick={() => insertMention(mention)}
+                    title={`${displayToken} · ${mention.display} · ${mention.token}`}
                     type="button"
                   >
-                    <MoreIcon />
+                    <span className="max-w-full truncate text-[10px] font-black text-[#ffd08a]">{displayToken}</span>
+                    <span className="max-w-full truncate text-[9px] font-semibold text-white/58">
+                      {displayName}
+                      {durationLabel ? ` · ${durationLabel}` : ""}
+                      {issues.length ? ` · ${t("video.references.notUsedShort")}` : ""}
+                    </span>
                   </button>
-                  <button
-                    aria-label={tf("video.references.removeAsset", { name: displayName })}
-                    className="grid size-6 place-items-center rounded-full bg-[#05070b]/78 text-[11px] font-semibold text-[#b9b9b9]/58 backdrop-blur transition-colors hover:bg-[#ff6b6b]/18 hover:text-[#ff8b8b]"
-                    onClick={() => onRemove(item.id)}
-                    type="button"
-                  >
-                    x
-                  </button>
-                </div>
+                ) : null}
+                {failedDetail ? (
+                  <span className="absolute inset-x-2 top-8 z-10 line-clamp-2 rounded-[10px] border border-[#ff6b6b]/20 bg-[#05070b]/82 px-2 py-1 text-[10px] leading-4 text-[#f2b3a1]/86 opacity-0 backdrop-blur transition group-hover:opacity-100 group-focus-within:opacity-100">
+                    {failedDetail}
+                  </span>
+                ) : null}
               </article>
             );
           })}
 
           <button
-            className="grid h-[148px] w-[112px] shrink-0 place-items-center rounded-[18px] border border-dashed border-[rgba(244,244,244,0.12)] bg-[#05070b]/16 p-2 text-center transition-colors hover:border-[#ffb44d]/24 hover:bg-[#ffb44d]/5"
+            className="grid h-[124px] w-[112px] shrink-0 place-items-center rounded-[18px] border border-dashed border-[#ffb44d]/18 bg-[#05070b]/20 p-2 text-center transition-colors hover:border-[#ffb44d]/34 hover:bg-[#ffb44d]/7"
             onClick={(event) => openMediaPicker(event.currentTarget)}
             type="button"
           >
