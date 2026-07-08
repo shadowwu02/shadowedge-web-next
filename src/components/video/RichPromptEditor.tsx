@@ -15,6 +15,7 @@ import {
   parsePromptTextToRichNodes,
   type RichPromptMenuRequest,
 } from "@/lib/video-rich-prompt";
+import { findPromptMentions } from "@/lib/video-mentions";
 
 type RichPromptEditorProps = {
   className?: string;
@@ -240,32 +241,53 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
   forwardedRef,
 ) {
   const editorRef = useRef<HTMLDivElement | null>(null);
+  const isComposingRef = useRef(false);
+  const isRenderingRef = useRef(false);
   const lastRenderedValueRef = useRef("");
 
   useImperativeHandle(forwardedRef, () => editorRef.current as HTMLDivElement);
 
-  const syncDomFromValue = useCallback((nextValue: string, keepSelection = false) => {
+  const syncDomFromValue = useCallback((nextValue: string, keepSelection = false, explicitSelectionOffset?: number) => {
     const editor = editorRef.current;
     if (!editor) return;
-    const selectionOffset = keepSelection ? getSelectionOffset(editor) : nextValue.length;
+    const selectionOffset = keepSelection ? explicitSelectionOffset ?? getSelectionOffset(editor) : nextValue.length;
+    isRenderingRef.current = true;
     renderPromptValue(editor, nextValue);
     lastRenderedValueRef.current = nextValue;
     setSelectionOffset(editor, selectionOffset);
+    window.queueMicrotask(() => {
+      isRenderingRef.current = false;
+    });
   }, []);
+
+  function shouldHydrateMentionNodes(editor: HTMLElement, nextValue: string) {
+    const mentionCount = findPromptMentions(nextValue).length;
+    if (!mentionCount) return false;
+    const tokenCount = editor.querySelectorAll("[data-reference-token='true']").length;
+    return tokenCount !== mentionCount;
+  }
 
   const syncChangeFromDom = useCallback(() => {
     const editor = editorRef.current;
     if (!editor) return;
+    if (isRenderingRef.current) return;
+    if (isComposingRef.current) return;
     const nextValue = serializeEditorElement(editor);
     lastRenderedValueRef.current = nextValue;
+    const caretOffset = getSelectionOffset(editor);
     onChange(nextValue);
 
-    const caretOffset = getSelectionOffset(editor);
+    if (!isComposingRef.current && shouldHydrateMentionNodes(editor, nextValue)) {
+      window.requestAnimationFrame(() => {
+        syncDomFromValue(nextValue, true, caretOffset);
+      });
+    }
+
     const activeRange = findActiveMentionRange(nextValue, caretOffset);
     if (activeRange && onRequestMentionMenu) {
       onRequestMentionMenu({ anchorEl: editor, range: activeRange });
     }
-  }, [onChange, onRequestMentionMenu]);
+  }, [onChange, onRequestMentionMenu, syncDomFromValue]);
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -274,6 +296,42 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
     if (currentValue === value && lastRenderedValueRef.current === value) return;
     syncDomFromValue(value, document.activeElement === editor);
   }, [syncDomFromValue, value]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.addEventListener("input", syncChangeFromDom);
+    editor.addEventListener("keyup", syncChangeFromDom);
+    editor.addEventListener("blur", syncChangeFromDom);
+    return () => {
+      editor.removeEventListener("input", syncChangeFromDom);
+      editor.removeEventListener("keyup", syncChangeFromDom);
+      editor.removeEventListener("blur", syncChangeFromDom);
+    };
+  }, [syncChangeFromDom]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    let frame = 0;
+    const observer = new MutationObserver(() => {
+      if (isRenderingRef.current || isComposingRef.current) return;
+      if (frame) window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        syncChangeFromDom();
+      });
+    });
+    observer.observe(editor, {
+      characterData: true,
+      childList: true,
+      subtree: true,
+    });
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [syncChangeFromDom]);
 
   function handleClick(event: MouseEvent<HTMLDivElement>) {
     const token = (event.target as HTMLElement | null)?.closest("[data-reference-token='true']") as HTMLElement | null;
@@ -337,9 +395,18 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
         className={`${className} empty:before:pointer-events-none empty:before:text-white/28 empty:before:content-[attr(data-placeholder)]`}
         contentEditable={!disabled}
         data-placeholder={placeholder}
+        onBlur={syncChangeFromDom}
         onClick={handleClick}
+        onCompositionEnd={() => {
+          isComposingRef.current = false;
+          syncChangeFromDom();
+        }}
+        onCompositionStart={() => {
+          isComposingRef.current = true;
+        }}
         onInput={syncChangeFromDom}
         onKeyDown={handleKeyDown}
+        onKeyUp={syncChangeFromDom}
         onPaste={handlePaste}
         ref={editorRef}
         role="textbox"
