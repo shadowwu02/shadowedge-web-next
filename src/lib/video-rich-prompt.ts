@@ -26,6 +26,11 @@ export type RichPromptNode = RichPromptMentionNode | RichPromptTextNode;
 
 export type RichPromptMenuRequest = {
   anchorEl: HTMLElement;
+  anchorRect?: {
+    bottom: number;
+    left: number;
+    top: number;
+  };
   range: {
     end: number;
     start: number;
@@ -80,4 +85,3 @@ export function findActiveMentionRange(prompt: string, caretOffset: number) {
     end: beforeCaret.length,
   };
 }
-

@@ -47,6 +47,12 @@ type MenuPosition = {
   width: number;
 };
 
+type MenuAnchorRect = {
+  bottom: number;
+  left: number;
+  top: number;
+};
+
 type InsertMentionInput = {
   display: string;
   index?: number;
@@ -163,6 +169,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
   const editorRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const menuAnchorRef = useRef<HTMLElement | null>(null);
+  const menuAnchorRectRef = useRef<MenuAnchorRect | null>(null);
   const menuCaretIndexRef = useRef<number | null>(null);
   const menuRafRef = useRef<number | null>(null);
   const expandedEditorRef = useRef<HTMLDivElement | null>(null);
@@ -181,11 +188,13 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     [media, mentionBindings, value],
   );
 
-  function openRichMentionMenu({ anchorEl, range }: RichPromptMenuRequest) {
-    menuAnchorRef.current = null;
+  function openRichMentionMenu({ anchorEl, anchorRect, range }: RichPromptMenuRequest) {
+    const isCaretAnchor = Boolean(anchorRect);
+    menuAnchorRef.current = isCaretAnchor ? null : anchorEl;
+    menuAnchorRectRef.current = anchorRect || null;
     menuCaretIndexRef.current = range.end;
     setReplaceRange(range);
-    setMenuPosition(getMentionMenuPosition(anchorEl.getBoundingClientRect()));
+    setMenuPosition(getMentionMenuPosition(menuAnchorRectRef.current || anchorEl.getBoundingClientRect()));
     setIsMenuOpen(true);
   }
 
@@ -194,6 +203,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     const selectionStart = value.length;
     const selectionEnd = selectionStart;
     menuAnchorRef.current = anchorEl || null;
+    menuAnchorRectRef.current = null;
     menuCaretIndexRef.current = selectionStart;
     setReplaceRange(findMentionReplaceRange(value, selectionStart, selectionEnd));
 
@@ -217,6 +227,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     setIsMenuOpen(false);
     setReplaceRange(null);
     menuAnchorRef.current = null;
+    menuAnchorRectRef.current = null;
     menuCaretIndexRef.current = null;
   }
 
@@ -305,6 +316,9 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
       if (!editor) return;
       editor.focus();
       menuCaretIndexRef.current = nextCaret;
+      window.requestAnimationFrame(() => {
+        editor.dispatchEvent(new CustomEvent("shadowedge:set-rich-prompt-caret", { detail: { offset: nextCaret } }));
+      });
     });
   }
 
@@ -397,6 +411,11 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
           return;
         }
         setMenuPosition(getMentionMenuPosition(rect));
+        return;
+      }
+
+      if (menuAnchorRectRef.current) {
+        closeMentionMenu();
         return;
       }
 
@@ -615,7 +634,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
 
       {isMenuOpen ? createPortal(
         <div
-          className="se-scrollbar fixed z-[1200] max-w-[calc(100vw-24px)] touch-pan-y overscroll-contain overflow-y-auto rounded-2xl border border-[#ffb44d]/22 bg-[#0f141e]/98 p-1.5 shadow-[0_18px_46px_rgba(0,0,0,.38)] backdrop-blur-xl"
+          className="se-scrollbar fixed z-[1400] max-w-[calc(100vw-24px)] touch-pan-y overscroll-contain overflow-y-auto rounded-2xl border border-[#ffb44d]/22 bg-[#0f141e]/98 p-1.5 shadow-[0_18px_46px_rgba(0,0,0,.38)] backdrop-blur-xl"
           onMouseDown={handleMenuMouseDown}
           ref={menuRef}
           style={menuStyle}
