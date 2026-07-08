@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, ChangeEvent, KeyboardEvent, MouseEvent as ReactMouseEvent } from "react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
+import { RichPromptEditor } from "@/components/video/RichPromptEditor";
+import type { RichPromptMenuRequest } from "@/lib/video-rich-prompt";
 import {
   findPromptMentions,
   getReferencePromptBindings,
@@ -88,49 +90,6 @@ function getMentionMenuPosition(anchor: Pick<DOMRect, "bottom" | "left" | "top">
   };
 }
 
-function getTextareaCaretClientPosition(textarea: HTMLTextAreaElement, caretIndex: number): MenuPosition {
-  const rect = textarea.getBoundingClientRect();
-  const style = window.getComputedStyle(textarea);
-  const mirror = document.createElement("div");
-  const marker = document.createElement("span");
-
-  mirror.style.position = "fixed";
-  mirror.style.left = `${rect.left}px`;
-  mirror.style.top = `${rect.top}px`;
-  mirror.style.width = `${rect.width}px`;
-  mirror.style.height = `${rect.height}px`;
-  mirror.style.visibility = "hidden";
-  mirror.style.whiteSpace = "pre-wrap";
-  mirror.style.wordBreak = "break-word";
-  mirror.style.overflow = "hidden";
-  mirror.style.boxSizing = style.boxSizing;
-  mirror.style.font = style.font;
-  mirror.style.fontSize = style.fontSize;
-  mirror.style.fontFamily = style.fontFamily;
-  mirror.style.fontWeight = style.fontWeight;
-  mirror.style.letterSpacing = style.letterSpacing;
-  mirror.style.lineHeight = style.lineHeight;
-  mirror.style.padding = style.padding;
-  mirror.style.border = style.border;
-
-  mirror.append(document.createTextNode(textarea.value.slice(0, caretIndex)));
-  marker.textContent = "\u200b";
-  mirror.append(marker);
-  document.body.append(mirror);
-
-  const markerRect = marker.getBoundingClientRect();
-  const lineHeight = Number.parseFloat(style.lineHeight) || 22;
-  const top = markerRect.top - textarea.scrollTop;
-  const position = getMentionMenuPosition({
-    bottom: top + lineHeight,
-    left: markerRect.left,
-    top,
-  });
-
-  mirror.remove();
-  return position;
-}
-
 function findMentionReplaceRange(prompt: string, selectionStart: number, selectionEnd: number): ReplaceRange {
   const mentions = findPromptMentions(prompt);
   const selectedMention = mentions.find((mention) => {
@@ -201,12 +160,12 @@ function getMissingMentionsWithBindings(prompt: string, media: UploadMediaItem[]
 export function PromptBox({ value, media, mentionBindings = [], onChange, onMentionBindingsChange }: PromptBoxProps) {
   const { locale, t, tf } = useI18n();
   const displayLocale = locale === "zh" ? "zh" : "en";
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const editorRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const menuAnchorRef = useRef<HTMLElement | null>(null);
   const menuCaretIndexRef = useRef<number | null>(null);
   const menuRafRef = useRef<number | null>(null);
-  const expandedTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const expandedEditorRef = useRef<HTMLDivElement | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isExpandedEditorOpen, setIsExpandedEditorOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<MenuPosition>({ left: 0, maxHeight: 360, top: 0, width: 286 });
@@ -222,27 +181,27 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     [media, mentionBindings, value],
   );
 
-  function openMentionMenu(textarea: HTMLTextAreaElement, caretIndex: number) {
+  function openRichMentionMenu({ anchorEl, range }: RichPromptMenuRequest) {
     menuAnchorRef.current = null;
-    menuCaretIndexRef.current = caretIndex;
-    setReplaceRange(findMentionReplaceRange(textarea.value, textarea.selectionStart || caretIndex, textarea.selectionEnd || caretIndex));
-    setMenuPosition(getTextareaCaretClientPosition(textarea, caretIndex));
+    menuCaretIndexRef.current = range.end;
+    setReplaceRange(range);
+    setMenuPosition(getMentionMenuPosition(anchorEl.getBoundingClientRect()));
     setIsMenuOpen(true);
   }
 
   function openMentionMenuFromExternal(anchorEl?: HTMLElement | null) {
-    const textarea = textareaRef.current;
-    const selectionStart = textarea?.selectionStart ?? value.length;
-    const selectionEnd = textarea?.selectionEnd ?? selectionStart;
+    const editor = editorRef.current;
+    const selectionStart = value.length;
+    const selectionEnd = selectionStart;
     menuAnchorRef.current = anchorEl || null;
     menuCaretIndexRef.current = selectionStart;
-    setReplaceRange(textarea ? findMentionReplaceRange(textarea.value, selectionStart, selectionEnd) : { start: value.length, end: value.length });
+    setReplaceRange(findMentionReplaceRange(value, selectionStart, selectionEnd));
 
     if (anchorEl) {
       const rect = anchorEl.getBoundingClientRect();
       setMenuPosition(getMentionMenuPosition(rect));
-    } else if (textarea) {
-      setMenuPosition(getTextareaCaretClientPosition(textarea, selectionStart));
+    } else if (editor) {
+      setMenuPosition(getMentionMenuPosition(editor.getBoundingClientRect()));
     } else {
       setMenuPosition(getMentionMenuPosition({ bottom: 88, left: 18, top: 76 }));
     }
@@ -250,7 +209,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     setIsMenuOpen(true);
 
     window.requestAnimationFrame(() => {
-      textareaRef.current?.focus();
+      editorRef.current?.focus();
     });
   }
 
@@ -269,32 +228,8 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
   function closeExpandedEditor() {
     setIsExpandedEditorOpen(false);
     window.requestAnimationFrame(() => {
-      textareaRef.current?.focus();
+      editorRef.current?.focus();
     });
-  }
-
-  function handleChange(event: ChangeEvent<HTMLTextAreaElement>) {
-    const nextValue = event.target.value;
-    const caretIndex = event.target.selectionStart || nextValue.length;
-    onChange(nextValue);
-
-    if (nextValue.slice(0, caretIndex).endsWith("@")) {
-      openMentionMenu(event.target, caretIndex);
-    }
-  }
-
-  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Escape") {
-      closeMentionMenu();
-      return;
-    }
-
-    if (event.key === "@") {
-      window.requestAnimationFrame(() => {
-        const textarea = textareaRef.current;
-        if (textarea) openMentionMenu(textarea, textarea.selectionStart || textarea.value.length);
-      });
-    }
   }
 
   function findMediaForMention(input: InsertMentionInput) {
@@ -352,9 +287,9 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
 
   function insertMentionText(input: InsertMentionInput | string) {
     const mentionInput = typeof input === "string" ? { display: input } : input;
-    const textarea = textareaRef.current;
-    const currentStart = textarea?.selectionStart ?? value.length;
-    const currentEnd = textarea?.selectionEnd ?? value.length;
+    const editor = isExpandedEditorOpen ? expandedEditorRef.current : editorRef.current;
+    const currentStart = menuCaretIndexRef.current ?? value.length;
+    const currentEnd = currentStart;
     const range = replaceRange || findMentionReplaceRange(value, currentStart, currentEnd);
     const before = value.slice(0, range.start);
     const after = value.slice(range.end);
@@ -367,9 +302,9 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     closeMentionMenu();
 
     window.requestAnimationFrame(() => {
-      if (!textareaRef.current) return;
-      textareaRef.current.focus();
-      textareaRef.current.setSelectionRange(nextCaret, nextCaret);
+      if (!editor) return;
+      editor.focus();
+      menuCaretIndexRef.current = nextCaret;
     });
   }
 
@@ -385,17 +320,11 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
   }
 
   function handleReferenceBindingClick(binding: ReferencePromptBinding, anchorEl: HTMLElement) {
-    if (binding.mention && isExpandedEditorOpen && expandedTextareaRef.current) {
-      expandedTextareaRef.current.focus();
-      expandedTextareaRef.current.setSelectionRange(binding.mention.start, binding.mention.end);
-      return;
-    }
-
-    if (binding.mention && textareaRef.current && !isExpandedEditorOpen) {
-      textareaRef.current.focus();
-      textareaRef.current.setSelectionRange(binding.mention.start, binding.mention.end);
+    if (binding.mention) {
+      const editor = isExpandedEditorOpen ? expandedEditorRef.current : editorRef.current;
+      editor?.focus();
       setReplaceRange({ start: binding.mention.start, end: binding.mention.end });
-      openMentionMenuFromExternal(anchorEl);
+      openRichMentionMenu({ anchorEl, range: { start: binding.mention.start, end: binding.mention.end } });
       return;
     }
 
@@ -437,10 +366,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     if (!isExpandedEditorOpen) return;
 
     window.requestAnimationFrame(() => {
-      const textarea = expandedTextareaRef.current;
-      if (!textarea) return;
-      textarea.focus();
-      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      expandedEditorRef.current?.focus();
     });
 
     function handleKeyDown(event: globalThis.KeyboardEvent) {
@@ -474,18 +400,18 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
         return;
       }
 
-      const textarea = textareaRef.current;
-      if (!textarea) return;
+      const editor = isExpandedEditorOpen ? expandedEditorRef.current : editorRef.current;
+      if (!editor) return;
 
-      const rect = textarea.getBoundingClientRect();
+      const rect = editor.getBoundingClientRect();
       if (!isRectVisible(rect)) {
         closeMentionMenu();
         return;
       }
 
-      const caretIndex = textarea.selectionStart ?? menuCaretIndexRef.current ?? value.length;
+      const caretIndex = menuCaretIndexRef.current ?? value.length;
       menuCaretIndexRef.current = caretIndex;
-      setMenuPosition(getTextareaCaretClientPosition(textarea, caretIndex));
+      setMenuPosition(getMentionMenuPosition(rect));
     }
 
     function scheduleMenuPositionUpdate() {
@@ -499,7 +425,11 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     function handlePointerDown(event: PointerEvent) {
       const target = event.target as Node | null;
       if (!target) return;
-      if (menuRef.current?.contains(target) || textareaRef.current?.contains(target)) return;
+      if (
+        menuRef.current?.contains(target) ||
+        editorRef.current?.contains(target) ||
+        expandedEditorRef.current?.contains(target)
+      ) return;
       closeMentionMenu();
     }
 
@@ -513,7 +443,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
       window.removeEventListener("resize", scheduleMenuPositionUpdate);
       if (menuRafRef.current) window.cancelAnimationFrame(menuRafRef.current);
     };
-  }, [isMenuOpen, value]);
+  }, [isExpandedEditorOpen, isMenuOpen, value]);
 
   const menuStyle: CSSProperties = {
     left: menuPosition.left,
@@ -626,12 +556,13 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
           </span>
         </div>
       </div>
-      <textarea
-        className="se-scrollbar h-[180px] min-h-[160px] w-full resize-y rounded-[24px] border border-white/10 bg-[#10141f]/92 px-4 py-3.5 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70 md:h-[220px] md:min-h-[210px]"
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
+      <RichPromptEditor
+        className="se-scrollbar h-[180px] min-h-[160px] w-full resize-y overflow-auto rounded-[24px] border border-white/10 bg-[#10141f]/92 px-4 py-3.5 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70 md:h-[220px] md:min-h-[210px]"
+        onChange={onChange}
+        onEscape={closeMentionMenu}
+        onRequestMentionMenu={openRichMentionMenu}
         placeholder={t("video.prompt.placeholder")}
-        ref={textareaRef}
+        ref={editorRef}
         value={value}
       />
       {renderReferenceBindings()}
@@ -774,14 +705,13 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
 
             <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4">
               {renderReferenceBindings(true)}
-              <textarea
-                className="se-scrollbar mt-3 min-h-0 flex-1 resize-none rounded-[22px] border border-white/10 bg-[#05070b]/72 px-4 py-3.5 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70"
-                onChange={(event) => onChange(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") closeExpandedEditor();
-                }}
+              <RichPromptEditor
+                className="se-scrollbar mt-3 min-h-0 flex-1 overflow-auto rounded-[22px] border border-white/10 bg-[#05070b]/72 px-4 py-3.5 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70"
+                onChange={onChange}
+                onEscape={closeExpandedEditor}
+                onRequestMentionMenu={openRichMentionMenu}
                 placeholder={t("video.prompt.placeholder")}
-                ref={expandedTextareaRef}
+                ref={expandedEditorRef}
                 value={value}
               />
               <p className="mt-2 text-xs leading-5 text-white/44">{t("video.prompt.editorHelper")}</p>
