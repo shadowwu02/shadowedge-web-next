@@ -21,6 +21,7 @@ type RichPromptEditorProps = {
   className?: string;
   disabled?: boolean;
   onChange: (value: string) => void;
+  onDismissMentionMenu?: () => void;
   onEscape?: () => void;
   onRequestMentionMenu?: (request: RichPromptMenuRequest) => void;
   placeholder?: string;
@@ -109,6 +110,30 @@ function getSelectionOffset(root: HTMLElement | null) {
 
   root.childNodes.forEach(walk);
   return offset;
+}
+
+function hasSelectionInside(root: HTMLElement | null) {
+  const selection = window.getSelection();
+  if (!root || !selection || selection.rangeCount === 0) return false;
+  const range = selection.getRangeAt(0);
+  return root.contains(range.startContainer);
+}
+
+function findActiveMentionRangeNearCaret(prompt: string, caretOffset: number) {
+  const activeRange = findActiveMentionRange(prompt, caretOffset);
+  if (activeRange) return activeRange;
+
+  const source = String(prompt || "");
+  const safeOffset = Math.max(0, Math.min(caretOffset, source.length));
+  const aheadMatch = source
+    .slice(safeOffset)
+    .match(/^@(?:\u56fe|\u89c6\u9891|\u97f3\u9891|Image|Video|Audio)?\s*\d*/iu);
+
+  if (!aheadMatch?.[0]) return null;
+  return {
+    start: safeOffset,
+    end: safeOffset + aheadMatch[0].length,
+  };
 }
 
 function setSelectionOffset(root: HTMLElement | null, targetOffset: number) {
@@ -349,11 +374,16 @@ function findAdjacentToken(root: HTMLElement, direction: "backward" | "forward")
   return null;
 }
 
+function isEscapeKey(key: string) {
+  return key === "Escape" || key === "Esc" || key === "ESC";
+}
+
 export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps>(function RichPromptEditor(
   {
     className = "",
     disabled = false,
     onChange,
+    onDismissMentionMenu,
     onEscape,
     onRequestMentionMenu,
     placeholder,
@@ -365,6 +395,7 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
   const isComposingRef = useRef(false);
   const isRenderingRef = useRef(false);
   const lastRenderedValueRef = useRef("");
+  const suppressMentionMenuUntilRef = useRef(0);
 
   useImperativeHandle(forwardedRef, () => editorRef.current as HTMLDivElement);
 
@@ -395,9 +426,17 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
     if (isComposingRef.current) return;
     const nextValue = serializeEditorElement(editor);
     lastRenderedValueRef.current = nextValue;
-    const caretOffset = getSelectionOffset(editor);
-    if (!findActiveMentionRange(nextValue, caretOffset)) {
+    const editorHasSelection = hasSelectionInside(editor);
+    const caretOffset = editorHasSelection ? getSelectionOffset(editor) : nextValue.length;
+    const activeRange = editorHasSelection ? findActiveMentionRangeNearCaret(nextValue, caretOffset) : null;
+    if (activeRange && activeRange.end > caretOffset) {
+      window.requestAnimationFrame(() => {
+        if (hasSelectionInside(editor)) setSelectionOffset(editor, activeRange.end);
+      });
+    }
+    if (editorHasSelection && !activeRange) {
       clearSelectedReferenceTokens(editor);
+      onDismissMentionMenu?.();
     }
     onChange(nextValue);
 
@@ -407,11 +446,11 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
       });
     }
 
-    const activeRange = findActiveMentionRange(nextValue, caretOffset);
-    if (activeRange && onRequestMentionMenu) {
+    const canOpenMentionMenu = Date.now() >= suppressMentionMenuUntilRef.current;
+    if (editorHasSelection && activeRange && canOpenMentionMenu && onRequestMentionMenu) {
       onRequestMentionMenu({ anchorEl: editor, anchorRect: getSelectionClientRect(editor) || undefined, range: activeRange });
     }
-  }, [onChange, onRequestMentionMenu, syncDomFromValue]);
+  }, [onChange, onDismissMentionMenu, onRequestMentionMenu, syncDomFromValue]);
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -469,6 +508,7 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
     const token = (event.target as HTMLElement | null)?.closest("[data-reference-token='true']") as HTMLElement | null;
     if (!token || !editorRef.current || !onRequestMentionMenu) {
       clearSelectedReferenceTokens(editorRef.current);
+      window.requestAnimationFrame(syncChangeFromDom);
       return;
     }
 
@@ -498,8 +538,12 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === "Escape") {
+    if (isEscapeKey(event.key)) {
+      event.preventDefault();
+      event.stopPropagation();
+      suppressMentionMenuUntilRef.current = Date.now() + 500;
       clearSelectedReferenceTokens(editorRef.current);
+      onDismissMentionMenu?.();
       onEscape?.();
       return;
     }
@@ -508,7 +552,10 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
       const editor = editorRef.current;
       if (!editor) return;
       const token = findAdjacentToken(editor, event.key === "Backspace" ? "backward" : "forward");
-      if (!token) return;
+      if (!token) {
+        window.requestAnimationFrame(syncChangeFromDom);
+        return;
+      }
       event.preventDefault();
       token.remove();
       clearSelectedReferenceTokens(editor);
@@ -519,6 +566,11 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
     if (event.key.length === 1 || event.key === "Enter") {
       clearSelectedReferenceTokens(editorRef.current);
     }
+  }
+
+  function handleKeyUp(event: KeyboardEvent<HTMLDivElement>) {
+    if (isEscapeKey(event.key)) return;
+    syncChangeFromDom();
   }
 
   function handlePaste(event: ClipboardEvent<HTMLDivElement>) {
@@ -547,7 +599,7 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
         }}
         onInput={syncChangeFromDom}
         onKeyDown={handleKeyDown}
-        onKeyUp={syncChangeFromDom}
+        onKeyUp={handleKeyUp}
         onPaste={handlePaste}
         ref={editorRef}
         role="textbox"

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
 import { RichPromptEditor } from "@/components/video/RichPromptEditor";
@@ -192,7 +192,9 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
   const menuAnchorRectRef = useRef<MenuAnchorRect | null>(null);
   const menuCaretIndexRef = useRef<number | null>(null);
   const menuRafRef = useRef<number | null>(null);
+  const latestPromptValueRef = useRef(value);
   const expandedEditorRef = useRef<HTMLDivElement | null>(null);
+  const replaceRangeRef = useRef<ReplaceRange | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isExpandedEditorOpen, setIsExpandedEditorOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<MenuPosition>(defaultMenuPosition);
@@ -209,13 +211,22 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     [media, mentionBindings, value],
   );
 
+  useEffect(() => {
+    latestPromptValueRef.current = value;
+  }, [value]);
+
+  const setActiveReplaceRange = useCallback((range: ReplaceRange | null) => {
+    replaceRangeRef.current = range;
+    setReplaceRange(range);
+  }, []);
+
   function openEditorLocalMentionMenu(anchor: Pick<DOMRect, "bottom" | "left" | "top">, editor: HTMLElement, range: ReplaceRange, anchorEl?: HTMLElement | null) {
     const container = editor.parentElement;
     if (!container) return false;
     menuAnchorRef.current = anchorEl || null;
     menuAnchorRectRef.current = anchor;
     menuCaretIndexRef.current = range.end;
-    setReplaceRange(range);
+    setActiveReplaceRange(range);
     setMenuPortalTarget(container);
     setMenuPosition(getLocalMentionMenuPosition(anchor, container));
     setIsMenuOpen(true);
@@ -226,7 +237,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     menuAnchorRef.current = anchorEl || null;
     menuAnchorRectRef.current = null;
     menuCaretIndexRef.current = range.end;
-    setReplaceRange(range);
+    setActiveReplaceRange(range);
     setMenuPortalTarget(typeof document === "undefined" ? null : document.body);
     setMenuPosition(getFixedMentionMenuPosition(anchor));
     setIsMenuOpen(true);
@@ -264,26 +275,27 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     });
   }
 
-  function closeMentionMenu() {
+  const closeMentionMenu = useCallback(() => {
     setIsMenuOpen(false);
-    setReplaceRange(null);
+    setActiveReplaceRange(null);
     menuAnchorRef.current = null;
     menuAnchorRectRef.current = null;
     setMenuPortalTarget(null);
     menuCaretIndexRef.current = null;
-  }
+  }, [setActiveReplaceRange]);
 
   function openExpandedEditor() {
     closeMentionMenu();
     setIsExpandedEditorOpen(true);
   }
 
-  function closeExpandedEditor() {
+  const closeExpandedEditor = useCallback(() => {
+    closeMentionMenu();
     setIsExpandedEditorOpen(false);
     window.requestAnimationFrame(() => {
       editorRef.current?.focus();
     });
-  }
+  }, [closeMentionMenu]);
 
   function findMediaForMention(input: InsertMentionInput) {
     const mediaId = String(input.mediaId || "").trim();
@@ -302,13 +314,13 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     return null;
   }
 
-  function syncMentionBinding(input: InsertMentionInput, range: ReplaceRange) {
+  function syncMentionBinding(input: InsertMentionInput, range: ReplaceRange, promptValue = latestPromptValueRef.current) {
     if (!onMentionBindingsChange) return;
 
     const mediaItem = findMediaForMention(input);
     if (!mediaItem) return;
 
-    const replacedTokenText = value.slice(range.start, range.end).trim();
+    const replacedTokenText = promptValue.slice(range.start, range.end).trim();
     const existingBinding = replacedTokenText ? findMentionBindingForToken(mentionBindings, replacedTokenText, media) : undefined;
 
     onMentionBindingsChange((current) => {
@@ -341,17 +353,19 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
   function insertMentionText(input: InsertMentionInput | string) {
     const mentionInput = typeof input === "string" ? { display: input } : input;
     const editor = isExpandedEditorOpen ? expandedEditorRef.current : editorRef.current;
-    const currentStart = menuCaretIndexRef.current ?? value.length;
+    const promptValue = latestPromptValueRef.current;
+    const currentStart = menuCaretIndexRef.current ?? promptValue.length;
     const currentEnd = currentStart;
-    const range = replaceRange || findMentionReplaceRange(value, currentStart, currentEnd);
-    const before = value.slice(0, range.start);
-    const after = value.slice(range.end);
+    const range = replaceRangeRef.current || replaceRange || findMentionReplaceRange(promptValue, currentStart, currentEnd);
+    const before = promptValue.slice(0, range.start);
+    const after = promptValue.slice(range.end);
     const trailingSpace = after.length && !/^\s/.test(after) ? " " : "";
     const nextValue = `${before}${mentionInput.display}${trailingSpace}${after}`;
     const nextCaret = Math.min(before.length + mentionInput.display.length + trailingSpace.length, nextValue.length);
 
+    latestPromptValueRef.current = nextValue;
     onChange(nextValue);
-    syncMentionBinding(mentionInput, range);
+    syncMentionBinding(mentionInput, range, promptValue);
     closeMentionMenu();
 
     window.requestAnimationFrame(() => {
@@ -379,7 +393,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     if (binding.mention) {
       const editor = isExpandedEditorOpen ? expandedEditorRef.current : editorRef.current;
       editor?.focus();
-      setReplaceRange({ start: binding.mention.start, end: binding.mention.end });
+      setActiveReplaceRange({ start: binding.mention.start, end: binding.mention.end });
       openRichMentionMenu({ anchorEl, range: { start: binding.mention.start, end: binding.mention.end } });
       return;
     }
@@ -396,6 +410,21 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
 
   function handleMenuMouseDown(event: ReactMouseEvent) {
     event.preventDefault();
+    event.stopPropagation();
+  }
+
+  function handleMenuItemPointerDown(event: ReactPointerEvent, item: MentionableMediaItem) {
+    event.preventDefault();
+    event.stopPropagation();
+    insertMention(item);
+  }
+
+  function handleMenuItemClick(event: ReactMouseEvent, item: MentionableMediaItem) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.detail === 0) {
+      insertMention(item);
+    }
   }
 
   useEffect(() => {
@@ -426,7 +455,11 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     });
 
     function handleKeyDown(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" || event.key === "Esc" || event.key === "ESC") {
+        if (isMenuOpen) {
+          closeMentionMenu();
+          return;
+        }
         closeExpandedEditor();
       }
     }
@@ -435,7 +468,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isExpandedEditorOpen]);
+  }, [closeExpandedEditor, closeMentionMenu, isExpandedEditorOpen, isMenuOpen]);
 
   useEffect(() => {
     if (!isMenuOpen) return;
@@ -509,7 +542,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
       window.removeEventListener("resize", scheduleMenuPositionUpdate);
       if (menuRafRef.current) window.cancelAnimationFrame(menuRafRef.current);
     };
-  }, [isExpandedEditorOpen, isMenuOpen, menuPosition.mode, value]);
+  }, [closeMentionMenu, isExpandedEditorOpen, isMenuOpen, menuPosition.mode, value]);
 
   const menuStyle: CSSProperties = {
     left: menuPosition.left,
@@ -630,6 +663,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
       <RichPromptEditor
         className="se-scrollbar h-[180px] min-h-[160px] w-full resize-y overflow-auto rounded-[24px] border border-white/10 bg-[#10141f]/92 px-4 py-3.5 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70 md:h-[220px] md:min-h-[210px]"
         onChange={onChange}
+        onDismissMentionMenu={closeMentionMenu}
         onEscape={closeMentionMenu}
         onRequestMentionMenu={openRichMentionMenu}
         placeholder={t("video.prompt.placeholder")}
@@ -716,7 +750,8 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
                       <button
                         className="flex min-h-11 w-full items-center gap-2.5 rounded-xl border border-transparent px-2 py-1.5 text-left transition hover:border-[#ffb44d]/28 hover:bg-[#ffb44d]/8 focus:border-[#ffb44d]/40 focus:bg-[#ffb44d]/10 focus:outline-none"
                         key={`${item.type}-${item.index}-${item.id}`}
-                        onClick={() => insertMention(item)}
+                        onClick={(event) => handleMenuItemClick(event, item)}
+                        onPointerDown={(event) => handleMenuItemPointerDown(event, item)}
                         title={`${displayToken} · ${item.display} · ${item.token}`}
                         type="button"
                       >
@@ -780,7 +815,8 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
               <RichPromptEditor
                 className="se-scrollbar mt-3 min-h-0 flex-1 overflow-auto rounded-[22px] border border-white/10 bg-[#05070b]/72 px-4 py-3.5 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70"
                 onChange={onChange}
-                onEscape={closeExpandedEditor}
+                onDismissMentionMenu={closeMentionMenu}
+                onEscape={isMenuOpen ? closeMentionMenu : closeExpandedEditor}
                 onRequestMentionMenu={openRichMentionMenu}
                 placeholder={t("video.prompt.placeholder")}
                 ref={expandedEditorRef}
