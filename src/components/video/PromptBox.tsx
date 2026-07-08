@@ -43,6 +43,7 @@ type ReplaceRange = {
 type MenuPosition = {
   left: number;
   maxHeight: number;
+  mode: "fixed" | "local";
   top: number;
   width: number;
 };
@@ -72,8 +73,9 @@ const menuDesktopMaxHeight = 420;
 const menuMobileMaxHeight = 360;
 const menuMaxWidth = 340;
 const menuMinWidth = 286;
+const defaultMenuPosition: MenuPosition = { left: 0, maxHeight: 360, mode: "fixed", top: 0, width: menuMinWidth };
 
-function getMentionMenuPosition(anchor: Pick<DOMRect, "bottom" | "left" | "top">): MenuPosition {
+function getFixedMentionMenuPosition(anchor: Pick<DOMRect, "bottom" | "left" | "top">): MenuPosition {
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
   const isMobile = viewportWidth < 640;
@@ -91,7 +93,25 @@ function getMentionMenuPosition(anchor: Pick<DOMRect, "bottom" | "left" | "top">
   return {
     left: Math.max(menuSafeGap, Math.min(anchor.left, viewportWidth - width - menuSafeGap)),
     maxHeight,
+    mode: "fixed",
     top: Math.max(menuSafeGap, Math.min(rawTop, viewportHeight - maxHeight - menuSafeGap)),
+    width,
+  };
+}
+
+function getLocalMentionMenuPosition(anchor: Pick<DOMRect, "bottom" | "left" | "top">, container: HTMLElement): MenuPosition {
+  const containerRect = container.getBoundingClientRect();
+  const viewportHeight = window.innerHeight;
+  const containerWidth = Math.max(menuMinWidth + 16, containerRect.width);
+  const width = Math.min(menuMaxWidth, Math.max(menuMinWidth, containerWidth - 16));
+  const localLeft = anchor.left - containerRect.left;
+  const availableBelow = Math.max(140, viewportHeight - anchor.bottom - menuSafeGap);
+
+  return {
+    left: Math.max(8, Math.min(localLeft, containerWidth - width - 8)),
+    maxHeight: Math.min(menuDesktopMaxHeight, availableBelow),
+    mode: "local",
+    top: Math.max(8, anchor.bottom - containerRect.top + 8),
     width,
   };
 }
@@ -175,7 +195,8 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
   const expandedEditorRef = useRef<HTMLDivElement | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isExpandedEditorOpen, setIsExpandedEditorOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<MenuPosition>({ left: 0, maxHeight: 360, top: 0, width: 286 });
+  const [menuPosition, setMenuPosition] = useState<MenuPosition>(defaultMenuPosition);
+  const [menuPortalTarget, setMenuPortalTarget] = useState<HTMLElement | null>(null);
   const [replaceRange, setReplaceRange] = useState<ReplaceRange | null>(null);
 
   const mentionItems = useMemo(() => getReadyMentionableMediaItems(media), [media]);
@@ -188,35 +209,55 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     [media, mentionBindings, value],
   );
 
-  function openRichMentionMenu({ anchorEl, anchorRect, range }: RichPromptMenuRequest) {
-    const isCaretAnchor = Boolean(anchorRect);
-    menuAnchorRef.current = isCaretAnchor ? null : anchorEl;
-    menuAnchorRectRef.current = anchorRect || null;
+  function openEditorLocalMentionMenu(anchor: Pick<DOMRect, "bottom" | "left" | "top">, editor: HTMLElement, range: ReplaceRange, anchorEl?: HTMLElement | null) {
+    const container = editor.parentElement;
+    if (!container) return false;
+    menuAnchorRef.current = anchorEl || null;
+    menuAnchorRectRef.current = anchor;
     menuCaretIndexRef.current = range.end;
     setReplaceRange(range);
-    setMenuPosition(getMentionMenuPosition(menuAnchorRectRef.current || anchorEl.getBoundingClientRect()));
+    setMenuPortalTarget(container);
+    setMenuPosition(getLocalMentionMenuPosition(anchor, container));
     setIsMenuOpen(true);
+    return true;
+  }
+
+  function openFixedMentionMenu(anchor: Pick<DOMRect, "bottom" | "left" | "top">, range: ReplaceRange, anchorEl?: HTMLElement | null) {
+    menuAnchorRef.current = anchorEl || null;
+    menuAnchorRectRef.current = null;
+    menuCaretIndexRef.current = range.end;
+    setReplaceRange(range);
+    setMenuPortalTarget(typeof document === "undefined" ? null : document.body);
+    setMenuPosition(getFixedMentionMenuPosition(anchor));
+    setIsMenuOpen(true);
+  }
+
+  function getEditorForAnchor(anchorEl: HTMLElement) {
+    if (anchorEl.getAttribute("contenteditable") === "true") return anchorEl;
+    return anchorEl.closest("[contenteditable='true']") as HTMLElement | null;
+  }
+
+  function openRichMentionMenu({ anchorEl, anchorRect, range }: RichPromptMenuRequest) {
+    const editor = getEditorForAnchor(anchorEl);
+    const anchor = anchorRect || anchorEl.getBoundingClientRect();
+    if (editor && openEditorLocalMentionMenu(anchor, editor, range, anchorEl === editor ? null : anchorEl)) return;
+    openFixedMentionMenu(anchor, range, anchorEl);
   }
 
   function openMentionMenuFromExternal(anchorEl?: HTMLElement | null) {
     const editor = editorRef.current;
     const selectionStart = value.length;
     const selectionEnd = selectionStart;
-    menuAnchorRef.current = anchorEl || null;
-    menuAnchorRectRef.current = null;
-    menuCaretIndexRef.current = selectionStart;
-    setReplaceRange(findMentionReplaceRange(value, selectionStart, selectionEnd));
+    const range = findMentionReplaceRange(value, selectionStart, selectionEnd);
 
     if (anchorEl) {
-      const rect = anchorEl.getBoundingClientRect();
-      setMenuPosition(getMentionMenuPosition(rect));
+      openFixedMentionMenu(anchorEl.getBoundingClientRect(), range, anchorEl);
     } else if (editor) {
-      setMenuPosition(getMentionMenuPosition(editor.getBoundingClientRect()));
+      const rect = editor.getBoundingClientRect();
+      openEditorLocalMentionMenu({ bottom: rect.top + 44, left: rect.left + 18, top: rect.top + 24 }, editor, range);
     } else {
-      setMenuPosition(getMentionMenuPosition({ bottom: 88, left: 18, top: 76 }));
+      openFixedMentionMenu({ bottom: 88, left: 18, top: 76 }, range);
     }
-
-    setIsMenuOpen(true);
 
     window.requestAnimationFrame(() => {
       editorRef.current?.focus();
@@ -228,6 +269,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     setReplaceRange(null);
     menuAnchorRef.current = null;
     menuAnchorRectRef.current = null;
+    setMenuPortalTarget(null);
     menuCaretIndexRef.current = null;
   }
 
@@ -403,6 +445,11 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     }
 
     function updateMenuPosition() {
+      if (menuPosition.mode === "local") {
+        closeMentionMenu();
+        return;
+      }
+
       const anchor = menuAnchorRef.current;
       if (anchor?.isConnected) {
         const rect = anchor.getBoundingClientRect();
@@ -410,7 +457,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
           closeMentionMenu();
           return;
         }
-        setMenuPosition(getMentionMenuPosition(rect));
+        setMenuPosition(getFixedMentionMenuPosition(rect));
         return;
       }
 
@@ -430,7 +477,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
 
       const caretIndex = menuCaretIndexRef.current ?? value.length;
       menuCaretIndexRef.current = caretIndex;
-      setMenuPosition(getMentionMenuPosition(rect));
+      setMenuPosition(getFixedMentionMenuPosition(rect));
     }
 
     function scheduleMenuPositionUpdate() {
@@ -462,7 +509,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
       window.removeEventListener("resize", scheduleMenuPositionUpdate);
       if (menuRafRef.current) window.cancelAnimationFrame(menuRafRef.current);
     };
-  }, [isExpandedEditorOpen, isMenuOpen, value]);
+  }, [isExpandedEditorOpen, isMenuOpen, menuPosition.mode, value]);
 
   const menuStyle: CSSProperties = {
     left: menuPosition.left,
@@ -470,6 +517,11 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     top: menuPosition.top,
     width: menuPosition.width,
   };
+  const menuClassName = [
+    "se-scrollbar max-w-[calc(100vw-24px)] touch-pan-y overscroll-contain overflow-y-auto rounded-2xl border border-[#ffb44d]/22",
+    "bg-[#0f141e]/98 p-1.5 shadow-[0_18px_46px_rgba(0,0,0,.38)] backdrop-blur-xl",
+    menuPosition.mode === "local" ? "absolute z-[40]" : "fixed z-[1400]",
+  ].join(" ");
   const promptLength = value.length;
   const isPromptTooLong = promptLength > VIDEO_PROMPT_FRONTEND_LIMIT;
   const isPromptNearLimit = promptLength >= VIDEO_PROMPT_WARNING_THRESHOLD;
@@ -632,9 +684,10 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
         <p className="mt-3 text-xs leading-5 text-white/38">{t("video.prompt.helper")}</p>
       )}
 
-      {isMenuOpen ? createPortal(
+      {isMenuOpen && menuPortalTarget ? createPortal(
         <div
-          className="se-scrollbar fixed z-[1400] max-w-[calc(100vw-24px)] touch-pan-y overscroll-contain overflow-y-auto rounded-2xl border border-[#ffb44d]/22 bg-[#0f141e]/98 p-1.5 shadow-[0_18px_46px_rgba(0,0,0,.38)] backdrop-blur-xl"
+          className={menuClassName}
+          data-video-mention-menu="true"
           onMouseDown={handleMenuMouseDown}
           ref={menuRef}
           style={menuStyle}
@@ -693,7 +746,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
             </div>
           )}
         </div>
-        , document.body) : null}
+        , menuPortalTarget) : null}
       {isExpandedEditorOpen ? createPortal(
         <div
           aria-labelledby="video-prompt-expanded-title"

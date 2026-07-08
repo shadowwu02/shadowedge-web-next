@@ -226,6 +226,12 @@ function moveCaretToTokenPosition(parent: Node | null, index: number, fallbackRo
   selection.addRange(range);
 }
 
+function clearSelectedReferenceTokens(root: HTMLElement | null) {
+  root?.querySelectorAll("[data-reference-selected='true']").forEach((node) => {
+    if (node instanceof HTMLElement) node.dataset.referenceSelected = "false";
+  });
+}
+
 function createTokenSpan(node: ReturnType<typeof parsePromptTextToRichNodes>[number]) {
   if (node.type !== "mention") return null;
   const span = document.createElement("span");
@@ -239,7 +245,7 @@ function createTokenSpan(node: ReturnType<typeof parsePromptTextToRichNodes>[num
   span.dataset.beautifulMention = `@${node.mediaType}_${node.index}`;
   span.className = [
     "group mx-0.5 inline-flex min-h-7 items-center gap-1 rounded-full border border-[#ffb44d]/30",
-    "bg-[#0b0d12]/78 py-0.5 pl-2 pr-1 align-middle text-xs font-black text-[#ffd08a]",
+    "bg-[#0b0d12]/78 py-0.5 pl-1 pr-2 align-middle text-xs font-black text-[#ffd08a]",
     "shadow-[inset_0_1px_0_rgba(255,255,255,.08)] transition hover:border-[#ffb44d]/55 hover:bg-[#ffb44d]/12",
     "data-[reference-selected=true]:border-[#ffb44d]/70 data-[reference-selected=true]:bg-[#ffb44d]/18",
   ].join(" ");
@@ -257,12 +263,13 @@ function createTokenSpan(node: ReturnType<typeof parsePromptTextToRichNodes>[num
   removeButton.type = "button";
   removeButton.ariaLabel = `Remove ${node.displayToken}`;
   removeButton.className = [
-    "ml-0.5 grid size-4 shrink-0 place-items-center rounded-full border border-white/10",
-    "bg-[#05070b]/72 text-[10px] leading-none text-white/50 opacity-0 transition",
+    "grid size-4 shrink-0 place-items-center rounded-full border border-white/10",
+    "pointer-events-none bg-[#05070b]/72 text-white/50 opacity-0 transition",
     "hover:border-[#ff6b6b]/35 hover:bg-[#ff6b6b]/18 hover:text-[#ffb0b0]",
-    "focus:opacity-100 focus:outline-none group-hover:opacity-100 group-data-[reference-selected=true]:opacity-100",
+    "focus:pointer-events-auto focus:opacity-100 focus:outline-none",
+    "group-hover:pointer-events-auto group-hover:opacity-100",
+    "group-data-[reference-selected=true]:pointer-events-auto group-data-[reference-selected=true]:opacity-100",
   ].join(" ");
-  removeButton.textContent = "x";
   removeButton.addEventListener("mousedown", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -274,6 +281,7 @@ function createTokenSpan(node: ReturnType<typeof parsePromptTextToRichNodes>[num
     const index = parent ? Array.from(parent.childNodes).indexOf(span) : 0;
     const editor = span.closest("[contenteditable='true']") as HTMLElement | null;
     span.remove();
+    clearSelectedReferenceTokens(editor);
     moveCaretToTokenPosition(parent, index, editor);
     editor?.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "deleteContentBackward" }));
   });
@@ -295,7 +303,7 @@ function createTokenSpan(node: ReturnType<typeof parsePromptTextToRichNodes>[num
   removeIcon.append(firstLine, secondLine);
   removeButton.append(removeIcon);
 
-  span.append(icon, label, removeButton);
+  span.append(removeButton, icon, label);
   return span;
 }
 
@@ -388,6 +396,9 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
     const nextValue = serializeEditorElement(editor);
     lastRenderedValueRef.current = nextValue;
     const caretOffset = getSelectionOffset(editor);
+    if (!findActiveMentionRange(nextValue, caretOffset)) {
+      clearSelectedReferenceTokens(editor);
+    }
     onChange(nextValue);
 
     if (!isComposingRef.current && shouldHydrateMentionNodes(editor, nextValue)) {
@@ -456,12 +467,13 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
   function handleClick(event: MouseEvent<HTMLDivElement>) {
     if ((event.target as HTMLElement | null)?.closest("[data-reference-token-remove='true']")) return;
     const token = (event.target as HTMLElement | null)?.closest("[data-reference-token='true']") as HTMLElement | null;
-    if (!token || !editorRef.current || !onRequestMentionMenu) return;
+    if (!token || !editorRef.current || !onRequestMentionMenu) {
+      clearSelectedReferenceTokens(editorRef.current);
+      return;
+    }
 
     event.preventDefault();
-    editorRef.current.querySelectorAll("[data-reference-selected='true']").forEach((node) => {
-      if (node instanceof HTMLElement) node.dataset.referenceSelected = "false";
-    });
+    clearSelectedReferenceTokens(editorRef.current);
     token.dataset.referenceSelected = "true";
 
     const canonical = token.dataset.canonicalToken || "";
@@ -487,6 +499,7 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "Escape") {
+      clearSelectedReferenceTokens(editorRef.current);
       onEscape?.();
       return;
     }
@@ -498,7 +511,13 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
       if (!token) return;
       event.preventDefault();
       token.remove();
+      clearSelectedReferenceTokens(editor);
       syncChangeFromDom();
+      return;
+    }
+
+    if (event.key.length === 1 || event.key === "Enter") {
+      clearSelectedReferenceTokens(editorRef.current);
     }
   }
 
@@ -516,6 +535,7 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
         className={`${className} empty:before:pointer-events-none empty:before:text-white/28 empty:before:content-[attr(data-placeholder)]`}
         contentEditable={!disabled}
         data-placeholder={placeholder}
+        data-rich-prompt-editor="true"
         onBlur={syncChangeFromDom}
         onClick={handleClick}
         onCompositionEnd={() => {

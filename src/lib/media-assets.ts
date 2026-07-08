@@ -142,6 +142,107 @@ function safeDecodeFilename(value: string) {
   }
 }
 
+function countReadableCjk(value: string) {
+  return (value.match(/[\u3400-\u9fff]/g) || []).length;
+}
+
+function countMojibakeHints(value: string) {
+  return (value.match(/[¡¢£¤¥¦§¨©ª«¬®¯°±²³´µ¶·¸¹º»¼½¾¿ÃÂâäåæçèéêëìíîïðñòóôõöøùúûüýÿŠšŒœŽžŸ�]/g) || []).length;
+}
+
+function countCjkMojibakeHints(value: string) {
+  const markerCount = (value.match(/[茫氓盲猫聽锟鐢鍥瑙闊钁鑺璧闄勮繎鍦烘櫙]/g) || []).length;
+  const privateUseCount = (value.match(/[\ue000-\uf8ff]/g) || []).length;
+  return markerCount + privateUseCount * 2;
+}
+
+function looksLikeMojibakeDisplayName(value: string) {
+  const hints = countMojibakeHints(value) + countCjkMojibakeHints(value);
+  if (!hints) return false;
+  if (value.includes("�") || /[\ue000-\uf8ff]/.test(value)) return true;
+  return hints >= 2;
+}
+
+function readabilityScore(value: string) {
+  const cjk = countReadableCjk(value);
+  const ascii = (value.match(/[a-z0-9._ -]/gi) || []).length;
+  const mojibake = countMojibakeHints(value) + countCjkMojibakeHints(value);
+  const replacement = (value.match(/�/g) || []).length;
+  return cjk * 4 + ascii - mojibake * 3 - replacement * 12;
+}
+
+const windows1252ByteMap: Record<string, number> = {
+  "€": 0x80,
+  "‚": 0x82,
+  "ƒ": 0x83,
+  "„": 0x84,
+  "…": 0x85,
+  "†": 0x86,
+  "‡": 0x87,
+  "ˆ": 0x88,
+  "‰": 0x89,
+  "Š": 0x8a,
+  "‹": 0x8b,
+  "Œ": 0x8c,
+  "Ž": 0x8e,
+  "‘": 0x91,
+  "’": 0x92,
+  "“": 0x93,
+  "”": 0x94,
+  "•": 0x95,
+  "–": 0x96,
+  "—": 0x97,
+  "˜": 0x98,
+  "™": 0x99,
+  "š": 0x9a,
+  "›": 0x9b,
+  "œ": 0x9c,
+  "ž": 0x9e,
+  "Ÿ": 0x9f,
+};
+
+function decodeLatin1Utf8Mojibake(value: string) {
+  if (!value) return "";
+  const chars = Array.from(value);
+  if (!chars.length) return "";
+
+  try {
+    const bytes = chars.map((char) => {
+      const code = char.charCodeAt(0);
+      if (code <= 255) return code;
+      return windows1252ByteMap[char] ?? -1;
+    });
+    if (bytes.some((byte) => byte < 0)) return "";
+    if (!bytes.some((byte) => byte >= 0x80)) return "";
+    try {
+      return decodeURIComponent(bytes.map((byte) => `%${byte.toString(16).padStart(2, "0")}`).join(""));
+    } catch {
+      // Fall back to TextDecoder for malformed percent-escape edge cases.
+    }
+    return new TextDecoder("utf-8", { fatal: false }).decode(Uint8Array.from(bytes));
+  } catch {
+    return "";
+  }
+}
+
+export function safeDisplayFileName(value: unknown) {
+  const decoded = safeDecodeFilename(cleanFilename(value));
+  if (!decoded) return "";
+
+  const repaired = looksLikeMojibakeDisplayName(decoded) || countMojibakeHints(decoded) ? decodeLatin1Utf8Mojibake(decoded) : "";
+  if (
+    repaired &&
+    repaired !== decoded &&
+    !repaired.includes("�") &&
+    !looksLikeMojibakeDisplayName(repaired) &&
+    (countReadableCjk(repaired) > 0 || readabilityScore(repaired) > readabilityScore(decoded) + 6)
+  ) {
+    return repaired;
+  }
+
+  return decoded;
+}
+
 function isGenericFilename(value: string) {
   const name = cleanFilename(value);
   const stem = name.replace(/\.[a-z0-9]{2,6}$/i, "");
@@ -162,7 +263,7 @@ function filenameFromUrl(url: string) {
     }
   })();
 
-  const name = safeDecodeFilename(cleanFilename(path));
+  const name = safeDisplayFileName(path);
   return name && !isGenericFilename(name) ? name : "";
 }
 
@@ -174,6 +275,7 @@ function isUnhelpfulDisplayName(value: string) {
   const name = cleanFilename(value);
   const stem = name.replace(/\.[a-z0-9]{2,8}$/i, "");
   if (!stem) return true;
+  if (looksLikeMojibakeDisplayName(name)) return true;
   if (/^[0-9a-f]{24,}$/i.test(stem.replace(/-/g, ""))) return true;
   if (/^(remote[-_])?(image|video|audio|file|media)[-_]?\d*$/i.test(stem)) return true;
   return !hasMediaExtension(name) && stem.length > 80;
@@ -266,7 +368,7 @@ export function sanitizeMediaDisplayName({
   source?: UploadMediaSource | MediaAssetSourceInput;
   locale?: MediaDisplayLocale;
 }) {
-  const name = safeDecodeFilename(cleanFilename(rawName));
+  const name = safeDisplayFileName(rawName);
   if (name && !isUnhelpfulDisplayName(name) && !looksLikePromptMediaName(name)) return name;
   return localizedFallbackAssetName(type, source, index, locale);
 }
@@ -285,7 +387,7 @@ export function sanitizeMediaDisplayNameFromCandidates({
   locale?: MediaDisplayLocale;
 }) {
   for (const candidate of candidates) {
-    const name = safeDecodeFilename(cleanFilename(candidate));
+    const name = safeDisplayFileName(candidate);
     if (name && !isUnhelpfulDisplayName(name) && !looksLikePromptMediaName(name)) return name;
   }
   return localizedFallbackAssetName(type, source, index, locale);
