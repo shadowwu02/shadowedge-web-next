@@ -116,6 +116,12 @@ function getStatusClass(status: MediaStatus) {
   return "border-[rgba(244,244,244,0.08)] bg-[#111318]/70 text-[#b9b9b9]/58";
 }
 
+function getCompactMentionToken(type: UploadMediaType, index: number) {
+  if (type === "video") return `@视频${index}`;
+  if (type === "audio") return `@音频${index}`;
+  return `@图${index}`;
+}
+
 function formatDurationLabel(duration?: number) {
   if (!duration || !Number.isFinite(duration)) return "";
   if (duration < 60) return `${Math.round(duration)}s`;
@@ -358,6 +364,7 @@ export function ReferenceMediaTray({
             const issueTitle = issues.length ? getNotUsedDetail(item, issues) : failedDetail;
             const displayName = displayNameFor(item, itemIndex);
             const displayToken = mention?.displayToken || (item.type === "video" ? `@Video ${itemIndex + 1}` : item.type === "audio" ? `@Audio ${itemIndex + 1}` : `@Image ${itemIndex + 1}`);
+            const compactToken = mention ? getCompactMentionToken(mention.type, mention.index) : getCompactMentionToken(item.type, itemIndex + 1);
 
             return (
               <article
@@ -420,7 +427,7 @@ export function ReferenceMediaTray({
                     title={`${displayToken} · ${mention.display} · ${mention.token}`}
                     type="button"
                   >
-                    <span className="max-w-full truncate text-[10px] font-black text-[#ffd08a]">{displayToken}</span>
+                    <span className="max-w-full truncate text-[10px] font-black text-[#ffd08a]">{compactToken}</span>
                     <span className="max-w-full truncate text-[9px] font-semibold text-white/58">
                       {displayName}
                       {durationLabel ? ` · ${durationLabel}` : ""}
