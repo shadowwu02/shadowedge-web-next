@@ -40,7 +40,9 @@ function insertMention(item: MentionableMediaItem) {
   window.dispatchEvent(
     new CustomEvent("shadowedge:insert-video-mention", {
       detail: {
-        display: item.display,
+        display: item.token,
+        displayToken: item.displayToken,
+        localizedToken: item.localizedToken,
         mediaId: item.id,
         token: item.token,
         type: item.type,
@@ -341,7 +343,7 @@ export function ReferenceMediaTray({
       </div>
 
       {media.length ? (
-        <div className="se-subtle-scrollbar grid max-h-[220px] min-w-0 max-w-full gap-2 overflow-hidden overflow-y-auto pr-1">
+        <div className="se-subtle-scrollbar flex min-w-0 max-w-full gap-2 overflow-x-auto pb-1">
           {media.map((item, itemIndex) => {
             const mention = mentionById.get(item.id);
             const currentRole = item.role || "reference";
@@ -355,10 +357,11 @@ export function ReferenceMediaTray({
             const failedDetail = failedDisplay ? `${t(failedDisplay.messageKey)} ${t("media.upload.removeAndUploadAgain")}` : "";
             const issueTitle = issues.length ? getNotUsedDetail(item, issues) : failedDetail;
             const displayName = displayNameFor(item, itemIndex);
+            const displayToken = mention?.displayToken || (item.type === "video" ? `@Video ${itemIndex + 1}` : item.type === "audio" ? `@Audio ${itemIndex + 1}` : `@Image ${itemIndex + 1}`);
 
             return (
               <article
-                className={`group flex min-w-0 items-center gap-2 rounded-[18px] border bg-[#05070b]/28 p-2 transition-colors ${
+                className={`group relative flex w-[112px] shrink-0 flex-col gap-2 rounded-[18px] border bg-[#05070b]/28 p-1.5 transition-colors ${
                   issues.length ? "border-[#ffb44d]/35" : "border-[rgba(244,244,244,0.08)] hover:border-[#ffb44d]/24"
                 }`}
                 key={item.id}
@@ -366,7 +369,7 @@ export function ReferenceMediaTray({
               >
                 <button
                   aria-label={tf("video.references.previewAsset", { name: displayName })}
-                  className="relative grid size-14 shrink-0 place-items-center overflow-hidden rounded-[14px] border border-[rgba(244,244,244,0.08)] bg-[#111318]"
+                  className="relative grid h-20 w-full shrink-0 place-items-center overflow-hidden rounded-[14px] border border-[rgba(244,244,244,0.08)] bg-[#111318]"
                   onClick={() => setPreviewItem(item)}
                   type="button"
                 >
@@ -383,26 +386,27 @@ export function ReferenceMediaTray({
                       {shortRole}
                     </span>
                   ) : null}
+                  <span className={`absolute left-1 top-1 rounded-full border px-1.5 py-px text-[8px] font-black uppercase tracking-[.06em] ${getStatusClass(status)}`}>
+                    {mediaStatusLabel(status)}
+                  </span>
                 </button>
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex min-w-0 items-center gap-1.5">
+                <div className="min-w-0">
+                  <div className="grid min-w-0 gap-1">
                     <button
-                      className="shrink-0 rounded-full border border-[#ffb44d]/22 bg-[#ffb44d]/8 px-2 py-0.5 text-[10px] font-bold text-[#ffd08a] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex min-h-6 max-w-full items-center justify-center gap-1 rounded-full border border-[#d1fe17]/22 bg-white/[.075] px-2 py-0.5 text-[10px] font-black text-[#d1fe17] disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={!mention}
                       onClick={() => {
                         if (mention) insertMention(mention);
                       }}
+                      title={mention ? `${displayToken} · ${mention.display} · ${mention.token}` : displayName}
                       type="button"
                     >
-                      {mention?.display || allowedTypeLabel(item.type)}
+                      {displayToken}
                     </button>
-                    <span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${getStatusClass(status)}`}>
-                      {mediaStatusLabel(status)}
-                    </span>
                   </div>
-                  <p className="mt-1 truncate text-xs font-semibold text-[#f4f4f4]/78">{displayName}</p>
-                  <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-[#b9b9b9]/45">
+                  <p className="mt-1 truncate text-[11px] font-semibold text-[#f4f4f4]/78">{displayName}</p>
+                  <p className="mt-0.5 flex flex-wrap items-center gap-1 text-[9px] text-[#b9b9b9]/45">
                     <span>{allowedTypeLabel(item.type)}</span>
                     {durationLabel ? <span>{durationLabel}</span> : null}
                     {issues.length ? <span>{t("video.references.notUsedShort")}</span> : null}
@@ -412,10 +416,10 @@ export function ReferenceMediaTray({
                   ) : null}
                 </div>
 
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="absolute right-1 top-1 flex shrink-0 items-center gap-1 opacity-95 transition-opacity group-hover:opacity-100">
                   <button
                     aria-label={tf("video.references.openRoleMenu", { name: displayName })}
-                    className="grid size-8 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/70 text-[#b9b9b9]/62 transition-colors hover:border-[#ffb44d]/30 hover:text-[#ffb44d]"
+                    className="grid size-6 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#05070b]/78 text-[#b9b9b9]/62 backdrop-blur transition-colors hover:border-[#ffb44d]/30 hover:text-[#ffb44d]"
                     onClick={(event) => {
                       setRoleMenuPosition(getRoleMenuPosition(event.currentTarget));
                       setOpenRoleId((current) => (current === item.id ? "" : item.id));
@@ -426,7 +430,7 @@ export function ReferenceMediaTray({
                   </button>
                   <button
                     aria-label={tf("video.references.removeAsset", { name: displayName })}
-                    className="grid size-8 place-items-center rounded-full text-[12px] font-semibold text-[#b9b9b9]/44 transition-colors hover:bg-[#ff6b6b]/10 hover:text-[#ff8b8b]"
+                    className="grid size-6 place-items-center rounded-full bg-[#05070b]/78 text-[11px] font-semibold text-[#b9b9b9]/58 backdrop-blur transition-colors hover:bg-[#ff6b6b]/18 hover:text-[#ff8b8b]"
                     onClick={() => onRemove(item.id)}
                     type="button"
                   >
@@ -438,12 +442,12 @@ export function ReferenceMediaTray({
           })}
 
           <button
-            className="grid min-h-14 place-items-center rounded-[18px] border border-dashed border-[rgba(244,244,244,0.08)] bg-[#05070b]/16 p-2 text-center transition-colors hover:border-[#ffb44d]/22 hover:bg-[#ffb44d]/5"
+            className="grid h-[148px] w-[112px] shrink-0 place-items-center rounded-[18px] border border-dashed border-[rgba(244,244,244,0.12)] bg-[#05070b]/16 p-2 text-center transition-colors hover:border-[#ffb44d]/24 hover:bg-[#ffb44d]/5"
             onClick={(event) => openMediaPicker(event.currentTarget)}
             type="button"
           >
-            <span className="inline-flex items-center gap-2 text-[11px] font-semibold text-[#b9b9b9]/62">
-              <span className="grid size-6 place-items-center rounded-full border border-[rgba(244,244,244,0.07)] bg-[#111318]/52 text-sm">+</span>
+            <span className="grid justify-items-center gap-2 text-[11px] font-semibold text-[#b9b9b9]/62">
+              <span className="grid size-9 place-items-center rounded-full border border-[rgba(244,244,244,0.07)] bg-[#111318]/52 text-lg">+</span>
               {t("video.references.addMore")}
             </span>
           </button>
@@ -510,6 +514,7 @@ export function ReferenceMediaTray({
               const issues = mediaIssues.get(item.id) || [];
               const status = getMediaStatus(item, issues);
               const displayName = displayNameFor(item);
+              const displayToken = mention?.displayToken || (item.type === "video" ? "@Video" : item.type === "audio" ? "@Audio" : "@Image");
               return (
                 <div className="flex min-w-0 items-center gap-2" key={item.id}>
                   <span className="w-[74px] shrink-0 text-[10px] font-semibold uppercase tracking-[.08em] text-[#b9b9b9]/45">
@@ -525,7 +530,7 @@ export function ReferenceMediaTray({
                     type="button"
                   >
                     <span className="shrink-0 rounded-full border border-[#ffb44d]/20 bg-[#ffb44d]/7 px-1.5 py-px text-[10px] font-bold text-[#ffd08a]">
-                      {mention?.display || allowedTypeLabel(item.type)}
+                      {displayToken}
                     </span>
                     <span className="shrink-0 text-[#b9b9b9]/35">→</span>
                     <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-[#f4f4f4]/72">{displayName}</span>
@@ -548,13 +553,14 @@ export function ReferenceMediaTray({
             {unsupportedItems.map((item) => {
               const issues = mediaIssues.get(item.id) || [];
               const mention = mentionById.get(item.id);
+              const displayToken = mention?.displayToken || (item.type === "video" ? "@Video" : item.type === "audio" ? "@Audio" : "@Image");
               return (
                 <div className="flex min-w-0 items-center gap-2 rounded-lg bg-[#ffb44d]/6 px-1 py-px" key={item.id}>
                   <span className="w-[70px] shrink-0 text-[10px] font-semibold uppercase tracking-[.08em] text-[#ffb44d]/72">
                     {t("video.references.notUsedShort")}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-[#ffcf92]" title={getNotUsedDetail(item, issues)}>
-                    <span className="font-bold">{mention?.display || allowedTypeLabel(item.type)}</span>
+                    <span className="font-bold">{displayToken}</span>
                     <span className="text-[#ffcf92]/65"> · {getNotUsedDetail(item, issues)}</span>
                   </span>
                 </div>

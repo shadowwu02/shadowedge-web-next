@@ -152,7 +152,7 @@ function findMentionReplaceRange(prompt: string, selectionStart: number, selecti
   }
 
   const beforeCaret = prompt.slice(0, selectionStart);
-  const activeAtMention = beforeCaret.match(/@(图|视频|音频)?\d*$/u);
+  const activeAtMention = beforeCaret.match(/@(图|视频|音频|Image|Video|Audio)?\s*\d*$/iu);
 
   if (activeAtMention) {
     return {
@@ -531,10 +531,10 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     return t("video.prompt.group.audios");
   }
 
-  function referenceTypeLabel(type: UploadMediaType) {
-    if (type === "image") return t("video.prompt.group.images");
-    if (type === "video") return t("video.prompt.group.videos");
-    return t("video.prompt.group.audios");
+  function fallbackDisplayToken(type: UploadMediaType, index: number) {
+    if (type === "video") return `@Video ${index}`;
+    if (type === "audio") return `@Audio ${index}`;
+    return `@Image ${index}`;
   }
 
   function renderReferenceBindings(compact = false) {
@@ -542,17 +542,17 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
 
     return (
       <div
-        className={`rounded-[18px] border border-[#4da3ff]/18 bg-[#4da3ff]/7 ${
+        className={`rounded-[20px] border border-white/10 bg-white/[.045] ${
           compact ? "mt-3 px-3 py-2" : "mt-3 px-3.5 py-3"
         }`}
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[11px] font-bold uppercase tracking-[.14em] text-[#9fd0ff]/78">
+          <span className="text-[11px] font-bold uppercase tracking-[.14em] text-[#d1fe17]/74">
             {t("video.prompt.referenceBindings")}
           </span>
           <span className="text-[11px] font-semibold text-white/42">{t("video.prompt.referenceBindingHint")}</span>
         </div>
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="se-subtle-scrollbar mt-2 flex max-w-full gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
           {referenceBindings.map((binding) => {
             const itemTitle = sanitizeMediaDisplayName({
               index: Math.max(0, binding.index - 1),
@@ -560,19 +560,37 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
               rawName: binding.label || binding.fallbackLabel || binding.title,
               type: binding.type,
             });
+            const previewUrl = normalizeMediaAssetUrl(binding.previewUrl);
+            const displayToken = binding.displayToken || fallbackDisplayToken(binding.type, binding.index);
+            const localizedToken = binding.localizedToken || binding.display || "";
+            const canonicalToken = binding.canonicalToken || binding.token;
 
             return (
               <button
-                className="inline-flex min-h-8 max-w-full items-center gap-2 rounded-full border border-[#4da3ff]/30 bg-[#123b6d]/34 px-2.5 py-1 text-left text-[11px] font-semibold text-[#d7ecff] transition hover:border-[#79bdff]/48 hover:bg-[#164d88]/46 focus:border-[#9fd0ff]/70 focus:outline-none"
+                className="group inline-flex min-h-9 max-w-[260px] shrink-0 items-center gap-1.5 rounded-full border border-[#d1fe17]/20 bg-white/[.075] px-1.5 py-1 text-left text-[11px] font-semibold text-white/86 shadow-[inset_0_1px_0_rgba(255,255,255,.06)] transition hover:border-[#d1fe17]/36 hover:bg-white/[.11] focus:border-[#d1fe17]/60 focus:outline-none"
                 key={`${binding.type}-${binding.index}-${binding.id}`}
                 onClick={(event) => handleReferenceBindingClick(binding, event.currentTarget)}
+                title={`${displayToken} · ${itemTitle} · ${canonicalToken}`}
                 type="button"
               >
-                <span className="shrink-0 rounded-full bg-[#4da3ff]/18 px-2 py-0.5 font-black text-[#bde1ff]">
-                  {binding.token}
+                {binding.type === "image" && previewUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img alt="" className="size-5 shrink-0 rounded-full object-cover ring-1 ring-white/12" src={previewUrl} />
+                ) : (
+                  <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[#05070b]/45 text-[#d1fe17]/82 ring-1 ring-white/10">
+                    <MediaTypeIcon className="size-3" type={binding.type} />
+                  </span>
+                )}
+                <span className="shrink-0 font-black text-[#d1fe17]">
+                  {displayToken}
                 </span>
-                <span className="truncate text-white/80">{itemTitle}</span>
-                <span className="shrink-0 text-white/36">{referenceTypeLabel(binding.type)}</span>
+                <span className="shrink-0 text-white/28">·</span>
+                <span className="min-w-0 truncate text-white/72">{itemTitle}</span>
+                {localizedToken && localizedToken !== displayToken ? (
+                  <span className="hidden shrink-0 rounded-full bg-[#05070b]/34 px-1.5 py-px text-[10px] text-white/38 sm:inline">
+                    {localizedToken}
+                  </span>
+                ) : null}
               </button>
             );
           })}
@@ -637,13 +655,28 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
       </div>
 
       {missingMentions.length ? (
-        <div className="mt-3 inline-flex max-w-full items-start gap-2 rounded-[18px] border border-[#ffb44d]/24 bg-[#ffb44d]/9 px-3 py-2 text-xs font-semibold leading-5 text-[#ffd08a]/88">
-          <span className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border border-[#ffb44d]/28 bg-[#05070b]/40 text-[10px] leading-none text-[#ffb44d]">
-            !
-          </span>
-          <span className="min-w-0 break-words">
-            {tf("video.prompt.missingWarning", { items: missingMentions.map((mention) => mention.display).join(", ") })}
-          </span>
+        <div className="mt-3 grid max-w-full gap-2 rounded-[18px] border border-[#ffb44d]/24 bg-[#ffb44d]/9 px-3 py-2 text-xs font-semibold leading-5 text-[#ffd08a]/88">
+          <div className="inline-flex max-w-full items-start gap-2">
+            <span className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border border-[#ffb44d]/28 bg-[#05070b]/40 text-[10px] leading-none text-[#ffb44d]">
+              !
+            </span>
+            <span className="min-w-0 break-words">
+              {tf("video.prompt.missingWarning", { items: missingMentions.map((mention) => mention.display).join(", ") })}
+            </span>
+          </div>
+          <div className="se-subtle-scrollbar flex max-w-full gap-1.5 overflow-x-auto pb-0.5">
+            {missingMentions.map((mention) => (
+              <span
+                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[#ffb44d]/28 bg-[#05070b]/36 px-2 py-1 text-[11px] font-black text-[#ffd08a]"
+                key={`${mention.type}-${mention.index}-${mention.start}`}
+                title={mention.token}
+              >
+                <span className="grid size-4 place-items-center rounded-full bg-[#ffb44d]/13 text-[#ffb44d]">!</span>
+                {fallbackDisplayToken(mention.type, mention.index)}
+                <span className="font-semibold text-[#ffd08a]/55">{mention.display}</span>
+              </span>
+            ))}
+          </div>
         </div>
       ) : (
         <p className="mt-3 text-xs leading-5 text-white/38">{t("video.prompt.helper")}</p>
@@ -674,25 +707,29 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
                       rawName: item.title,
                       type: item.type,
                     });
+                    const displayToken = item.displayToken || fallbackDisplayToken(item.type, item.index);
 
                     return (
                       <button
-                        className="flex min-h-10 w-full items-center gap-2.5 rounded-xl border border-transparent px-2 py-1.5 text-left transition hover:border-[#ffb44d]/26 hover:bg-[#ffb44d]/9 focus:border-[#ffb44d]/32 focus:bg-[#ffb44d]/10 focus:outline-none"
+                        className="flex min-h-11 w-full items-center gap-2.5 rounded-xl border border-transparent px-2 py-1.5 text-left transition hover:border-[#d1fe17]/24 hover:bg-white/[.07] focus:border-[#d1fe17]/36 focus:bg-white/[.08] focus:outline-none"
                         key={`${item.type}-${item.index}-${item.id}`}
                         onClick={() => insertMention(item)}
+                        title={`${displayToken} · ${item.display} · ${item.token}`}
                         type="button"
                       >
                         {item.type === "image" && previewUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img alt="" className="size-9 rounded-lg object-cover" src={previewUrl} />
+                          <img alt="" className="size-9 rounded-xl object-cover ring-1 ring-white/10" src={previewUrl} />
                         ) : (
-                          <span className="grid size-9 place-items-center rounded-lg border border-white/10 bg-[#ffb44d]/10 text-[#ffd08a]/78">
+                          <span className="grid size-9 place-items-center rounded-xl border border-white/10 bg-[#d1fe17]/9 text-[#d1fe17]/78">
                             <MediaTypeIcon className="size-[18px]" type={item.type} />
                           </span>
                         )}
                         <span className="min-w-0">
-                          <span className="block text-[12px] font-semibold leading-4 text-white/90">{item.display}</span>
-                          <span className="mt-0.5 block truncate text-[10px] leading-3 text-white/38">{itemTitle}</span>
+                          <span className="block text-[12px] font-black leading-4 text-[#d1fe17]">{displayToken}</span>
+                          <span className="mt-0.5 block truncate text-[10px] leading-3 text-white/45">
+                            {item.display} · {itemTitle}
+                          </span>
                         </span>
                       </button>
                     );

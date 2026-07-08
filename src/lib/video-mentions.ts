@@ -7,6 +7,9 @@ export type MentionableMediaItem = {
   type: UploadMediaType;
   index: number;
   display: string;
+  displayToken: string;
+  localizedToken: string;
+  canonicalToken: string;
   token: string;
   url: string;
   previewUrl?: string;
@@ -47,9 +50,12 @@ const mentionTypeByKind: Record<string, UploadMediaType> = {
   图: "image",
   视频: "video",
   音频: "audio",
+  image: "image",
+  video: "video",
+  audio: "audio",
 };
 
-const mentionRegex = /【@(图|视频|音频)(\d+)】|@(图|视频|音频)(\d+)/g;
+const mentionRegex = /【@(图|视频|音频|Image|Video|Audio)\s*(\d+)】|@(图|视频|音频|Image|Video|Audio)\s*(\d+)/gi;
 
 function isRemoteUrl(url: string) {
   return /^https?:\/\//i.test(url);
@@ -99,11 +105,17 @@ export function getMentionKind(type: UploadMediaType) {
 }
 
 export function getMentionType(kind: string): UploadMediaType {
-  return mentionTypeByKind[kind] || "image";
+  return mentionTypeByKind[String(kind || "").trim().toLowerCase()] || mentionTypeByKind[kind] || "image";
 }
 
 export function getMentionDisplay(type: UploadMediaType, index: number) {
   return `@${getMentionKind(type)}${index}`;
+}
+
+export function getMentionDisplayToken(type: UploadMediaType, index: number) {
+  if (type === "video") return `@Video ${index}`;
+  if (type === "audio") return `@Audio ${index}`;
+  return `@Image ${index}`;
 }
 
 export function getMentionToken(type: UploadMediaType, index: number) {
@@ -129,6 +141,9 @@ export function getReadyMentionableMediaItems(media: UploadMediaItem[]): Mention
         type: item.type,
         index,
         display: getMentionDisplay(item.type, index),
+        displayToken: getMentionDisplayToken(item.type, index),
+        localizedToken: getMentionDisplay(item.type, index),
+        canonicalToken: getMentionToken(item.type, index),
         token: getMentionToken(item.type, index),
         url,
         previewUrl,
