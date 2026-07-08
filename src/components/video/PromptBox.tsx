@@ -40,6 +40,13 @@ type ReplaceRange = {
   end: number;
 };
 
+type PromptEditorId = "expand" | "main";
+
+type ActiveReplaceRange = ReplaceRange & {
+  editorId: PromptEditorId;
+  promptValue: string;
+};
+
 type MenuPosition = {
   left: number;
   maxHeight: number;
@@ -149,6 +156,33 @@ function findMentionReplaceRange(prompt: string, selectionStart: number, selecti
   return { start: selectionStart, end: selectionEnd };
 }
 
+function expandActiveMentionRange(prompt: string, range: ReplaceRange): ReplaceRange {
+  const source = String(prompt || "");
+  const start = Math.max(0, Math.min(range.start, source.length));
+  const end = Math.max(start, Math.min(range.end, source.length));
+  const selectedMention = findPromptMentions(source).find((mention) => start < mention.end && end > mention.start);
+
+  if (selectedMention) {
+    return {
+      start: selectedMention.start,
+      end: selectedMention.end,
+    };
+  }
+
+  const activeMention = source
+    .slice(start)
+    .match(/^@(?:\u56fe|\u89c6\u9891|\u97f3\u9891|Image|Video|Audio)?\s*\d*/iu);
+
+  if (activeMention?.[0]) {
+    return {
+      start,
+      end: start + activeMention[0].length,
+    };
+  }
+
+  return { start, end };
+}
+
 function getMediaIdentity(media: Pick<UploadMediaItem, "id" | "url">) {
   return String(media.id || media.url || "").trim();
 }
@@ -191,15 +225,17 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
   const menuAnchorRef = useRef<HTMLElement | null>(null);
   const menuAnchorRectRef = useRef<MenuAnchorRect | null>(null);
   const menuCaretIndexRef = useRef<number | null>(null);
+  const menuEditorIdRef = useRef<PromptEditorId>("main");
   const menuRafRef = useRef<number | null>(null);
+  const menuSelectionLockRef = useRef(false);
   const latestPromptValueRef = useRef(value);
   const expandedEditorRef = useRef<HTMLDivElement | null>(null);
-  const replaceRangeRef = useRef<ReplaceRange | null>(null);
+  const replaceRangeRef = useRef<ActiveReplaceRange | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isExpandedEditorOpen, setIsExpandedEditorOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<MenuPosition>(defaultMenuPosition);
   const [menuPortalTarget, setMenuPortalTarget] = useState<HTMLElement | null>(null);
-  const [replaceRange, setReplaceRange] = useState<ReplaceRange | null>(null);
+  const [replaceRange, setReplaceRange] = useState<ActiveReplaceRange | null>(null);
 
   const mentionItems = useMemo(() => getReadyMentionableMediaItems(media), [media]);
   const referenceBindings = useMemo(
@@ -215,29 +251,57 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     latestPromptValueRef.current = value;
   }, [value]);
 
-  const setActiveReplaceRange = useCallback((range: ReplaceRange | null) => {
+  const setActiveReplaceRange = useCallback((range: ActiveReplaceRange | null) => {
     replaceRangeRef.current = range;
     setReplaceRange(range);
   }, []);
 
-  function openEditorLocalMentionMenu(anchor: Pick<DOMRect, "bottom" | "left" | "top">, editor: HTMLElement, range: ReplaceRange, anchorEl?: HTMLElement | null) {
+  function getEditorById(editorId: PromptEditorId) {
+    return editorId === "expand" ? expandedEditorRef.current : editorRef.current;
+  }
+
+  function getEditorIdForEditor(editor: HTMLElement | null): PromptEditorId {
+    if (editor && expandedEditorRef.current && editor === expandedEditorRef.current) return "expand";
+    return "main";
+  }
+
+  function editorOwnsSelection(editor: HTMLElement | null) {
+    const selection = window.getSelection();
+    if (!editor || !selection || selection.rangeCount === 0) return false;
+    return editor.contains(selection.getRangeAt(0).startContainer);
+  }
+
+  function getActiveReplaceRange(range: ReplaceRange, editorId: PromptEditorId, promptValue = latestPromptValueRef.current): ActiveReplaceRange {
+    return {
+      ...range,
+      editorId,
+      promptValue,
+    };
+  }
+
+  function openEditorLocalMentionMenu(anchor: Pick<DOMRect, "bottom" | "left" | "top">, editor: HTMLElement, range: ReplaceRange, anchorEl?: HTMLElement | null, editorId = getEditorIdForEditor(editor), promptValue?: string) {
     const container = editor.parentElement;
     if (!container) return false;
+    if (isExpandedEditorOpen && editorId === "main" && editorOwnsSelection(expandedEditorRef.current)) return false;
     menuAnchorRef.current = anchorEl || null;
     menuAnchorRectRef.current = anchor;
+    menuEditorIdRef.current = editorId;
     menuCaretIndexRef.current = range.end;
-    setActiveReplaceRange(range);
+    if (promptValue) latestPromptValueRef.current = promptValue;
+    setActiveReplaceRange(getActiveReplaceRange(range, editorId, promptValue));
     setMenuPortalTarget(container);
     setMenuPosition(getLocalMentionMenuPosition(anchor, container));
     setIsMenuOpen(true);
     return true;
   }
 
-  function openFixedMentionMenu(anchor: Pick<DOMRect, "bottom" | "left" | "top">, range: ReplaceRange, anchorEl?: HTMLElement | null) {
+  function openFixedMentionMenu(anchor: Pick<DOMRect, "bottom" | "left" | "top">, range: ReplaceRange, anchorEl?: HTMLElement | null, editorId: PromptEditorId = isExpandedEditorOpen ? "expand" : "main", promptValue?: string) {
     menuAnchorRef.current = anchorEl || null;
     menuAnchorRectRef.current = null;
+    menuEditorIdRef.current = editorId;
     menuCaretIndexRef.current = range.end;
-    setActiveReplaceRange(range);
+    if (promptValue) latestPromptValueRef.current = promptValue;
+    setActiveReplaceRange(getActiveReplaceRange(range, editorId, promptValue));
     setMenuPortalTarget(typeof document === "undefined" ? null : document.body);
     setMenuPosition(getFixedMentionMenuPosition(anchor));
     setIsMenuOpen(true);
@@ -248,11 +312,18 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     return anchorEl.closest("[contenteditable='true']") as HTMLElement | null;
   }
 
-  function openRichMentionMenu({ anchorEl, anchorRect, range }: RichPromptMenuRequest) {
+  function openRichMentionMenu({ anchorEl, anchorRect, editorId, promptValue, range }: RichPromptMenuRequest) {
     const editor = getEditorForAnchor(anchorEl);
+    const targetEditorId = (editorId === "expand" || editorId === "main")
+      ? editorId
+      : editor
+        ? getEditorIdForEditor(editor)
+        : isExpandedEditorOpen
+          ? "expand"
+          : "main";
     const anchor = anchorRect || anchorEl.getBoundingClientRect();
-    if (editor && openEditorLocalMentionMenu(anchor, editor, range, anchorEl === editor ? null : anchorEl)) return;
-    openFixedMentionMenu(anchor, range, anchorEl);
+    if (editor && openEditorLocalMentionMenu(anchor, editor, range, anchorEl === editor ? null : anchorEl, targetEditorId, promptValue)) return;
+    openFixedMentionMenu(anchor, range, anchorEl, targetEditorId, promptValue);
   }
 
   function openMentionMenuFromExternal(anchorEl?: HTMLElement | null) {
@@ -262,12 +333,12 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     const range = findMentionReplaceRange(value, selectionStart, selectionEnd);
 
     if (anchorEl) {
-      openFixedMentionMenu(anchorEl.getBoundingClientRect(), range, anchorEl);
+      openFixedMentionMenu(anchorEl.getBoundingClientRect(), range, anchorEl, "main");
     } else if (editor) {
       const rect = editor.getBoundingClientRect();
-      openEditorLocalMentionMenu({ bottom: rect.top + 44, left: rect.left + 18, top: rect.top + 24 }, editor, range);
+      openEditorLocalMentionMenu({ bottom: rect.top + 44, left: rect.left + 18, top: rect.top + 24 }, editor, range, undefined, "main");
     } else {
-      openFixedMentionMenu({ bottom: 88, left: 18, top: 76 }, range);
+      openFixedMentionMenu({ bottom: 88, left: 18, top: 76 }, range, undefined, "main");
     }
 
     window.requestAnimationFrame(() => {
@@ -282,6 +353,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     menuAnchorRectRef.current = null;
     setMenuPortalTarget(null);
     menuCaretIndexRef.current = null;
+    menuEditorIdRef.current = "main";
   }, [setActiveReplaceRange]);
 
   function openExpandedEditor() {
@@ -352,11 +424,20 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
 
   function insertMentionText(input: InsertMentionInput | string) {
     const mentionInput = typeof input === "string" ? { display: input } : input;
-    const editor = isExpandedEditorOpen ? expandedEditorRef.current : editorRef.current;
-    const promptValue = latestPromptValueRef.current;
-    const currentStart = menuCaretIndexRef.current ?? promptValue.length;
+    const activeRange = replaceRangeRef.current || replaceRange;
+    const editorId = activeRange?.editorId || menuEditorIdRef.current || (isExpandedEditorOpen ? "expand" : "main");
+    const editor = getEditorById(editorId);
+    const activePromptValue = activeRange?.editorId === editorId ? activeRange.promptValue : "";
+    const promptValue = latestPromptValueRef.current.length >= activePromptValue.length
+      ? latestPromptValueRef.current
+      : activePromptValue;
+    const currentStart = menuCaretIndexRef.current ?? activeRange?.end ?? promptValue.length;
     const currentEnd = currentStart;
-    const range = replaceRangeRef.current || replaceRange || findMentionReplaceRange(promptValue, currentStart, currentEnd);
+    const savedRange = activeRange?.editorId === editorId
+      ? expandActiveMentionRange(promptValue, { start: activeRange.start, end: activeRange.end })
+      : findMentionReplaceRange(promptValue, currentStart, currentEnd);
+    const liveRange = findMentionReplaceRange(promptValue, currentStart, currentEnd);
+    const range = liveRange.start <= savedRange.start && liveRange.end >= savedRange.end ? liveRange : savedRange;
     const before = promptValue.slice(0, range.start);
     const after = promptValue.slice(range.end);
     const trailingSpace = after.length && !/^\s/.test(after) ? " " : "";
@@ -391,10 +472,11 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
 
   function handleReferenceBindingClick(binding: ReferencePromptBinding, anchorEl: HTMLElement) {
     if (binding.mention) {
+      const editorId: PromptEditorId = isExpandedEditorOpen ? "expand" : "main";
       const editor = isExpandedEditorOpen ? expandedEditorRef.current : editorRef.current;
       editor?.focus();
-      setActiveReplaceRange({ start: binding.mention.start, end: binding.mention.end });
-      openRichMentionMenu({ anchorEl, range: { start: binding.mention.start, end: binding.mention.end } });
+      setActiveReplaceRange(getActiveReplaceRange({ start: binding.mention.start, end: binding.mention.end }, editorId));
+      openRichMentionMenu({ anchorEl, editorId, range: { start: binding.mention.start, end: binding.mention.end } });
       return;
     }
 
@@ -416,15 +498,30 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
   function handleMenuItemPointerDown(event: ReactPointerEvent, item: MentionableMediaItem) {
     event.preventDefault();
     event.stopPropagation();
-    insertMention(item);
+    selectMentionItem(item);
+  }
+
+  function handleMenuItemMouseDown(event: ReactMouseEvent, item: MentionableMediaItem) {
+    event.preventDefault();
+    event.stopPropagation();
+    selectMentionItem(item);
   }
 
   function handleMenuItemClick(event: ReactMouseEvent, item: MentionableMediaItem) {
     event.preventDefault();
     event.stopPropagation();
     if (event.detail === 0) {
-      insertMention(item);
+      selectMentionItem(item);
     }
+  }
+
+  function selectMentionItem(item: MentionableMediaItem) {
+    if (menuSelectionLockRef.current) return;
+    menuSelectionLockRef.current = true;
+    insertMention(item);
+    window.setTimeout(() => {
+      menuSelectionLockRef.current = false;
+    }, 250);
   }
 
   useEffect(() => {
@@ -662,6 +759,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
       </div>
       <RichPromptEditor
         className="se-scrollbar h-[180px] min-h-[160px] w-full resize-y overflow-auto rounded-[24px] border border-white/10 bg-[#10141f]/92 px-4 py-3.5 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70 md:h-[220px] md:min-h-[210px]"
+        editorId="main"
         onChange={onChange}
         onDismissMentionMenu={closeMentionMenu}
         onEscape={closeMentionMenu}
@@ -751,6 +849,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
                         className="flex min-h-11 w-full items-center gap-2.5 rounded-xl border border-transparent px-2 py-1.5 text-left transition hover:border-[#ffb44d]/28 hover:bg-[#ffb44d]/8 focus:border-[#ffb44d]/40 focus:bg-[#ffb44d]/10 focus:outline-none"
                         key={`${item.type}-${item.index}-${item.id}`}
                         onClick={(event) => handleMenuItemClick(event, item)}
+                        onMouseDown={(event) => handleMenuItemMouseDown(event, item)}
                         onPointerDown={(event) => handleMenuItemPointerDown(event, item)}
                         title={`${displayToken} · ${item.display} · ${item.token}`}
                         type="button"
@@ -814,6 +913,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
               {renderReferenceBindings(true)}
               <RichPromptEditor
                 className="se-scrollbar mt-3 min-h-0 flex-1 overflow-auto rounded-[22px] border border-white/10 bg-[#05070b]/72 px-4 py-3.5 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70"
+                editorId="expand"
                 onChange={onChange}
                 onDismissMentionMenu={closeMentionMenu}
                 onEscape={isMenuOpen ? closeMentionMenu : closeExpandedEditor}

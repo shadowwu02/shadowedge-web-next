@@ -31,6 +31,8 @@ export type RichPromptMenuRequest = {
     left: number;
     top: number;
   };
+  editorId?: string;
+  promptValue?: string;
   range: {
     end: number;
     start: number;

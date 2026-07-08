@@ -20,6 +20,7 @@ import { findPromptMentions } from "@/lib/video-mentions";
 type RichPromptEditorProps = {
   className?: string;
   disabled?: boolean;
+  editorId?: string;
   onChange: (value: string) => void;
   onDismissMentionMenu?: () => void;
   onEscape?: () => void;
@@ -382,6 +383,7 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
   {
     className = "",
     disabled = false,
+    editorId = "main",
     onChange,
     onDismissMentionMenu,
     onEscape,
@@ -403,10 +405,13 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
     const editor = editorRef.current;
     if (!editor) return;
     const selectionOffset = keepSelection ? explicitSelectionOffset ?? getSelectionOffset(editor) : nextValue.length;
+    const shouldRestoreSelection = keepSelection || document.activeElement === editor;
     isRenderingRef.current = true;
     renderPromptValue(editor, nextValue);
     lastRenderedValueRef.current = nextValue;
-    setSelectionOffset(editor, selectionOffset);
+    if (shouldRestoreSelection) {
+      setSelectionOffset(editor, selectionOffset);
+    }
     window.queueMicrotask(() => {
       isRenderingRef.current = false;
     });
@@ -448,9 +453,9 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
 
     const canOpenMentionMenu = Date.now() >= suppressMentionMenuUntilRef.current;
     if (editorHasSelection && activeRange && canOpenMentionMenu && onRequestMentionMenu) {
-      onRequestMentionMenu({ anchorEl: editor, anchorRect: getSelectionClientRect(editor) || undefined, range: activeRange });
+      onRequestMentionMenu({ anchorEl: editor, anchorRect: getSelectionClientRect(editor) || undefined, editorId, promptValue: nextValue, range: activeRange });
     }
-  }, [onChange, onDismissMentionMenu, onRequestMentionMenu, syncDomFromValue]);
+  }, [editorId, onChange, onDismissMentionMenu, onRequestMentionMenu, syncDomFromValue]);
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -530,6 +535,8 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
 
     onRequestMentionMenu({
       anchorEl: token,
+      editorId,
+      promptValue: serializeEditorElement(editorRef.current),
       range: {
         start,
         end: start + canonical.length,
@@ -586,6 +593,7 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
         aria-label={placeholder}
         className={`${className} empty:before:pointer-events-none empty:before:text-white/28 empty:before:content-[attr(data-placeholder)]`}
         contentEditable={!disabled}
+        data-rich-prompt-editor-id={editorId}
         data-placeholder={placeholder}
         data-rich-prompt-editor="true"
         onBlur={syncChangeFromDom}
