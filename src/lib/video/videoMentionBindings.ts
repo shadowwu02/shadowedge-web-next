@@ -29,6 +29,11 @@ export type SanitizedVideoMentionBindings = {
   warnings: string[];
 };
 
+export type RemappedVideoMentionReferences = {
+  mentionBindings: VideoMentionBinding[];
+  prompt: string;
+};
+
 type CreateMentionBindingOptions = {
   createdAt?: number;
   sourceTokenText?: string;
@@ -299,6 +304,144 @@ export function sanitizeVideoMentionBindings(
 
 export function getMissingMentionBindings(bindings: VideoMentionBinding[], referenceMedia: UploadMediaItem[]) {
   return reconcileMentionBindings(bindings, referenceMedia).filter((binding) => binding.isMissing);
+}
+
+function findMediaByIdentity(referenceMedia: UploadMediaItem[], mediaId: string) {
+  const id = String(mediaId || "").trim();
+  if (!id) return undefined;
+  return referenceMedia.find((item) => getMediaIdentities(item).includes(id));
+}
+
+function findReadyMentionableByMedia(media: UploadMediaItem, readyItems: ReturnType<typeof getReadyMentionableMediaItems>) {
+  const identities = getMediaIdentities(media);
+  return readyItems.find((item) => identities.includes(item.id) || identities.includes(item.url));
+}
+
+function findMediaForPromptMention(
+  mention: ReturnType<typeof findPromptMentions>[number],
+  bindings: VideoMentionBinding[],
+  previousMedia: UploadMediaItem[],
+) {
+  const explicitBinding =
+    findMentionBindingForToken(bindings, mention.token, previousMedia) ||
+    findMentionBindingForToken(bindings, mention.display, previousMedia);
+
+  if (explicitBinding) {
+    const explicitMedia = findMediaByIdentity(previousMedia, explicitBinding.mediaId);
+    if (explicitMedia) {
+      return {
+        binding: bindings.find((item) => item.tokenId === explicitBinding.tokenId),
+        media: explicitMedia,
+      };
+    }
+  }
+
+  const previousMention = getReadyMentionableMediaItems(previousMedia).find(
+    (item) => item.type === mention.type && item.index === mention.index,
+  );
+  const legacyMedia = previousMention ? findMediaByIdentity(previousMedia, previousMention.id) : undefined;
+
+  return {
+    binding: undefined,
+    media: legacyMedia,
+  };
+}
+
+function replacePromptMentionRanges(prompt: string, replacements: Array<{ end: number; start: number; token: string }>) {
+  let nextPrompt = String(prompt || "");
+
+  replacements
+    .slice()
+    .sort((left, right) => right.start - left.start)
+    .forEach((replacement) => {
+      nextPrompt = `${nextPrompt.slice(0, replacement.start)}${replacement.token}${nextPrompt.slice(replacement.end)}`;
+    });
+
+  return nextPrompt;
+}
+
+function upsertBindingForMedia(
+  map: Map<string, VideoMentionBinding>,
+  media: UploadMediaItem,
+  displayLabel: string,
+  sourceTokenText: string,
+  existing?: VideoMentionBinding,
+) {
+  const identity = getMediaId(media);
+  if (!identity || map.has(identity)) return;
+
+  map.set(
+    identity,
+    createMentionBinding(
+      { id: media.id, type: media.type, url: media.url },
+      displayLabel,
+      {
+        createdAt: existing?.createdAt,
+        sourceTokenText,
+        tokenId: existing?.tokenId,
+        updatedAt: safeNow(),
+      },
+    ),
+  );
+}
+
+export function remapVideoMentionReferencesForMediaOrder({
+  bindings,
+  nextMedia,
+  previousMedia,
+  prompt,
+}: {
+  bindings: VideoMentionBinding[];
+  nextMedia: UploadMediaItem[];
+  previousMedia: UploadMediaItem[];
+  prompt: string;
+}): RemappedVideoMentionReferences {
+  const sanitizedBindings = serializeMentionBindings(bindings);
+  const mentions = findPromptMentions(prompt);
+  const nextReadyItems = getReadyMentionableMediaItems(nextMedia);
+  const replacements: Array<{ end: number; start: number; token: string }> = [];
+  const nextBindingByMedia = new Map<string, VideoMentionBinding>();
+
+  mentions.forEach((mention) => {
+    const resolved = findMediaForPromptMention(mention, sanitizedBindings, previousMedia);
+    if (!resolved.media) return;
+
+    const nextMediaItem = findMediaByIdentity(nextMedia, getMediaId(resolved.media));
+    if (!nextMediaItem) return;
+
+    const nextMention = findReadyMentionableByMedia(nextMediaItem, nextReadyItems);
+    if (!nextMention) return;
+
+    if (nextMention.token !== mention.token) {
+      replacements.push({
+        start: mention.start,
+        end: mention.end,
+        token: nextMention.token,
+      });
+    }
+
+    upsertBindingForMedia(nextBindingByMedia, nextMediaItem, nextMention.display, nextMention.token, resolved.binding);
+  });
+
+  sanitizedBindings.forEach((binding) => {
+    const nextMediaItem = findMediaByIdentity(nextMedia, binding.mediaId);
+    if (!nextMediaItem) return;
+    const nextMention = findReadyMentionableByMedia(nextMediaItem, nextReadyItems);
+    if (!nextMention) return;
+    upsertBindingForMedia(nextBindingByMedia, nextMediaItem, nextMention.display, nextMention.token, binding);
+  });
+
+  const nextPrompt = replacePromptMentionRanges(prompt, replacements);
+  const nextBindings = sanitizeVideoMentionBindings(
+    nextPrompt,
+    Array.from(nextBindingByMedia.values()),
+    nextMedia,
+  ).mentionBindings;
+
+  return {
+    prompt: nextPrompt,
+    mentionBindings: nextBindings,
+  };
 }
 
 export function serializeMentionBindings(bindings: VideoMentionBinding[]) {

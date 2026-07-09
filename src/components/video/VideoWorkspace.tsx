@@ -91,6 +91,7 @@ import { estimateVideoCreditsForParams, getVideoModelRule, hasVideoModelRule, no
 import { VIDEO_PROMPT_FRONTEND_LIMIT, VIDEO_PROMPT_FRONTEND_LIMIT_LABEL } from "@/lib/video/videoPromptLimits";
 import {
   parseMentionBindings,
+  remapVideoMentionReferencesForMediaOrder,
   sanitizeVideoMentionBindings,
   serializeMentionBindings,
   type VideoMentionBinding,
@@ -1742,6 +1743,44 @@ export function VideoWorkspace() {
   const updateMediaRole = useCallback((id: string, role: UploadMediaRole) => {
     setMedia((currentItems) => currentItems.map((item) => (item.id === id ? { ...item, role } : item)));
   }, []);
+
+  const reorderReferenceMedia = useCallback((orderedMedia: UploadMediaItem[]) => {
+    const orderedIds = orderedMedia.map((item) => item.id).filter(Boolean);
+    if (orderedIds.length < 2) return;
+
+    setMedia((currentItems) => {
+      const currentById = new Map(currentItems.map((item) => [item.id, item]));
+      const seen = new Set<string>();
+      const nextItems = [
+        ...orderedIds
+          .map((id) => {
+            const item = currentById.get(id);
+            if (!item) return null;
+            seen.add(id);
+            return item;
+          })
+          .filter((item): item is UploadMediaItem => Boolean(item)),
+        ...currentItems.filter((item) => !seen.has(item.id)),
+      ];
+
+      const isSameOrder =
+        currentItems.length === nextItems.length &&
+        currentItems.every((item, index) => item.id === nextItems[index]?.id);
+
+      if (isSameOrder) return currentItems;
+
+      const remapped = remapVideoMentionReferencesForMediaOrder({
+        prompt,
+        bindings: reconciledMentionBindings,
+        previousMedia: currentItems,
+        nextMedia: nextItems,
+      });
+
+      setPrompt(remapped.prompt);
+      setMentionBindings(remapped.mentionBindings);
+      return nextItems;
+    });
+  }, [prompt, reconciledMentionBindings]);
 
   const resetRemakeDerivedSourceState = useCallback((workspaceMessage = "") => {
     clearRemakeStoryboardDraft();
@@ -3765,7 +3804,13 @@ export function VideoWorkspace() {
                   onChange={setMedia}
                   reusableMedia={reusableMedia}
                 />
-                <ReferenceMediaTray media={media} modelRule={selectedModelRule} onRemove={removeMedia} onRoleChange={updateMediaRole} />
+                <ReferenceMediaTray
+                  media={media}
+                  modelRule={selectedModelRule}
+                  onRemove={removeMedia}
+                  onReorder={reorderReferenceMedia}
+                  onRoleChange={updateMediaRole}
+                />
                 <PromptBox
                   media={media}
                   mentionBindings={reconciledMentionBindings}

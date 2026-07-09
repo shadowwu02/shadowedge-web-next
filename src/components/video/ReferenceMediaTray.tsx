@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { DragEvent as ReactDragEvent } from "react";
 import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
 import { getMediaUploadErrorDisplayKeys, getSafeMediaItemDisplayName, normalizeMediaAssetUrl } from "@/lib/media-assets";
 import { getReadyMentionableMediaItems } from "@/lib/video-mentions";
@@ -27,6 +28,8 @@ type RoleMenuPosition = {
   top: number;
   width: number;
 };
+
+type DropPlacement = "after" | "before";
 
 function openMediaPicker(anchorEl: HTMLElement | null) {
   window.dispatchEvent(
@@ -134,11 +137,13 @@ export function ReferenceMediaTray({
   media,
   modelRule,
   onRemove,
+  onReorder,
   onRoleChange,
 }: {
   media: UploadMediaItem[];
   modelRule: VideoModelRule;
   onRemove: (id: string) => void;
+  onReorder?: (nextMedia: UploadMediaItem[]) => void;
   onRoleChange: (id: string, role: UploadMediaRole) => void;
 }) {
   const { locale, t, tf } = useI18n();
@@ -153,6 +158,9 @@ export function ReferenceMediaTray({
   const [previewItem, setPreviewItem] = useState<UploadMediaItem | null>(null);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [failedPreviewIds, setFailedPreviewIds] = useState<Set<string>>(() => new Set());
+  const [draggingId, setDraggingId] = useState("");
+  const [dragOverId, setDragOverId] = useState("");
+  const [dropPlacement, setDropPlacement] = useState<DropPlacement>("before");
   const rootRef = useRef<HTMLElement | null>(null);
   const roleMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -260,6 +268,61 @@ export function ReferenceMediaTray({
     return getSafeMediaItemDisplayName(item, Math.max(0, index), displayLocale);
   }
 
+  function clearDragState() {
+    setDraggingId("");
+    setDragOverId("");
+    setDropPlacement("before");
+  }
+
+  function getDropPlacement(event: ReactDragEvent<HTMLElement>): DropPlacement {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return event.clientX > rect.left + rect.width / 2 ? "after" : "before";
+  }
+
+  function reorderMedia(sourceId: string, targetId: string, placement: DropPlacement) {
+    if (!onReorder || !sourceId || !targetId || sourceId === targetId) return;
+
+    const sourceItem = media.find((item) => item.id === sourceId);
+    if (!sourceItem) return;
+
+    const withoutSource = media.filter((item) => item.id !== sourceId);
+    const targetIndex = withoutSource.findIndex((item) => item.id === targetId);
+    if (targetIndex < 0) return;
+
+    const insertIndex = placement === "after" ? targetIndex + 1 : targetIndex;
+    const nextMedia = [
+      ...withoutSource.slice(0, insertIndex),
+      sourceItem,
+      ...withoutSource.slice(insertIndex),
+    ];
+
+    onReorder(nextMedia);
+  }
+
+  function handleDragStart(event: ReactDragEvent<HTMLElement>, itemId: string) {
+    if (!onReorder) return;
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", itemId);
+    setOpenRoleId("");
+    setDraggingId(itemId);
+  }
+
+  function handleDragOver(event: ReactDragEvent<HTMLElement>, itemId: string) {
+    if (!onReorder || !draggingId || draggingId === itemId) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDragOverId(itemId);
+    setDropPlacement(getDropPlacement(event));
+  }
+
+  function handleDrop(event: ReactDragEvent<HTMLElement>, itemId: string) {
+    if (!onReorder) return;
+    event.preventDefault();
+    const sourceId = event.dataTransfer.getData("text/plain") || draggingId;
+    reorderMedia(sourceId, itemId, getDropPlacement(event));
+    clearDragState();
+  }
+
   function mediaStatusLabel(status: MediaStatus) {
     if (status === "ready") return t("video.references.status.ready");
     if (status === "uploading") return t("video.references.status.uploading");
@@ -327,7 +390,9 @@ export function ReferenceMediaTray({
           )}
         </div>
         <p className="mt-2 text-xs leading-5 text-[#b9b9b9]/55">{uploadSubtitle}</p>
-        <p className="mt-1 text-[11px] leading-4 text-[#b9b9b9]/45">{t("video.references.tokenHelper")}</p>
+        <p className="mt-1 text-[11px] leading-4 text-[#b9b9b9]/45">
+          {t("video.references.tokenHelper")} {media.length > 1 ? t("video.references.reorderHint") : ""}
+        </p>
         {showFrameSlotsByDefault ? (
           <div className="mt-2 grid grid-cols-2 gap-2">
             <div className={`rounded-[16px] border px-2.5 py-2 ${frameSlotToneClass(modelRule.supportsStartFrame, startFrameCount > 0)}`}>
@@ -365,26 +430,52 @@ export function ReferenceMediaTray({
             const displayName = displayNameFor(item, itemIndex);
             const displayToken = mention?.displayToken || (item.type === "video" ? `@Video ${itemIndex + 1}` : item.type === "audio" ? `@Audio ${itemIndex + 1}` : `@Image ${itemIndex + 1}`);
             const compactToken = mention ? getCompactMentionToken(mention.type, mention.index) : getCompactMentionToken(item.type, itemIndex + 1);
+            const isDragging = draggingId === item.id;
+            const isDropTarget = dragOverId === item.id && draggingId && draggingId !== item.id;
 
             return (
               <article
-                className={`group relative h-[124px] w-[112px] shrink-0 overflow-hidden rounded-[18px] border bg-[#05070b]/34 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,.04)] transition-colors ${
+                aria-grabbed={isDragging}
+                className={`group relative h-[124px] w-[112px] shrink-0 overflow-hidden rounded-[18px] border bg-[#05070b]/34 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,.04)] transition ${
                   issues.length ? "border-[#ffb44d]/38" : "border-[rgba(244,244,244,0.09)] hover:border-[#ffb44d]/36"
+                } ${onReorder ? "cursor-grab active:cursor-grabbing" : ""} ${
+                  isDragging ? "scale-[.98] opacity-55" : ""
+                } ${
+                  isDropTarget ? "border-[#ffb44d]/75 ring-2 ring-[#ffb44d]/45" : ""
+                } ${
+                  isDropTarget && dropPlacement === "before"
+                    ? "before:absolute before:bottom-2 before:left-0 before:top-2 before:z-20 before:w-1 before:rounded-full before:bg-[#ffb44d]"
+                    : ""
+                } ${
+                  isDropTarget && dropPlacement === "after"
+                    ? "after:absolute after:bottom-2 after:right-0 after:top-2 after:z-20 after:w-1 after:rounded-full after:bg-[#ffb44d]"
+                    : ""
                 }`}
+                draggable={Boolean(onReorder)}
                 key={item.id}
+                onDragEnd={clearDragState}
+                onDragLeave={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                    setDragOverId((current) => (current === item.id ? "" : current));
+                  }
+                }}
+                onDragOver={(event) => handleDragOver(event, item.id)}
+                onDragStart={(event) => handleDragStart(event, item.id)}
+                onDrop={(event) => handleDrop(event, item.id)}
                 title={issueTitle}
               >
                 <button
                   aria-label={tf("video.references.previewAsset", { name: displayName })}
                   className="relative grid h-full w-full place-items-center overflow-hidden rounded-[14px] border border-[rgba(244,244,244,0.08)] bg-[#111318]"
+                  draggable={Boolean(onReorder)}
                   onClick={() => setPreviewItem(item)}
                   type="button"
                 >
                   {item.type === "image" && previewUrl && !isPreviewBroken ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img alt="" className="h-full w-full object-cover" onError={() => markPreviewFailed(item.id)} src={previewUrl} />
+                    <img alt="" className="h-full w-full object-cover" draggable={false} onError={() => markPreviewFailed(item.id)} src={previewUrl} />
                   ) : item.type === "video" && item.url ? (
-                    <video className="h-full w-full object-cover" muted playsInline preload="metadata" src={item.url} />
+                    <video className="h-full w-full object-cover" draggable={false} muted playsInline preload="metadata" src={item.url} />
                   ) : (
                     <MediaTypeIcon className="size-5 text-[#ffd08a]/72" type={item.type} />
                   )}
