@@ -39,6 +39,7 @@ type RemakeStoryboardPanelProps = {
   };
   onCancelQueue?: () => void;
   onClearDraft?: () => void;
+  onUseInVideoWorkspace?: (shot: RemakeShot) => void;
   onUsePrompt: (prompt: string) => void;
   outputs?: RemakeOutputItem[];
   outputsScope?: RemakeOutputScope;
@@ -379,6 +380,7 @@ export function RemakeStoryboardPanel({
   metadata,
   onCancelQueue,
   onClearDraft,
+  onUseInVideoWorkspace,
   onUsePrompt,
   outputs = [],
   outputsScope = "recent",
@@ -586,6 +588,11 @@ export function RemakeStoryboardPanel({
             const isQueued = generation?.status === "queued";
             const isSkipped = generation?.status === "skipped";
             const hasGeneratedOutput = generation?.status === "success" && Boolean(generation.outputUrl);
+            const hasVideoWorkspaceDraftPayload = Boolean(
+              [shot.prompt, shot.camera, shot.motion, shot.position, shot.action, shot.emotion, shot.dialogue, shot.audio].some((value) =>
+                String(value || "").trim(),
+              ) || keyframes.some((frame) => /^https?:\/\//i.test(String(frame.url || ""))),
+            );
 
             return (
             <article
@@ -666,6 +673,14 @@ export function RemakeStoryboardPanel({
                     type="button"
                   >
                     {t("video.remake.usePrompt")}
+                  </button>
+                  <button
+                    className="se-button-secondary min-h-10 rounded-[16px] px-3 text-sm font-semibold"
+                    disabled={!onUseInVideoWorkspace || !hasVideoWorkspaceDraftPayload}
+                    onClick={() => onUseInVideoWorkspace?.(shot)}
+                    type="button"
+                  >
+                    {t("video.remake.useInVideoWorkspace")}
                   </button>
                   {hasGeneratedOutput ? (
                     <a

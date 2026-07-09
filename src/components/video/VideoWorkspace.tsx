@@ -84,6 +84,12 @@ import {
   readRemakeShotQueueDraft,
   saveRemakeShotQueueDraft,
 } from "@/lib/video/remakeShotQueueDraft";
+import {
+  consumeRemakeShotVideoHandoff,
+  remakeShotHandoffReferenceToUploadMediaItem,
+  saveRemakeShotVideoHandoff,
+  type RemakeShotVideoHandoffReference,
+} from "@/lib/video/remakeShotVideoHandoff";
 import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
 import { getReusableVideoOutputUrl, readVideoDraftNotice, sendVideoFailedJobToVideoDraft, sendVideoResultToVideoDraft } from "@/lib/video/videoResultDrafts";
 import { getVideoUserFacingErrorDisplay } from "@/lib/video/videoErrorDisplay";
@@ -1168,6 +1174,7 @@ export function VideoWorkspace() {
   const searchParams = useSearchParams();
   const isZh = getPromptStudioDraftLocale(locale) === "zh";
   const tabQuery = getVideoWorkspaceTabQuery(searchParams.get("tab"));
+  const fromQuery = searchParams.get("from")?.trim() || "";
   const remakeJobIdQuery = searchParams.get("remakeJobId")?.trim() || "";
   const [models, setModels] = useState<VideoModel[]>(fallbackModels);
   const [selectedModel, setSelectedModel] = useState<VideoModel>(fallbackModels[0]);
@@ -1245,6 +1252,8 @@ export function VideoWorkspace() {
   const promptStudioImportHighlightTimerRef = useRef<number | null>(null);
   const [isPromptStudioImportHighlighted, setIsPromptStudioImportHighlighted] = useState(false);
   const promptStudioDraftCheckedRef = useRef(false);
+  const remakeVideoHandoffCheckedRef = useRef(false);
+  const [remakeVideoHandoffSignal, setRemakeVideoHandoffSignal] = useState(0);
   const reconciledMentionBindings = useMemo(
     () => sanitizeVideoMentionBindings(prompt, serializeMentionBindings(mentionBindings), media).mentionBindings,
     [media, mentionBindings, prompt],
@@ -2435,6 +2444,59 @@ export function VideoWorkspace() {
     [t],
   );
 
+  const handleUseRemakeShotInVideoWorkspace = useCallback(
+    (shot: RemakeShot) => {
+      const shotPrompt = buildRemakeShotPrompt(shot);
+      if (!shotPrompt) {
+        setWorkspaceNotice(t("video.remake.videoDraftInvalidHandoff"));
+        return;
+      }
+
+      const shotModel = findRemakeShotModel(shot, models, selectedModel);
+      const referenceMedia: RemakeShotVideoHandoffReference[] = getRemoteRemakeKeyframes(shot).map((frame, index) => ({
+        height: frame.height,
+        label: `Shot ${shot.shot} keyframe ${index + 1}`,
+        mimeType: "image/jpeg",
+        source: "remake-keyframe",
+        type: "image",
+        url: frame.url,
+        width: frame.width,
+      }));
+
+      const result = saveRemakeShotVideoHandoff({
+        analysisId: remakeStoryboard?.id,
+        duration: shot.generationParams.duration,
+        modelId: shotModel?.id || shot.generationParams.modelId,
+        notes: {
+          camera: [shot.camera, shot.motion].filter(Boolean).join(" "),
+          characters: shot.referenceHints.characters.join(", "),
+          scene: [shot.position, shot.action, shot.emotion].filter(Boolean).join(" "),
+          style: remakeSceneStyle,
+        },
+        prompt: shotPrompt,
+        providerModel: shotModel?.providerModel,
+        quality: shot.generationParams.quality,
+        ratio: normalizeRemakeTargetRatio(shot.generationParams.ratio || params.ratio),
+        referenceMedia,
+        shotGroupId: shot.shotGroupId,
+        shotNumber: shot.shot,
+        sourceTimeRange: shot.sourceTimeRange,
+      });
+
+      if (!result.ok) {
+        setWorkspaceNotice(t("video.remake.videoDraftInvalidHandoff"));
+        return;
+      }
+
+      remakeVideoHandoffCheckedRef.current = false;
+      setRemakeVideoHandoffSignal((value) => value + 1);
+      setWorkspaceMode("create");
+      setWorkspaceNotice(t("video.remake.videoDraftSaved"));
+      router.push("/workspace/video?from=remake-shot");
+    },
+    [models, params.ratio, remakeSceneStyle, remakeStoryboard?.id, router, selectedModel, t],
+  );
+
   const handleImportPromptStudioDraft = useCallback(() => {
     if (!pendingPromptStudioDraft?.prompt) return;
     setWorkspaceMode("create");
@@ -3364,6 +3426,100 @@ export function VideoWorkspace() {
     [t],
   );
 
+  useEffect(() => {
+    if (!draftReady || fromQuery !== "remake-shot" || remakeVideoHandoffCheckedRef.current) return;
+    remakeVideoHandoffCheckedRef.current = true;
+
+    const timer = window.setTimeout(() => {
+      const handoff = consumeRemakeShotVideoHandoff();
+      if (!handoff?.prompt) {
+        setWorkspaceNotice(t("video.remake.videoDraftInvalidHandoff"));
+        return;
+      }
+
+      const existingPrompt = prompt.trim();
+      const hasExistingDraft = Boolean(existingPrompt || media.length);
+      const nextPrompt = existingPrompt
+        ? existingPrompt.toLowerCase().includes(handoff.prompt.toLowerCase())
+          ? prompt
+          : `${existingPrompt}\n\n---\n${handoff.prompt}`
+        : handoff.prompt;
+
+      const acceptedReferences: UploadMediaItem[] = [];
+      let referenceNotice = "";
+      const incomingReferences = handoff.referenceMedia
+        .map((reference, index) => remakeShotHandoffReferenceToUploadMediaItem(reference, index, handoff))
+        .filter((item): item is UploadMediaItem => {
+          if (!item) return false;
+          return isReadyRemoteMedia(item);
+        });
+
+      for (const nextAsset of incomingReferences) {
+        const normalizedNextUrl = normalizeMediaAssetUrl(nextAsset.url);
+        const isDuplicate = [...media, ...acceptedReferences].some((item) => {
+          const normalizedExistingUrl = normalizeMediaAssetUrl(item.url);
+          return Boolean((normalizedNextUrl && normalizedExistingUrl === normalizedNextUrl) || (nextAsset.id && item.id === nextAsset.id));
+        });
+        if (isDuplicate) continue;
+
+        const roleIssue = getReferenceRoleIssue(selectedModelRule, nextAsset.type, nextAsset.role || "reference");
+        if (roleIssue) {
+          referenceNotice ||= localizeReferenceIssue(roleIssue);
+          continue;
+        }
+
+        const selectionIssue = validateReferenceSelectionForRule(selectedModelRule, [...media, ...acceptedReferences], [nextAsset]);
+        if (selectionIssue) {
+          referenceNotice ||=
+            selectionIssue.includes("Reference limit reached") || selectionIssue.includes("Type limit reached")
+              ? t("video.remake.videoDraftReferenceFull")
+              : localizeReferenceIssue(selectionIssue);
+          continue;
+        }
+
+        acceptedReferences.push(nextAsset);
+      }
+
+      setWorkspaceMode("create");
+      setPrompt(nextPrompt);
+      if (acceptedReferences.length) {
+        setMedia((current) => mergeMediaAssets(current, acceptedReferences));
+      }
+
+      if (!hasExistingDraft) {
+        const draftModel = findVideoModelByLookup(models, handoff.modelId) || findVideoModelByLookup(models, handoff.providerModel) || selectedModel;
+        setSelectedModel(draftModel);
+        setParams(
+          buildParamsForModel(draftModel, {
+            duration: handoff.duration,
+            generateAudio: params.generateAudio,
+            quality: handoff.quality,
+            ratio: handoff.ratio,
+          }),
+        );
+      }
+
+      const notices = [t("video.remake.videoDraftSaved")];
+      if (hasExistingDraft) notices.push(t("video.remake.videoDraftExistingPreserved"));
+      if (referenceNotice) notices.push(referenceNotice);
+      setWorkspaceNotice(notices.join(" "));
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    draftReady,
+    fromQuery,
+    localizeReferenceIssue,
+    media,
+    models,
+    params.generateAudio,
+    prompt,
+    remakeVideoHandoffSignal,
+    selectedModel,
+    selectedModelRule,
+    t,
+  ]);
+
   const getHistoryReferenceAssetIssue = useCallback(
     (asset: UploadMediaItem) => {
       const nextAsset: UploadMediaItem = {
@@ -3826,6 +3982,7 @@ export function VideoWorkspace() {
             queueStatus={remakeShotQueue.status}
             queueTotal={remakeShotQueue.queueTotal}
             queueWasInterrupted={Boolean(remakeShotQueue.wasInterruptedFromDraft)}
+            onUseInVideoWorkspace={handleUseRemakeShotInVideoWorkspace}
             onUsePrompt={handleUseRemakePrompt}
             settings={{
               aspectRatio: normalizeRemakeTargetRatio(params.ratio),
