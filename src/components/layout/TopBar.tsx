@@ -47,7 +47,7 @@ export function TopBar({
   return (
     <header
       className={cn(
-        "flex min-h-14 shrink-0 items-center justify-between gap-4 border-b px-3 backdrop-blur-xl md:px-4",
+        "relative flex min-h-14 shrink-0 items-center justify-between gap-4 overflow-visible border-b px-3 backdrop-blur-xl md:px-4",
         goldTideShell
           ? "border-[#d9b56d]/14 bg-[#080806]/95 shadow-[0_1px_0_rgba(217,181,109,.08),0_18px_48px_rgba(0,0,0,.18)]"
           : "border-[rgba(244,244,244,0.08)] bg-[#05070b]/94",
@@ -110,7 +110,7 @@ export function TopBar({
           </div>
         )}
       </div>
-      <div className="flex shrink-0 items-center gap-2 md:gap-3">
+      <div className="flex shrink-0 items-center gap-2 overflow-visible md:gap-3">
         <CreditBadge credits={credits} label={creditLabel} variant={goldTideShell ? "goldTide" : "default"} />
         <LanguageSwitch locale={locale} onChange={onLocaleChange} />
         {profile?.email ? (
