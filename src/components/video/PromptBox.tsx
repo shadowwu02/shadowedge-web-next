@@ -888,7 +888,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
           className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/64 p-3 backdrop-blur-md sm:p-6"
           role="dialog"
         >
-          <div className="flex h-[88vh] w-[calc(100vw-24px)] max-w-[1040px] flex-col overflow-hidden rounded-[28px] border border-[#ffb44d]/24 bg-[#10141f]/98 shadow-[0_28px_90px_rgba(0,0,0,.58)] sm:h-[72vh] sm:w-[70vw] lg:w-[62vw]">
+          <div className="flex h-[88dvh] max-h-[calc(100dvh-24px)] w-[calc(100vw-24px)] max-w-[1040px] flex-col overflow-hidden rounded-[28px] border border-[#ffb44d]/24 bg-[#10141f]/98 shadow-[0_28px_90px_rgba(0,0,0,.58)] sm:h-[72dvh] sm:max-h-[calc(100dvh-48px)] sm:w-[70vw] lg:w-[62vw]">
             <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-3.5 sm:px-5">
               <div className="min-w-0">
                 <h3 className="text-base font-black text-white" id="video-prompt-expanded-title">
@@ -912,7 +912,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
             <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4">
               {renderReferenceBindings(true)}
               <RichPromptEditor
-                className="se-scrollbar mt-3 min-h-0 flex-1 overflow-auto rounded-[22px] border border-white/10 bg-[#05070b]/72 px-4 py-3.5 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70"
+                className="se-scrollbar h-full min-h-0 overflow-y-auto rounded-[22px] border border-white/10 bg-[#05070b]/72 px-4 py-3.5 text-sm leading-7 text-white outline-none transition placeholder:text-white/28 focus:border-[#ffb44d]/70"
                 editorId="expand"
                 onChange={onChange}
                 onDismissMentionMenu={closeMentionMenu}
@@ -921,6 +921,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
                 placeholder={t("video.prompt.placeholder")}
                 ref={expandedEditorRef}
                 value={value}
+                wrapperClassName="mt-3 min-h-0 flex-1"
               />
               <p className="mt-2 text-xs leading-5 text-white/44">{t("video.prompt.editorHelper")}</p>
             </div>

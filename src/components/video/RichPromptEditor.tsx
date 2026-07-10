@@ -27,6 +27,7 @@ type RichPromptEditorProps = {
   onRequestMentionMenu?: (request: RichPromptMenuRequest) => void;
   placeholder?: string;
   value: string;
+  wrapperClassName?: string;
 };
 
 function isReferenceTokenElement(node: Node | null) {
@@ -390,6 +391,7 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
     onRequestMentionMenu,
     placeholder,
     value,
+    wrapperClassName = "",
   },
   forwardedRef,
 ) {
@@ -588,7 +590,7 @@ export const RichPromptEditor = forwardRef<HTMLDivElement, RichPromptEditorProps
   }
 
   return (
-    <div className="relative">
+    <div className={`relative ${wrapperClassName}`.trim()}>
       <div
         aria-label={placeholder}
         className={`${className} empty:before:pointer-events-none empty:before:text-white/28 empty:before:content-[attr(data-placeholder)]`}
