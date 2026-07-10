@@ -14,14 +14,25 @@ type VideoRemakeWorkspaceProps = {
   estimateOnlySummary?: string;
   isAnalyzing?: boolean;
   isEstimateOnlyLoading?: boolean;
+  isLongVideoCreating?: boolean;
+  isLongVideoEstimating?: boolean;
   isSandboxEstimateLoading?: boolean;
+  guardedLongVideoUx?: boolean;
+  longVideoEstimate?: {
+    balance: number | null;
+    billableNow: boolean;
+    chargeCreditsNow: number;
+    estimatedCredits: number;
+  } | null;
   longVideoCostNotice?: string;
   mode: RemakeMode;
   onAnalyze: () => void;
   onCharacterRulesChange: (value: string) => void;
   onEstimateLongVideoCost?: () => void;
   onEstimateLongVideoSandbox?: () => void;
+  onCancelLongVideoConfirmation?: () => void;
   onClearSourceVideo: () => void;
+  onConfirmLongVideoAnalysis?: () => void;
   onModeChange: (mode: RemakeMode) => void;
   onSceneStyleChange: (value: string) => void;
   onSourceVideoChange: (source: RemakeSourceVideo | null) => void;
@@ -61,14 +72,20 @@ export function VideoRemakeWorkspace({
   estimateOnlySummary = "",
   isAnalyzing = false,
   isEstimateOnlyLoading = false,
+  isLongVideoCreating = false,
+  isLongVideoEstimating = false,
   isSandboxEstimateLoading = false,
+  guardedLongVideoUx = false,
+  longVideoEstimate = null,
   longVideoCostNotice = "",
   mode,
   onAnalyze,
   onCharacterRulesChange,
   onEstimateLongVideoCost,
   onEstimateLongVideoSandbox,
+  onCancelLongVideoConfirmation,
   onClearSourceVideo,
+  onConfirmLongVideoAnalysis,
   onModeChange,
   onSceneStyleChange,
   onSourceVideoChange,
@@ -81,7 +98,9 @@ export function VideoRemakeWorkspace({
   targetRegion,
   translateDialogue,
 }: VideoRemakeWorkspaceProps) {
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
+  const isGuardedLongVideoBusy =
+    guardedLongVideoUx && (isLongVideoCreating || isLongVideoEstimating || Boolean(longVideoEstimate));
   const analyzeBlockedReasonKey = getAnalyzeBlockedReasonKey(mode, sourceVideo?.duration);
   const canEstimateLongVideoCost =
     mode === "long_video" &&
@@ -123,12 +142,50 @@ export function VideoRemakeWorkspace({
         onChange={onSourceVideoChange}
         sourceVideo={sourceVideo}
       />
-      {mode === "long_video" && longVideoCostNotice ? (
+      {mode === "long_video" && !guardedLongVideoUx && longVideoCostNotice ? (
         <p className="rounded-[18px] border border-[#ffb44d]/24 bg-[#ffb44d]/9 p-3 text-xs leading-5 text-[#ffd08a]/86">
           {longVideoCostNotice}
         </p>
       ) : null}
-      {mode === "long_video" ? (
+      {mode === "long_video" && guardedLongVideoUx && longVideoEstimate ? (
+        <section className="se-card grid gap-3 rounded-[24px] p-4">
+          <div>
+            <p className="se-eyebrow">{t("video.remake.longVideo.cost.confirmTitle")}</p>
+            <p className="mt-1 text-xs leading-5 text-[#b9b9b9]/68">
+              {t("video.remake.longVideo.cost.confirmHelp")}
+            </p>
+          </div>
+          <p className="rounded-[16px] border border-[#ffb44d]/24 bg-[#ffb44d]/9 p-3 text-xs leading-5 text-[#ffd08a]/86">
+            {tf("video.remake.longVideo.cost.confirmDetails", {
+              balance: longVideoEstimate.balance ?? t("video.remake.longVideo.cost.unknownBalance"),
+              chargeNow: longVideoEstimate.billableNow ? longVideoEstimate.chargeCreditsNow : 0,
+              credits: longVideoEstimate.estimatedCredits,
+            })}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              aria-busy={isLongVideoCreating}
+              className="se-button-primary min-h-10 rounded-[16px] px-4 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isLongVideoCreating}
+              onClick={onConfirmLongVideoAnalysis}
+              type="button"
+            >
+              {isLongVideoCreating
+                ? t("video.remake.longVideo.cost.creating")
+                : t("video.remake.longVideo.cost.confirmAnalysis")}
+            </button>
+            <button
+              className="se-button-secondary min-h-10 rounded-[16px] px-4 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isLongVideoCreating}
+              onClick={onCancelLongVideoConfirmation}
+              type="button"
+            >
+              {t("video.remake.longVideo.cost.cancelAnalysis")}
+            </button>
+          </div>
+        </section>
+      ) : null}
+      {mode === "long_video" && !guardedLongVideoUx ? (
         <section className="se-card grid gap-2 rounded-[24px] p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
@@ -186,7 +243,7 @@ export function VideoRemakeWorkspace({
         analysisError={analysisError}
         analysisNotice={analysisNotice}
         characterRules={characterRules}
-        isAnalyzing={isAnalyzing}
+        isAnalyzing={isAnalyzing || isGuardedLongVideoBusy}
         mode={mode}
         onAnalyze={onAnalyze}
         onCharacterRulesChange={onCharacterRulesChange}

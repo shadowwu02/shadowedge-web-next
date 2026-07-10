@@ -39,9 +39,11 @@ import type {
 import { useTaskPolling } from "@/hooks/useTaskPolling";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useCredits } from "@/hooks/useCredits";
+import { useLongVideoRemakeAnalysis } from "@/hooks/useLongVideoRemakeAnalysis";
 import { useVideoGeneration } from "@/hooks/useVideoGeneration";
 import { type DictionaryKey, useI18n } from "@/i18n/useI18n";
 import { collectHistoryInputMediaAssets, collectReusableVideoAssets, mergeMediaAssets, normalizeMediaAssetUrl } from "@/lib/media-assets";
+import { remakeFeatures } from "@/config/remakeFeatures";
 import {
   consumePromptStudioToVideoDraft,
   getPromptStudioDraftLocale,
@@ -1230,6 +1232,8 @@ export function VideoWorkspace() {
   } | null>(null);
 
   const { isLoading: isAuthLoading, isSignedIn, profile, token } = useAuthSession();
+  const guardedLongVideoUxEnabled =
+    remakeFeatures.longVideoUxEnabled && profile?.canUseLongVideoRealAnalysis === true;
   const { credits, maxConcurrency } = useCredits();
   const {
     activeTaskCount,
@@ -1824,7 +1828,148 @@ export function VideoWorkspace() {
     });
   }, [prompt, reconciledMentionBindings]);
 
+  const applyCompletedLongVideoAnalysisJob = useCallback(
+    (longVideoJob: VideoRemakeLongAnalysisJob) => {
+      const canonicalResult = longVideoJob.canonicalResult;
+      const jobMetadata = getPlainRecord(longVideoJob.metadata);
+      const resultMetadata = getPlainRecord(longVideoJob.result?.metadata);
+      const targetRatio = normalizeRemakeTargetRatio(
+        longVideoJob.result?.storyboard?.targetRatio ||
+          longVideoJob.result?.storyboard?.aspectRatio ||
+          resultMetadata.targetRatio ||
+          resultMetadata.aspectRatio ||
+          jobMetadata.targetRatio ||
+          jobMetadata.aspectRatio ||
+          params.ratio,
+      );
+      const sourceTitle = remakeSourceVideo?.name || "Long source video";
+      const storyboard =
+        longVideoJob.result?.storyboard ||
+        buildLongVideoStoryboardFromCanonical({
+          canonicalResult,
+          fallbackReason: "",
+          sourceTitle,
+          targetRatio,
+        });
+      if (!storyboard?.shots?.length) throw new Error("LONG_VIDEO_STORYBOARD_UNAVAILABLE");
+
+      const canonicalVisual = canonicalResult?.visualUnderstanding;
+      const providerCallMade = hasTrueFlag(
+        canonicalVisual?.providerCallMade,
+        jobMetadata.providerCallMade,
+        resultMetadata.providerCallMade,
+        storyboard.providerCallMade,
+      );
+      const vlmCalled = hasTrueFlag(
+        canonicalVisual?.vlmCalled,
+        jobMetadata.vlmCalled,
+        resultMetadata.vlmCalled,
+        storyboard.vlmCalled,
+      );
+      const analyzedStoryboard: RemakeStoryboard = {
+        ...storyboard,
+        analysisSource: "vlm",
+        aspectRatio: storyboard.aspectRatio || targetRatio,
+        fallbackReason: undefined,
+        mock: false,
+        providerCallMade,
+        sandboxVlm: false,
+        shots: storyboard.shots.map((shot) => {
+          const imageHints = shot.referenceHints.images.filter(
+            (hint) => hint !== "no real visual model was called",
+          );
+          return {
+            ...shot,
+            referenceHints: {
+              ...shot.referenceHints,
+              images: imageHints.length ? imageHints : ["source keyframe analysis"],
+            },
+          };
+        }),
+        targetRatio: storyboard.targetRatio || targetRatio,
+        vlmCalled,
+      };
+      const sourceVideoMetadata = longVideoJob.sourceVideo || longVideoJob.result?.sourceVideo;
+
+      setWorkspaceMode("remake");
+      setRemakeMode("long_video");
+      setRemakeStoryboard(analyzedStoryboard);
+      setRemakeAnalysisMeta({
+        analysisSource: "vlm",
+        aspectRatio: analyzedStoryboard.aspectRatio || targetRatio,
+        canonicalResult,
+        mock: false,
+        providerCallMade,
+        sandboxVlm: false,
+        segments: longVideoJob.result?.segments,
+        sourceVideo: sourceVideoMetadata,
+        targetRatio: analyzedStoryboard.targetRatio || targetRatio,
+        vlmCalled,
+      });
+      setRemakeAnalysisError("");
+      setRemakeAnalysisNotice(t("video.remake.analysisComplete"));
+      setIsRemakeDraftRestored(false);
+
+      const draftResult = saveRemakeStoryboardDraft({
+        segments: longVideoJob.result?.segments,
+        settings: {
+          aspectRatio: targetRatio,
+          characterRules: remakeCharacterRules,
+          mode: "long_video",
+          sceneStyle: remakeSceneStyle,
+          targetRatio,
+          targetRegion: remakeTargetRegion,
+          translateDialogue: remakeTranslateDialogue,
+        },
+        sourceVideo: remakeSourceVideo,
+        sourceVideoMetadata,
+        sourceVideoUrl: remakeSourceVideo?.url || "",
+        storyboard: analyzedStoryboard,
+      });
+      if (!draftResult.ok) setWorkspaceNotice(t("video.remake.draftSaveFailed"));
+    },
+    [
+      params.ratio,
+      remakeCharacterRules,
+      remakeSceneStyle,
+      remakeSourceVideo,
+      remakeTargetRegion,
+      remakeTranslateDialogue,
+      t,
+    ],
+  );
+
+  const handleLongVideoJobRestored = useCallback(() => {
+    setWorkspaceMode("remake");
+    setRemakeMode("long_video");
+    setRemakeAnalysisError("");
+    setRemakeAnalysisNotice("");
+  }, []);
+
+  const {
+    activeJob: activeLongVideoAnalysisJob,
+    cancelConfirmation: cancelLongVideoConfirmation,
+    confirmCreate: confirmLongVideoAnalysis,
+    errorCategory: longVideoAnalysisErrorCategory,
+    isActive: isLongVideoAnalysisActive,
+    isCreating: isLongVideoAnalysisCreating,
+    isEstimating: isLongVideoAnalysisEstimating,
+    pendingEstimate: pendingLongVideoEstimate,
+    progress: longVideoAnalysisProgress,
+    requestEstimate: requestLongVideoAnalysisEstimate,
+    reset: resetLongVideoAnalysis,
+    state: longVideoAnalysisState,
+  } = useLongVideoRemakeAnalysis({
+    enabled: guardedLongVideoUxEnabled,
+    onCompleted: applyCompletedLongVideoAnalysisJob,
+    onRestored: handleLongVideoJobRestored,
+    restoreOnMount: !isAuthLoading && isSignedIn,
+  });
+  const guardedLongVideoUxVisible =
+    guardedLongVideoUxEnabled || Boolean(activeLongVideoAnalysisJob || longVideoAnalysisState || pendingLongVideoEstimate);
+
   const resetRemakeDerivedSourceState = useCallback((workspaceMessage = "") => {
+    resetLongVideoAnalysis();
     clearRemakeStoryboardDraft();
     clearRemakeShotQueueDraft();
     remakeQueueDraftSignatureRef.current = "";
@@ -1849,7 +1994,7 @@ export function VideoWorkspace() {
     setRemakeShotQueue(idleRemakeShotQueue);
     setRemakeActiveShotRecovery(null);
     setWorkspaceNotice(workspaceMessage);
-  }, []);
+  }, [resetLongVideoAnalysis]);
 
   const handleAnalyzeRemakeStoryboard = useCallback(async () => {
     const analysisRevision = remakeSourceRevisionRef.current;
@@ -1968,6 +2113,16 @@ export function VideoWorkspace() {
       }
 
       if (remakeSourceRevisionRef.current !== analysisRevision) return;
+      if (remakeMode === "long_video" && guardedLongVideoUxEnabled) {
+        setRemakeStoryboard(null);
+        setRemakeAnalysisNotice("");
+        await requestLongVideoAnalysisEstimate({
+          sourceAssetId: sourceVideoForAnalyze?.assetId,
+          sourceVideoUrl,
+          targetRatio,
+        });
+        return;
+      }
       if (remakeMode === "long_video") {
         setRemakeAnalysisNotice(t("video.remake.longVideo.cost.estimating"));
         let costEstimate: VideoRemakeLongAnalysisCostEstimate;
@@ -2299,6 +2454,7 @@ export function VideoWorkspace() {
   }, [
     applyCompletedFullEpisodeAnalysisJob,
     getRemakeVlmProviderLabel,
+    guardedLongVideoUxEnabled,
     params.ratio,
     remakeCharacterRules,
     remakeMode,
@@ -2306,9 +2462,21 @@ export function VideoWorkspace() {
     remakeSourceVideo,
     remakeTargetRegion,
     remakeTranslateDialogue,
+    requestLongVideoAnalysisEstimate,
     t,
     tf,
   ]);
+
+  const handleConfirmLongVideoAnalysis = useCallback(async () => {
+    setRemakeAnalysisError("");
+    setRemakeAnalysisNotice("");
+    await confirmLongVideoAnalysis();
+  }, [confirmLongVideoAnalysis]);
+
+  const handleCancelLongVideoConfirmation = useCallback(() => {
+    cancelLongVideoConfirmation();
+    setRemakeAnalysisNotice(t("video.remake.longVideo.cost.confirmationCancelled"));
+  }, [cancelLongVideoConfirmation, t]);
 
   const handleEstimateLongVideoCostOnly = useCallback(async () => {
     const estimateRevision = remakeSourceRevisionRef.current;
@@ -2388,6 +2556,10 @@ export function VideoWorkspace() {
 
   const handleRemakeSourceVideoChange = useCallback(
     (source: RemakeSourceVideo | null) => {
+      if (isLongVideoAnalysisActive || isLongVideoAnalysisCreating) {
+        setWorkspaceNotice(t("video.remake.longVideo.analyzing"));
+        return;
+      }
       if (!source) {
         remakeSourceRevisionRef.current += 1;
         setRemakeSourceVideo(null);
@@ -2411,28 +2583,40 @@ export function VideoWorkspace() {
           : source,
       );
     },
-    [remakeSourceVideo, resetRemakeDerivedSourceState],
+    [isLongVideoAnalysisActive, isLongVideoAnalysisCreating, remakeSourceVideo, resetRemakeDerivedSourceState, t],
   );
 
   const handleClearRemakeSourceVideo = useCallback(() => {
+    if (isLongVideoAnalysisActive || isLongVideoAnalysisCreating) {
+      setWorkspaceNotice(t("video.remake.longVideo.analyzing"));
+      return;
+    }
     remakeSourceRevisionRef.current += 1;
     setRemakeSourceVideo(null);
     resetRemakeDerivedSourceState(t("video.remake.sourceVideoRemoved"));
-  }, [resetRemakeDerivedSourceState, t]);
+  }, [isLongVideoAnalysisActive, isLongVideoAnalysisCreating, resetRemakeDerivedSourceState, t]);
 
   const handleClearRemakeDraft = useCallback(() => {
+    if (isLongVideoAnalysisActive || isLongVideoAnalysisCreating) {
+      setWorkspaceNotice(t("video.remake.longVideo.analyzing"));
+      return;
+    }
     remakeSourceRevisionRef.current += 1;
     setRemakeSourceVideo(null);
     resetRemakeDerivedSourceState();
-  }, [resetRemakeDerivedSourceState]);
+  }, [isLongVideoAnalysisActive, isLongVideoAnalysisCreating, resetRemakeDerivedSourceState, t]);
 
   const handleRemakeModeChange = useCallback(
     (mode: RemakeMode) => {
       if (mode === remakeMode) return;
+      if (isLongVideoAnalysisActive || isLongVideoAnalysisCreating) {
+        setWorkspaceNotice(t("video.remake.longVideo.analyzing"));
+        return;
+      }
       resetRemakeDerivedSourceState();
       setRemakeMode(mode);
     },
-    [remakeMode, resetRemakeDerivedSourceState],
+    [isLongVideoAnalysisActive, isLongVideoAnalysisCreating, remakeMode, resetRemakeDerivedSourceState, t],
   );
 
   const handleUseRemakePrompt = useCallback(
@@ -3689,6 +3873,7 @@ export function VideoWorkspace() {
   ];
 
   const remakeLongVideoCostNotice = useMemo(() => {
+    if (guardedLongVideoUxVisible) return "";
     if (remakeMode !== "long_video" || !remakeSourceVideo) return "";
     if (!remakeLongVideoCostEstimate) return t("video.remake.longVideo.cost.freeInBeta");
     if (remakeLongVideoCostEstimate.requiresConfirmation) {
@@ -3699,7 +3884,7 @@ export function VideoWorkspace() {
     }
     if (remakeLongVideoCostEstimate.requiresRealVlmEnabled) return t("video.remake.longVideo.cost.realVlmDisabled");
     return t("video.remake.longVideo.cost.mockNoChargeNotice");
-  }, [remakeLongVideoCostEstimate, remakeMode, remakeSourceVideo, t, tf]);
+  }, [guardedLongVideoUxVisible, remakeLongVideoCostEstimate, remakeMode, remakeSourceVideo, t, tf]);
 
   const remakeEstimateOnlySummary = useMemo(() => {
     if (!remakeEstimateOnlyResult) return "";
@@ -3742,6 +3927,16 @@ export function VideoWorkspace() {
 
   const remakeAnalyzeLabel = isRemakeSourceUploading
     ? t("video.remake.analyzingSourceVideo")
+    : remakeMode === "long_video" && guardedLongVideoUxVisible
+      ? isLongVideoAnalysisEstimating
+        ? t("video.remake.longVideo.cost.estimating")
+        : isLongVideoAnalysisCreating
+          ? t("video.remake.longVideo.cost.creating")
+          : isLongVideoAnalysisActive
+            ? t("video.remake.longVideo.analyzing")
+            : pendingLongVideoEstimate
+              ? t("video.remake.longVideo.cost.confirmTitle")
+              : t("video.remake.longVideo.cost.estimateAndContinue")
     : isRemakeAnalyzing
       ? remakeMode === "long_video"
         ? t("video.remake.longVideo.analyzing")
@@ -3795,14 +3990,26 @@ export function VideoWorkspace() {
               characterRules={remakeCharacterRules}
               estimateOnlyError={remakeEstimateOnlyError}
               estimateOnlySummary={remakeEstimateOnlySummary}
-              isAnalyzing={isRemakeAnalyzing || isRemakeSourceUploading || isRemakeEstimateOnlyLoading || isRemakeSandboxEstimateOnlyLoading}
+              guardedLongVideoUx={guardedLongVideoUxVisible}
+              isAnalyzing={
+                isRemakeAnalyzing ||
+                isRemakeSourceUploading ||
+                isRemakeEstimateOnlyLoading ||
+                isRemakeSandboxEstimateOnlyLoading ||
+                isLongVideoAnalysisActive
+              }
               isEstimateOnlyLoading={isRemakeEstimateOnlyLoading}
+              isLongVideoCreating={isLongVideoAnalysisCreating}
+              isLongVideoEstimating={isLongVideoAnalysisEstimating}
               isSandboxEstimateLoading={isRemakeSandboxEstimateOnlyLoading}
+              longVideoEstimate={pendingLongVideoEstimate}
               longVideoCostNotice={remakeLongVideoCostNotice}
               mode={remakeMode}
               onAnalyze={handleAnalyzeRemakeStoryboard}
               onCharacterRulesChange={setRemakeCharacterRules}
+              onCancelLongVideoConfirmation={handleCancelLongVideoConfirmation}
               onClearSourceVideo={handleClearRemakeSourceVideo}
+              onConfirmLongVideoAnalysis={handleConfirmLongVideoAnalysis}
               onEstimateLongVideoCost={handleEstimateLongVideoCostOnly}
               onEstimateLongVideoSandbox={handleEstimateLongVideoSandboxOnly}
               onModeChange={handleRemakeModeChange}
@@ -3969,8 +4176,13 @@ export function VideoWorkspace() {
           <RemakeStoryboardPanel
             analysisNotice={remakeAnalysisNotice}
             draftNotice={isRemakeDraftRestored ? t("video.remake.restoredDraft") : ""}
+            guardedLongVideoUx={guardedLongVideoUxVisible}
             hasSourceVideo={Boolean(remakeSourceVideo)}
-            isAnalyzing={isRemakeAnalyzing || isRemakeSourceUploading}
+            isAnalyzing={isRemakeAnalyzing || isRemakeSourceUploading || isLongVideoAnalysisActive}
+            longVideoAnalysisErrorCategory={longVideoAnalysisErrorCategory}
+            longVideoAnalysisProgress={longVideoAnalysisProgress}
+            longVideoAnalysisState={longVideoAnalysisState}
+            longVideoSourceName={remakeSourceVideo?.name || ""}
             metadata={remakeAnalysisMeta || undefined}
             onCancelQueue={handleCancelRemakeQueue}
             onClearDraft={handleClearRemakeDraft}

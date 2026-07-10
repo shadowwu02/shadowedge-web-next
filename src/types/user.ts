@@ -5,6 +5,7 @@ export type ShadowEdgeUser = {
 };
 
 export type ShadowEdgeProfile = {
+  canUseLongVideoRealAnalysis?: boolean;
   email?: string;
   name?: string;
   plan?: string;

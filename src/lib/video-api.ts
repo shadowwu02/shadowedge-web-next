@@ -68,8 +68,13 @@ export type VideoRemakeReverseAnalyzeResponse = {
 export type VideoRemakeLongAnalysisStage =
   | "queued"
   | "reading_metadata"
+  | "preparing"
   | "extracting_keyframes"
+  | "extracting_frames"
+  | "analyzing_segments"
+  | "analyzing"
   | "building_storyboard"
+  | "merging_storyboard"
   | "completed"
   | "failed";
 
@@ -79,7 +84,7 @@ export type VideoRemakeLongAnalysisJob = {
   analysisJobId: string;
   canonicalResult?: VideoAnalysisCanonicalResult | null;
   status: VideoRemakeLongAnalysisStatus;
-  progress: number;
+  progress: number | null;
   stage: VideoRemakeLongAnalysisStage;
   result?: {
     metadata?: Record<string, unknown>;
@@ -151,6 +156,7 @@ export type VideoRemakeLongAnalysisCostEstimate = {
   balance: number | null;
   billableNow: boolean;
   chargeCreditsNow: number;
+  estimateId: string | null;
   estimatedCredits: number;
   estimatedCreditsIfRealVlm: number;
   estimatedCostUnits: number | null;
@@ -312,6 +318,13 @@ function normalizeLongAnalysisJob(payload: unknown): VideoRemakeLongAnalysisJob 
     status,
   });
   const sourceDuration = Number(sourceVideo.duration ?? sourceVideo.durationSeconds);
+  const rawProgress = job.progress ?? data.progress ?? root.progress;
+  const normalizedProgress =
+    rawProgress === undefined || rawProgress === null || rawProgress === ""
+      ? null
+      : Number.isFinite(Number(rawProgress))
+        ? Math.min(1, Math.max(0, Number(rawProgress)))
+        : null;
 
   return {
     analysisJobId,
@@ -319,7 +332,7 @@ function normalizeLongAnalysisJob(payload: unknown): VideoRemakeLongAnalysisJob 
     errorCode: pickString(job.errorCode, job.error_code, data.errorCode, data.error_code, root.errorCode, root.error_code, root.error),
     errorMessage: pickString(job.errorMessage, job.error_message, data.errorMessage, data.error_message, root.errorMessage, root.message),
     metadata,
-    progress: Math.min(1, Math.max(0, Number(job.progress ?? data.progress ?? root.progress ?? 0) || 0)),
+    progress: normalizedProgress,
     result: Object.keys(result).length ? (result as VideoRemakeLongAnalysisJob["result"]) : null,
     sourceVideo: Number(sourceDuration)
       ? {
@@ -660,7 +673,8 @@ export function normalizeFullEpisodeStatusResponse(raw: unknown) {
 
 function normalizeLongAnalysisCostEstimate(payload: unknown): VideoRemakeLongAnalysisCostEstimate {
   const record = asRecord(payload);
-  const estimate = asRecord(record.estimate || asRecord(record.data).estimate || record);
+  const data = asRecord(record.data);
+  const estimate = asRecord(record.estimate || data.estimate || record);
   const adapter = asRecord(estimate.adapterStatus || record.adapterStatus || asRecord(record.data).adapterStatus);
   const safety = asRecord(estimate.safety);
   const rawAnalysisMode = pickString(estimate.analysisMode);
@@ -684,6 +698,7 @@ function normalizeLongAnalysisCostEstimate(payload: unknown): VideoRemakeLongAna
     balance: Number.isFinite(Number(estimate.balance)) ? Number(estimate.balance) : null,
     billableNow: estimate.billableNow === true,
     chargeCreditsNow: Number(estimate.chargeCreditsNow || 0),
+    estimateId: pickString(estimate.estimateId, estimate.estimate_id, record.estimateId, record.estimate_id, data.estimateId, data.estimate_id) || null,
     estimatedCredits: Number(estimate.estimatedCredits || 0),
     estimatedCreditsIfRealVlm: Number(estimate.estimatedCreditsIfRealVlm || 0),
     estimatedCostUnits: Number.isFinite(Number(estimate.estimatedCostUnits)) ? Number(estimate.estimatedCostUnits) : null,

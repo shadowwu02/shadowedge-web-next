@@ -1,8 +1,13 @@
 "use client";
 
 import { useI18n } from "@/i18n/useI18n";
+import { LongVideoAnalysisProgress } from "@/components/video/remake/LongVideoAnalysisProgress";
 import { getRemakeShotGenerationKey } from "@/components/video/remake/remakeTypes";
 import { getVideoUserFacingError } from "@/lib/video/videoErrorDisplay";
+import type {
+  LongVideoAnalysisErrorCategory,
+  LongVideoAnalysisState,
+} from "@/lib/video/longVideoAnalysisState";
 import type {
   RemakeAnalysisSource,
   RemakeEpisodeResult,
@@ -22,8 +27,13 @@ import type {
 type RemakeStoryboardPanelProps = {
   analysisNotice?: string;
   draftNotice?: string;
+  guardedLongVideoUx?: boolean;
   hasSourceVideo?: boolean;
   isAnalyzing?: boolean;
+  longVideoAnalysisErrorCategory?: LongVideoAnalysisErrorCategory | null;
+  longVideoAnalysisProgress?: number | null;
+  longVideoAnalysisState?: LongVideoAnalysisState | null;
+  longVideoSourceName?: string;
   metadata?: {
     analysisSource?: RemakeAnalysisSource;
     canonicalResult?: VideoAnalysisCanonicalResult | null;
@@ -375,8 +385,13 @@ function RemakeOutputsPanel({
 export function RemakeStoryboardPanel({
   analysisNotice = "",
   draftNotice = "",
+  guardedLongVideoUx = false,
   hasSourceVideo = false,
   isAnalyzing = false,
+  longVideoAnalysisErrorCategory = null,
+  longVideoAnalysisProgress = null,
+  longVideoAnalysisState = null,
+  longVideoSourceName = "",
   metadata,
   onCancelQueue,
   onClearDraft,
@@ -473,7 +488,7 @@ export function RemakeStoryboardPanel({
           <p className="se-eyebrow">{t("video.remake.storyboard")}</p>
           <h1 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-[#f4f4f4]">{t("video.remake.aiStoryboard")}</h1>
           <p className="mt-2 text-sm leading-6 text-[#b9b9b9]/66">{t("video.remake.storyboardSubtitle")}</p>
-          {displayedAnalysisSourceLabel ? (
+          {!guardedLongVideoUx && displayedAnalysisSourceLabel ? (
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span
                 className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
@@ -545,7 +560,9 @@ export function RemakeStoryboardPanel({
       {storyboard ? (
         <div className="mb-5 grid gap-2 rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/58 p-3 text-sm leading-6 text-[#b9b9b9]/72">
           {draftNotice ? <p className="font-semibold text-[#ffd08a]/88">{draftNotice}</p> : null}
-          {isFallbackStoryboard ? <p className="font-semibold text-[#ffd08a]/88">{t("video.remake.resultFallbackBoundaryNotice")}</p> : null}
+          {!guardedLongVideoUx && isFallbackStoryboard ? (
+            <p className="font-semibold text-[#ffd08a]/88">{t("video.remake.resultFallbackBoundaryNotice")}</p>
+          ) : null}
           {hasQueueStatus ? (
             <p className="font-semibold text-[#f4f4f4]/82">
               {queueStatusLabel}
@@ -559,6 +576,16 @@ export function RemakeStoryboardPanel({
             </div>
           ) : null}
         </div>
+      ) : null}
+
+      {guardedLongVideoUx && longVideoAnalysisState ? (
+        <LongVideoAnalysisProgress
+          className="mb-5"
+          errorCategory={longVideoAnalysisErrorCategory}
+          progress={longVideoAnalysisProgress}
+          sourceName={longVideoSourceName}
+          state={longVideoAnalysisState}
+        />
       ) : null}
 
       {storyboard ? (
