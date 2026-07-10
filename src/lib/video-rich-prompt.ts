@@ -40,7 +40,7 @@ export type RichPromptMenuRequest = {
 };
 
 const activeMentionPattern = new RegExp(
-  "@(?:\\u56fe|\\u89c6\\u9891|\\u97f3\\u9891|Image|Video|Audio)?\\s*\\d*$",
+  "@(?:\\u56fe\\u7247|\\u56fe|\\u89c6\\u9891|\\u97f3\\u9891|Image|Video|Audio)?\\s*\\d*$",
   "iu",
 );
 

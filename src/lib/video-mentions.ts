@@ -47,6 +47,7 @@ const mentionKindByType: Record<UploadMediaType, string> = {
 };
 
 const mentionTypeByKind: Record<string, UploadMediaType> = {
+  图片: "image",
   图: "image",
   视频: "video",
   音频: "audio",
@@ -55,7 +56,7 @@ const mentionTypeByKind: Record<string, UploadMediaType> = {
   audio: "audio",
 };
 
-const mentionRegex = /【@(图|视频|音频|Image|Video|Audio)\s*(\d+)】|@(图|视频|音频|Image|Video|Audio)\s*(\d+)/gi;
+const mentionRegex = /【@(图片|图|视频|音频|Image|Video|Audio)\s*(\d+)】|@(图片|图|视频|音频|Image|Video|Audio)\s*(\d+)/gi;
 
 function isRemoteUrl(url: string) {
   return /^https?:\/\//i.test(url);

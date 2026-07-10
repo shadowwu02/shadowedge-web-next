@@ -144,7 +144,7 @@ function findMentionReplaceRange(prompt: string, selectionStart: number, selecti
   }
 
   const beforeCaret = prompt.slice(0, selectionStart);
-  const activeAtMention = beforeCaret.match(/@(图|视频|音频|Image|Video|Audio)?\s*\d*$/iu);
+  const activeAtMention = beforeCaret.match(/@(图片|图|视频|音频|Image|Video|Audio)?\s*\d*$/iu);
 
   if (activeAtMention) {
     return {
@@ -171,7 +171,7 @@ function expandActiveMentionRange(prompt: string, range: ReplaceRange): ReplaceR
 
   const activeMention = source
     .slice(start)
-    .match(/^@(?:\u56fe|\u89c6\u9891|\u97f3\u9891|Image|Video|Audio)?\s*\d*/iu);
+    .match(/^@(?:\u56fe\u7247|\u56fe|\u89c6\u9891|\u97f3\u9891|Image|Video|Audio)?\s*\d*/iu);
 
   if (activeMention?.[0]) {
     return {
