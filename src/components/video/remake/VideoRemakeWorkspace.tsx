@@ -16,7 +16,6 @@ type VideoRemakeWorkspaceProps = {
   isEstimateOnlyLoading?: boolean;
   isLongVideoCreating?: boolean;
   isLongVideoEstimating?: boolean;
-  isSandboxEstimateLoading?: boolean;
   guardedLongVideoUx?: boolean;
   longVideoEstimate?: {
     balance: number | null;
@@ -29,7 +28,6 @@ type VideoRemakeWorkspaceProps = {
   onAnalyze: () => void;
   onCharacterRulesChange: (value: string) => void;
   onEstimateLongVideoCost?: () => void;
-  onEstimateLongVideoSandbox?: () => void;
   onCancelLongVideoConfirmation?: () => void;
   onClearSourceVideo: () => void;
   onConfirmLongVideoAnalysis?: () => void;
@@ -40,8 +38,6 @@ type VideoRemakeWorkspaceProps = {
   onTranslateDialogueChange: (value: boolean) => void;
   sceneStyle: string;
   sourceVideo: RemakeSourceVideo | null;
-  sandboxEstimateError?: string;
-  sandboxEstimateSummary?: string;
   targetRegion: RemakeTargetRegion;
   translateDialogue: boolean;
 };
@@ -74,7 +70,6 @@ export function VideoRemakeWorkspace({
   isEstimateOnlyLoading = false,
   isLongVideoCreating = false,
   isLongVideoEstimating = false,
-  isSandboxEstimateLoading = false,
   guardedLongVideoUx = false,
   longVideoEstimate = null,
   longVideoCostNotice = "",
@@ -82,7 +77,6 @@ export function VideoRemakeWorkspace({
   onAnalyze,
   onCharacterRulesChange,
   onEstimateLongVideoCost,
-  onEstimateLongVideoSandbox,
   onCancelLongVideoConfirmation,
   onClearSourceVideo,
   onConfirmLongVideoAnalysis,
@@ -93,8 +87,6 @@ export function VideoRemakeWorkspace({
   onTranslateDialogueChange,
   sceneStyle,
   sourceVideo,
-  sandboxEstimateError = "",
-  sandboxEstimateSummary = "",
   targetRegion,
   translateDialogue,
 }: VideoRemakeWorkspaceProps) {
@@ -107,15 +99,7 @@ export function VideoRemakeWorkspace({
     Boolean(sourceVideo?.assetId) &&
     Boolean(onEstimateLongVideoCost) &&
     !isAnalyzing &&
-    !isEstimateOnlyLoading &&
-    !isSandboxEstimateLoading;
-  const canEstimateSandbox =
-    mode === "long_video" &&
-    Boolean(sourceVideo?.assetId) &&
-    Boolean(onEstimateLongVideoSandbox) &&
-    !isAnalyzing &&
-    !isEstimateOnlyLoading &&
-    !isSandboxEstimateLoading;
+    !isEstimateOnlyLoading;
 
   return (
     <div className="grid content-start gap-3">
@@ -192,47 +176,24 @@ export function VideoRemakeWorkspace({
               <p className="se-eyebrow">{t("video.remake.longVideo.cost.estimateOnlyTitle")}</p>
               <p className="mt-1 text-xs leading-5 text-[#b9b9b9]/62">{t("video.remake.longVideo.cost.estimateOnlyHelp")}</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                aria-busy={isEstimateOnlyLoading}
-                className="se-button-secondary min-h-10 rounded-[16px] px-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!canEstimateLongVideoCost}
-                onClick={onEstimateLongVideoCost}
-                type="button"
-              >
-                {isEstimateOnlyLoading ? t("video.remake.longVideo.cost.estimateOnlyLoading") : t("video.remake.longVideo.cost.estimateOnly")}
-              </button>
-              <button
-                aria-busy={isSandboxEstimateLoading}
-                className="se-button-secondary min-h-10 rounded-[16px] px-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!canEstimateSandbox}
-                onClick={onEstimateLongVideoSandbox}
-                type="button"
-              >
-                {isSandboxEstimateLoading
-                  ? t("video.remake.longVideo.cost.sandboxEstimateOnlyLoading")
-                  : t("video.remake.longVideo.cost.sandboxEstimateOnly")}
-              </button>
-            </div>
+            <button
+              aria-busy={isEstimateOnlyLoading}
+              className="se-button-secondary min-h-10 rounded-[16px] px-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!canEstimateLongVideoCost}
+              onClick={onEstimateLongVideoCost}
+              type="button"
+            >
+              {isEstimateOnlyLoading ? t("video.remake.longVideo.cost.estimateOnlyLoading") : t("video.remake.longVideo.cost.estimateOnly")}
+            </button>
           </div>
           {estimateOnlySummary ? (
             <p className="rounded-[16px] border border-[#ffb44d]/24 bg-[#ffb44d]/9 p-3 text-xs leading-5 text-[#ffd08a]/86">
               {estimateOnlySummary}
             </p>
           ) : null}
-          {sandboxEstimateSummary ? (
-            <p className="rounded-[16px] border border-[#7dd3fc]/24 bg-[#0b2a3a]/60 p-3 text-xs leading-5 text-[#b7e8ff]/90">
-              {sandboxEstimateSummary}
-            </p>
-          ) : null}
           {estimateOnlyError ? (
             <p className="rounded-[16px] border border-[#7f2d2d]/42 bg-[#2a1012]/70 p-3 text-xs leading-5 text-[#f1b4b4]/86">
               {estimateOnlyError}
-            </p>
-          ) : null}
-          {sandboxEstimateError ? (
-            <p className="rounded-[16px] border border-[#7f2d2d]/42 bg-[#2a1012]/70 p-3 text-xs leading-5 text-[#f1b4b4]/86">
-              {sandboxEstimateError}
             </p>
           ) : null}
         </section>

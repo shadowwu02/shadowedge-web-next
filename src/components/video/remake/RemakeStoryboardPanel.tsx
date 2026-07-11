@@ -507,11 +507,6 @@ export function RemakeStoryboardPanel({
                   <span className="rounded-full border border-[#f2b3a1]/24 bg-[#2a1012]/62 px-3 py-1.5 text-xs font-semibold text-[#f2b3a1]">
                     {t("video.remake.resultBadge.notRealVisualReverse")}
                   </span>
-                  {!vlmCalled && !providerCallMade ? (
-                    <span className="rounded-full border border-[#7dd3fc]/24 bg-[#0b2a3a]/60 px-3 py-1.5 text-xs font-semibold text-[#b7e8ff]">
-                      {t("video.remake.resultBadge.noVisionModel")}
-                    </span>
-                  ) : null}
                 </>
               ) : null}
               {isFallbackStoryboard ? (

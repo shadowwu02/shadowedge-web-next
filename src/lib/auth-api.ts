@@ -1,5 +1,11 @@
 import { apiRequest } from "@/lib/api";
-import { getStoredRefreshToken, saveAuthSession, saveCachedProfile, type AuthSessionPayload } from "@/lib/auth";
+import {
+  clearAuthSession,
+  getStoredRefreshToken,
+  saveAuthSession,
+  saveCachedProfile,
+  type AuthSessionPayload,
+} from "@/lib/auth";
 import { ApiError } from "@/types/api";
 import type { ShadowEdgeProfile, ShadowEdgeUser } from "@/types/user";
 
@@ -64,6 +70,7 @@ export async function getCurrentUserProfile(): Promise<AuthMeResult> {
   };
   const profile: ShadowEdgeProfile = {
     ...(data.profile || {}),
+    canUseLongVideoRealAnalysis: data.profile?.canUseLongVideoRealAnalysis === true,
     email: data.profile?.email || user.email,
     name: data.profile?.name || user.name || user.email,
     credits: data.profile?.credits ?? data.credits,
@@ -95,12 +102,14 @@ export async function signInWithPassword(email: string, password: string): Promi
   }
 
   saveAuthSession(data.session, data.user);
-  saveCachedProfile(data.profile || (data.user?.email ? { email: data.user.email, name: data.user.name || data.user.email } : null));
-
-  return {
-    user: data.user || null,
-    profile: data.profile || null,
-  };
+  try {
+    const verified = await getCurrentUserProfile();
+    if (!verified.profile) throw new Error("Verified profile unavailable.");
+    return verified;
+  } catch {
+    clearAuthSession();
+    throw new Error("Unable to verify account access. Please sign in again.");
+  }
 }
 
 export async function registerWithPassword(email: string, password: string): Promise<SignUpResult> {
