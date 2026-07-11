@@ -1,5 +1,6 @@
 import { ApiError, type ApiEnvelope, type ApiRequestOptions } from "@/types/api";
 import { getStoredAuthToken, getStoredRefreshToken, saveAuthSession } from "@/lib/auth";
+import { shouldReplayRequestAfterAuthRefresh } from "@/lib/apiAuthReplayPolicy";
 
 const fallbackApiBaseUrl = "https://api.shadowedgeai.com";
 
@@ -194,6 +195,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   if (
     response.status === 401 &&
     !hasExplicitToken &&
+    shouldReplayRequestAfterAuthRefresh(options) &&
     typeof window !== "undefined" &&
     !path.includes("/api/auth/login") &&
     !path.includes("/api/auth/refresh")

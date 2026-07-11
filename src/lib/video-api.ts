@@ -1,4 +1,5 @@
 import { apiRequest } from "@/lib/api";
+import { LONG_VIDEO_CREATE_AUTH_REPLAY } from "@/lib/video/remakeLongVideoQuoteState";
 import { getStoredAuthToken } from "@/lib/auth";
 import { normalizeMediaAssetUrl } from "@/lib/media-assets";
 import { ApiError } from "@/types/api";
@@ -745,6 +746,7 @@ export async function createLongVideoRemakeAnalysis(input: VideoRemakeLongAnalys
   const sourceAssetId = input.sourceAssetId?.trim() || undefined;
   const targetRatio = input.targetRatio || input.aspectRatio;
   const envelope = await apiRequest<VideoRemakeLongAnalysisJob>("/api/remake/analyze-long-video", {
+    authReplay: LONG_VIDEO_CREATE_AUTH_REPLAY,
     method: "POST",
     body: JSON.stringify({
       analysisEngine: input.analysisEngine || "mock",

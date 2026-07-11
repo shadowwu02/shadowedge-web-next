@@ -9,6 +9,7 @@ export type ApiEnvelope<T> = {
 export type ApiRequestOptions = RequestInit & {
   token?: string;
   authRedirect?: boolean;
+  authReplay?: boolean;
 };
 
 export type ApiErrorOptions = {
