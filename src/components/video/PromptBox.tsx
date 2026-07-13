@@ -18,6 +18,7 @@ import {
   findMentionBindingForToken,
   type VideoMentionBinding,
 } from "@/lib/video/videoMentionBindings";
+import { shouldIgnoreMentionMenuScroll } from "@/lib/video/mentionMenuScroll";
 import { normalizeMediaAssetUrl, sanitizeMediaDisplayName } from "@/lib/media-assets";
 import {
   VIDEO_PROMPT_FRONTEND_LIMIT,
@@ -618,6 +619,11 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
       });
     }
 
+    function handleScroll(event: Event) {
+      if (shouldIgnoreMentionMenuScroll(event.target, menuRef.current)) return;
+      scheduleMenuPositionUpdate();
+    }
+
     function handlePointerDown(event: PointerEvent) {
       const target = event.target as Node | null;
       if (!target) return;
@@ -630,12 +636,12 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     }
 
     window.addEventListener("pointerdown", handlePointerDown);
-    window.addEventListener("scroll", scheduleMenuPositionUpdate, true);
+    window.addEventListener("scroll", handleScroll, true);
     window.addEventListener("resize", scheduleMenuPositionUpdate);
 
     return () => {
       window.removeEventListener("pointerdown", handlePointerDown);
-      window.removeEventListener("scroll", scheduleMenuPositionUpdate, true);
+      window.removeEventListener("scroll", handleScroll, true);
       window.removeEventListener("resize", scheduleMenuPositionUpdate);
       if (menuRafRef.current) window.cancelAnimationFrame(menuRafRef.current);
     };
