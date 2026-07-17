@@ -4,6 +4,7 @@ export type NodeExecutionStatus =
   | "idle"
   | "ready"
   | "running"
+  | "queued"
   | "processing"
   | "completed"
   | "failed";
@@ -12,7 +13,7 @@ export type NodeExecutionInputs = Record<string, Record<string, unknown>>;
 export type NodeExecutionOutputs = Record<string, unknown>;
 
 export type NodeExecutionProgress = {
-  status: "processing";
+  status: "queued" | "processing";
   outputs?: NodeExecutionOutputs;
   error?: string;
 };

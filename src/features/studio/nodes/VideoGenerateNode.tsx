@@ -1,10 +1,19 @@
 import type { NodeProps } from "@xyflow/react";
 import { StudioNodeFrame } from "@/features/studio/nodes/StudioNodeFrame";
-import { useStudioNodeRuntimeStatus } from "@/features/studio/store/studioStore";
+import {
+  useStudioNodeRuntimeStatus,
+  useStudioStore,
+} from "@/features/studio/store/studioStore";
 import type { StudioNode } from "@/features/studio/types/studioTypes";
 
 export function VideoGenerateNode({ data, id, selected }: NodeProps<StudioNode>) {
-  const runtimeStatus = useStudioNodeRuntimeStatus(id);
+  const runtimeStatus = useStudioNodeRuntimeStatus(
+    id,
+    data.kind === "videoGenerate" ? data.status : "idle",
+  );
+  const createAssetFromVideoNode = useStudioStore(
+    (state) => state.createAssetFromVideoNode,
+  );
   if (data.kind !== "videoGenerate") return null;
 
   return (
@@ -15,7 +24,19 @@ export function VideoGenerateNode({ data, id, selected }: NodeProps<StudioNode>)
       title={data.title}
     >
       <div className="studio-node-preview studio-node-preview-video">
-        <span>Video preview</span>
+        {data.videoUrl ? (
+          <video
+            aria-label="Generated video preview"
+            controls
+            muted
+            playsInline
+            poster={data.thumbnail || undefined}
+            preload="metadata"
+            src={data.videoUrl}
+          />
+        ) : (
+          <span>{data.status === "failed" ? "Generation failed" : "Video preview"}</span>
+        )}
       </div>
       <dl className="studio-node-meta">
         <div>
@@ -23,15 +44,33 @@ export function VideoGenerateNode({ data, id, selected }: NodeProps<StudioNode>)
           <dd>{data.model}</dd>
         </div>
         <div>
-          <dt>Prompt</dt>
-          <dd>{data.promptInput || "Not connected"}</dd>
+          <dt>Settings</dt>
+          <dd>{data.duration || 4}s · {data.ratio || "16:9"} · {data.quality || "480p"}</dd>
         </div>
         <div>
           <dt>Media</dt>
           <dd>{data.imageInput || data.videoInput || "Not connected"}</dd>
         </div>
       </dl>
-      <p className="studio-node-footnote">Mock executor · no API call</p>
+      {data.jobId ? <p className="studio-node-footnote">Job {data.jobId}</p> : null}
+      {data.errorMessage ? (
+        <p className="studio-node-error" title={data.errorCode}>
+          {data.errorMessage}
+        </p>
+      ) : null}
+      {data.status === "completed" && data.videoUrl ? (
+        <button
+          className="studio-node-action nodrag nopan"
+          onClick={(event) => {
+            event.stopPropagation();
+            createAssetFromVideoNode(id);
+          }}
+          onMouseDown={(event) => event.stopPropagation()}
+          type="button"
+        >
+          Create Asset Node
+        </button>
+      ) : null}
     </StudioNodeFrame>
   );
 }

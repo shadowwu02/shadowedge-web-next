@@ -10,7 +10,7 @@ export type StudioNodeType =
 export type AssetType = "image" | "video" | "audio";
 export type AssetStatus = "ready" | "missing" | "processing";
 export type StudioAssetSource = "upload" | "history" | "generated" | "remake";
-export type GenerationNodeStatus = "idle" | "ready" | "processing" | "completed" | "failed";
+export type GenerationNodeStatus = "idle" | "ready" | "queued" | "processing" | "completed" | "failed";
 export type OutputType = "image" | "video" | "audio";
 
 type StudioNodeBase = {
@@ -70,11 +70,21 @@ export type ImageGenerateNodeData = StudioNodeBase & {
 export type VideoGenerateNodeData = StudioNodeBase & {
   kind: "videoGenerate";
   model: string;
+  duration: number;
+  ratio: string;
+  quality: string;
+  resolution: string;
+  references: string[];
   promptInput: string;
   imageInput: string;
   videoInput: string;
   status: GenerationNodeStatus;
   result: string;
+  jobId: string;
+  videoUrl: string;
+  thumbnail: string;
+  errorCode: string;
+  errorMessage: string;
 };
 
 export type OutputNodeData = StudioNodeBase & {
@@ -82,6 +92,10 @@ export type OutputNodeData = StudioNodeBase & {
   resultPreview: string;
   outputType: OutputType;
   createdAt: string;
+  status: GenerationNodeStatus;
+  jobId: string;
+  thumbnail: string;
+  errorMessage: string;
 };
 
 export type StudioNodeData = (
@@ -145,7 +159,7 @@ export const STUDIO_NODE_DEFINITIONS: Array<{
   {
     type: "videoGenerate",
     label: "Video Generate",
-    description: "UI-only video generation step",
+    description: "Video generation through the existing API",
   },
   {
     type: "output",

@@ -97,12 +97,22 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
     return {
       kind: "videoGenerate",
       title: "Video generation",
-      model: "Model placeholder",
+      model: "seedance_2_0",
+      duration: 4,
+      ratio: "16:9",
+      quality: "480p",
+      resolution: "480p",
+      references: [],
       promptInput: "prompt-1",
       imageInput: "asset-1",
       videoInput: "",
       status: "idle",
       result: "",
+      jobId: "",
+      videoUrl: "",
+      thumbnail: "",
+      errorCode: "",
+      errorMessage: "",
     };
   }
   return {
@@ -111,6 +121,10 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
     resultPreview: "Awaiting an upstream result",
     outputType: "video",
     createdAt: "",
+    status: "idle",
+    jobId: "",
+    thumbnail: "",
+    errorMessage: "",
   };
 }
 
@@ -161,6 +175,22 @@ function createInitialEdges(): StudioEdge[] {
       animated: true,
     },
   ];
+}
+
+function normalizeStudioNodes(nodes: StudioNode[]) {
+  return nodes.map((node) => {
+    const data = {
+      ...createNodeData(node.type),
+      ...node.data,
+    } as StudioNodeData;
+    if (
+      data.kind === "videoGenerate" &&
+      (!data.model || data.model === "Model placeholder")
+    ) {
+      data.model = "seedance_2_0";
+    }
+    return { ...node, data } satisfies StudioNode;
+  });
 }
 
 function takeSnapshot(state: Pick<StudioState, "nodes" | "edges" | "viewport" | "updatedAt">): StudioCanvasSnapshot {
@@ -217,17 +247,78 @@ function applyRuntimeOutputToCanvas(
       } satisfies StudioNode;
     }
 
-    if (node.data.kind === "output" && runtime.status === "completed") {
-      const imageUrl = outputString(runtime.outputs, "imageUrl");
-      if (!imageUrl) return node;
+    if (node.data.kind === "videoGenerate") {
+      const jobId = outputString(runtime.outputs, "jobId");
+      const videoUrl = outputString(runtime.outputs, "videoUrl");
+      const thumbnail = outputString(runtime.outputs, "thumbnail");
+      const errorCode = outputString(runtime.outputs, "errorCode");
+      const errorMessage = outputString(runtime.outputs, "message") || runtime.error || "";
+      const model = outputString(runtime.outputs, "model");
+      const references = Array.isArray(runtime.outputs.references)
+        ? runtime.outputs.references.map(String).filter(Boolean)
+        : node.data.references;
+      const status =
+        runtime.status === "completed" ||
+        runtime.status === "failed" ||
+        runtime.status === "queued"
+          ? runtime.status
+          : "processing";
       changed = true;
       return {
         ...node,
         data: {
           ...node.data,
-          resultPreview: imageUrl,
-          outputType: "image",
+          status,
+          jobId: jobId || node.data.jobId,
+          model: model || node.data.model,
+          duration: Number(runtime.outputs.duration) || node.data.duration,
+          ratio: outputString(runtime.outputs, "ratio") || node.data.ratio,
+          quality: outputString(runtime.outputs, "quality") || node.data.quality,
+          resolution:
+            outputString(runtime.outputs, "resolution") || node.data.resolution,
+          references,
+          videoUrl: videoUrl || node.data.videoUrl,
+          thumbnail: thumbnail || videoUrl || node.data.thumbnail,
+          result: videoUrl || node.data.result,
+          errorCode: runtime.status === "failed" ? errorCode : "",
+          errorMessage: runtime.status === "failed" ? errorMessage : "",
+        },
+      } satisfies StudioNode;
+    }
+
+    if (node.data.kind === "output" && runtime.status === "failed") {
+      changed = true;
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          status: "failed",
+          jobId: outputString(runtime.outputs, "jobId") || node.data.jobId,
+          errorMessage:
+            outputString(runtime.outputs, "message") ||
+            runtime.error ||
+            "Upstream generation failed.",
+        },
+      } satisfies StudioNode;
+    }
+
+    if (node.data.kind === "output" && runtime.status === "completed") {
+      const videoUrl = outputString(runtime.outputs, "videoUrl");
+      const imageUrl = outputString(runtime.outputs, "imageUrl");
+      const resultUrl = videoUrl || imageUrl;
+      if (!resultUrl) return node;
+      changed = true;
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          resultPreview: resultUrl,
+          outputType: videoUrl ? "video" : "image",
           createdAt: runtime.finishedAt || nowIso(),
+          status: "completed",
+          jobId: outputString(runtime.outputs, "jobId"),
+          thumbnail: outputString(runtime.outputs, "thumbnail") || resultUrl,
+          errorMessage: "",
         },
       } satisfies StudioNode;
     }
@@ -258,6 +349,7 @@ type StudioState = StudioCanvasSnapshot & {
   runtimeError: string;
   addNode: (type: StudioNodeType) => void;
   addAssetNode: (asset: StudioAssetItem) => void;
+  createAssetFromVideoNode: (nodeId: string) => void;
   deleteNode: (nodeId: string) => void;
   updateNodeData: (nodeId: string, patch: Record<string, unknown>) => void;
   selectNode: (nodeId: string | null) => void;
@@ -348,6 +440,61 @@ export const useStudioStore = create<StudioState>()(
               thumbnail: asset.thumbnail,
               source: asset.source,
               metadata: asset.metadata,
+            },
+          };
+
+          return {
+            nodes: [...state.nodes, node],
+            selectedNodeId: id,
+            past: appendHistory(state.past, snapshot),
+            future: [],
+            updatedAt: nowIso(),
+            dirty: true,
+          };
+        }),
+
+      createAssetFromVideoNode: (nodeId) =>
+        set((state) => {
+          const sourceNode = state.nodes.find(
+            (node) => node.id === nodeId && node.data.kind === "videoGenerate",
+          );
+          if (!sourceNode || sourceNode.data.kind !== "videoGenerate") return state;
+          const videoUrl = sourceNode.data.videoUrl || sourceNode.data.result;
+          if (sourceNode.data.status !== "completed" || !videoUrl) return state;
+
+          const existingAsset = state.nodes.find(
+            (node) =>
+              node.data.kind === "asset" &&
+              node.data.metadata?.sourceNodeId === sourceNode.id,
+          );
+          if (existingAsset) {
+            return { selectedNodeId: existingAsset.id };
+          }
+
+          nodeSequence += 1;
+          const snapshot = takeSnapshot(state);
+          const id = "asset-" + Date.now() + "-" + nodeSequence;
+          const node: StudioNode = {
+            id,
+            type: "asset",
+            position: {
+              x: sourceNode.position.x + 340,
+              y: sourceNode.position.y + 40,
+            },
+            data: {
+              kind: "asset",
+              title: `${sourceNode.data.title} asset`,
+              assetId: sourceNode.data.jobId || `generated:${sourceNode.id}`,
+              assetType: "video",
+              status: "ready",
+              url: videoUrl,
+              thumbnail: sourceNode.data.thumbnail || videoUrl,
+              source: "generated",
+              metadata: {
+                sourceNodeId: sourceNode.id,
+                jobId: sourceNode.data.jobId,
+                model: sourceNode.data.model,
+              },
             },
           };
 
@@ -503,7 +650,7 @@ export const useStudioStore = create<StudioState>()(
         set({
           projectId: project.id,
           projectName: project.name,
-          nodes: project.canvasJson.nodes,
+          nodes: normalizeStudioNodes(project.canvasJson.nodes),
           edges: project.canvasJson.edges,
           viewport: project.canvasJson.viewport,
           updatedAt: project.updatedAt,
@@ -644,6 +791,14 @@ export const useStudioStore = create<StudioState>()(
         viewport: state.viewport,
         updatedAt: state.updatedAt,
       }),
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<StudioState>;
+        return {
+          ...currentState,
+          ...persisted,
+          nodes: normalizeStudioNodes(persisted.nodes || currentState.nodes),
+        };
+      },
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
       },
@@ -665,8 +820,11 @@ export function getCurrentStudioCanvasJson(): StudioCanvasJson {
   };
 }
 
-export function useStudioNodeRuntimeStatus(nodeId: string) {
+export function useStudioNodeRuntimeStatus(
+  nodeId: string,
+  fallbackStatus: NodeExecutionStatus = "idle",
+) {
   return useStudioStore(
-    (state) => state.runtimeState[nodeId]?.status || "idle",
+    (state) => state.runtimeState[nodeId]?.status || fallbackStatus,
   );
 }

@@ -199,6 +199,8 @@ export type VideoStatusResponse = {
   output_url?: string;
   outputUrls?: string[];
   output_urls?: string[];
+  thumbnail?: string;
+  thumbnailUrl?: string;
   provider?: string;
   providerModel?: string;
   model?: string;
@@ -207,6 +209,15 @@ export type VideoStatusResponse = {
   error?: string;
   error_message?: string;
   errorMessage?: string;
+  errorCode?: string;
+  error_code?: string;
+  providerPublicMessage?: string;
+  providerPublicMessageEn?: string;
+  providerPublicMessageZh?: string;
+  providerFailureCategory?: string;
+  public_message?: string;
+  refunded?: boolean;
+  refund_amount?: number;
   message?: string;
   creditsBalance?: number;
   cost_credits?: number;

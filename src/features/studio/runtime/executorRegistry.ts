@@ -6,6 +6,7 @@ import type {
   StudioNodeExecutor,
 } from "@/features/studio/runtime/types";
 import { ImageGenerateExecutor } from "@/features/studio/runtime/executors/imageGenerateExecutor";
+import { VideoGenerateExecutor } from "@/features/studio/runtime/executors/videoGenerateExecutor";
 import type { StudioNodeType } from "@/features/studio/types/studioTypes";
 
 const MOCK_EXECUTION_DELAY_MS = 120;
@@ -70,33 +71,49 @@ export const PromptExecutor: StudioNodeExecutor = {
   },
 };
 
-export const VideoExecutor: StudioNodeExecutor = {
-  async execute(context) {
-    await waitForMockRuntime();
-    return complete("video_generate", {
-      inputNodeIds: Object.keys(context.inputs),
-      model: configValue(context, "model"),
-      result: null,
-    });
-  },
-};
-
 export const OutputExecutor: StudioNodeExecutor = {
   async execute(context) {
     await waitForMockRuntime();
-    const imageOutput = Object.values(context.inputs)
-      .map((input) => asRecord(input))
-      .find((input) => typeof input.imageUrl === "string" && input.imageUrl);
+    const inputs = Object.values(context.inputs).map((input) => asRecord(input));
+    const videoOutput = inputs.find(
+      (input) => typeof input.videoUrl === "string" && input.videoUrl,
+    );
+    const imageOutput = inputs.find(
+      (input) => typeof input.imageUrl === "string" && input.imageUrl,
+    );
+    const mediaOutput = videoOutput || imageOutput;
+    const failedInput = inputs.find((input) => input.status === "failed");
+    if (!mediaOutput && failedInput) {
+      const error = String(failedInput.message || "Upstream generation failed.");
+      return {
+        status: "failed",
+        outputs: {
+          executor: "output",
+          inputNodeIds: Object.keys(context.inputs),
+          status: "failed",
+          jobId: failedInput.jobId,
+          message: error,
+        },
+        error,
+      };
+    }
     return {
       status: "completed",
       outputs: {
-        mock: !imageOutput,
+        mock: !mediaOutput,
         executor: "output",
         inputNodeIds: Object.keys(context.inputs),
-        result: imageOutput?.imageUrl || null,
+        result: videoOutput?.videoUrl || imageOutput?.imageUrl || null,
+        videoUrl: videoOutput?.videoUrl || "",
         imageUrl: imageOutput?.imageUrl || "",
-        thumbnail: imageOutput?.thumbnail || imageOutput?.imageUrl || "",
-        outputType: imageOutput ? "image" : undefined,
+        thumbnail:
+          mediaOutput?.thumbnail ||
+          videoOutput?.videoUrl ||
+          imageOutput?.imageUrl ||
+          "",
+        outputType: videoOutput ? "video" : imageOutput ? "image" : undefined,
+        status: mediaOutput?.status,
+        jobId: mediaOutput?.jobId,
       },
     };
   },
@@ -106,7 +123,7 @@ export const executorRegistry = {
   asset: AssetExecutor,
   prompt: PromptExecutor,
   image_generate: ImageGenerateExecutor,
-  video_generate: VideoExecutor,
+  video_generate: VideoGenerateExecutor,
   output: OutputExecutor,
 } satisfies Record<StudioExecutorKey, StudioNodeExecutor>;
 

@@ -1066,6 +1066,7 @@ export async function generateVideo(request: VideoGenerationRequest) {
     providerModel?: string;
     provider?: string;
     creditsBalance?: number;
+    cost?: number;
   }>("/api/video/generate", {
     method: "POST",
     body: JSON.stringify(payload),

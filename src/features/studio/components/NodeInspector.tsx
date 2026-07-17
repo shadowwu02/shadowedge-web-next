@@ -3,11 +3,18 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import { getImageModels } from "@/lib/image-api";
+import { getVideoModels } from "@/lib/video-api";
 import {
   getDefaultImageParams,
   getImageModelById,
 } from "@/lib/image/imageModelRules";
 import type { ImageModel } from "@/types/image";
+import {
+  getVideoModelRule,
+  hasVideoModelRule,
+  normalizeVideoParamsForModel,
+} from "@/lib/video/videoModelRules";
+import type { VideoModel } from "@/types/video";
 
 function InspectorField({
   children,
@@ -24,6 +31,21 @@ function InspectorField({
   );
 }
 
+function normalizeVideoModelKey(value: unknown) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[./\s-]+/g, "_")
+    .replace(/[^\w]/g, "");
+}
+
+function getVideoRuleId(model: VideoModel) {
+  const candidates = [model.id, model.providerModel, model.label].filter(
+    (value): value is string => Boolean(value),
+  );
+  return candidates.find((candidate) => hasVideoModelRule(candidate)) || candidates[0] || "generic";
+}
+
 export function NodeInspector() {
   const nodes = useStudioStore((state) => state.nodes);
   const selectedNodeId = useStudioStore((state) => state.selectedNodeId);
@@ -32,10 +54,16 @@ export function NodeInspector() {
   const selectedNode = nodes.find((node) => node.id === selectedNodeId);
   const [imageModels, setImageModels] = useState<ImageModel[]>([]);
   const [imageModelsError, setImageModelsError] = useState("");
+  const [videoModels, setVideoModels] = useState<VideoModel[]>([]);
+  const [videoModelsError, setVideoModelsError] = useState("");
   const loadingImageModels =
     selectedNode?.type === "imageGenerate" &&
     !imageModels.length &&
     !imageModelsError;
+  const loadingVideoModels =
+    selectedNode?.type === "videoGenerate" &&
+    !videoModels.length &&
+    !videoModelsError;
 
   useEffect(() => {
     if (selectedNode?.type !== "imageGenerate" || imageModels.length) return;
@@ -57,6 +85,28 @@ export function NodeInspector() {
       cancelled = true;
     };
   }, [imageModels.length, selectedNode?.type]);
+
+  useEffect(() => {
+    if (selectedNode?.type !== "videoGenerate" || videoModels.length) return;
+    let cancelled = false;
+    void getVideoModels()
+      .then((models) => {
+        if (cancelled) return;
+        if (models.length) {
+          setVideoModels(models);
+          setVideoModelsError("");
+        } else {
+          setVideoModelsError("Live model registry is empty; the configured Workspace model rule will be used.");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setVideoModelsError("Video models could not be loaded.");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedNode?.type, videoModels.length]);
 
   if (!selectedNode) {
     return (
@@ -88,6 +138,23 @@ export function NodeInspector() {
   const imageRatios = selectedImageModel?.capabilities.ratios || [];
   const imageSizes = selectedImageModel?.capabilities.resolutions || [];
   const imageQualities = selectedImageModel?.capabilities.qualities || [];
+  const selectedVideoModel =
+    data.kind === "videoGenerate"
+      ? videoModels.find((model) =>
+          [model.id, model.providerModel, model.label]
+            .map(normalizeVideoModelKey)
+            .includes(normalizeVideoModelKey(data.model)),
+        ) || null
+      : null;
+  const selectedVideoRule = selectedVideoModel
+    ? getVideoModelRule(getVideoRuleId(selectedVideoModel))
+    : null;
+  const videoDurations = selectedVideoRule?.durations || selectedVideoModel?.durations || [];
+  const videoRatios = selectedVideoRule?.ratios.map(String) || selectedVideoModel?.ratios || [];
+  const videoQualities =
+    selectedVideoRule?.qualities.length
+      ? selectedVideoRule.qualities.map(String)
+      : selectedVideoRule?.resolutions.map(String) || selectedVideoModel?.qualities || [];
 
   return (
     <aside className="studio-side-panel studio-inspector" aria-label="Node inspector">
@@ -278,8 +345,84 @@ export function NodeInspector() {
         {data.kind === "videoGenerate" ? (
           <>
             <InspectorField label="Model">
-              <input value={data.model} onChange={updateText("model")} />
+              <select
+                disabled={loadingVideoModels || !videoModels.length}
+                value={selectedVideoModel?.id || data.model}
+                onChange={(event) => {
+                  const model = videoModels.find((item) => item.id === event.target.value);
+                  if (!model) return;
+                  const params = normalizeVideoParamsForModel(getVideoRuleId(model), {
+                    duration: model.durationDefault,
+                    ratio: model.ratios[0],
+                    quality: model.qualities[0],
+                    generateAudio: model.supportsAudio !== false,
+                  });
+                  update({
+                    model: model.id,
+                    duration: params.duration,
+                    ratio: params.ratio,
+                    quality: params.quality,
+                    resolution: params.resolution,
+                  });
+                }}
+              >
+                {!videoModels.length ? (
+                  <option value={data.model}>
+                    {loadingVideoModels ? "Loading models..." : data.model}
+                  </option>
+                ) : null}
+                {videoModels.map((model) => (
+                  <option key={model.id} value={model.id}>{model.label}</option>
+                ))}
+              </select>
             </InspectorField>
+            {videoModelsError ? <p className="studio-inspector-error">{videoModelsError}</p> : null}
+            <div className="studio-inspector-grid">
+              <InspectorField label="Duration">
+                <select
+                  value={String(data.duration)}
+                  onChange={(event) => update({ duration: Number(event.target.value) })}
+                >
+                  {!videoDurations.includes(data.duration) ? (
+                    <option value={data.duration}>{data.duration}s</option>
+                  ) : null}
+                  {videoDurations.map((duration) => (
+                    <option key={duration} value={duration}>{duration}s</option>
+                  ))}
+                </select>
+              </InspectorField>
+              <InspectorField label="Ratio">
+                <select value={data.ratio} onChange={updateText("ratio")}>
+                  {!videoRatios.includes(data.ratio) ? (
+                    <option value={data.ratio}>{data.ratio}</option>
+                  ) : null}
+                  {videoRatios.map((ratio) => (
+                    <option key={ratio} value={ratio}>{ratio}</option>
+                  ))}
+                </select>
+              </InspectorField>
+            </div>
+            <div className="studio-inspector-grid">
+              <InspectorField label="Quality">
+                <select
+                  value={data.quality}
+                  onChange={(event) => update({
+                    quality: event.target.value,
+                    resolution: event.target.value,
+                  })}
+                >
+                  {!videoQualities.includes(data.quality) ? (
+                    <option value={data.quality}>{data.quality}</option>
+                  ) : null}
+                  {videoQualities.map((quality) => (
+                    <option key={quality} value={quality}>{quality}</option>
+                  ))}
+                </select>
+              </InspectorField>
+              <InspectorField label="Resolution">
+                <input disabled value={data.resolution} />
+              </InspectorField>
+            </div>
             <InspectorField label="Prompt input">
               <input value={data.promptInput} onChange={updateText("promptInput")} />
             </InspectorField>
@@ -290,21 +433,24 @@ export function NodeInspector() {
               <input value={data.videoInput} onChange={updateText("videoInput")} />
             </InspectorField>
             <InspectorField label="Status">
-              <select value={data.status} onChange={updateText("status")}>
-                <option value="idle">Idle</option>
-                <option value="ready">Ready</option>
-                <option value="processing">Processing</option>
-                <option value="completed">Completed</option>
-                <option value="failed">Failed</option>
-              </select>
+              <input disabled value={data.status || "idle"} />
             </InspectorField>
-            <InspectorField label="Result">
+            <InspectorField label="Job ID">
+              <input disabled placeholder="Created after Run" value={data.jobId || ""} />
+            </InspectorField>
+            <InspectorField label="Video result">
               <input
-                placeholder="Result placeholder"
-                value={data.result}
-                onChange={updateText("result")}
+                disabled
+                placeholder="Available after completion"
+                value={data.videoUrl || data.result || ""}
               />
             </InspectorField>
+            {data.errorMessage ? (
+              <div className="studio-inspector-runtime-error" role="alert">
+                <strong>{data.errorCode || "VIDEO_GENERATION_FAILED"}</strong>
+                <span>{data.errorMessage}</span>
+              </div>
+            ) : null}
           </>
         ) : null}
 
@@ -331,6 +477,18 @@ export function NodeInspector() {
                 onChange={updateText("createdAt")}
               />
             </InspectorField>
+            <InspectorField label="Status">
+              <input disabled value={data.status || "idle"} />
+            </InspectorField>
+            <InspectorField label="Job ID">
+              <input disabled value={data.jobId || ""} />
+            </InspectorField>
+            {data.errorMessage ? (
+              <div className="studio-inspector-runtime-error" role="alert">
+                <strong>OUTPUT_FAILED</strong>
+                <span>{data.errorMessage}</span>
+              </div>
+            ) : null}
           </>
         ) : null}
       </div>

@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { STUDIO_IMAGE_EXECUTION_ENABLED } from "@/config/studioFeatures";
+import {
+  STUDIO_IMAGE_EXECUTION_ENABLED,
+  STUDIO_VIDEO_EXECUTION_ENABLED,
+} from "@/config/studioFeatures";
 import { useStudioProjects } from "@/features/studio/hooks/useStudioProjects";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import {
@@ -60,7 +63,8 @@ export function StudioToolbar({
         <p>{brandName}</p>
         <h1>AI Studio</h1>
         <span>
-          Node runtime · image execution {STUDIO_IMAGE_EXECUTION_ENABLED ? "enabled" : "disabled"}
+          Node runtime · image {STUDIO_IMAGE_EXECUTION_ENABLED ? "on" : "off"} · video{" "}
+          {STUDIO_VIDEO_EXECUTION_ENABLED ? "on" : "off"}
         </span>
       </div>
 
@@ -94,9 +98,9 @@ export function StudioToolbar({
           disabled={projectBusy || runtimeRunning || nodeCount === 0}
           onClick={() => void runNodes()}
           title={
-            STUDIO_IMAGE_EXECUTION_ENABLED
-              ? "Runs the workflow; image nodes use the existing credits and generation API"
-              : "Runs local executors; image generation is disabled in this environment"
+            STUDIO_IMAGE_EXECUTION_ENABLED || STUDIO_VIDEO_EXECUTION_ENABLED
+              ? "Runs enabled generation nodes through the existing APIs and credits flow"
+              : "Runs local executors; generation is disabled in this environment"
           }
           type="button"
         >
@@ -164,7 +168,7 @@ export function StudioToolbar({
           {loadingProject
             ? "Loading project..."
             : runtimeRunning
-              ? "Mock runtime running..."
+              ? "Workflow running..."
               : updatedAt
               ? "Updated " +
                 new Date(updatedAt).toLocaleTimeString([], {
