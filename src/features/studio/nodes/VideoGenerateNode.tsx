@@ -1,4 +1,6 @@
 import type { NodeProps } from "@xyflow/react";
+import { StudioCostPreview } from "@/features/studio/components/StudioCostPreview";
+import { StudioRetryButton } from "@/features/studio/components/StudioRetryButton";
 import { StudioNodeFrame } from "@/features/studio/nodes/StudioNodeFrame";
 import {
   useStudioNodeRuntimeStatus,
@@ -52,12 +54,14 @@ export function VideoGenerateNode({ data, id, selected }: NodeProps<StudioNode>)
           <dd>{data.imageInput || data.videoInput || "Not connected"}</dd>
         </div>
       </dl>
+      <StudioCostPreview data={data} />
       {data.jobId ? <p className="studio-node-footnote">Job {data.jobId}</p> : null}
       {data.errorMessage ? (
         <p className="studio-node-error" title={data.errorCode}>
           {data.errorMessage}
         </p>
       ) : null}
+      <StudioRetryButton nodeId={id} status={runtimeStatus} />
       {data.status === "completed" && data.videoUrl ? (
         <button
           className="studio-node-action nodrag nopan"

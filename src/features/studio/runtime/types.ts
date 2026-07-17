@@ -63,4 +63,27 @@ export type StudioNodeRuntimeState = {
 
 export type StudioRuntimeState = Record<string, StudioNodeRuntimeState>;
 
+export type StudioRunStatus = "running" | "completed" | "failed";
+
+export type StudioRunNodeRecord = {
+  nodeId: string;
+  type: StudioNodeType;
+  status: NodeExecutionStatus;
+  startedAt: string | null;
+  finishedAt: string | null;
+  errorCode?: string;
+  message?: string;
+};
+
+export type StudioRunRecord = {
+  id: string;
+  projectId: string;
+  createdAt: string;
+  status: StudioRunStatus;
+  mode: "graph" | "retry";
+  nodes: StudioRunNodeRecord[];
+};
+
+export type StudioRunLockState = "idle" | "running" | "locked";
+
 export type StudioExecutorTypeMap = Record<StudioNodeType, StudioExecutorKey>;

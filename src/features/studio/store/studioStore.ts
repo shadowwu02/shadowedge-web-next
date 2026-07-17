@@ -12,10 +12,20 @@ import {
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { activeBrand, type BrandId } from "@/config/brand";
+import {
+  listStudioRunHistory,
+  saveStudioRunRecord,
+} from "@/features/studio/lib/studioRunHistory";
 import { getStudioExecutor } from "@/features/studio/runtime/executorRegistry";
-import { runStudioGraph } from "@/features/studio/runtime/runStudioGraph";
+import {
+  getStudioRetryPreflight,
+  runSingleStudioNode,
+  runStudioGraph,
+} from "@/features/studio/runtime/runStudioGraph";
 import type {
   NodeExecutionStatus,
+  StudioRunLockState,
+  StudioRunRecord,
   StudioNodeRuntimeState,
   StudioRuntimeState,
 } from "@/features/studio/runtime/types";
@@ -266,6 +276,50 @@ function safeNodeIdPart(value: unknown) {
     .replace(/[^a-zA-Z0-9_-]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80) || "shot";
+}
+
+function createRunRecord(
+  nodes: StudioNode[],
+  projectId: string | null,
+  mode: "graph" | "retry",
+): StudioRunRecord {
+  const createdAt = nowIso();
+  return {
+    id: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    projectId: projectId || "local",
+    createdAt,
+    status: "running",
+    mode,
+    nodes: nodes.map((node) => ({
+      nodeId: node.id,
+      type: node.type,
+      status: "ready",
+      startedAt: null,
+      finishedAt: null,
+    })),
+  };
+}
+
+function updateRunRecordNode(
+  record: StudioRunRecord,
+  runtime: StudioNodeRuntimeState,
+): StudioRunRecord {
+  return {
+    ...record,
+    nodes: record.nodes.map((node) =>
+      node.nodeId === runtime.nodeId
+        ? {
+            ...node,
+            status: runtime.status,
+            startedAt: runtime.startedAt,
+            finishedAt: runtime.finishedAt,
+            errorCode: outputString(runtime.outputs, "errorCode") || undefined,
+            message:
+              outputString(runtime.outputs, "message") || runtime.error || undefined,
+          }
+        : node,
+    ),
+  };
 }
 
 function applyRuntimeOutputToCanvas(
@@ -522,6 +576,8 @@ type StudioState = StudioCanvasSnapshot & {
   hasHydrated: boolean;
   runtimeState: StudioRuntimeState;
   runtimeRunning: boolean;
+  runLockState: StudioRunLockState;
+  runHistory: StudioRunRecord[];
   runtimeError: string;
   addNode: (type: StudioNodeType) => void;
   addAssetNode: (asset: StudioAssetItem) => void;
@@ -548,6 +604,7 @@ type StudioState = StudioCanvasSnapshot & {
   redo: () => void;
   setHasHydrated: (hasHydrated: boolean) => void;
   runNodes: () => Promise<void>;
+  retryNode: (nodeId: string) => Promise<void>;
 };
 
 const initialNodes = createInitialNodes();
@@ -573,6 +630,8 @@ export const useStudioStore = create<StudioState>()(
       hasHydrated: false,
       runtimeState: {},
       runtimeRunning: false,
+      runLockState: "idle",
+      runHistory: [],
       runtimeError: "",
 
       addNode: (type) =>
@@ -946,6 +1005,7 @@ export const useStudioStore = create<StudioState>()(
           projectError: "",
           runtimeState: {},
           runtimeRunning: false,
+          runLockState: "idle",
           runtimeError: "",
         }),
 
@@ -961,6 +1021,7 @@ export const useStudioStore = create<StudioState>()(
           updatedAt: nowIso(),
           runtimeState: {},
           runtimeRunning: false,
+          runLockState: "idle",
           runtimeError: "",
         })),
 
@@ -1001,11 +1062,18 @@ export const useStudioStore = create<StudioState>()(
           };
         }),
 
-      setHasHydrated: (hasHydrated) => set({ hasHydrated }),
+      setHasHydrated: (hasHydrated) =>
+        set({
+          hasHydrated,
+          runHistory: hasHydrated ? listStudioRunHistory() : [],
+        }),
 
       runNodes: async () => {
         const state = get();
-        if (state.runtimeRunning) return;
+        if (state.runtimeRunning) {
+          set({ runLockState: "locked" });
+          return;
+        }
 
         const readyState = Object.fromEntries(
           state.nodes.map((node) => {
@@ -1023,9 +1091,17 @@ export const useStudioStore = create<StudioState>()(
           }),
         );
 
+        let runRecord = createRunRecord(state.nodes, state.projectId, "graph");
+        const publishRunRecord = (record: StudioRunRecord) => {
+          runRecord = record;
+          set({ runHistory: saveStudioRunRecord(record) });
+        };
+        publishRunRecord(runRecord);
+
         set({
           runtimeState: readyState,
           runtimeRunning: true,
+          runLockState: "running",
           runtimeError: "",
         });
 
@@ -1034,14 +1110,17 @@ export const useStudioStore = create<StudioState>()(
             projectId: state.projectId,
             nodes: state.nodes,
             edges: state.edges,
-            onNodeStart: (nodeRuntime) =>
+            onNodeStart: (nodeRuntime) => {
+              publishRunRecord(updateRunRecordNode(runRecord, nodeRuntime));
               set((current) => ({
                 runtimeState: {
                   ...current.runtimeState,
                   [nodeRuntime.nodeId]: nodeRuntime,
                 },
-              })),
-            onNodeProgress: (nodeRuntime) =>
+              }));
+            },
+            onNodeProgress: (nodeRuntime) => {
+              publishRunRecord(updateRunRecordNode(runRecord, nodeRuntime));
               set((current) => {
                 const canvas = applyRuntimeOutputToCanvas(current.nodes, nodeRuntime);
                 return {
@@ -1053,8 +1132,10 @@ export const useStudioStore = create<StudioState>()(
                   dirty: canvas.changed ? true : current.dirty,
                   updatedAt: canvas.changed ? nowIso() : current.updatedAt,
                 };
-              }),
-            onNodeResult: (nodeRuntime) =>
+              });
+            },
+            onNodeResult: (nodeRuntime) => {
+              publishRunRecord(updateRunRecordNode(runRecord, nodeRuntime));
               set((current) => {
                 const canvas = applyRuntimeOutputToCanvas(current.nodes, nodeRuntime);
                 const materialized =
@@ -1072,15 +1153,167 @@ export const useStudioStore = create<StudioState>()(
                   dirty: changed ? true : current.dirty,
                   updatedAt: changed ? nowIso() : current.updatedAt,
                 };
-              }),
+              });
+            },
+          });
+          publishRunRecord({
+            ...runRecord,
+            status: runRecord.nodes.some((node) => node.status === "failed")
+              ? "failed"
+              : "completed",
           });
         } catch (error) {
+          publishRunRecord({ ...runRecord, status: "failed" });
           set({
             runtimeError:
               error instanceof Error ? error.message : "Studio runtime failed",
           });
         } finally {
-          set({ runtimeRunning: false });
+          set({ runtimeRunning: false, runLockState: "idle" });
+        }
+      },
+
+      retryNode: async (nodeId) => {
+        const state = get();
+        if (state.runtimeRunning) {
+          set({ runLockState: "locked" });
+          return;
+        }
+
+        const node = state.nodes.find((item) => item.id === nodeId);
+        if (!node) {
+          set({ runtimeError: "The node no longer exists." });
+          return;
+        }
+        const persistedStatus =
+          "status" in node.data ? String(node.data.status || "") : "";
+        const runtimeStatus = state.runtimeState[nodeId]?.status;
+        if (persistedStatus !== "failed" && runtimeStatus !== "failed") {
+          set({ runtimeError: "Only failed nodes can be retried." });
+          return;
+        }
+
+        let runRecord = createRunRecord([node], state.projectId, "retry");
+        const publishRunRecord = (record: StudioRunRecord) => {
+          runRecord = record;
+          set({ runHistory: saveStudioRunRecord(record) });
+        };
+        publishRunRecord(runRecord);
+
+        const preflight = getStudioRetryPreflight(
+          nodeId,
+          state.nodes,
+          state.edges,
+        );
+        if (!preflight.ok) {
+          const failedRuntime: StudioNodeRuntimeState = {
+            nodeId,
+            status: "failed",
+            startedAt: nowIso(),
+            finishedAt: nowIso(),
+            outputs: {
+              errorCode: preflight.errorCode,
+              message: preflight.message,
+            },
+            error: preflight.message,
+          };
+          publishRunRecord({
+            ...updateRunRecordNode(runRecord, failedRuntime),
+            status: "failed",
+          });
+          set((current) => ({
+            runtimeState: {
+              ...current.runtimeState,
+              [nodeId]: failedRuntime,
+            },
+            runtimeError: preflight.message,
+            runLockState: "idle",
+          }));
+          return;
+        }
+
+        set((current) => ({
+          runtimeRunning: true,
+          runLockState: "running",
+          runtimeError: "",
+          runtimeState: {
+            ...current.runtimeState,
+            [nodeId]: {
+              nodeId,
+              status: "ready",
+              startedAt: null,
+              finishedAt: null,
+              outputs: {},
+            },
+          },
+        }));
+
+        try {
+          await runSingleStudioNode({
+            projectId: state.projectId,
+            nodeId,
+            nodes: state.nodes,
+            edges: state.edges,
+            onNodeStart: (nodeRuntime) => {
+              publishRunRecord(updateRunRecordNode(runRecord, nodeRuntime));
+              set((current) => ({
+                runtimeState: {
+                  ...current.runtimeState,
+                  [nodeId]: nodeRuntime,
+                },
+              }));
+            },
+            onNodeProgress: (nodeRuntime) => {
+              publishRunRecord(updateRunRecordNode(runRecord, nodeRuntime));
+              set((current) => {
+                const canvas = applyRuntimeOutputToCanvas(current.nodes, nodeRuntime);
+                return {
+                  runtimeState: {
+                    ...current.runtimeState,
+                    [nodeId]: nodeRuntime,
+                  },
+                  nodes: canvas.nodes,
+                  dirty: canvas.changed ? true : current.dirty,
+                  updatedAt: canvas.changed ? nowIso() : current.updatedAt,
+                };
+              });
+            },
+            onNodeResult: (nodeRuntime) => {
+              publishRunRecord(updateRunRecordNode(runRecord, nodeRuntime));
+              set((current) => {
+                const canvas = applyRuntimeOutputToCanvas(current.nodes, nodeRuntime);
+                const materialized =
+                  nodeRuntime.status === "completed"
+                    ? materializeRemakeShotNodes(canvas.nodes, current.edges, nodeRuntime)
+                    : { changed: false, nodes: canvas.nodes, edges: current.edges };
+                const changed = canvas.changed || materialized.changed;
+                return {
+                  runtimeState: {
+                    ...current.runtimeState,
+                    [nodeId]: nodeRuntime,
+                  },
+                  nodes: materialized.nodes,
+                  edges: materialized.edges,
+                  dirty: changed ? true : current.dirty,
+                  updatedAt: changed ? nowIso() : current.updatedAt,
+                };
+              });
+            },
+          });
+          publishRunRecord({
+            ...runRecord,
+            status: runRecord.nodes.some((item) => item.status === "failed")
+              ? "failed"
+              : "completed",
+          });
+        } catch (error) {
+          publishRunRecord({ ...runRecord, status: "failed" });
+          set({
+            runtimeError:
+              error instanceof Error ? error.message : "Studio retry failed",
+          });
+        } finally {
+          set({ runtimeRunning: false, runLockState: "idle" });
         }
       },
     }),

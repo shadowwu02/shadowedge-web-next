@@ -1,5 +1,6 @@
 import type { NodeProps } from "@xyflow/react";
 import { STUDIO_REMAKE_EXECUTION_ENABLED } from "@/config/studioFeatures";
+import { StudioRetryButton } from "@/features/studio/components/StudioRetryButton";
 import { StudioNodeFrame } from "@/features/studio/nodes/StudioNodeFrame";
 import { useStudioNodeRuntimeStatus } from "@/features/studio/store/studioStore";
 import type { StudioNode } from "@/features/studio/types/studioTypes";
@@ -49,6 +50,11 @@ export function RemakeAnalysisNode({ data, id, selected }: NodeProps<StudioNode>
           {data.errorMessage}
         </p>
       ) : null}
+      <StudioRetryButton
+        nodeId={id}
+        status={runtimeStatus}
+        warning="Retry may call the configured VLM and incur provider cost."
+      />
     </StudioNodeFrame>
   );
 }

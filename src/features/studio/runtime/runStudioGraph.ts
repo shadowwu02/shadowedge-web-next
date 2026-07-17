@@ -55,6 +55,170 @@ function getNodeInputIds(
   return Array.from(inputIds);
 }
 
+function persistedNodeOutput(node: StudioNode): Record<string, unknown> {
+  const data = node.data;
+  if (data.kind === "asset") {
+    return {
+      executor: "asset",
+      assetId: data.assetId,
+      assetType: data.assetType,
+      url: data.url,
+      source: data.source,
+      status: data.status,
+    };
+  }
+  if (data.kind === "prompt") {
+    return {
+      executor: "prompt",
+      prompt: data.prompt,
+      style: data.style,
+      camera: data.camera,
+      duration: data.duration,
+      ratio: data.ratio,
+    };
+  }
+  if (data.kind === "remakeShot") {
+    return {
+      executor: "remake_shot",
+      shotId: data.shotId,
+      prompt: data.prompt,
+      camera: data.camera,
+      duration: data.duration,
+      ratio: data.ratio,
+      model: data.model,
+      quality: data.quality,
+      referenceImages: data.referenceFrames,
+      status: data.status,
+    };
+  }
+  if (data.kind === "imageGenerate") {
+    return {
+      executor: "image_generate",
+      jobId: data.jobId,
+      imageUrl: data.imageUrl || data.result,
+      thumbnail: data.thumbnail,
+      model: data.model,
+      status: data.status,
+      errorCode: data.errorCode,
+      message: data.errorMessage,
+    };
+  }
+  if (data.kind === "videoGenerate") {
+    return {
+      executor: "video_generate",
+      jobId: data.jobId,
+      videoUrl: data.videoUrl || data.result,
+      thumbnail: data.thumbnail,
+      model: data.model,
+      status: data.status,
+      errorCode: data.errorCode,
+      message: data.errorMessage,
+    };
+  }
+  if (data.kind === "remakeAnalysis") {
+    return {
+      executor: "remake_analysis",
+      storyboardId: data.storyboardId,
+      shotCount: data.shotCount,
+      status: data.status,
+      errorCode: data.errorCode,
+      message: data.errorMessage,
+    };
+  }
+  return {
+    executor: "output",
+    jobId: data.jobId,
+    result: data.resultPreview,
+    imageUrl: data.outputType === "image" ? data.resultPreview : "",
+    videoUrl: data.outputType === "video" ? data.resultPreview : "",
+    thumbnail: data.thumbnail,
+    outputType: data.outputType,
+    status: data.status,
+    message: data.errorMessage,
+  };
+}
+
+function buildPersistedInputs(
+  node: StudioNode,
+  nodes: StudioNode[],
+  edges: StudioEdge[],
+) {
+  const nodeById = new Map(nodes.map((item) => [item.id, item]));
+  return Object.fromEntries(
+    getNodeInputIds(node, edges, nodeById)
+      .map((sourceId) => nodeById.get(sourceId))
+      .filter((source): source is StudioNode => Boolean(source))
+      .map((source) => [source.id, persistedNodeOutput(source)]),
+  );
+}
+
+export function getStudioRetryPreflight(
+  nodeId: string,
+  nodes: StudioNode[],
+  edges: StudioEdge[],
+) {
+  const node = nodes.find((item) => item.id === nodeId);
+  if (!node) {
+    return { ok: false, errorCode: "NODE_NOT_FOUND", message: "The node no longer exists." };
+  }
+
+  const data = node.data;
+  const hasCompletedResult =
+    (data.kind === "imageGenerate" && data.status === "completed" && Boolean(data.imageUrl || data.result)) ||
+    (data.kind === "videoGenerate" && data.status === "completed" && Boolean(data.videoUrl || data.result)) ||
+    (data.kind === "remakeAnalysis" && data.status === "completed" && Boolean(data.storyboardId)) ||
+    (data.kind === "output" && data.status === "completed" && Boolean(data.resultPreview));
+  if (hasCompletedResult) {
+    return {
+      ok: false,
+      errorCode: "COMPLETED_RESULT_EXISTS",
+      message: "This node already has a completed result and will not be charged again.",
+    };
+  }
+
+  const inputs = Object.values(buildPersistedInputs(node, nodes, edges));
+  const invalidGeneratedInput = inputs.find(
+    (input) =>
+      (input.executor === "image_generate" || input.executor === "video_generate") &&
+      (input.status !== "completed" || !(input.imageUrl || input.videoUrl)),
+  );
+  if (invalidGeneratedInput) {
+    return {
+      ok: false,
+      errorCode: "UPSTREAM_INPUT_INVALID",
+      message: "An upstream generated result is missing or incomplete.",
+    };
+  }
+
+  if (data.kind === "imageGenerate" || data.kind === "videoGenerate") {
+    const prompt = inputs.find(
+      (input) => typeof input.prompt === "string" && input.prompt.trim(),
+    );
+    if (!prompt) {
+      return {
+        ok: false,
+        errorCode: "UPSTREAM_INPUT_INVALID",
+        message: "Connect a Prompt or Remake Shot node with a valid prompt before retrying.",
+      };
+    }
+  }
+
+  if (data.kind === "remakeAnalysis") {
+    const video = inputs.find(
+      (input) => input.assetType === "video" && typeof input.url === "string" && input.url.trim(),
+    );
+    if (!video) {
+      return {
+        ok: false,
+        errorCode: "UPSTREAM_INPUT_INVALID",
+        message: "Connect a ready Video Asset before retrying Remake analysis.",
+      };
+    }
+  }
+
+  return { ok: true, errorCode: "", message: "" };
+}
+
 function getExecutionOrder(nodes: StudioNode[], edges: StudioEdge[]) {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const indegree = new Map(nodes.map((node) => [node.id, 0]));
@@ -177,4 +341,74 @@ export async function runStudioGraph({
       result,
     );
   }
+}
+
+export async function runSingleStudioNode({
+  projectId,
+  nodeId,
+  nodes,
+  edges,
+  onNodeStart,
+  onNodeProgress,
+  onNodeResult,
+}: {
+  projectId: string | null;
+  nodeId: string;
+  nodes: StudioNode[];
+  edges: StudioEdge[];
+} & StudioRuntimeCallbacks) {
+  const node = nodes.find((item) => item.id === nodeId);
+  if (!node) throw new Error("Studio node was not found.");
+
+  const startedAt = nowIso();
+  onNodeStart({
+    nodeId: node.id,
+    status: "running",
+    startedAt,
+    finishedAt: null,
+    outputs: {},
+  });
+
+  const { executor } = getStudioExecutor(node.type);
+  let currentOutputs: Record<string, unknown> = {};
+  let result: NodeExecutionResult;
+  try {
+    result = await executor.execute({
+      projectId,
+      nodeId: node.id,
+      inputs: buildPersistedInputs(node, nodes, edges),
+      config: node.data,
+      reportProgress: (progress) => {
+        currentOutputs = { ...currentOutputs, ...(progress.outputs || {}) };
+        onNodeProgress({
+          nodeId: node.id,
+          status: progress.status,
+          startedAt,
+          finishedAt: null,
+          outputs: currentOutputs,
+          error: progress.error,
+        });
+      },
+    });
+  } catch (error) {
+    result = {
+      status: "failed",
+      outputs: {},
+      error: error instanceof Error ? error.message : "Node executor failed",
+    };
+  }
+
+  const finalOutputs = { ...currentOutputs, ...result.outputs };
+  onNodeResult(
+    {
+      nodeId: node.id,
+      status: result.status,
+      startedAt,
+      finishedAt: nowIso(),
+      outputs: finalOutputs,
+      error: result.error,
+    },
+    result,
+  );
+  return result;
 }

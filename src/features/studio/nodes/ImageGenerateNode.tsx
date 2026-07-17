@@ -1,5 +1,7 @@
 import type { NodeProps } from "@xyflow/react";
 import { STUDIO_IMAGE_EXECUTION_ENABLED } from "@/config/studioFeatures";
+import { StudioCostPreview } from "@/features/studio/components/StudioCostPreview";
+import { StudioRetryButton } from "@/features/studio/components/StudioRetryButton";
 import { StudioNodeFrame } from "@/features/studio/nodes/StudioNodeFrame";
 import {
   useStudioNodeRuntimeStatus,
@@ -8,7 +10,10 @@ import {
 import type { StudioNode } from "@/features/studio/types/studioTypes";
 
 export function ImageGenerateNode({ data, id, selected }: NodeProps<StudioNode>) {
-  const runtimeStatus = useStudioNodeRuntimeStatus(id);
+  const runtimeStatus = useStudioNodeRuntimeStatus(
+    id,
+    data.kind === "imageGenerate" ? data.status : "idle",
+  );
   const createAssetFromResultNode = useStudioStore(
     (state) => state.createAssetFromResultNode,
   );
@@ -46,11 +51,13 @@ export function ImageGenerateNode({ data, id, selected }: NodeProps<StudioNode>)
           </div>
         ) : null}
       </dl>
+      <StudioCostPreview data={data} />
       {data.errorMessage ? (
         <p className="studio-node-error" title={data.errorMessage}>
           {data.errorCode || "IMAGE_GENERATION_FAILED"}: {data.errorMessage}
         </p>
       ) : null}
+      <StudioRetryButton nodeId={id} status={runtimeStatus} />
       {data.status === "completed" && imageUrl ? (
         <button
           className="studio-node-action nodrag nopan"
