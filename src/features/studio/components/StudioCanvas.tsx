@@ -37,6 +37,8 @@ export function StudioCanvas() {
   const edges = useStudioStore((state) => state.edges);
   const viewport = useStudioStore((state) => state.viewport);
   const hasHydrated = useStudioStore((state) => state.hasHydrated);
+  const projectId = useStudioStore((state) => state.projectId);
+  const loadingProject = useStudioStore((state) => state.loadingProject);
   const onNodesChange = useStudioStore((state) => state.onNodesChange);
   const onEdgesChange = useStudioStore((state) => state.onEdgesChange);
   const onConnect = useStudioStore((state) => state.onConnect);
@@ -53,7 +55,13 @@ export function StudioCanvas() {
           <span>Drag nodes, connect handles, and shape the generation flow.</span>
         </div>
         <span className="studio-local-badge">
-          {hasHydrated ? "Local draft restored" : "Restoring local draft"}
+          {loadingProject
+            ? "Loading cloud project"
+            : projectId
+              ? "Cloud project loaded"
+              : hasHydrated
+                ? "Local fallback restored"
+                : "Restoring local fallback"}
         </span>
       </div>
 

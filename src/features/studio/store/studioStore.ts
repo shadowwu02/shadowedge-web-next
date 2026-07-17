@@ -13,11 +13,14 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { activeBrand, type BrandId } from "@/config/brand";
 import type {
+  StudioCanvasJson,
   StudioCanvasSnapshot,
   StudioEdge,
   StudioNode,
   StudioNodeData,
   StudioNodeType,
+  StudioProject,
+  StudioProjectSummary,
 } from "@/features/studio/types/studioTypes";
 
 export const SHADOWEDGE_STUDIO_CANVAS_STORAGE_KEY = "shadowedge_studio_canvas_v1";
@@ -154,6 +157,13 @@ function appendHistory(history: StudioCanvasSnapshot[], snapshot: StudioCanvasSn
 }
 
 type StudioState = StudioCanvasSnapshot & {
+  projectId: string | null;
+  projectName: string;
+  projects: StudioProjectSummary[];
+  dirty: boolean;
+  saving: boolean;
+  loadingProject: boolean;
+  projectError: string;
   selectedNodeId: string | null;
   past: StudioCanvasSnapshot[];
   future: StudioCanvasSnapshot[];
@@ -167,7 +177,13 @@ type StudioState = StudioCanvasSnapshot & {
   onConnect: (connection: Connection) => void;
   setViewport: (viewport: Viewport) => void;
   rememberSnapshot: (snapshot: StudioCanvasSnapshot) => void;
-  save: () => void;
+  setProjectName: (projectName: string) => void;
+  setProjects: (projects: StudioProjectSummary[]) => void;
+  setSaving: (saving: boolean) => void;
+  setLoadingProject: (loadingProject: boolean) => void;
+  setProjectError: (projectError: string) => void;
+  loadProject: (project: StudioProject) => void;
+  markProjectSaved: (project: StudioProject) => void;
   undo: () => void;
   redo: () => void;
   setHasHydrated: (hasHydrated: boolean) => void;
@@ -183,6 +199,13 @@ export const useStudioStore = create<StudioState>()(
       edges: initialEdges,
       viewport: defaultViewport,
       updatedAt: "",
+      projectId: null,
+      projectName: "Untitled Project",
+      projects: [],
+      dirty: false,
+      saving: false,
+      loadingProject: false,
+      projectError: "",
       selectedNodeId: "prompt-1",
       past: [],
       future: [],
@@ -204,6 +227,7 @@ export const useStudioStore = create<StudioState>()(
             past: appendHistory(state.past, snapshot),
             future: [],
             updatedAt: nowIso(),
+            dirty: true,
           };
         }),
 
@@ -218,6 +242,7 @@ export const useStudioStore = create<StudioState>()(
             past: appendHistory(state.past, snapshot),
             future: [],
             updatedAt: nowIso(),
+            dirty: true,
           };
         }),
 
@@ -240,6 +265,7 @@ export const useStudioStore = create<StudioState>()(
             past: appendHistory(state.past, snapshot),
             future: [],
             updatedAt: nowIso(),
+            dirty: true,
           };
         }),
 
@@ -248,6 +274,9 @@ export const useStudioStore = create<StudioState>()(
       onNodesChange: (changes) =>
         set((state) => {
           const recordsDeletion = changes.some((change) => change.type === "remove");
+          const changesCanvas = changes.some(
+            (change) => change.type === "position" || change.type === "remove",
+          );
           const snapshot = recordsDeletion ? takeSnapshot(state) : null;
           const removedIds = new Set(
             changes
@@ -267,11 +296,8 @@ export const useStudioStore = create<StudioState>()(
                 : state.selectedNodeId,
             past: snapshot ? appendHistory(state.past, snapshot) : state.past,
             future: snapshot ? [] : state.future,
-            updatedAt: changes.some(
-              (change) => change.type === "position" || change.type === "remove",
-            )
-              ? nowIso()
-              : state.updatedAt,
+            updatedAt: changesCanvas ? nowIso() : state.updatedAt,
+            dirty: changesCanvas ? true : state.dirty,
           };
         }),
 
@@ -284,6 +310,7 @@ export const useStudioStore = create<StudioState>()(
             past: snapshot ? appendHistory(state.past, snapshot) : state.past,
             future: snapshot ? [] : state.future,
             updatedAt: recordsDeletion ? nowIso() : state.updatedAt,
+            dirty: recordsDeletion ? true : state.dirty,
           };
         }),
 
@@ -316,10 +343,11 @@ export const useStudioStore = create<StudioState>()(
             past: appendHistory(state.past, snapshot),
             future: [],
             updatedAt: nowIso(),
+            dirty: true,
           };
         }),
 
-      setViewport: (viewport) => set({ viewport, updatedAt: nowIso() }),
+      setViewport: (viewport) => set({ viewport, updatedAt: nowIso(), dirty: true }),
 
       rememberSnapshot: (snapshot) =>
         set((state) => ({
@@ -328,7 +356,40 @@ export const useStudioStore = create<StudioState>()(
           updatedAt: nowIso(),
         })),
 
-      save: () => set({ updatedAt: nowIso() }),
+      setProjectName: (projectName) =>
+        set({ projectName: projectName.slice(0, 180), dirty: true }),
+
+      setProjects: (projects) => set({ projects }),
+
+      setSaving: (saving) => set({ saving }),
+
+      setLoadingProject: (loadingProject) => set({ loadingProject }),
+
+      setProjectError: (projectError) => set({ projectError }),
+
+      loadProject: (project) =>
+        set({
+          projectId: project.id,
+          projectName: project.name,
+          nodes: project.canvasJson.nodes,
+          edges: project.canvasJson.edges,
+          viewport: project.canvasJson.viewport,
+          updatedAt: project.updatedAt,
+          selectedNodeId: null,
+          past: [],
+          future: [],
+          dirty: false,
+          projectError: "",
+        }),
+
+      markProjectSaved: (project) =>
+        set({
+          projectId: project.id,
+          projectName: project.name,
+          updatedAt: project.updatedAt,
+          dirty: false,
+          projectError: "",
+        }),
 
       undo: () =>
         set((state) => {
@@ -340,6 +401,7 @@ export const useStudioStore = create<StudioState>()(
             past: state.past.slice(0, -1),
             future: [takeSnapshot(state), ...state.future].slice(0, historyLimit),
             updatedAt: nowIso(),
+            dirty: true,
           };
         }),
 
@@ -353,6 +415,7 @@ export const useStudioStore = create<StudioState>()(
             past: appendHistory(state.past, takeSnapshot(state)),
             future: state.future.slice(1),
             updatedAt: nowIso(),
+            dirty: true,
           };
         }),
 
@@ -362,7 +425,10 @@ export const useStudioStore = create<StudioState>()(
       name: STUDIO_CANVAS_STORAGE_KEY,
       version: 1,
       storage: createJSONStorage(() => localStorage),
+      skipHydration: true,
       partialize: (state) => ({
+        projectId: state.projectId,
+        projectName: state.projectName,
         nodes: state.nodes,
         edges: state.edges,
         viewport: state.viewport,
@@ -377,4 +443,14 @@ export const useStudioStore = create<StudioState>()(
 
 export function getCurrentStudioSnapshot() {
   return takeSnapshot(useStudioStore.getState());
+}
+
+export function getCurrentStudioCanvasJson(): StudioCanvasJson {
+  const state = useStudioStore.getState();
+  return {
+    version: 1,
+    nodes: state.nodes,
+    edges: state.edges,
+    viewport: state.viewport,
+  };
 }

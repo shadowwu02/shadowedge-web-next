@@ -1,15 +1,30 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useEffect, type CSSProperties } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { activeBrand } from "@/config/brand";
 import { NodeInspector } from "@/features/studio/components/NodeInspector";
 import { NodeLibrary } from "@/features/studio/components/NodeLibrary";
 import { StudioCanvas } from "@/features/studio/components/StudioCanvas";
 import { StudioToolbar } from "@/features/studio/components/StudioToolbar";
-import { STUDIO_CANVAS_STORAGE_KEY } from "@/features/studio/store/studioStore";
+import {
+  STUDIO_CANVAS_STORAGE_KEY,
+  useStudioStore,
+} from "@/features/studio/store/studioStore";
 
 export function StudioWorkspace() {
+  const setHasHydrated = useStudioStore((state) => state.setHasHydrated);
+
+  useEffect(() => {
+    const finishHydration = () => setHasHydrated(true);
+    const result = useStudioStore.persist.rehydrate();
+    if (result && typeof result.then === "function") {
+      void result.then(finishHydration);
+    } else {
+      window.queueMicrotask(finishHydration);
+    }
+  }, [setHasHydrated]);
+
   const studioTheme = {
     "--studio-accent": activeBrand.theme.accent,
     "--studio-accent-soft": activeBrand.theme.accentSoft,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useStudioProjects } from "@/features/studio/hooks/useStudioProjects";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import {
   STUDIO_NODE_DEFINITIONS,
@@ -16,24 +17,67 @@ export function StudioToolbar({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const addNode = useStudioStore((state) => state.addNode);
-  const save = useStudioStore((state) => state.save);
   const undo = useStudioStore((state) => state.undo);
   const redo = useStudioStore((state) => state.redo);
+  const setProjectName = useStudioStore((state) => state.setProjectName);
   const canUndo = useStudioStore((state) => state.past.length > 0);
   const canRedo = useStudioStore((state) => state.future.length > 0);
+  const projectId = useStudioStore((state) => state.projectId);
+  const projectName = useStudioStore((state) => state.projectName);
+  const projects = useStudioStore((state) => state.projects);
+  const dirty = useStudioStore((state) => state.dirty);
+  const saving = useStudioStore((state) => state.saving);
+  const loadingProject = useStudioStore((state) => state.loadingProject);
+  const projectError = useStudioStore((state) => state.projectError);
   const updatedAt = useStudioStore((state) => state.updatedAt);
+  const {
+    authLoading,
+    isSignedIn,
+    notice,
+    clearNotice,
+    createProject,
+    openProject,
+    saveProject,
+  } = useStudioProjects();
 
   const handleAddNode = (type: StudioNodeType) => {
     addNode(type);
     setMenuOpen(false);
   };
 
+  const projectBusy = saving || loadingProject || authLoading;
+  const saveLabel = saving ? "Saving..." : projectId ? "Save Project" : "Create & Save";
+
   return (
     <header className="studio-toolbar">
       <div className="studio-toolbar-title">
         <p>{brandName}</p>
         <h1>AI Studio</h1>
-        <span>Canvas P0 · UI and project structure only</span>
+        <span>Cloud project foundation · no node execution</span>
+      </div>
+
+      <div className="studio-project-controls">
+        <input
+          aria-label="Project name"
+          disabled={projectBusy}
+          maxLength={180}
+          onChange={(event) => setProjectName(event.target.value)}
+          placeholder="Untitled Project"
+          value={projectName}
+        />
+        <select
+          aria-label="Open studio project"
+          disabled={!isSignedIn || projectBusy}
+          onChange={(event) => void openProject(event.target.value)}
+          value={projectId || ""}
+        >
+          <option value="">Local draft</option>
+          {projects.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="studio-toolbar-actions">
@@ -45,7 +89,7 @@ export function StudioToolbar({
             onClick={() => setMenuOpen((open) => !open)}
             type="button"
           >
-            <span aria-hidden="true">＋</span>
+            <span aria-hidden="true">+</span>
             New Node
           </button>
           {menuOpen ? (
@@ -65,8 +109,21 @@ export function StudioToolbar({
           ) : null}
         </div>
 
-        <button className="studio-button" onClick={save} type="button">
-          Save
+        <button
+          className="studio-button"
+          disabled={!isSignedIn || projectBusy}
+          onClick={() => void createProject()}
+          type="button"
+        >
+          New Project
+        </button>
+        <button
+          className="studio-button"
+          disabled={!isSignedIn || projectBusy || Boolean(projectId && !dirty)}
+          onClick={() => void saveProject()}
+          type="button"
+        >
+          {saveLabel}
         </button>
         <button className="studio-button" disabled={!canUndo} onClick={undo} type="button">
           Undo
@@ -77,16 +134,32 @@ export function StudioToolbar({
       </div>
 
       <div className="studio-save-state" aria-live="polite">
-        <span>Local only · no provider calls</span>
         <span title={storageKey}>
-          {updatedAt
-            ? "Saved " + new Date(updatedAt).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
-            : "Ready to save"}
+          {isSignedIn ? (projectId ? "Cloud project" : "Local fallback") : "Sign in for cloud save"}
+          {dirty ? " · Unsaved" : ""}
+        </span>
+        <span>
+          {loadingProject
+            ? "Loading project..."
+            : updatedAt
+              ? "Updated " +
+                new Date(updatedAt).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "Local draft ready"}
         </span>
       </div>
+
+      {notice || projectError ? (
+        <button
+          className={"studio-toast studio-toast-" + (notice?.kind || "error")}
+          onClick={clearNotice}
+          type="button"
+        >
+          {notice?.message || projectError}
+        </button>
+      ) : null}
     </header>
   );
 }

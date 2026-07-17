@@ -77,6 +77,25 @@ export type StudioCanvasSnapshot = {
   updatedAt: string;
 };
 
+export type StudioCanvasJson = {
+  version: number | string;
+  nodes: StudioNode[];
+  edges: StudioEdge[];
+  viewport: Viewport;
+};
+
+export type StudioProjectSummary = {
+  id: string;
+  name: string;
+  thumbnail: string | null;
+  updatedAt: string;
+};
+
+export type StudioProject = StudioProjectSummary & {
+  canvasJson: StudioCanvasJson;
+  createdAt: string;
+};
+
 export const STUDIO_NODE_DEFINITIONS: Array<{
   type: StudioNodeType;
   label: string;

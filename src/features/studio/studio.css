@@ -22,7 +22,7 @@
   position: relative;
   z-index: 20;
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) auto minmax(190px, 1fr);
+  grid-template-columns: minmax(180px, 0.8fr) minmax(280px, 0.9fr) auto minmax(150px, 0.6fr);
   align-items: center;
   gap: 18px;
   min-height: 78px;
@@ -68,7 +68,43 @@
   gap: 7px;
 }
 
+.studio-project-controls {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(130px, 1fr) minmax(130px, 1fr);
+  gap: 7px;
+}
+
+.studio-project-controls input,
+.studio-project-controls select {
+  width: 100%;
+  min-height: 38px;
+  min-width: 0;
+  border: 1px solid rgba(244, 244, 244, 0.1);
+  border-radius: 12px;
+  background: rgba(15, 17, 22, 0.94);
+  padding: 0 11px;
+  color: rgba(244, 244, 244, 0.78);
+  font-size: 11px;
+  outline: none;
+}
+
+.studio-project-controls input:focus,
+.studio-project-controls select:focus {
+  border-color: color-mix(in srgb, var(--studio-accent) 48%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--studio-accent) 8%, transparent);
+}
+
+.studio-project-controls input:disabled,
+.studio-project-controls select:disabled {
+  opacity: 0.5;
+}
+
 .studio-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   min-height: 38px;
   border: 1px solid rgba(244, 244, 244, 0.1);
   border-radius: 12px;
@@ -166,6 +202,31 @@
 
 .studio-save-state span:last-child {
   color: color-mix(in srgb, var(--studio-accent-soft) 76%, white 8%);
+}
+
+.studio-toast {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 16px;
+  max-width: min(420px, calc(100vw - 32px));
+  border: 1px solid color-mix(in srgb, var(--studio-accent) 35%, transparent);
+  border-radius: 12px;
+  background: rgba(15, 17, 22, 0.98);
+  padding: 10px 13px;
+  color: rgba(244, 244, 244, 0.84);
+  font-size: 11px;
+  text-align: left;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+}
+
+.studio-toast-success {
+  border-color: rgba(88, 190, 132, 0.4);
+  color: rgba(190, 245, 211, 0.9);
+}
+
+.studio-toast-error {
+  border-color: rgba(218, 116, 91, 0.42);
+  color: rgba(248, 193, 179, 0.9);
 }
 
 .studio-layout {
@@ -683,9 +744,9 @@
   line-height: 1.6;
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1480px) {
   .studio-toolbar {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: minmax(180px, 0.7fr) minmax(280px, 1fr) auto;
   }
 
   .studio-save-state {
@@ -712,6 +773,10 @@
   .studio-toolbar-actions {
     overflow-x: auto;
     padding-bottom: 2px;
+  }
+
+  .studio-project-controls {
+    grid-template-columns: 1fr 1fr;
   }
 
   .studio-toolbar-title span {
