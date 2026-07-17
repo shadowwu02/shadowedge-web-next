@@ -14,6 +14,7 @@ export function RemakeShotNode({ data, id, selected }: NodeProps<StudioNode>) {
   const createVideoNode = useStudioStore(
     (state) => state.createVideoNodeFromRemakeShot,
   );
+  const addNodeToTimeline = useStudioStore((state) => state.addNodeToTimeline);
   if (data.kind !== "remakeShot") return null;
 
   return (
@@ -62,6 +63,17 @@ export function RemakeShotNode({ data, id, selected }: NodeProps<StudioNode>) {
         type="button"
       >
         Create Video Node
+      </button>
+      <button
+        className="studio-node-action nodrag nopan"
+        onClick={(event) => {
+          event.stopPropagation();
+          addNodeToTimeline(id);
+        }}
+        onMouseDown={(event) => event.stopPropagation()}
+        type="button"
+      >
+        Add Shot To Timeline
       </button>
       <p className="studio-node-footnote">Creation only; the video node will not auto-run.</p>
     </StudioNodeFrame>

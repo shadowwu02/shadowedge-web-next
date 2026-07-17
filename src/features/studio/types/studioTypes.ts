@@ -156,10 +156,34 @@ export type StudioNodeData = (
 export type StudioNode = Node<StudioNodeData, StudioNodeType>;
 export type StudioEdge = Edge;
 
+export type StudioTimelineClipSource = "video_node" | "shot_node" | "asset";
+
+export type StudioTimelineClip = {
+  id: string;
+  sourceNodeId: string;
+  sourceType: StudioTimelineClipSource;
+  thumbnail: string;
+  url: string;
+  start: number;
+  duration: number;
+  createdAt: string;
+};
+
+export type StudioTimelineTrack = {
+  id: string;
+  type: "video";
+  clips: StudioTimelineClip[];
+};
+
+export type StudioTimeline = {
+  tracks: StudioTimelineTrack[];
+};
+
 export type StudioCanvasSnapshot = {
   nodes: StudioNode[];
   edges: StudioEdge[];
   viewport: Viewport;
+  timeline: StudioTimeline;
   updatedAt: string;
 };
 
@@ -168,6 +192,8 @@ export type StudioCanvasJson = {
   nodes: StudioNode[];
   edges: StudioEdge[];
   viewport: Viewport;
+  /** Optional on read so Canvas v1 projects and templates remain loadable. */
+  timeline?: StudioTimeline;
 };
 
 export type StudioProjectSummary = {

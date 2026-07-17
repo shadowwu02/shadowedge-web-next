@@ -39,6 +39,8 @@ import type {
   StudioProject,
   StudioProjectSummary,
   StudioAssetItem,
+  StudioTimeline,
+  StudioTimelineClip,
 } from "@/features/studio/types/studioTypes";
 
 export const SHADOWEDGE_STUDIO_CANVAS_STORAGE_KEY = "shadowedge_studio_canvas_v1";
@@ -52,11 +54,107 @@ export function getStudioCanvasStorageKey(brandId: BrandId) {
 export const STUDIO_CANVAS_STORAGE_KEY = getStudioCanvasStorageKey(activeBrand.id);
 
 const defaultViewport: Viewport = { x: 8, y: 36, zoom: 0.82 };
+const STUDIO_CANVAS_VERSION = 2;
+const DEFAULT_VIDEO_TRACK_ID = "track-video-1";
 const historyLimit = 50;
 let nodeSequence = 0;
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function createEmptyTimeline(): StudioTimeline {
+  return { tracks: [] };
+}
+
+function positiveDuration(value: unknown, fallback = 4) {
+  const duration = Number(value);
+  return Number.isFinite(duration) && duration > 0 ? duration : fallback;
+}
+
+function reflowTimelineClips(clips: StudioTimelineClip[]) {
+  let start = 0;
+  return clips.map((clip) => {
+    const duration = positiveDuration(clip.duration);
+    const normalized = { ...clip, start, duration };
+    start += duration;
+    return normalized;
+  });
+}
+
+function normalizeStudioTimeline(timeline?: StudioTimeline): StudioTimeline {
+  if (!timeline || !Array.isArray(timeline.tracks)) return createEmptyTimeline();
+  return {
+    tracks: timeline.tracks
+      .filter((track) => track?.type === "video" && Array.isArray(track.clips))
+      .map((track) => ({
+        id: String(track.id || DEFAULT_VIDEO_TRACK_ID),
+        type: "video" as const,
+        clips: reflowTimelineClips(track.clips),
+      })),
+  };
+}
+
+function createTimelineClip(
+  sourceNode: StudioNode,
+  nodes: StudioNode[],
+): StudioTimelineClip | null {
+  const createdAt = nowIso();
+  const id = `timeline-clip-${Date.now()}-${++nodeSequence}`;
+
+  if (sourceNode.data.kind === "videoGenerate") {
+    const url = sourceNode.data.videoUrl || sourceNode.data.result;
+    if (sourceNode.data.status !== "completed" || !url.trim()) return null;
+    return {
+      id,
+      sourceNodeId: sourceNode.id,
+      sourceType: "video_node",
+      thumbnail: sourceNode.data.thumbnail || "",
+      url,
+      start: 0,
+      duration: positiveDuration(sourceNode.data.duration),
+      createdAt,
+    };
+  }
+
+  if (sourceNode.data.kind === "remakeShot") {
+    return {
+      id,
+      sourceNodeId: sourceNode.id,
+      sourceType: "shot_node",
+      thumbnail: sourceNode.data.referenceFrames[0] || "",
+      url: "",
+      start: 0,
+      duration: positiveDuration(sourceNode.data.duration),
+      createdAt,
+    };
+  }
+
+  if (
+    sourceNode.data.kind === "asset" &&
+    sourceNode.data.assetType === "video" &&
+    sourceNode.data.status === "ready" &&
+    sourceNode.data.url.trim()
+  ) {
+    const originNode = nodes.find((node) => node.id === sourceNode.data.originNodeId);
+    const originDuration =
+      originNode?.data.kind === "videoGenerate" ? originNode.data.duration : undefined;
+    return {
+      id,
+      sourceNodeId: sourceNode.id,
+      sourceType: "asset",
+      thumbnail: sourceNode.data.thumbnail || "",
+      url: sourceNode.data.url,
+      start: 0,
+      duration: positiveDuration(
+        sourceNode.data.metadata?.duration,
+        positiveDuration(originDuration),
+      ),
+      createdAt,
+    };
+  }
+
+  return null;
 }
 
 function createNodeData(type: StudioNodeType): StudioNodeData {
@@ -246,11 +344,12 @@ function normalizeStudioNodes(nodes: StudioNode[]) {
   });
 }
 
-function takeSnapshot(state: Pick<StudioState, "nodes" | "edges" | "viewport" | "updatedAt">): StudioCanvasSnapshot {
+function takeSnapshot(state: Pick<StudioState, "nodes" | "edges" | "viewport" | "timeline" | "updatedAt">): StudioCanvasSnapshot {
   return {
     nodes: state.nodes,
     edges: state.edges,
     viewport: state.viewport,
+    timeline: state.timeline,
     updatedAt: state.updatedAt,
   };
 }
@@ -583,6 +682,12 @@ type StudioState = StudioCanvasSnapshot & {
   addAssetNode: (asset: StudioAssetItem) => void;
   createAssetFromResultNode: (nodeId: string) => void;
   createVideoNodeFromRemakeShot: (nodeId: string) => void;
+  addNodeToTimeline: (nodeId: string) => void;
+  moveTimelineClip: (
+    trackId: string,
+    clipId: string,
+    direction: "earlier" | "later",
+  ) => void;
   deleteNode: (nodeId: string) => void;
   updateNodeData: (nodeId: string, patch: Record<string, unknown>) => void;
   selectNode: (nodeId: string | null) => void;
@@ -616,6 +721,7 @@ export const useStudioStore = create<StudioState>()(
       nodes: initialNodes,
       edges: initialEdges,
       viewport: defaultViewport,
+      timeline: createEmptyTimeline(),
       updatedAt: "",
       projectId: null,
       projectName: "Untitled Project",
@@ -852,6 +958,70 @@ export const useStudioStore = create<StudioState>()(
           };
         }),
 
+      addNodeToTimeline: (nodeId) =>
+        set((state) => {
+          const sourceNode = state.nodes.find((node) => node.id === nodeId);
+          if (!sourceNode) return state;
+          const clip = createTimelineClip(sourceNode, state.nodes);
+          if (!clip) return state;
+
+          const snapshot = takeSnapshot(state);
+          const videoTrack = state.timeline.tracks.find(
+            (track) => track.id === DEFAULT_VIDEO_TRACK_ID,
+          );
+          const currentClips = videoTrack?.clips || [];
+          const clips = reflowTimelineClips([...currentClips, clip]);
+          const nextTrack = {
+            id: DEFAULT_VIDEO_TRACK_ID,
+            type: "video" as const,
+            clips,
+          };
+          const tracks = videoTrack
+            ? state.timeline.tracks.map((track) =>
+                track.id === DEFAULT_VIDEO_TRACK_ID ? nextTrack : track,
+              )
+            : [...state.timeline.tracks, nextTrack];
+
+          return {
+            timeline: { tracks },
+            past: appendHistory(state.past, snapshot),
+            future: [],
+            dirty: true,
+            updatedAt: nowIso(),
+          };
+        }),
+
+      moveTimelineClip: (trackId, clipId, direction) =>
+        set((state) => {
+          const track = state.timeline.tracks.find((item) => item.id === trackId);
+          if (!track) return state;
+          const index = track.clips.findIndex((clip) => clip.id === clipId);
+          const targetIndex = direction === "earlier" ? index - 1 : index + 1;
+          if (index < 0 || targetIndex < 0 || targetIndex >= track.clips.length) {
+            return state;
+          }
+
+          const snapshot = takeSnapshot(state);
+          const reordered = [...track.clips];
+          [reordered[index], reordered[targetIndex]] = [
+            reordered[targetIndex],
+            reordered[index],
+          ];
+          return {
+            timeline: {
+              tracks: state.timeline.tracks.map((item) =>
+                item.id === trackId
+                  ? { ...item, clips: reflowTimelineClips(reordered) }
+                  : item,
+              ),
+            },
+            past: appendHistory(state.past, snapshot),
+            future: [],
+            dirty: true,
+            updatedAt: nowIso(),
+          };
+        }),
+
       deleteNode: (nodeId) =>
         set((state) => {
           if (!state.nodes.some((node) => node.id === nodeId)) return state;
@@ -997,6 +1167,7 @@ export const useStudioStore = create<StudioState>()(
           nodes: normalizeStudioNodes(project.canvasJson.nodes),
           edges: project.canvasJson.edges,
           viewport: project.canvasJson.viewport,
+          timeline: normalizeStudioTimeline(project.canvasJson.timeline),
           updatedAt: project.updatedAt,
           selectedNodeId: null,
           past: [],
@@ -1014,6 +1185,7 @@ export const useStudioStore = create<StudioState>()(
           nodes: normalizeStudioNodes(canvas.nodes),
           edges: canvas.edges,
           viewport: canvas.viewport || defaultViewport,
+          timeline: normalizeStudioTimeline(canvas.timeline),
           selectedNodeId: null,
           past: appendHistory(state.past, takeSnapshot(state)),
           future: [],
@@ -1328,6 +1500,7 @@ export const useStudioStore = create<StudioState>()(
         nodes: state.nodes,
         edges: state.edges,
         viewport: state.viewport,
+        timeline: state.timeline,
         updatedAt: state.updatedAt,
       }),
       merge: (persistedState, currentState) => {
@@ -1336,6 +1509,7 @@ export const useStudioStore = create<StudioState>()(
           ...currentState,
           ...persisted,
           nodes: normalizeStudioNodes(persisted.nodes || currentState.nodes),
+          timeline: normalizeStudioTimeline(persisted.timeline),
         };
       },
       onRehydrateStorage: () => (state) => {
@@ -1352,10 +1526,11 @@ export function getCurrentStudioSnapshot() {
 export function getCurrentStudioCanvasJson(): StudioCanvasJson {
   const state = useStudioStore.getState();
   return {
-    version: 1,
+    version: STUDIO_CANVAS_VERSION,
     nodes: state.nodes,
     edges: state.edges,
     viewport: state.viewport,
+    timeline: state.timeline,
   };
 }
 

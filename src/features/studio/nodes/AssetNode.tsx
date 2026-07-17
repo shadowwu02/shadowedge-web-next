@@ -1,10 +1,14 @@
 import type { NodeProps } from "@xyflow/react";
 import { StudioNodeFrame } from "@/features/studio/nodes/StudioNodeFrame";
-import { useStudioNodeRuntimeStatus } from "@/features/studio/store/studioStore";
+import {
+  useStudioNodeRuntimeStatus,
+  useStudioStore,
+} from "@/features/studio/store/studioStore";
 import type { StudioNode } from "@/features/studio/types/studioTypes";
 
 export function AssetNode({ data, id, selected }: NodeProps<StudioNode>) {
   const runtimeStatus = useStudioNodeRuntimeStatus(id);
+  const addNodeToTimeline = useStudioStore((state) => state.addNodeToTimeline);
   if (data.kind !== "asset") return null;
   const previewUrl = data.thumbnail || data.url;
 
@@ -50,6 +54,20 @@ export function AssetNode({ data, id, selected }: NodeProps<StudioNode>) {
           <dd>{data.status}</dd>
         </div>
       </dl>
+      {data.assetType === "video" ? (
+        <button
+          className="studio-node-action nodrag nopan"
+          disabled={data.status !== "ready" || !data.url}
+          onClick={(event) => {
+            event.stopPropagation();
+            addNodeToTimeline(id);
+          }}
+          onMouseDown={(event) => event.stopPropagation()}
+          type="button"
+        >
+          Add To Timeline
+        </button>
+      ) : null}
     </StudioNodeFrame>
   );
 }

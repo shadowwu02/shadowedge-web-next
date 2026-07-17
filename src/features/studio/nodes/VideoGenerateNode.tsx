@@ -16,6 +16,7 @@ export function VideoGenerateNode({ data, id, selected }: NodeProps<StudioNode>)
   const createAssetFromResultNode = useStudioStore(
     (state) => state.createAssetFromResultNode,
   );
+  const addNodeToTimeline = useStudioStore((state) => state.addNodeToTimeline);
   if (data.kind !== "videoGenerate") return null;
 
   return (
@@ -62,6 +63,23 @@ export function VideoGenerateNode({ data, id, selected }: NodeProps<StudioNode>)
         </p>
       ) : null}
       <StudioRetryButton nodeId={id} status={runtimeStatus} />
+      <button
+        className="studio-node-action nodrag nopan"
+        disabled={data.status !== "completed" || !Boolean(data.videoUrl || data.result)}
+        onClick={(event) => {
+          event.stopPropagation();
+          addNodeToTimeline(id);
+        }}
+        onMouseDown={(event) => event.stopPropagation()}
+        title={
+          data.status === "completed"
+            ? "Add this result to the video timeline"
+            : "Complete this video node before adding it to the timeline"
+        }
+        type="button"
+      >
+        Add To Timeline
+      </button>
       {data.status === "completed" && data.videoUrl ? (
         <button
           className="studio-node-action nodrag nopan"
