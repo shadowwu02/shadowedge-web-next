@@ -3,6 +3,8 @@ import type { Edge, Node, Viewport } from "@xyflow/react";
 export type StudioNodeType =
   | "asset"
   | "prompt"
+  | "remakeAnalysis"
+  | "remakeShot"
   | "imageGenerate"
   | "videoGenerate"
   | "output";
@@ -49,6 +51,46 @@ export type PromptNodeData = StudioNodeBase & {
   ratio: string;
 };
 
+export type RemakeAnalysisNodeData = StudioNodeBase & {
+  kind: "remakeAnalysis";
+  videoInput: string;
+  mode: "single_clip";
+  targetRegion: "US" | "Middle East" | "Japan" | "Southeast Asia";
+  targetRatio: string;
+  characterRules: string;
+  sceneStyle: string;
+  translateDialogue: boolean;
+  status: GenerationNodeStatus;
+  storyboardId: string;
+  analysisSource: string;
+  shotCount: number;
+  providerCallMade: boolean;
+  vlmCalled: boolean;
+  errorCode: string;
+  errorMessage: string;
+};
+
+export type RemakeShotNodeData = StudioNodeBase & {
+  kind: "remakeShot";
+  analysisNodeId: string;
+  storyboardId: string;
+  shotId: string;
+  shotNumber: number;
+  description: string;
+  prompt: string;
+  duration: number;
+  camera: string;
+  referenceFrames: string[];
+  sourceTimeRange: {
+    start: number;
+    end: number;
+  };
+  model: string;
+  ratio: string;
+  quality: string;
+  status: GenerationNodeStatus;
+};
+
 export type ImageGenerateNodeData = StudioNodeBase & {
   kind: "imageGenerate";
   model: string;
@@ -85,6 +127,7 @@ export type VideoGenerateNodeData = StudioNodeBase & {
   thumbnail: string;
   errorCode: string;
   errorMessage: string;
+  sourceShotId: string;
 };
 
 export type OutputNodeData = StudioNodeBase & {
@@ -101,6 +144,8 @@ export type OutputNodeData = StudioNodeBase & {
 export type StudioNodeData = (
   | AssetNodeData
   | PromptNodeData
+  | RemakeAnalysisNodeData
+  | RemakeShotNodeData
   | ImageGenerateNodeData
   | VideoGenerateNodeData
   | OutputNodeData
@@ -150,6 +195,16 @@ export const STUDIO_NODE_DEFINITIONS: Array<{
     type: "prompt",
     label: "Prompt",
     description: "Creative direction and shot settings",
+  },
+  {
+    type: "remakeAnalysis",
+    label: "Remake Analysis",
+    description: "Analyze one video into editable shot nodes",
+  },
+  {
+    type: "remakeShot",
+    label: "Remake Shot",
+    description: "Storyboard shot prompt and reference frames",
   },
   {
     type: "imageGenerate",

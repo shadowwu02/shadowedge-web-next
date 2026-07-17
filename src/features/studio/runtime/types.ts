@@ -40,6 +40,8 @@ export type NodeExecutionResult<
 export type StudioExecutorKey =
   | "asset"
   | "prompt"
+  | "remake_analysis"
+  | "remake_shot"
   | "image_generate"
   | "video_generate"
   | "output";

@@ -45,6 +45,13 @@ function getNodeInputIds(
       .forEach((inputId) => inputIds.add(inputId));
   }
 
+  if (node.data.kind === "remakeAnalysis") {
+    const videoInput = String(node.data.videoInput || "").trim();
+    if (videoInput && videoInput !== node.id && nodeById.has(videoInput)) {
+      inputIds.add(videoInput);
+    }
+  }
+
   return Array.from(inputIds);
 }
 

@@ -73,6 +73,47 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
       ratio: "16:9",
     };
   }
+  if (type === "remakeAnalysis") {
+    return {
+      kind: "remakeAnalysis",
+      title: "Remake analysis",
+      videoInput: "",
+      mode: "single_clip",
+      targetRegion: "US",
+      targetRatio: "16:9",
+      characterRules: "Keep the main character visually consistent.",
+      sceneStyle: "Cinematic localized short drama",
+      translateDialogue: true,
+      status: "idle",
+      storyboardId: "",
+      analysisSource: "",
+      shotCount: 0,
+      providerCallMade: false,
+      vlmCalled: false,
+      errorCode: "",
+      errorMessage: "",
+    };
+  }
+  if (type === "remakeShot") {
+    return {
+      kind: "remakeShot",
+      title: "Remake shot",
+      analysisNodeId: "",
+      storyboardId: "",
+      shotId: "",
+      shotNumber: 1,
+      description: "Storyboard shot awaiting analysis data.",
+      prompt: "",
+      duration: 4,
+      camera: "",
+      referenceFrames: [],
+      sourceTimeRange: { start: 0, end: 4 },
+      model: "seedance_2_0",
+      ratio: "16:9",
+      quality: "720p",
+      status: "ready",
+    };
+  }
   if (type === "imageGenerate") {
     return {
       kind: "imageGenerate",
@@ -113,6 +154,7 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
       thumbnail: "",
       errorCode: "",
       errorMessage: "",
+      sourceShotId: "",
     };
   }
   return {
@@ -211,6 +253,20 @@ function outputString(outputs: Record<string, unknown>, key: string) {
   return typeof value === "string" ? value : "";
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function safeNodeIdPart(value: unknown) {
+  return String(value || "shot")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "shot";
+}
+
 function applyRuntimeOutputToCanvas(
   nodes: StudioNode[],
   runtime: StudioNodeRuntimeState,
@@ -218,6 +274,37 @@ function applyRuntimeOutputToCanvas(
   let changed = false;
   const nodesWithOutput = nodes.map((node) => {
     if (node.id !== runtime.nodeId) return node;
+
+    if (node.data.kind === "remakeAnalysis") {
+      const status =
+        runtime.status === "completed" || runtime.status === "failed"
+          ? runtime.status
+          : "processing";
+      changed = true;
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          status,
+          storyboardId:
+            outputString(runtime.outputs, "storyboardId") || node.data.storyboardId,
+          analysisSource:
+            outputString(runtime.outputs, "analysisSource") || node.data.analysisSource,
+          shotCount: Number(runtime.outputs.shotCount) || node.data.shotCount,
+          providerCallMade:
+            runtime.outputs.providerCallMade === true || node.data.providerCallMade,
+          vlmCalled: runtime.outputs.vlmCalled === true || node.data.vlmCalled,
+          errorCode:
+            runtime.status === "failed"
+              ? outputString(runtime.outputs, "errorCode")
+              : "",
+          errorMessage:
+            runtime.status === "failed"
+              ? outputString(runtime.outputs, "message") || runtime.error || ""
+              : "",
+        },
+      } satisfies StudioNode;
+    }
 
     if (node.data.kind === "imageGenerate") {
       const jobId = outputString(runtime.outputs, "jobId");
@@ -332,6 +419,94 @@ function applyRuntimeOutputToCanvas(
   };
 }
 
+function materializeRemakeShotNodes(
+  nodes: StudioNode[],
+  edges: StudioEdge[],
+  runtime: StudioNodeRuntimeState,
+) {
+  const sourceNode = nodes.find(
+    (node) => node.id === runtime.nodeId && node.data.kind === "remakeAnalysis",
+  );
+  const shots = Array.isArray(runtime.outputs.shots)
+    ? runtime.outputs.shots.map(asRecord)
+    : [];
+  if (!sourceNode || sourceNode.data.kind !== "remakeAnalysis" || !shots.length) {
+    return { changed: false, nodes, edges };
+  }
+
+  const storyboardId =
+    outputString(runtime.outputs, "storyboardId") || sourceNode.data.storyboardId;
+  let changed = false;
+  const nextNodes = [...nodes];
+  const nextEdges = [...edges];
+
+  shots.forEach((shot, index) => {
+    const shotId = String(shot.shotId || `shot-${index + 1}`);
+    const existingIndex = nextNodes.findIndex(
+      (node) =>
+        node.data.kind === "remakeShot" &&
+        node.data.analysisNodeId === sourceNode.id &&
+        node.data.shotId === shotId,
+    );
+    const sourceTimeRange = asRecord(shot.sourceTimeRange);
+    const shotNumber = Math.max(1, Number(shot.shotNumber) || index + 1);
+    const data: StudioNodeData = {
+      kind: "remakeShot",
+      title: `Shot ${shotNumber}`,
+      analysisNodeId: sourceNode.id,
+      storyboardId,
+      shotId,
+      shotNumber,
+      description: String(shot.description || `Storyboard shot ${shotNumber}`),
+      prompt: String(shot.prompt || ""),
+      duration: Math.max(1, Number(shot.duration) || 4),
+      camera: String(shot.camera || ""),
+      referenceFrames: Array.isArray(shot.referenceFrames)
+        ? shot.referenceFrames.map(String).filter(Boolean)
+        : [],
+      sourceTimeRange: {
+        start: Math.max(0, Number(sourceTimeRange.start) || 0),
+        end: Math.max(0, Number(sourceTimeRange.end) || 0),
+      },
+      model: String(shot.model || "seedance_2_0"),
+      ratio: String(shot.ratio || sourceNode.data.targetRatio || "16:9"),
+      quality: String(shot.quality || "720p"),
+      status: "ready",
+    };
+
+    let shotNodeId: string;
+    if (existingIndex >= 0) {
+      const existing = nextNodes[existingIndex];
+      shotNodeId = existing.id;
+      nextNodes[existingIndex] = { ...existing, data };
+    } else {
+      shotNodeId = `remake-shot-${safeNodeIdPart(sourceNode.id)}-${safeNodeIdPart(shotId)}`;
+      nextNodes.push({
+        id: shotNodeId,
+        type: "remakeShot",
+        position: {
+          x: sourceNode.position.x + 340 + Math.floor(index / 4) * 310,
+          y: sourceNode.position.y + (index % 4) * 260,
+        },
+        data,
+      });
+    }
+
+    if (!nextEdges.some((edge) => edge.source === sourceNode.id && edge.target === shotNodeId)) {
+      nextEdges.push({
+        id: `edge-${safeNodeIdPart(sourceNode.id)}-${safeNodeIdPart(shotNodeId)}`,
+        source: sourceNode.id,
+        target: shotNodeId,
+        type: "smoothstep",
+        animated: true,
+      });
+    }
+    changed = true;
+  });
+
+  return { changed, nodes: nextNodes, edges: nextEdges };
+}
+
 type StudioState = StudioCanvasSnapshot & {
   projectId: string | null;
   projectName: string;
@@ -350,6 +525,7 @@ type StudioState = StudioCanvasSnapshot & {
   addNode: (type: StudioNodeType) => void;
   addAssetNode: (asset: StudioAssetItem) => void;
   createAssetFromVideoNode: (nodeId: string) => void;
+  createVideoNodeFromRemakeShot: (nodeId: string) => void;
   deleteNode: (nodeId: string) => void;
   updateNodeData: (nodeId: string, patch: Record<string, unknown>) => void;
   selectNode: (nodeId: string | null) => void;
@@ -500,6 +676,67 @@ export const useStudioStore = create<StudioState>()(
 
           return {
             nodes: [...state.nodes, node],
+            selectedNodeId: id,
+            past: appendHistory(state.past, snapshot),
+            future: [],
+            updatedAt: nowIso(),
+            dirty: true,
+          };
+        }),
+
+      createVideoNodeFromRemakeShot: (nodeId) =>
+        set((state) => {
+          const shotNode = state.nodes.find(
+            (node) => node.id === nodeId && node.data.kind === "remakeShot",
+          );
+          if (!shotNode || shotNode.data.kind !== "remakeShot") return state;
+
+          const existingVideo = state.nodes.find(
+            (node) =>
+              node.data.kind === "videoGenerate" &&
+              node.data.sourceShotId === shotNode.id,
+          );
+          if (existingVideo) return { selectedNodeId: existingVideo.id };
+
+          nodeSequence += 1;
+          const snapshot = takeSnapshot(state);
+          const id = `video-generate-${Date.now()}-${nodeSequence}`;
+          const videoDefaults = createNodeData("videoGenerate");
+          if (videoDefaults.kind !== "videoGenerate") return state;
+          const node: StudioNode = {
+            id,
+            type: "videoGenerate",
+            position: {
+              x: shotNode.position.x + 340,
+              y: shotNode.position.y + 20,
+            },
+            data: {
+              ...videoDefaults,
+              kind: "videoGenerate",
+              title: `Generate Shot ${shotNode.data.shotNumber}`,
+              model: shotNode.data.model,
+              duration: shotNode.data.duration,
+              ratio: shotNode.data.ratio,
+              quality: shotNode.data.quality,
+              resolution: shotNode.data.quality,
+              references: shotNode.data.referenceFrames,
+              promptInput: shotNode.id,
+              imageInput: "",
+              videoInput: "",
+              sourceShotId: shotNode.id,
+            },
+          };
+          const edge: StudioEdge = {
+            id: `edge-${safeNodeIdPart(shotNode.id)}-${safeNodeIdPart(id)}`,
+            source: shotNode.id,
+            target: id,
+            type: "smoothstep",
+            animated: true,
+          };
+
+          return {
+            nodes: [...state.nodes, node],
+            edges: [...state.edges, edge],
             selectedNodeId: id,
             past: appendHistory(state.past, snapshot),
             future: [],
@@ -757,14 +994,20 @@ export const useStudioStore = create<StudioState>()(
             onNodeResult: (nodeRuntime) =>
               set((current) => {
                 const canvas = applyRuntimeOutputToCanvas(current.nodes, nodeRuntime);
+                const materialized =
+                  nodeRuntime.status === "completed"
+                    ? materializeRemakeShotNodes(canvas.nodes, current.edges, nodeRuntime)
+                    : { changed: false, nodes: canvas.nodes, edges: current.edges };
+                const changed = canvas.changed || materialized.changed;
                 return {
                   runtimeState: {
                     ...current.runtimeState,
                     [nodeRuntime.nodeId]: nodeRuntime,
                   },
-                  nodes: canvas.nodes,
-                  dirty: canvas.changed ? true : current.dirty,
-                  updatedAt: canvas.changed ? nowIso() : current.updatedAt,
+                  nodes: materialized.nodes,
+                  edges: materialized.edges,
+                  dirty: changed ? true : current.dirty,
+                  updatedAt: changed ? nowIso() : current.updatedAt,
                 };
               }),
           });

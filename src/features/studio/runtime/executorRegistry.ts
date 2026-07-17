@@ -7,6 +7,7 @@ import type {
 } from "@/features/studio/runtime/types";
 import { ImageGenerateExecutor } from "@/features/studio/runtime/executors/imageGenerateExecutor";
 import { VideoGenerateExecutor } from "@/features/studio/runtime/executors/videoGenerateExecutor";
+import { RemakeAnalysisExecutor } from "@/features/studio/runtime/executors/remakeAnalysisExecutor";
 import type { StudioNodeType } from "@/features/studio/types/studioTypes";
 
 const MOCK_EXECUTION_DELAY_MS = 120;
@@ -71,6 +72,30 @@ export const PromptExecutor: StudioNodeExecutor = {
   },
 };
 
+export const RemakeShotExecutor: StudioNodeExecutor = {
+  async execute(context) {
+    await waitForMockRuntime();
+    const referenceImages = Array.isArray(context.config.referenceFrames)
+      ? context.config.referenceFrames.map(String).filter(Boolean)
+      : [];
+    return {
+      status: "completed",
+      outputs: {
+        executor: "remake_shot",
+        status: "completed",
+        shotId: configValue(context, "shotId"),
+        prompt: configValue(context, "prompt"),
+        camera: configValue(context, "camera"),
+        duration: configValue(context, "duration"),
+        ratio: configValue(context, "ratio"),
+        model: configValue(context, "model"),
+        quality: configValue(context, "quality"),
+        referenceImages,
+      },
+    };
+  },
+};
+
 export const OutputExecutor: StudioNodeExecutor = {
   async execute(context) {
     await waitForMockRuntime();
@@ -122,6 +147,8 @@ export const OutputExecutor: StudioNodeExecutor = {
 export const executorRegistry = {
   asset: AssetExecutor,
   prompt: PromptExecutor,
+  remake_analysis: RemakeAnalysisExecutor,
+  remake_shot: RemakeShotExecutor,
   image_generate: ImageGenerateExecutor,
   video_generate: VideoGenerateExecutor,
   output: OutputExecutor,
@@ -130,6 +157,8 @@ export const executorRegistry = {
 export const studioExecutorTypeMap = {
   asset: "asset",
   prompt: "prompt",
+  remakeAnalysis: "remake_analysis",
+  remakeShot: "remake_shot",
   imageGenerate: "image_generate",
   videoGenerate: "video_generate",
   output: "output",

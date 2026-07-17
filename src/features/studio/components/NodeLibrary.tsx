@@ -11,7 +11,7 @@ export function NodeLibrary() {
       <div className="studio-panel-heading">
         <p>Node Library</p>
         <h2>Building blocks</h2>
-        <span>Add a placeholder node to the workflow.</span>
+        <span>Add an input, analysis, generation, or output node.</span>
       </div>
 
       <div className="studio-library-list">
@@ -32,8 +32,8 @@ export function NodeLibrary() {
       </div>
 
       <div className="studio-panel-note">
-        <strong>P0 boundary</strong>
-        <span>Nodes hold UI data only. Generate actions are intentionally unavailable.</span>
+        <strong>P0 safety</strong>
+        <span>Remake creates shot nodes only. Video nodes are created manually and never auto-run.</span>
       </div>
     </aside>
   );

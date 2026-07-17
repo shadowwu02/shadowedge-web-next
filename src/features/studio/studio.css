@@ -958,6 +958,35 @@
     #0a0c11;
 }
 
+.studio-shot-frames {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 9px;
+}
+
+.studio-shot-frames img {
+  width: 100%;
+  height: 58px;
+  border: 1px solid rgba(244, 244, 244, 0.07);
+  border-radius: 8px;
+  background: #080a0e;
+  object-fit: cover;
+}
+
+.studio-shot-prompt {
+  display: -webkit-box;
+  overflow: hidden;
+  margin-top: 8px;
+  border-left: 2px solid color-mix(in srgb, var(--studio-accent) 45%, transparent);
+  padding-left: 8px;
+  color: rgba(244, 244, 244, 0.56);
+  font-size: 9px;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
 .studio-node-preview-output {
   min-height: 84px;
   padding: 12px;

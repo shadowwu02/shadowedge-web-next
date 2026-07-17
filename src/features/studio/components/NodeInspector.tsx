@@ -51,6 +51,9 @@ export function NodeInspector() {
   const selectedNodeId = useStudioStore((state) => state.selectedNodeId);
   const updateNodeData = useStudioStore((state) => state.updateNodeData);
   const deleteNode = useStudioStore((state) => state.deleteNode);
+  const createVideoNodeFromRemakeShot = useStudioStore(
+    (state) => state.createVideoNodeFromRemakeShot,
+  );
   const selectedNode = nodes.find((node) => node.id === selectedNodeId);
   const [imageModels, setImageModels] = useState<ImageModel[]>([]);
   const [imageModelsError, setImageModelsError] = useState("");
@@ -241,6 +244,136 @@ export function NodeInspector() {
                 </select>
               </InspectorField>
             </div>
+          </>
+        ) : null}
+
+        {data.kind === "remakeAnalysis" ? (
+          <>
+            <InspectorField label="Video input node ID">
+              <input
+                placeholder="Connect a Video Asset Node"
+                value={data.videoInput}
+                onChange={updateText("videoInput")}
+              />
+            </InspectorField>
+            <div className="studio-inspector-grid">
+              <InspectorField label="Mode">
+                <input disabled value="Single clip" />
+              </InspectorField>
+              <InspectorField label="Target ratio">
+                <select value={data.targetRatio} onChange={updateText("targetRatio")}>
+                  <option value="16:9">16:9</option>
+                  <option value="9:16">9:16</option>
+                  <option value="1:1">1:1</option>
+                  <option value="4:5">4:5</option>
+                </select>
+              </InspectorField>
+            </div>
+            <InspectorField label="Target region">
+              <select value={data.targetRegion} onChange={updateText("targetRegion")}>
+                <option value="US">US</option>
+                <option value="Middle East">Middle East</option>
+                <option value="Japan">Japan</option>
+                <option value="Southeast Asia">Southeast Asia</option>
+              </select>
+            </InspectorField>
+            <InspectorField label="Character rules">
+              <textarea
+                rows={3}
+                value={data.characterRules}
+                onChange={updateText("characterRules")}
+              />
+            </InspectorField>
+            <InspectorField label="Scene style">
+              <textarea rows={3} value={data.sceneStyle} onChange={updateText("sceneStyle")} />
+            </InspectorField>
+            <InspectorField label="Translate dialogue">
+              <select
+                value={data.translateDialogue ? "yes" : "no"}
+                onChange={(event) => update({ translateDialogue: event.target.value === "yes" })}
+              >
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </InspectorField>
+            <div className="studio-inspector-grid">
+              <InspectorField label="Status">
+                <input disabled value={data.status} />
+              </InspectorField>
+              <InspectorField label="Shots">
+                <input disabled value={data.shotCount} />
+              </InspectorField>
+            </div>
+            {data.storyboardId ? (
+              <InspectorField label="Storyboard ID">
+                <input disabled value={data.storyboardId} />
+              </InspectorField>
+            ) : null}
+            {data.errorMessage ? (
+              <div className="studio-inspector-runtime-error" role="alert">
+                <strong>{data.errorCode || "REMAKE_ANALYSIS_FAILED"}</strong>
+                <span>{data.errorMessage}</span>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+
+        {data.kind === "remakeShot" ? (
+          <>
+            <div className="studio-inspector-grid">
+              <InspectorField label="Shot ID">
+                <input disabled value={data.shotId} />
+              </InspectorField>
+              <InspectorField label="Duration">
+                <input
+                  min={1}
+                  type="number"
+                  value={data.duration}
+                  onChange={(event) =>
+                    update({ duration: Math.max(1, Number(event.target.value) || 1) })
+                  }
+                />
+              </InspectorField>
+            </div>
+            <InspectorField label="Description">
+              <textarea rows={4} value={data.description} onChange={updateText("description")} />
+            </InspectorField>
+            <InspectorField label="Prompt">
+              <textarea rows={7} value={data.prompt} onChange={updateText("prompt")} />
+            </InspectorField>
+            <InspectorField label="Camera">
+              <input value={data.camera} onChange={updateText("camera")} />
+            </InspectorField>
+            <div className="studio-inspector-grid">
+              <InspectorField label="Model">
+                <input value={data.model} onChange={updateText("model")} />
+              </InspectorField>
+              <InspectorField label="Ratio">
+                <input value={data.ratio} onChange={updateText("ratio")} />
+              </InspectorField>
+            </div>
+            <InspectorField label="Reference frames">
+              <textarea
+                rows={4}
+                value={data.referenceFrames.join("\n")}
+                onChange={(event) =>
+                  update({
+                    referenceFrames: event.target.value
+                      .split("\n")
+                      .map((value) => value.trim())
+                      .filter(Boolean),
+                  })
+                }
+              />
+            </InspectorField>
+            <button
+              className="studio-node-action"
+              onClick={() => createVideoNodeFromRemakeShot(selectedNode.id)}
+              type="button"
+            >
+              Create Video Node
+            </button>
+            <p className="studio-node-footnote">The new video node is not run automatically.</p>
           </>
         ) : null}
 

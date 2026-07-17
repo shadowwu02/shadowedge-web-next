@@ -13,6 +13,8 @@ import { AssetNode } from "@/features/studio/nodes/AssetNode";
 import { ImageGenerateNode } from "@/features/studio/nodes/ImageGenerateNode";
 import { OutputNode } from "@/features/studio/nodes/OutputNode";
 import { PromptNode } from "@/features/studio/nodes/PromptNode";
+import { RemakeAnalysisNode } from "@/features/studio/nodes/RemakeAnalysisNode";
+import { RemakeShotNode } from "@/features/studio/nodes/RemakeShotNode";
 import { VideoGenerateNode } from "@/features/studio/nodes/VideoGenerateNode";
 import {
   getCurrentStudioSnapshot,
@@ -27,6 +29,8 @@ import type {
 const nodeTypes = {
   asset: AssetNode,
   prompt: PromptNode,
+  remakeAnalysis: RemakeAnalysisNode,
+  remakeShot: RemakeShotNode,
   imageGenerate: ImageGenerateNode,
   videoGenerate: VideoGenerateNode,
   output: OutputNode,
