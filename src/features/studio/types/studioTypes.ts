@@ -23,6 +23,7 @@ export type AssetNodeData = StudioNodeBase & {
   kind: "asset";
   assetId: string;
   assetType: AssetType;
+  originNodeId: string;
   status: AssetStatus;
   url: string;
   thumbnail?: string;
@@ -178,6 +179,13 @@ export type StudioProjectSummary = {
 
 export type StudioProject = StudioProjectSummary & {
   canvasJson: StudioCanvasJson;
+  createdAt: string;
+};
+
+export type StudioWorkflowTemplate = {
+  id: string;
+  name: string;
+  canvas: StudioCanvasJson;
   createdAt: string;
 };
 

@@ -1,11 +1,17 @@
 import type { NodeProps } from "@xyflow/react";
 import { STUDIO_IMAGE_EXECUTION_ENABLED } from "@/config/studioFeatures";
 import { StudioNodeFrame } from "@/features/studio/nodes/StudioNodeFrame";
-import { useStudioNodeRuntimeStatus } from "@/features/studio/store/studioStore";
+import {
+  useStudioNodeRuntimeStatus,
+  useStudioStore,
+} from "@/features/studio/store/studioStore";
 import type { StudioNode } from "@/features/studio/types/studioTypes";
 
 export function ImageGenerateNode({ data, id, selected }: NodeProps<StudioNode>) {
   const runtimeStatus = useStudioNodeRuntimeStatus(id);
+  const createAssetFromResultNode = useStudioStore(
+    (state) => state.createAssetFromResultNode,
+  );
   if (data.kind !== "imageGenerate") return null;
   const imageUrl = data.thumbnail || data.imageUrl || data.result;
 
@@ -44,6 +50,19 @@ export function ImageGenerateNode({ data, id, selected }: NodeProps<StudioNode>)
         <p className="studio-node-error" title={data.errorMessage}>
           {data.errorCode || "IMAGE_GENERATION_FAILED"}: {data.errorMessage}
         </p>
+      ) : null}
+      {data.status === "completed" && imageUrl ? (
+        <button
+          className="studio-node-action nodrag nopan"
+          onClick={(event) => {
+            event.stopPropagation();
+            createAssetFromResultNode(id);
+          }}
+          onMouseDown={(event) => event.stopPropagation()}
+          type="button"
+        >
+          Create Asset
+        </button>
       ) : null}
       <p className="studio-node-footnote">
         {STUDIO_IMAGE_EXECUTION_ENABLED

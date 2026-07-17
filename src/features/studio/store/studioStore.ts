@@ -56,6 +56,7 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
       title: "Reference asset",
       assetId: "",
       assetType: "image",
+      originNodeId: "",
       status: "missing",
       url: "",
       source: "upload",
@@ -524,7 +525,7 @@ type StudioState = StudioCanvasSnapshot & {
   runtimeError: string;
   addNode: (type: StudioNodeType) => void;
   addAssetNode: (asset: StudioAssetItem) => void;
-  createAssetFromVideoNode: (nodeId: string) => void;
+  createAssetFromResultNode: (nodeId: string) => void;
   createVideoNodeFromRemakeShot: (nodeId: string) => void;
   deleteNode: (nodeId: string) => void;
   updateNodeData: (nodeId: string, patch: Record<string, unknown>) => void;
@@ -541,6 +542,7 @@ type StudioState = StudioCanvasSnapshot & {
   setProjectError: (projectError: string) => void;
   clearRuntimeError: () => void;
   loadProject: (project: StudioProject) => void;
+  loadTemplateCanvas: (canvas: StudioCanvasJson) => void;
   markProjectSaved: (project: StudioProject) => void;
   undo: () => void;
   redo: () => void;
@@ -611,6 +613,7 @@ export const useStudioStore = create<StudioState>()(
               title: asset.name,
               assetId: asset.id,
               assetType: asset.type,
+              originNodeId: "",
               status: asset.status,
               url: asset.url,
               thumbnail: asset.thumbnail,
@@ -629,19 +632,54 @@ export const useStudioStore = create<StudioState>()(
           };
         }),
 
-      createAssetFromVideoNode: (nodeId) =>
+      createAssetFromResultNode: (nodeId) =>
         set((state) => {
-          const sourceNode = state.nodes.find(
-            (node) => node.id === nodeId && node.data.kind === "videoGenerate",
-          );
-          if (!sourceNode || sourceNode.data.kind !== "videoGenerate") return state;
-          const videoUrl = sourceNode.data.videoUrl || sourceNode.data.result;
-          if (sourceNode.data.status !== "completed" || !videoUrl) return state;
+          const sourceNode = state.nodes.find((node) => node.id === nodeId);
+          if (!sourceNode) return state;
+
+          let assetType: "image" | "video";
+          let url = "";
+          let thumbnail = "";
+          let jobId = "";
+          let model = "";
+
+          if (sourceNode.data.kind === "output") {
+            if (
+              sourceNode.data.status !== "completed" ||
+              (sourceNode.data.outputType !== "image" &&
+                sourceNode.data.outputType !== "video")
+            ) {
+              return state;
+            }
+            assetType = sourceNode.data.outputType;
+            url = sourceNode.data.resultPreview;
+            thumbnail = sourceNode.data.thumbnail || url;
+            jobId = sourceNode.data.jobId;
+          } else if (sourceNode.data.kind === "imageGenerate") {
+            if (sourceNode.data.status !== "completed") return state;
+            assetType = "image";
+            url = sourceNode.data.imageUrl || sourceNode.data.result;
+            thumbnail = sourceNode.data.thumbnail || url;
+            jobId = sourceNode.data.jobId;
+            model = sourceNode.data.model;
+          } else if (sourceNode.data.kind === "videoGenerate") {
+            if (sourceNode.data.status !== "completed") return state;
+            assetType = "video";
+            url = sourceNode.data.videoUrl || sourceNode.data.result;
+            thumbnail = sourceNode.data.thumbnail || url;
+            jobId = sourceNode.data.jobId;
+            model = sourceNode.data.model;
+          } else {
+            return state;
+          }
+
+          if (!url.trim()) return state;
 
           const existingAsset = state.nodes.find(
             (node) =>
               node.data.kind === "asset" &&
-              node.data.metadata?.sourceNodeId === sourceNode.id,
+              (node.data.originNodeId === sourceNode.id ||
+                node.data.metadata?.sourceNodeId === sourceNode.id),
           );
           if (existingAsset) {
             return { selectedNodeId: existingAsset.id };
@@ -660,22 +698,32 @@ export const useStudioStore = create<StudioState>()(
             data: {
               kind: "asset",
               title: `${sourceNode.data.title} asset`,
-              assetId: sourceNode.data.jobId || `generated:${sourceNode.id}`,
-              assetType: "video",
+              assetId: jobId || `generated:${sourceNode.id}`,
+              assetType,
+              originNodeId: sourceNode.id,
               status: "ready",
-              url: videoUrl,
-              thumbnail: sourceNode.data.thumbnail || videoUrl,
+              url,
+              thumbnail,
               source: "generated",
               metadata: {
                 sourceNodeId: sourceNode.id,
-                jobId: sourceNode.data.jobId,
-                model: sourceNode.data.model,
+                originNodeId: sourceNode.id,
+                jobId,
+                model,
               },
             },
+          };
+          const edge: StudioEdge = {
+            id: `edge-${safeNodeIdPart(sourceNode.id)}-${safeNodeIdPart(id)}`,
+            source: sourceNode.id,
+            target: id,
+            type: "smoothstep",
+            animated: true,
           };
 
           return {
             nodes: [...state.nodes, node],
+            edges: [...state.edges, edge],
             selectedNodeId: id,
             past: appendHistory(state.past, snapshot),
             future: [],
@@ -900,6 +948,21 @@ export const useStudioStore = create<StudioState>()(
           runtimeRunning: false,
           runtimeError: "",
         }),
+
+      loadTemplateCanvas: (canvas) =>
+        set((state) => ({
+          nodes: normalizeStudioNodes(canvas.nodes),
+          edges: canvas.edges,
+          viewport: canvas.viewport || defaultViewport,
+          selectedNodeId: null,
+          past: appendHistory(state.past, takeSnapshot(state)),
+          future: [],
+          dirty: true,
+          updatedAt: nowIso(),
+          runtimeState: {},
+          runtimeRunning: false,
+          runtimeError: "",
+        })),
 
       markProjectSaved: (project) =>
         set({

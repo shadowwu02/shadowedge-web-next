@@ -203,6 +203,11 @@ export function NodeInspector() {
                 <option value="remake">Remake</option>
               </select>
             </InspectorField>
+            {data.originNodeId ? (
+              <InspectorField label="Origin node">
+                <input disabled value={data.originNodeId} />
+              </InspectorField>
+            ) : null}
             <InspectorField label="Status">
               <select value={data.status} onChange={updateText("status")}>
                 <option value="ready">Ready</option>

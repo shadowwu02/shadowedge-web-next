@@ -1,6 +1,9 @@
 import type { NodeProps } from "@xyflow/react";
 import { StudioNodeFrame } from "@/features/studio/nodes/StudioNodeFrame";
-import { useStudioNodeRuntimeStatus } from "@/features/studio/store/studioStore";
+import {
+  useStudioNodeRuntimeStatus,
+  useStudioStore,
+} from "@/features/studio/store/studioStore";
 import type { StudioNode } from "@/features/studio/types/studioTypes";
 
 function isRenderableOutputUrl(value: string) {
@@ -12,11 +15,13 @@ export function OutputNode({ data, id, selected }: NodeProps<StudioNode>) {
     id,
     data.kind === "output" ? data.status : "idle",
   );
+  const createAssetFromResultNode = useStudioStore(
+    (state) => state.createAssetFromResultNode,
+  );
   if (data.kind !== "output") return null;
 
   return (
     <StudioNodeFrame
-      emitsOutput={false}
       eyebrow="Result"
       selected={selected}
       status={runtimeStatus}
@@ -56,6 +61,21 @@ export function OutputNode({ data, id, selected }: NodeProps<StudioNode>) {
       </dl>
       {data.errorMessage ? (
         <p className="studio-node-error">{data.errorMessage}</p>
+      ) : null}
+      {data.status === "completed" &&
+      (data.outputType === "image" || data.outputType === "video") &&
+      isRenderableOutputUrl(data.resultPreview) ? (
+        <button
+          className="studio-node-action nodrag nopan"
+          onClick={(event) => {
+            event.stopPropagation();
+            createAssetFromResultNode(id);
+          }}
+          onMouseDown={(event) => event.stopPropagation()}
+          type="button"
+        >
+          Create Asset
+        </button>
       ) : null}
     </StudioNodeFrame>
   );

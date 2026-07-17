@@ -10,8 +10,8 @@ export function AssetNode({ data, id, selected }: NodeProps<StudioNode>) {
 
   return (
     <StudioNodeFrame
-      acceptsInput={false}
-      eyebrow="Input"
+      acceptsInput={Boolean(data.originNodeId)}
+      eyebrow={data.source === "generated" ? "Generated Asset" : "Input"}
       selected={selected}
       status={runtimeStatus}
       title={data.title}
@@ -39,6 +39,12 @@ export function AssetNode({ data, id, selected }: NodeProps<StudioNode>) {
           <dt>Source</dt>
           <dd>{data.source || "upload"}</dd>
         </div>
+        {data.originNodeId ? (
+          <div>
+            <dt>Origin</dt>
+            <dd>{data.originNodeId}</dd>
+          </div>
+        ) : null}
         <div>
           <dt>Availability</dt>
           <dd>{data.status}</dd>

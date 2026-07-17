@@ -11,8 +11,8 @@ export function VideoGenerateNode({ data, id, selected }: NodeProps<StudioNode>)
     id,
     data.kind === "videoGenerate" ? data.status : "idle",
   );
-  const createAssetFromVideoNode = useStudioStore(
-    (state) => state.createAssetFromVideoNode,
+  const createAssetFromResultNode = useStudioStore(
+    (state) => state.createAssetFromResultNode,
   );
   if (data.kind !== "videoGenerate") return null;
 
@@ -63,12 +63,12 @@ export function VideoGenerateNode({ data, id, selected }: NodeProps<StudioNode>)
           className="studio-node-action nodrag nopan"
           onClick={(event) => {
             event.stopPropagation();
-            createAssetFromVideoNode(id);
+            createAssetFromResultNode(id);
           }}
           onMouseDown={(event) => event.stopPropagation()}
           type="button"
         >
-          Create Asset Node
+          Create Asset
         </button>
       ) : null}
     </StudioNodeFrame>

@@ -159,6 +159,140 @@
   position: relative;
 }
 
+.studio-template-controls {
+  position: relative;
+  display: flex;
+  gap: 7px;
+}
+
+.studio-template-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 330px;
+  max-height: min(520px, calc(100vh - 130px));
+  overflow-y: auto;
+  border: 1px solid color-mix(in srgb, var(--studio-accent) 22%, rgba(255, 255, 255, 0.06));
+  border-radius: 18px;
+  background: rgba(13, 15, 20, 0.98);
+  padding: 10px;
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.48);
+}
+
+.studio-template-menu-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 4px 10px;
+}
+
+.studio-template-menu-heading strong,
+.studio-template-menu-heading span {
+  display: block;
+}
+
+.studio-template-menu-heading strong {
+  color: #f6f1e8;
+  font-size: 12px;
+}
+
+.studio-template-menu-heading span {
+  margin-top: 3px;
+  color: rgba(214, 214, 214, 0.42);
+  font-size: 9px;
+}
+
+.studio-template-menu-heading > button {
+  border: 0;
+  background: transparent;
+  padding: 0 3px;
+  color: rgba(244, 244, 244, 0.48);
+  font-size: 18px;
+}
+
+.studio-template-save-form,
+.studio-template-save-form label {
+  display: grid;
+  gap: 8px;
+}
+
+.studio-template-save-form label > span {
+  color: rgba(214, 214, 214, 0.48);
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.studio-template-save-form input {
+  min-height: 38px;
+  border: 1px solid rgba(244, 244, 244, 0.1);
+  border-radius: 11px;
+  background: rgba(8, 10, 14, 0.92);
+  padding: 0 10px;
+  color: rgba(244, 244, 244, 0.82);
+  font-size: 11px;
+  outline: none;
+}
+
+.studio-template-save-form input:focus {
+  border-color: color-mix(in srgb, var(--studio-accent) 48%, transparent);
+}
+
+.studio-template-list {
+  display: grid;
+  gap: 6px;
+}
+
+.studio-template-list > button {
+  display: grid;
+  gap: 3px;
+  border: 1px solid rgba(244, 244, 244, 0.07);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 10px;
+  text-align: left;
+}
+
+.studio-template-list > button:hover {
+  border-color: color-mix(in srgb, var(--studio-accent) 34%, transparent);
+  background: color-mix(in srgb, var(--studio-accent) 8%, transparent);
+}
+
+.studio-template-list strong {
+  color: rgba(244, 244, 244, 0.82);
+  font-size: 11px;
+}
+
+.studio-template-list span,
+.studio-template-list time {
+  color: rgba(214, 214, 214, 0.42);
+  font-size: 9px;
+}
+
+.studio-template-list time {
+  color: color-mix(in srgb, var(--studio-accent-soft) 58%, transparent);
+}
+
+.studio-template-empty,
+.studio-template-message {
+  border: 1px dashed rgba(244, 244, 244, 0.09);
+  border-radius: 11px;
+  padding: 12px;
+  color: rgba(214, 214, 214, 0.48);
+  font-size: 10px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.studio-template-message {
+  margin-top: 8px;
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--studio-accent) 22%, transparent);
+  color: var(--studio-accent-soft);
+}
+
 .studio-new-node-menu {
   position: absolute;
   top: calc(100% + 10px);
@@ -1180,6 +1314,12 @@
   .studio-toolbar-actions {
     overflow-x: auto;
     padding-bottom: 2px;
+  }
+
+  .studio-template-menu {
+    right: auto;
+    left: 0;
+    width: min(330px, calc(100vw - 36px));
   }
 
   .studio-project-controls {

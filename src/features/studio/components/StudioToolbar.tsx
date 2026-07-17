@@ -7,6 +7,7 @@ import {
   STUDIO_VIDEO_EXECUTION_ENABLED,
 } from "@/config/studioFeatures";
 import { useStudioProjects } from "@/features/studio/hooks/useStudioProjects";
+import { StudioTemplateControls } from "@/features/studio/components/StudioTemplateControls";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import {
   STUDIO_NODE_DEFINITIONS,
@@ -155,6 +156,7 @@ export function StudioToolbar({
         >
           {saveLabel}
         </button>
+        <StudioTemplateControls disabled={projectBusy} />
         <button className="studio-button" disabled={!canUndo} onClick={undo} type="button">
           Undo
         </button>
