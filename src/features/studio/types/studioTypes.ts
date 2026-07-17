@@ -9,6 +9,7 @@ export type StudioNodeType =
 
 export type AssetType = "image" | "video" | "audio";
 export type AssetStatus = "ready" | "missing" | "processing";
+export type StudioAssetSource = "upload" | "history" | "generated" | "remake";
 export type GenerationNodeStatus = "idle" | "ready" | "processing" | "completed" | "failed";
 export type OutputType = "image" | "video" | "audio";
 
@@ -21,6 +22,22 @@ export type AssetNodeData = StudioNodeBase & {
   assetId: string;
   assetType: AssetType;
   status: AssetStatus;
+  url: string;
+  thumbnail?: string;
+  source: StudioAssetSource;
+  metadata: Record<string, unknown>;
+};
+
+export type StudioAssetItem = {
+  id: string;
+  type: AssetType;
+  name: string;
+  url: string;
+  thumbnail?: string;
+  source: StudioAssetSource;
+  createdAt?: string;
+  status: AssetStatus;
+  metadata: Record<string, unknown>;
 };
 
 export type PromptNodeData = StudioNodeBase & {

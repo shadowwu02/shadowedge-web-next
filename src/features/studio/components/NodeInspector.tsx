@@ -78,6 +78,21 @@ export function NodeInspector() {
                 <option value="audio">Audio</option>
               </select>
             </InspectorField>
+            <InspectorField label="Asset URL">
+              <input
+                placeholder="https://..."
+                value={data.url || ""}
+                onChange={updateText("url")}
+              />
+            </InspectorField>
+            <InspectorField label="Source">
+              <select value={data.source || "upload"} onChange={updateText("source")}>
+                <option value="upload">Upload</option>
+                <option value="history">History</option>
+                <option value="generated">Generated</option>
+                <option value="remake">Remake</option>
+              </select>
+            </InspectorField>
             <InspectorField label="Status">
               <select value={data.status} onChange={updateText("status")}>
                 <option value="ready">Ready</option>

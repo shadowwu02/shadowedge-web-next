@@ -4,7 +4,7 @@ import { useEffect, type CSSProperties } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { activeBrand } from "@/config/brand";
 import { NodeInspector } from "@/features/studio/components/NodeInspector";
-import { NodeLibrary } from "@/features/studio/components/NodeLibrary";
+import { StudioAssetPanel } from "@/features/studio/components/StudioAssetPanel";
 import { StudioCanvas } from "@/features/studio/components/StudioCanvas";
 import { StudioToolbar } from "@/features/studio/components/StudioToolbar";
 import {
@@ -39,7 +39,7 @@ export function StudioWorkspace() {
           storageKey={STUDIO_CANVAS_STORAGE_KEY}
         />
         <div className="studio-layout">
-          <NodeLibrary />
+          <StudioAssetPanel />
           <StudioCanvas />
           <NodeInspector />
         </div>

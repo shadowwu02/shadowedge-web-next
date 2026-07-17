@@ -4,6 +4,7 @@ import type { StudioNode } from "@/features/studio/types/studioTypes";
 
 export function AssetNode({ data, selected }: NodeProps<StudioNode>) {
   if (data.kind !== "asset") return null;
+  const previewUrl = data.thumbnail || data.url;
 
   return (
     <StudioNodeFrame
@@ -14,7 +15,14 @@ export function AssetNode({ data, selected }: NodeProps<StudioNode>) {
       title={data.title}
     >
       <div className="studio-node-preview studio-node-preview-asset">
-        <span>{data.assetType.slice(0, 1).toUpperCase()}</span>
+        {data.assetType === "image" && previewUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img alt="" src={previewUrl} />
+        ) : data.assetType === "video" && data.url ? (
+          <video muted playsInline preload="metadata" src={data.url} />
+        ) : (
+          <span>{data.assetType === "audio" ? "♪" : data.assetType.slice(0, 1).toUpperCase()}</span>
+        )}
       </div>
       <dl className="studio-node-meta">
         <div>
@@ -24,6 +32,10 @@ export function AssetNode({ data, selected }: NodeProps<StudioNode>) {
         <div>
           <dt>Asset ID</dt>
           <dd>{data.assetId || "Not assigned"}</dd>
+        </div>
+        <div>
+          <dt>Source</dt>
+          <dd>{data.source || "upload"}</dd>
         </div>
       </dl>
     </StudioNodeFrame>

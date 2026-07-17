@@ -21,6 +21,7 @@ import type {
   StudioNodeType,
   StudioProject,
   StudioProjectSummary,
+  StudioAssetItem,
 } from "@/features/studio/types/studioTypes";
 
 export const SHADOWEDGE_STUDIO_CANVAS_STORAGE_KEY = "shadowedge_studio_canvas_v1";
@@ -49,6 +50,9 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
       assetId: "",
       assetType: "image",
       status: "missing",
+      url: "",
+      source: "upload",
+      metadata: {},
     };
   }
   if (type === "prompt") {
@@ -169,6 +173,7 @@ type StudioState = StudioCanvasSnapshot & {
   future: StudioCanvasSnapshot[];
   hasHydrated: boolean;
   addNode: (type: StudioNodeType) => void;
+  addAssetNode: (asset: StudioAssetItem) => void;
   deleteNode: (nodeId: string) => void;
   updateNodeData: (nodeId: string, patch: Record<string, unknown>) => void;
   selectNode: (nodeId: string | null) => void;
@@ -221,6 +226,42 @@ export const useStudioStore = create<StudioState>()(
             x: 140 + (offset % 520),
             y: 130 + (offset % 300),
           });
+          return {
+            nodes: [...state.nodes, node],
+            selectedNodeId: id,
+            past: appendHistory(state.past, snapshot),
+            future: [],
+            updatedAt: nowIso(),
+            dirty: true,
+          };
+        }),
+
+      addAssetNode: (asset) =>
+        set((state) => {
+          nodeSequence += 1;
+          const snapshot = takeSnapshot(state);
+          const id = "asset-" + Date.now() + "-" + nodeSequence;
+          const offset = state.nodes.length * 31;
+          const node: StudioNode = {
+            id,
+            type: "asset",
+            position: {
+              x: 110 + (offset % 460),
+              y: 120 + (offset % 340),
+            },
+            data: {
+              kind: "asset",
+              title: asset.name,
+              assetId: asset.id,
+              assetType: asset.type,
+              status: asset.status,
+              url: asset.url,
+              thumbnail: asset.thumbnail,
+              source: asset.source,
+              metadata: asset.metadata,
+            },
+          };
+
           return {
             nodes: [...state.nodes, node],
             selectedNodeId: id,
