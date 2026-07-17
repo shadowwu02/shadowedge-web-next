@@ -1,15 +1,17 @@
 import type { NodeProps } from "@xyflow/react";
 import { StudioNodeFrame } from "@/features/studio/nodes/StudioNodeFrame";
+import { useStudioNodeRuntimeStatus } from "@/features/studio/store/studioStore";
 import type { StudioNode } from "@/features/studio/types/studioTypes";
 
-export function VideoGenerateNode({ data, selected }: NodeProps<StudioNode>) {
+export function VideoGenerateNode({ data, id, selected }: NodeProps<StudioNode>) {
+  const runtimeStatus = useStudioNodeRuntimeStatus(id);
   if (data.kind !== "videoGenerate") return null;
 
   return (
     <StudioNodeFrame
       eyebrow="Video"
       selected={selected}
-      status={data.status}
+      status={runtimeStatus}
       title={data.title}
     >
       <div className="studio-node-preview studio-node-preview-video">
@@ -29,7 +31,7 @@ export function VideoGenerateNode({ data, selected }: NodeProps<StudioNode>) {
           <dd>{data.imageInput || data.videoInput || "Not connected"}</dd>
         </div>
       </dl>
-      <p className="studio-node-footnote">UI only · no API call</p>
+      <p className="studio-node-footnote">Mock executor · no API call</p>
     </StudioNodeFrame>
   );
 }

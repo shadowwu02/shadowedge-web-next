@@ -1,8 +1,10 @@
 import type { NodeProps } from "@xyflow/react";
 import { StudioNodeFrame } from "@/features/studio/nodes/StudioNodeFrame";
+import { useStudioNodeRuntimeStatus } from "@/features/studio/store/studioStore";
 import type { StudioNode } from "@/features/studio/types/studioTypes";
 
-export function AssetNode({ data, selected }: NodeProps<StudioNode>) {
+export function AssetNode({ data, id, selected }: NodeProps<StudioNode>) {
+  const runtimeStatus = useStudioNodeRuntimeStatus(id);
   if (data.kind !== "asset") return null;
   const previewUrl = data.thumbnail || data.url;
 
@@ -11,7 +13,7 @@ export function AssetNode({ data, selected }: NodeProps<StudioNode>) {
       acceptsInput={false}
       eyebrow="Input"
       selected={selected}
-      status={data.status}
+      status={runtimeStatus}
       title={data.title}
     >
       <div className="studio-node-preview studio-node-preview-asset">
@@ -36,6 +38,10 @@ export function AssetNode({ data, selected }: NodeProps<StudioNode>) {
         <div>
           <dt>Source</dt>
           <dd>{data.source || "upload"}</dd>
+        </div>
+        <div>
+          <dt>Availability</dt>
+          <dd>{data.status}</dd>
         </div>
       </dl>
     </StudioNodeFrame>

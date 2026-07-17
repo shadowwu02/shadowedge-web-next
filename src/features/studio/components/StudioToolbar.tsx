@@ -29,6 +29,11 @@ export function StudioToolbar({
   const saving = useStudioStore((state) => state.saving);
   const loadingProject = useStudioStore((state) => state.loadingProject);
   const projectError = useStudioStore((state) => state.projectError);
+  const runtimeRunning = useStudioStore((state) => state.runtimeRunning);
+  const runtimeError = useStudioStore((state) => state.runtimeError);
+  const clearRuntimeError = useStudioStore((state) => state.clearRuntimeError);
+  const runNodes = useStudioStore((state) => state.runNodes);
+  const nodeCount = useStudioStore((state) => state.nodes.length);
   const updatedAt = useStudioStore((state) => state.updatedAt);
   const {
     authLoading,
@@ -45,7 +50,7 @@ export function StudioToolbar({
     setMenuOpen(false);
   };
 
-  const projectBusy = saving || loadingProject || authLoading;
+  const projectBusy = saving || loadingProject || authLoading || runtimeRunning;
   const saveLabel = saving ? "Saving..." : projectId ? "Save Project" : "Create & Save";
 
   return (
@@ -53,7 +58,7 @@ export function StudioToolbar({
       <div className="studio-toolbar-title">
         <p>{brandName}</p>
         <h1>AI Studio</h1>
-        <span>Cloud project foundation · no node execution</span>
+        <span>Mock node runtime · no provider calls</span>
       </div>
 
       <div className="studio-project-controls">
@@ -81,6 +86,16 @@ export function StudioToolbar({
       </div>
 
       <div className="studio-toolbar-actions">
+        <button
+          className="studio-button studio-button-run"
+          disabled={projectBusy || runtimeRunning || nodeCount === 0}
+          onClick={() => void runNodes()}
+          title="Runs local mock executors only; no provider or generation API is called"
+          type="button"
+        >
+          <span className="studio-run-icon" aria-hidden="true">▶</span>
+          {runtimeRunning ? "Running..." : "Run"}
+        </button>
         <div className="studio-new-node-wrap">
           <button
             aria-expanded={menuOpen}
@@ -141,7 +156,9 @@ export function StudioToolbar({
         <span>
           {loadingProject
             ? "Loading project..."
-            : updatedAt
+            : runtimeRunning
+              ? "Mock runtime running..."
+              : updatedAt
               ? "Updated " +
                 new Date(updatedAt).toLocaleTimeString([], {
                   hour: "2-digit",
@@ -151,13 +168,16 @@ export function StudioToolbar({
         </span>
       </div>
 
-      {notice || projectError ? (
+      {notice || projectError || runtimeError ? (
         <button
           className={"studio-toast studio-toast-" + (notice?.kind || "error")}
-          onClick={clearNotice}
+          onClick={() => {
+            clearNotice();
+            clearRuntimeError();
+          }}
           type="button"
         >
-          {notice?.message || projectError}
+          {notice?.message || projectError || runtimeError}
         </button>
       ) : null}
     </header>

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Handle, Position } from "@xyflow/react";
+import type { NodeExecutionStatus } from "@/features/studio/runtime/types";
 import { cn } from "@/lib/utils";
 
 export function StudioNodeFrame({
@@ -16,7 +17,7 @@ export function StudioNodeFrame({
   eyebrow: string;
   emitsOutput?: boolean;
   selected: boolean;
-  status?: string;
+  status: NodeExecutionStatus;
   title: string;
 }) {
   return (
@@ -34,7 +35,13 @@ export function StudioNodeFrame({
           <p className="studio-node-eyebrow">{eyebrow}</p>
           <h3 className="studio-node-title">{title}</h3>
         </div>
-        {status ? <span className="studio-node-status">{status}</span> : null}
+        <span
+          aria-label={"Execution status: " + status}
+          className={cn("studio-node-status", "studio-node-status-" + status)}
+        >
+          <span className="studio-node-status-dot" aria-hidden="true" />
+          {status}
+        </span>
       </header>
 
       <div className="studio-node-body">{children}</div>

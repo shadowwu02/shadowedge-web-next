@@ -145,6 +145,16 @@
   color: #090b0f;
 }
 
+.studio-button-run {
+  border-color: color-mix(in srgb, var(--studio-accent) 42%, transparent);
+  background: color-mix(in srgb, var(--studio-accent) 12%, rgba(10, 12, 17, 0.94));
+  color: var(--studio-accent-soft);
+}
+
+.studio-run-icon {
+  font-size: 9px;
+}
+
 .studio-new-node-wrap {
   position: relative;
 }
@@ -746,6 +756,9 @@
 }
 
 .studio-node-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   max-width: 92px;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--studio-accent) 20%, transparent);
@@ -757,6 +770,64 @@
   text-overflow: ellipsis;
   text-transform: capitalize;
   white-space: nowrap;
+}
+
+.studio-node-status-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 999px;
+  background: rgba(200, 200, 200, 0.55);
+  box-shadow: 0 0 0 2px rgba(200, 200, 200, 0.08);
+}
+
+.studio-node-status-ready .studio-node-status-dot {
+  background: var(--studio-accent-soft);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--studio-accent) 18%, transparent);
+}
+
+.studio-node-status-running .studio-node-status-dot {
+  background: #f4c76b;
+  box-shadow: 0 0 0 3px rgba(244, 199, 107, 0.12);
+  animation: studio-runtime-pulse 900ms ease-in-out infinite;
+}
+
+.studio-node-status-completed {
+  border-color: rgba(88, 190, 132, 0.32);
+  color: rgba(190, 245, 211, 0.9);
+}
+
+.studio-node-status-completed .studio-node-status-dot {
+  background: #62c98f;
+  box-shadow: 0 0 0 2px rgba(98, 201, 143, 0.13);
+}
+
+.studio-node-status-failed {
+  border-color: rgba(218, 116, 91, 0.38);
+  color: rgba(248, 193, 179, 0.92);
+}
+
+.studio-node-status-failed .studio-node-status-dot {
+  background: #df765e;
+  box-shadow: 0 0 0 2px rgba(223, 118, 94, 0.14);
+}
+
+@keyframes studio-runtime-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-node-status-running .studio-node-status-dot {
+    animation: none;
+  }
 }
 
 .studio-node-body {

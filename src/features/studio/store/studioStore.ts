@@ -12,6 +12,13 @@ import {
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { activeBrand, type BrandId } from "@/config/brand";
+import { getStudioExecutor } from "@/features/studio/runtime/executorRegistry";
+import { runStudioGraph } from "@/features/studio/runtime/runStudioGraph";
+import type {
+  NodeExecutionStatus,
+  StudioNodeRuntimeState,
+  StudioRuntimeState,
+} from "@/features/studio/runtime/types";
 import type {
   StudioCanvasJson,
   StudioCanvasSnapshot,
@@ -172,6 +179,9 @@ type StudioState = StudioCanvasSnapshot & {
   past: StudioCanvasSnapshot[];
   future: StudioCanvasSnapshot[];
   hasHydrated: boolean;
+  runtimeState: StudioRuntimeState;
+  runtimeRunning: boolean;
+  runtimeError: string;
   addNode: (type: StudioNodeType) => void;
   addAssetNode: (asset: StudioAssetItem) => void;
   deleteNode: (nodeId: string) => void;
@@ -187,11 +197,13 @@ type StudioState = StudioCanvasSnapshot & {
   setSaving: (saving: boolean) => void;
   setLoadingProject: (loadingProject: boolean) => void;
   setProjectError: (projectError: string) => void;
+  clearRuntimeError: () => void;
   loadProject: (project: StudioProject) => void;
   markProjectSaved: (project: StudioProject) => void;
   undo: () => void;
   redo: () => void;
   setHasHydrated: (hasHydrated: boolean) => void;
+  runNodes: () => Promise<void>;
 };
 
 const initialNodes = createInitialNodes();
@@ -199,7 +211,7 @@ const initialEdges = createInitialEdges();
 
 export const useStudioStore = create<StudioState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       nodes: initialNodes,
       edges: initialEdges,
       viewport: defaultViewport,
@@ -215,6 +227,9 @@ export const useStudioStore = create<StudioState>()(
       past: [],
       future: [],
       hasHydrated: false,
+      runtimeState: {},
+      runtimeRunning: false,
+      runtimeError: "",
 
       addNode: (type) =>
         set((state) => {
@@ -408,6 +423,8 @@ export const useStudioStore = create<StudioState>()(
 
       setProjectError: (projectError) => set({ projectError }),
 
+      clearRuntimeError: () => set({ runtimeError: "" }),
+
       loadProject: (project) =>
         set({
           projectId: project.id,
@@ -421,6 +438,9 @@ export const useStudioStore = create<StudioState>()(
           future: [],
           dirty: false,
           projectError: "",
+          runtimeState: {},
+          runtimeRunning: false,
+          runtimeError: "",
         }),
 
       markProjectSaved: (project) =>
@@ -461,6 +481,62 @@ export const useStudioStore = create<StudioState>()(
         }),
 
       setHasHydrated: (hasHydrated) => set({ hasHydrated }),
+
+      runNodes: async () => {
+        const state = get();
+        if (state.runtimeRunning) return;
+
+        const readyState = Object.fromEntries(
+          state.nodes.map((node) => {
+            getStudioExecutor(node.type);
+            return [
+              node.id,
+              {
+                nodeId: node.id,
+                status: "ready" as NodeExecutionStatus,
+                startedAt: null,
+                finishedAt: null,
+                outputs: {},
+              } satisfies StudioNodeRuntimeState,
+            ];
+          }),
+        );
+
+        set({
+          runtimeState: readyState,
+          runtimeRunning: true,
+          runtimeError: "",
+        });
+
+        try {
+          await runStudioGraph({
+            projectId: state.projectId,
+            nodes: state.nodes,
+            edges: state.edges,
+            onNodeStart: (nodeRuntime) =>
+              set((current) => ({
+                runtimeState: {
+                  ...current.runtimeState,
+                  [nodeRuntime.nodeId]: nodeRuntime,
+                },
+              })),
+            onNodeResult: (nodeRuntime) =>
+              set((current) => ({
+                runtimeState: {
+                  ...current.runtimeState,
+                  [nodeRuntime.nodeId]: nodeRuntime,
+                },
+              })),
+          });
+        } catch (error) {
+          set({
+            runtimeError:
+              error instanceof Error ? error.message : "Mock runtime failed",
+          });
+        } finally {
+          set({ runtimeRunning: false });
+        }
+      },
     }),
     {
       name: STUDIO_CANVAS_STORAGE_KEY,
@@ -494,4 +570,10 @@ export function getCurrentStudioCanvasJson(): StudioCanvasJson {
     edges: state.edges,
     viewport: state.viewport,
   };
+}
+
+export function useStudioNodeRuntimeStatus(nodeId: string) {
+  return useStudioStore(
+    (state) => state.runtimeState[nodeId]?.status || "idle",
+  );
 }
