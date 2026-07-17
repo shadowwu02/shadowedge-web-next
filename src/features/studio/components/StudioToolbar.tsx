@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { STUDIO_IMAGE_EXECUTION_ENABLED } from "@/config/studioFeatures";
 import { useStudioProjects } from "@/features/studio/hooks/useStudioProjects";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import {
@@ -58,7 +59,9 @@ export function StudioToolbar({
       <div className="studio-toolbar-title">
         <p>{brandName}</p>
         <h1>AI Studio</h1>
-        <span>Mock node runtime · no provider calls</span>
+        <span>
+          Node runtime · image execution {STUDIO_IMAGE_EXECUTION_ENABLED ? "enabled" : "disabled"}
+        </span>
       </div>
 
       <div className="studio-project-controls">
@@ -90,7 +93,11 @@ export function StudioToolbar({
           className="studio-button studio-button-run"
           disabled={projectBusy || runtimeRunning || nodeCount === 0}
           onClick={() => void runNodes()}
-          title="Runs local mock executors only; no provider or generation API is called"
+          title={
+            STUDIO_IMAGE_EXECUTION_ENABLED
+              ? "Runs the workflow; image nodes use the existing credits and generation API"
+              : "Runs local executors; image generation is disabled in this environment"
+          }
           type="button"
         >
           <span className="studio-run-icon" aria-hidden="true">▶</span>

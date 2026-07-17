@@ -10,6 +10,7 @@ import type {
 
 type StudioRuntimeCallbacks = {
   onNodeStart: (state: StudioNodeRuntimeState) => void;
+  onNodeProgress: (state: StudioNodeRuntimeState) => void;
   onNodeResult: (
     state: StudioNodeRuntimeState,
     result: NodeExecutionResult,
@@ -20,18 +21,46 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function getNodeInputIds(
+  node: StudioNode,
+  edges: StudioEdge[],
+  nodeById: Map<string, StudioNode>,
+) {
+  const inputIds = new Set(
+    edges
+      .filter((edge) => edge.target === node.id)
+      .map((edge) => edge.source),
+  );
+
+  if (node.data.kind === "imageGenerate" || node.data.kind === "videoGenerate") {
+    const configuredInputs = [
+      node.data.promptInput,
+      ...(node.data.kind === "imageGenerate"
+        ? [node.data.assetInput]
+        : [node.data.imageInput, node.data.videoInput]),
+    ];
+    configuredInputs
+      .map((value) => String(value || "").trim())
+      .filter((inputId) => inputId && inputId !== node.id && nodeById.has(inputId))
+      .forEach((inputId) => inputIds.add(inputId));
+  }
+
+  return Array.from(inputIds);
+}
+
 function getExecutionOrder(nodes: StudioNode[], edges: StudioEdge[]) {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const indegree = new Map(nodes.map((node) => [node.id, 0]));
   const targetsBySource = new Map<string, string[]>();
 
-  for (const edge of edges) {
-    if (!nodeById.has(edge.source) || !nodeById.has(edge.target)) continue;
-    indegree.set(edge.target, (indegree.get(edge.target) || 0) + 1);
-    targetsBySource.set(edge.source, [
-      ...(targetsBySource.get(edge.source) || []),
-      edge.target,
-    ]);
+  for (const node of nodes) {
+    for (const sourceId of getNodeInputIds(node, edges, nodeById)) {
+      indegree.set(node.id, (indegree.get(node.id) || 0) + 1);
+      targetsBySource.set(sourceId, [
+        ...(targetsBySource.get(sourceId) || []),
+        node.id,
+      ]);
+    }
   }
 
   const queue = nodes.filter((node) => indegree.get(node.id) === 0);
@@ -63,6 +92,7 @@ export async function runStudioGraph({
   nodes,
   edges,
   onNodeStart,
+  onNodeProgress,
   onNodeResult,
 }: {
   projectId: string | null;
@@ -71,6 +101,7 @@ export async function runStudioGraph({
 } & StudioRuntimeCallbacks) {
   const outputsByNodeId: Record<string, Record<string, unknown>> = {};
   const executionOrder = getExecutionOrder(nodes, edges);
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
 
   for (const node of executionOrder) {
     const startedAt = nowIso();
@@ -84,11 +115,13 @@ export async function runStudioGraph({
     onNodeStart(runningState);
 
     const inputs = Object.fromEntries(
-      edges
-        .filter((edge) => edge.target === node.id)
-        .map((edge) => [edge.source, outputsByNodeId[edge.source] || {}]),
+      getNodeInputIds(node, edges, nodeById).map((sourceId) => [
+        sourceId,
+        outputsByNodeId[sourceId] || {},
+      ]),
     );
     const { executor } = getStudioExecutor(node.type);
+    let currentOutputs: Record<string, unknown> = {};
 
     let result: NodeExecutionResult;
     try {
@@ -97,23 +130,41 @@ export async function runStudioGraph({
         nodeId: node.id,
         inputs,
         config: node.data,
+        reportProgress: (progress) => {
+          currentOutputs = {
+            ...currentOutputs,
+            ...(progress.outputs || {}),
+          };
+          onNodeProgress({
+            nodeId: node.id,
+            status: progress.status,
+            startedAt,
+            finishedAt: null,
+            outputs: currentOutputs,
+            error: progress.error,
+          });
+        },
       });
     } catch (error) {
       result = {
         status: "failed",
         outputs: {},
-        error: error instanceof Error ? error.message : "Mock executor failed",
+        error: error instanceof Error ? error.message : "Node executor failed",
       };
     }
 
-    outputsByNodeId[node.id] = result.outputs;
+    const finalOutputs = {
+      ...currentOutputs,
+      ...result.outputs,
+    };
+    outputsByNodeId[node.id] = finalOutputs;
     onNodeResult(
       {
         nodeId: node.id,
         status: result.status,
         startedAt,
         finishedAt: nowIso(),
-        outputs: result.outputs,
+        outputs: finalOutputs,
         error: result.error,
       },
       result,

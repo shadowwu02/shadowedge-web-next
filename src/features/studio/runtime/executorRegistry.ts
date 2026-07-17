@@ -5,6 +5,7 @@ import type {
   StudioExecutorTypeMap,
   StudioNodeExecutor,
 } from "@/features/studio/runtime/types";
+import { ImageGenerateExecutor } from "@/features/studio/runtime/executors/imageGenerateExecutor";
 import type { StudioNodeType } from "@/features/studio/types/studioTypes";
 
 const MOCK_EXECUTION_DELAY_MS = 120;
@@ -33,6 +34,12 @@ function configValue(context: NodeExecutionContext, key: string) {
   return context.config[key];
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 export const AssetExecutor: StudioNodeExecutor = {
   async execute(context) {
     await waitForMockRuntime();
@@ -48,23 +55,17 @@ export const AssetExecutor: StudioNodeExecutor = {
 export const PromptExecutor: StudioNodeExecutor = {
   async execute(context) {
     await waitForMockRuntime();
+    const referenceImages = Object.values(context.inputs)
+      .map((input) => asRecord(input))
+      .filter((input) => input.assetType === "image" && input.url)
+      .map((input) => String(input.url));
     return complete("prompt", {
       prompt: configValue(context, "prompt"),
       style: configValue(context, "style"),
       camera: configValue(context, "camera"),
       duration: configValue(context, "duration"),
       ratio: configValue(context, "ratio"),
-    });
-  },
-};
-
-export const ImageExecutor: StudioNodeExecutor = {
-  async execute(context) {
-    await waitForMockRuntime();
-    return complete("image_generate", {
-      inputNodeIds: Object.keys(context.inputs),
-      model: configValue(context, "model"),
-      result: null,
+      referenceImages,
     });
   },
 };
@@ -83,17 +84,28 @@ export const VideoExecutor: StudioNodeExecutor = {
 export const OutputExecutor: StudioNodeExecutor = {
   async execute(context) {
     await waitForMockRuntime();
-    return complete("output", {
-      inputNodeIds: Object.keys(context.inputs),
-      result: null,
-    });
+    const imageOutput = Object.values(context.inputs)
+      .map((input) => asRecord(input))
+      .find((input) => typeof input.imageUrl === "string" && input.imageUrl);
+    return {
+      status: "completed",
+      outputs: {
+        mock: !imageOutput,
+        executor: "output",
+        inputNodeIds: Object.keys(context.inputs),
+        result: imageOutput?.imageUrl || null,
+        imageUrl: imageOutput?.imageUrl || "",
+        thumbnail: imageOutput?.thumbnail || imageOutput?.imageUrl || "",
+        outputType: imageOutput ? "image" : undefined,
+      },
+    };
   },
 };
 
 export const executorRegistry = {
   asset: AssetExecutor,
   prompt: PromptExecutor,
-  image_generate: ImageExecutor,
+  image_generate: ImageGenerateExecutor,
   video_generate: VideoExecutor,
   output: OutputExecutor,
 } satisfies Record<StudioExecutorKey, StudioNodeExecutor>;

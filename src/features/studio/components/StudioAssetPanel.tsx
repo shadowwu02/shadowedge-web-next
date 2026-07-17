@@ -274,8 +274,8 @@ export function StudioAssetPanel() {
       </div>
 
       <div className="studio-panel-note">
-        <strong>A3 boundary</strong>
-        <span>Click an item to add an Asset Node. Node execution remains unavailable.</span>
+        <strong>Asset input</strong>
+        <span>Click an item to add it; generation starts only when you press Run.</span>
       </div>
     </aside>
   );

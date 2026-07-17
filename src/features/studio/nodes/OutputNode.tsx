@@ -16,7 +16,12 @@ export function OutputNode({ data, id, selected }: NodeProps<StudioNode>) {
       title={data.title}
     >
       <div className="studio-node-preview studio-node-preview-output">
-        <span>{data.resultPreview || "Awaiting result"}</span>
+        {data.outputType === "image" && data.resultPreview ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img alt="Workflow output" src={data.resultPreview} />
+        ) : (
+          <span>{data.resultPreview || "Awaiting result"}</span>
+        )}
       </div>
       <dl className="studio-node-meta">
         <div>

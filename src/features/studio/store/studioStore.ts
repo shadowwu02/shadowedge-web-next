@@ -77,11 +77,20 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
     return {
       kind: "imageGenerate",
       title: "Image generation",
-      model: "Model placeholder",
+      model: "image_auto",
+      ratio: "auto",
+      quality: "",
+      size: "",
+      count: 1,
       promptInput: "prompt-1",
       assetInput: "asset-1",
       status: "idle",
       result: "",
+      jobId: "",
+      imageUrl: "",
+      thumbnail: "",
+      errorCode: "",
+      errorMessage: "",
     };
   }
   if (type === "videoGenerate") {
@@ -165,6 +174,71 @@ function takeSnapshot(state: Pick<StudioState, "nodes" | "edges" | "viewport" | 
 
 function appendHistory(history: StudioCanvasSnapshot[], snapshot: StudioCanvasSnapshot) {
   return [...history, snapshot].slice(-historyLimit);
+}
+
+function outputString(outputs: Record<string, unknown>, key: string) {
+  const value = outputs[key];
+  return typeof value === "string" ? value : "";
+}
+
+function applyRuntimeOutputToCanvas(
+  nodes: StudioNode[],
+  runtime: StudioNodeRuntimeState,
+) {
+  let changed = false;
+  const nodesWithOutput = nodes.map((node) => {
+    if (node.id !== runtime.nodeId) return node;
+
+    if (node.data.kind === "imageGenerate") {
+      const jobId = outputString(runtime.outputs, "jobId");
+      const imageUrl = outputString(runtime.outputs, "imageUrl");
+      const thumbnail = outputString(runtime.outputs, "thumbnail");
+      const errorCode = outputString(runtime.outputs, "errorCode");
+      const errorMessage = outputString(runtime.outputs, "message") || runtime.error || "";
+      const model = outputString(runtime.outputs, "model");
+      const status =
+        runtime.status === "completed" || runtime.status === "failed"
+          ? runtime.status
+          : "processing";
+      changed = true;
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          status,
+          jobId: jobId || node.data.jobId,
+          model: model || node.data.model,
+          imageUrl: imageUrl || node.data.imageUrl,
+          thumbnail: thumbnail || imageUrl || node.data.thumbnail,
+          result: imageUrl || node.data.result,
+          errorCode: runtime.status === "failed" ? errorCode : "",
+          errorMessage: runtime.status === "failed" ? errorMessage : "",
+        },
+      } satisfies StudioNode;
+    }
+
+    if (node.data.kind === "output" && runtime.status === "completed") {
+      const imageUrl = outputString(runtime.outputs, "imageUrl");
+      if (!imageUrl) return node;
+      changed = true;
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          resultPreview: imageUrl,
+          outputType: "image",
+          createdAt: runtime.finishedAt || nowIso(),
+        },
+      } satisfies StudioNode;
+    }
+
+    return node;
+  });
+
+  return {
+    changed,
+    nodes: nodesWithOutput,
+  };
 }
 
 type StudioState = StudioCanvasSnapshot & {
@@ -520,18 +594,37 @@ export const useStudioStore = create<StudioState>()(
                   [nodeRuntime.nodeId]: nodeRuntime,
                 },
               })),
+            onNodeProgress: (nodeRuntime) =>
+              set((current) => {
+                const canvas = applyRuntimeOutputToCanvas(current.nodes, nodeRuntime);
+                return {
+                  runtimeState: {
+                    ...current.runtimeState,
+                    [nodeRuntime.nodeId]: nodeRuntime,
+                  },
+                  nodes: canvas.nodes,
+                  dirty: canvas.changed ? true : current.dirty,
+                  updatedAt: canvas.changed ? nowIso() : current.updatedAt,
+                };
+              }),
             onNodeResult: (nodeRuntime) =>
-              set((current) => ({
-                runtimeState: {
-                  ...current.runtimeState,
-                  [nodeRuntime.nodeId]: nodeRuntime,
-                },
-              })),
+              set((current) => {
+                const canvas = applyRuntimeOutputToCanvas(current.nodes, nodeRuntime);
+                return {
+                  runtimeState: {
+                    ...current.runtimeState,
+                    [nodeRuntime.nodeId]: nodeRuntime,
+                  },
+                  nodes: canvas.nodes,
+                  dirty: canvas.changed ? true : current.dirty,
+                  updatedAt: canvas.changed ? nowIso() : current.updatedAt,
+                };
+              }),
           });
         } catch (error) {
           set({
             runtimeError:
-              error instanceof Error ? error.message : "Mock runtime failed",
+              error instanceof Error ? error.message : "Studio runtime failed",
           });
         } finally {
           set({ runtimeRunning: false });

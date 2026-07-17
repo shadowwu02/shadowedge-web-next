@@ -52,10 +52,19 @@ export type PromptNodeData = StudioNodeBase & {
 export type ImageGenerateNodeData = StudioNodeBase & {
   kind: "imageGenerate";
   model: string;
+  ratio: string;
+  quality: string;
+  size: string;
+  count: number;
   promptInput: string;
   assetInput: string;
   status: GenerationNodeStatus;
   result: string;
+  jobId: string;
+  imageUrl: string;
+  thumbnail: string;
+  errorCode: string;
+  errorMessage: string;
 };
 
 export type VideoGenerateNodeData = StudioNodeBase & {
@@ -131,7 +140,7 @@ export const STUDIO_NODE_DEFINITIONS: Array<{
   {
     type: "imageGenerate",
     label: "Image Generate",
-    description: "UI-only image generation step",
+    description: "Image generation through the existing API",
   },
   {
     type: "videoGenerate",

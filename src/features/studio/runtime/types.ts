@@ -4,11 +4,18 @@ export type NodeExecutionStatus =
   | "idle"
   | "ready"
   | "running"
+  | "processing"
   | "completed"
   | "failed";
 
 export type NodeExecutionInputs = Record<string, Record<string, unknown>>;
 export type NodeExecutionOutputs = Record<string, unknown>;
+
+export type NodeExecutionProgress = {
+  status: "processing";
+  outputs?: NodeExecutionOutputs;
+  error?: string;
+};
 
 export type NodeExecutionContext<
   TInputs extends NodeExecutionInputs = NodeExecutionInputs,
@@ -18,6 +25,7 @@ export type NodeExecutionContext<
   nodeId: string;
   inputs: TInputs;
   config: TConfig;
+  reportProgress: (progress: NodeExecutionProgress) => void;
 };
 
 export type NodeExecutionResult<

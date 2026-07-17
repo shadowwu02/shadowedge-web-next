@@ -1,4 +1,5 @@
 import type { NodeProps } from "@xyflow/react";
+import { STUDIO_IMAGE_EXECUTION_ENABLED } from "@/config/studioFeatures";
 import { StudioNodeFrame } from "@/features/studio/nodes/StudioNodeFrame";
 import { useStudioNodeRuntimeStatus } from "@/features/studio/store/studioStore";
 import type { StudioNode } from "@/features/studio/types/studioTypes";
@@ -6,6 +7,7 @@ import type { StudioNode } from "@/features/studio/types/studioTypes";
 export function ImageGenerateNode({ data, id, selected }: NodeProps<StudioNode>) {
   const runtimeStatus = useStudioNodeRuntimeStatus(id);
   if (data.kind !== "imageGenerate") return null;
+  const imageUrl = data.thumbnail || data.imageUrl || data.result;
 
   return (
     <StudioNodeFrame
@@ -14,8 +16,13 @@ export function ImageGenerateNode({ data, id, selected }: NodeProps<StudioNode>)
       status={runtimeStatus}
       title={data.title}
     >
-      <div className="studio-node-preview">
-        <span>Image preview</span>
+      <div className="studio-node-preview studio-node-preview-image-result">
+        {imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img alt="Generated image result" src={imageUrl} />
+        ) : (
+          <span>{runtimeStatus === "processing" ? "Generating image..." : "Image preview"}</span>
+        )}
       </div>
       <dl className="studio-node-meta">
         <div>
@@ -23,11 +30,26 @@ export function ImageGenerateNode({ data, id, selected }: NodeProps<StudioNode>)
           <dd>{data.model}</dd>
         </div>
         <div>
-          <dt>Inputs</dt>
-          <dd>{data.promptInput || "Prompt"} + {data.assetInput || "Asset"}</dd>
+          <dt>Settings</dt>
+          <dd>{data.ratio || "auto"} · {data.count || 1} image</dd>
         </div>
+        {data.jobId ? (
+          <div>
+            <dt>Job</dt>
+            <dd>{data.jobId}</dd>
+          </div>
+        ) : null}
       </dl>
-      <p className="studio-node-footnote">Mock executor · no API call</p>
+      {data.errorMessage ? (
+        <p className="studio-node-error" title={data.errorMessage}>
+          {data.errorCode || "IMAGE_GENERATION_FAILED"}: {data.errorMessage}
+        </p>
+      ) : null}
+      <p className="studio-node-footnote">
+        {STUDIO_IMAGE_EXECUTION_ENABLED
+          ? "Real executor · existing credits apply"
+          : "Execution disabled by environment flag"}
+      </p>
     </StudioNodeFrame>
   );
 }
