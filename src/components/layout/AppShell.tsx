@@ -19,12 +19,17 @@ export function AppShell({
 }) {
   const { locale, setLocale, t } = useI18n();
   const pathname = usePathname() || "/workspace/video";
-  const isGoldTideWorkspace = activeBrand.id === "newbrand" && (pathname.startsWith("/workspace") || pathname.startsWith("/prompt-studio"));
+  const isGoldTideWorkspace =
+    activeBrand.id === "newbrand" &&
+    (pathname.startsWith("/workspace") ||
+      pathname.startsWith("/prompt-studio") ||
+      pathname.startsWith("/studio"));
   const isActiveRoute = (href: string) => {
     if (href === "/workspace/video") return pathname === href || pathname.startsWith(`${href}/`);
     if (href === "/workspace/image") return pathname === href || pathname.startsWith(`${href}/`);
     if (href === "/workspace/canvas") return pathname === href || pathname.startsWith(`${href}/`);
     if (href === "/prompt-studio") return pathname === href || pathname.startsWith(`${href}/`);
+    if (href === "/studio") return pathname === href || pathname.startsWith(`${href}/`);
     return pathname === href;
   };
   const workspaceLinks = [
@@ -32,6 +37,7 @@ export function AppShell({
     { label: t("nav.image"), href: "/workspace/image", active: isActiveRoute("/workspace/image") },
     { label: t("nav.promptStudio"), href: "/prompt-studio", active: isActiveRoute("/prompt-studio") },
     { label: t("nav.canvas"), href: "/workspace/canvas", active: isActiveRoute("/workspace/canvas") },
+    { label: "Studio", href: "/studio", active: isActiveRoute("/studio") },
     { label: t("nav.history"), href: "/history", active: isActiveRoute("/history") },
     { label: t("nav.models"), href: "/models", active: isActiveRoute("/models") },
     { label: t("nav.pricing"), href: "/pricing", active: isActiveRoute("/pricing") },
