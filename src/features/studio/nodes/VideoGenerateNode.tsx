@@ -45,7 +45,7 @@ export function VideoGenerateNode({ data, id, selected }: NodeProps<StudioNode>)
       <dl className="studio-node-meta">
         <div>
           <dt>Model</dt>
-          <dd>{data.model}</dd>
+          <dd>{data.providerId || "higgsfield"} / {data.modelId || data.model}</dd>
         </div>
         <div>
           <dt>Settings</dt>

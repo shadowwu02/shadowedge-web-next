@@ -73,7 +73,7 @@ export const STUDIO_CAPABILITIES = [
     ],
     providers: [
       {
-        providerId: "shadowedge_video_api",
+        providerId: "higgsfield",
         adapterKey: "existing_video_executor",
         availability: "available",
         supportedModes: ["text_to_video", "image_to_video", "reference_video"],
@@ -191,7 +191,7 @@ export const STUDIO_CAPABILITIES = [
 ] as const satisfies readonly StudioCapability[];
 
 export const STUDIO_CAPABILITY_COST_RULES = [
-  { capability: "video_generate", providerId: "shadowedge_video_api", creditsRule: "existing_video_rules" },
+  { capability: "video_generate", providerId: "higgsfield", creditsRule: "existing_video_rules" },
   { capability: "video_edit", providerId: "mock", creditsRule: "free_mock" },
   { capability: "motion_control", providerId: "mock", creditsRule: "free_mock" },
   { capability: "camera_control", providerId: "mock", creditsRule: "free_mock" },

@@ -5,7 +5,11 @@ import type {
 import { buildVideoEditGenerationPlanItem } from "@/features/studio/runtime/videoEditPlan";
 import { buildMotionControlGenerationPlanItem } from "@/features/studio/runtime/motionControlPlan";
 import { buildCameraControlGenerationPlanItem } from "@/features/studio/runtime/cameraControlPlan";
-import { estimateVideoCreditsForParams } from "@/lib/video/videoModelRules";
+import {
+  estimateStudioVideoModelCredits,
+  resolveStudioVideoGenerationModel,
+} from "@/features/studio/capabilities/studioVideoModelResolver";
+import { getCachedStudioProviderModelInventory } from "@/lib/studio-provider-models-api";
 
 export const MAX_CONCURRENT_VIDEO_GENERATIONS = 1;
 export const MAX_STUDIO_VIDEO_TASKS_PER_RUN = 3;
@@ -29,6 +33,8 @@ export type StudioGenerationPlanItem = {
   nodeId: string;
   type: "video_generate" | "video_edit" | "motion_control" | "camera_control";
   status: StudioGenerationQueueItemStatus;
+  providerId?: string;
+  modelId?: string;
   model: string;
   estimatedCredits: number;
   startedAt: string | null;
@@ -59,9 +65,18 @@ export type StudioGenerationPlan = {
 
 export function estimateStudioVideoNodeCredits(node: StudioNode) {
   if (node.data.kind !== "videoGenerate") return 0;
-  return estimateVideoCreditsForParams(node.data.model, {
+  const providerId = node.data.providerId || "higgsfield";
+  const inventory = getCachedStudioProviderModelInventory(
+    providerId,
+    "video_generate",
+  );
+  if (!inventory) return null;
+  const model = resolveStudioVideoGenerationModel(inventory, {
+    providerId,
+    modelId: node.data.modelId || node.data.model,
+  });
+  return estimateStudioVideoModelCredits(model, {
     duration: node.data.duration,
-    ratio: node.data.ratio,
     quality: node.data.quality,
     resolution: node.data.resolution,
   });
@@ -143,13 +158,21 @@ export function buildStudioGenerationPlanFromNode({
       ) {
         return [];
       }
+      const estimatedCredits = estimateStudioVideoNodeCredits(node);
+      if (estimatedCredits === null) {
+        throw new Error(
+          "MODEL_INVENTORY_NOT_READY: Wait for the runtime model inventory and cost metadata before creating a Generation Plan.",
+        );
+      }
       return [
         {
           nodeId: node.id,
           type: "video_generate",
           status: "draft",
+          providerId: node.data.providerId || "higgsfield",
+          modelId: node.data.modelId || node.data.model,
           model: node.data.model,
-          estimatedCredits: estimateStudioVideoNodeCredits(node),
+          estimatedCredits,
           startedAt: null,
           finishedAt: null,
         },

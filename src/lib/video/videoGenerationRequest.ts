@@ -25,6 +25,7 @@ export type BuildVideoGenerationRequestInput = {
   media: UploadMediaItem[];
   mentionBindings?: VideoMentionBinding[];
   meta?: Record<string, unknown>;
+  estimatedCredits?: number;
 };
 
 export function buildVideoGenerationRequest(
@@ -54,16 +55,20 @@ export function buildVideoGenerationRequest(
   );
   const primaryImageUrl = images[0] || "";
   const primaryVideoUrl = videos[0] || "";
-  const estimatedCredits = estimateVideoCreditsForParams(
-    options.model.id || options.model.providerModel || options.model.label,
-    {
-      duration: options.duration,
-      generateAudio: options.generateAudio,
-      quality: options.quality,
-      ratio: options.ratio,
-    },
-    options.model.credits,
-  );
+  const estimatedCredits =
+    typeof options.estimatedCredits === "number" &&
+    Number.isFinite(options.estimatedCredits)
+    ? options.estimatedCredits
+    : estimateVideoCreditsForParams(
+        options.model.id || options.model.providerModel || options.model.label,
+        {
+          duration: options.duration,
+          generateAudio: options.generateAudio,
+          quality: options.quality,
+          ratio: options.ratio,
+        },
+        options.model.credits,
+      );
 
   return {
     prompt: enhancedPrompt,

@@ -495,6 +495,8 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
     return {
       kind: "videoGenerate",
       title: "Video generation",
+      providerId: "higgsfield",
+      modelId: "seedance_2_0",
       model: "seedance_2_0",
       duration: 4,
       ratio: "16:9",
@@ -657,6 +659,10 @@ function normalizeStudioNodes(nodes: StudioNode[]) {
       (!data.model || data.model === "Model placeholder")
     ) {
       data.model = "seedance_2_0";
+    }
+    if (data.kind === "videoGenerate") {
+      data.providerId = data.providerId || "higgsfield";
+      data.modelId = data.modelId || data.model;
     }
     if (data.kind === "character") {
       data.referenceImages = Array.isArray(data.referenceImages)
@@ -971,6 +977,8 @@ function applyRuntimeOutputToCanvas(
       const errorCode = outputString(runtime.outputs, "errorCode");
       const errorMessage = outputString(runtime.outputs, "message") || runtime.error || "";
       const model = outputString(runtime.outputs, "model");
+      const providerId = outputString(runtime.outputs, "providerId");
+      const modelId = outputString(runtime.outputs, "modelId");
       const references = Array.isArray(runtime.outputs.references)
         ? runtime.outputs.references.map(String).filter(Boolean)
         : node.data.references;
@@ -1015,6 +1023,8 @@ function applyRuntimeOutputToCanvas(
                 ),
               }
             : node.data.jobIdentity,
+          providerId: providerId || node.data.providerId || "higgsfield",
+          modelId: modelId || model || node.data.modelId || node.data.model,
           model: model || node.data.model,
           duration: Number(runtime.outputs.duration) || node.data.duration,
           ratio: outputString(runtime.outputs, "ratio") || node.data.ratio,
@@ -1702,6 +1712,8 @@ function materializeRemakePipelinePlan(
         data: {
           ...defaults,
           title: `Generate Shot ${shotNumber}`,
+          providerId: "higgsfield",
+          modelId: shotData.model,
           model: shotData.model,
           duration: shotData.duration,
           ratio: shotData.ratio,
@@ -2215,6 +2227,8 @@ export const useStudioStore = create<StudioState>()(
               ...videoDefaults,
               kind: "videoGenerate",
               title: `Generate Shot ${shotNode.data.shotNumber}`,
+              providerId: "higgsfield",
+              modelId: shotNode.data.model,
               model: shotNode.data.model,
               duration: shotNode.data.duration,
               ratio: shotNode.data.ratio,
@@ -2696,6 +2710,33 @@ export const useStudioStore = create<StudioState>()(
                 error: `The planned ${label} no longer exists.`,
               });
               break;
+            }
+
+            if (item.type === "video_generate" && node.data.kind === "videoGenerate") {
+              const plannedProviderId = item.providerId || "higgsfield";
+              const plannedModelId = item.modelId || item.model;
+              const currentProviderId = node.data.providerId || "higgsfield";
+              const currentModelId = node.data.modelId || node.data.model;
+              if (
+                plannedProviderId !== currentProviderId ||
+                plannedModelId !== currentModelId
+              ) {
+                updatePlanItem(item.nodeId, "failed", {
+                  nodeId: item.nodeId,
+                  status: "failed",
+                  startedAt: null,
+                  finishedAt: nowIso(),
+                  outputs: {
+                    executor: "video_generate",
+                    errorCode: "GENERATION_PLAN_MODEL_MISMATCH",
+                    message:
+                      "The Video Node provider or runtime model changed after confirmation. Create a new Generation Plan.",
+                  },
+                  error:
+                    "The Video Node provider or runtime model changed after confirmation. Create a new Generation Plan.",
+                });
+                break;
+              }
             }
 
             if (!updatePlanItem(item.nodeId, "queued")) break;

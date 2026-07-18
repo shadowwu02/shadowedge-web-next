@@ -3,25 +3,25 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import {
   STUDIO_GENERATION_ORCHESTRATOR_ENABLED,
+  STUDIO_HIGGSFIELD_VIDEO_GENERATION_ENABLED,
   STUDIO_MOTION_CONTROL_EXECUTION_ENABLED,
   STUDIO_VIDEO_EDIT_EXECUTION_ENABLED,
 } from "@/config/studioFeatures";
 import { MAX_STUDIO_VIDEO_TASKS_PER_RUN } from "@/features/studio/runtime/generationQueue";
 import { CAMERA_CONTROL_PRESETS } from "@/features/studio/capabilities/studioCapabilities";
 import { useStudioStore } from "@/features/studio/store/studioStore";
+import {
+  normalizeStudioVideoModelParams,
+  resolveStudioVideoGenerationModel,
+  type StudioProviderModelInventory,
+} from "@/features/studio/capabilities/studioVideoModelResolver";
 import { getImageModels } from "@/lib/image-api";
-import { getVideoModels } from "@/lib/video-api";
+import { loadStudioProviderModelInventory } from "@/lib/studio-provider-models-api";
 import {
   getDefaultImageParams,
   getImageModelById,
 } from "@/lib/image/imageModelRules";
 import type { ImageModel } from "@/types/image";
-import {
-  getVideoModelRule,
-  hasVideoModelRule,
-  normalizeVideoParamsForModel,
-} from "@/lib/video/videoModelRules";
-import type { VideoModel } from "@/types/video";
 
 function InspectorField({
   children,
@@ -78,21 +78,6 @@ function CharacterAttributesEditor({
   );
 }
 
-function normalizeVideoModelKey(value: unknown) {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[./\s-]+/g, "_")
-    .replace(/[^\w]/g, "");
-}
-
-function getVideoRuleId(model: VideoModel) {
-  const candidates = [model.id, model.providerModel, model.label].filter(
-    (value): value is string => Boolean(value),
-  );
-  return candidates.find((candidate) => hasVideoModelRule(candidate)) || candidates[0] || "generic";
-}
-
 export function NodeInspector() {
   const nodes = useStudioStore((state) => state.nodes);
   const selectedNodeId = useStudioStore((state) => state.selectedNodeId);
@@ -145,7 +130,9 @@ export function NodeInspector() {
     : "Not calculated";
   const [imageModels, setImageModels] = useState<ImageModel[]>([]);
   const [imageModelsError, setImageModelsError] = useState("");
-  const [videoModels, setVideoModels] = useState<VideoModel[]>([]);
+  const [videoInventory, setVideoInventory] =
+    useState<StudioProviderModelInventory | null>(null);
+  const videoModels = videoInventory?.models.filter((model) => model.enabled) || [];
   const [videoModelsError, setVideoModelsError] = useState("");
   const loadingImageModels =
     selectedNode?.type === "imageGenerate" &&
@@ -178,16 +165,16 @@ export function NodeInspector() {
   }, [imageModels.length, selectedNode?.type]);
 
   useEffect(() => {
-    if (selectedNode?.type !== "videoGenerate" || videoModels.length) return;
+    if (selectedNode?.type !== "videoGenerate" || videoInventory) return;
     let cancelled = false;
-    void getVideoModels()
-      .then((models) => {
+    void loadStudioProviderModelInventory("higgsfield", "video_generate")
+      .then((inventory) => {
         if (cancelled) return;
-        if (models.length) {
-          setVideoModels(models);
+        if (inventory.enabled && inventory.models.length) {
+          setVideoInventory(inventory);
           setVideoModelsError("");
         } else {
-          setVideoModelsError("Live model registry is empty; the configured Workspace model rule will be used.");
+          setVideoModelsError("No Higgsfield runtime video models are currently available.");
         }
       })
       .catch(() => {
@@ -197,7 +184,7 @@ export function NodeInspector() {
     return () => {
       cancelled = true;
     };
-  }, [selectedNode?.type, videoModels.length]);
+  }, [selectedNode?.type, videoInventory]);
 
   if (!selectedNode) {
     return (
@@ -231,21 +218,21 @@ export function NodeInspector() {
   const imageQualities = selectedImageModel?.capabilities.qualities || [];
   const selectedVideoModel =
     data.kind === "videoGenerate"
-      ? videoModels.find((model) =>
-          [model.id, model.providerModel, model.label]
-            .map(normalizeVideoModelKey)
-            .includes(normalizeVideoModelKey(data.model)),
-        ) || null
+      ? (() => {
+          if (!videoInventory) return null;
+          try {
+            return resolveStudioVideoGenerationModel(videoInventory, {
+              providerId: data.providerId || "higgsfield",
+              modelId: data.modelId || data.model,
+            });
+          } catch {
+            return null;
+          }
+        })()
       : null;
-  const selectedVideoRule = selectedVideoModel
-    ? getVideoModelRule(getVideoRuleId(selectedVideoModel))
-    : null;
-  const videoDurations = selectedVideoRule?.durations || selectedVideoModel?.durations || [];
-  const videoRatios = selectedVideoRule?.ratios.map(String) || selectedVideoModel?.ratios || [];
-  const videoQualities =
-    selectedVideoRule?.qualities.length
-      ? selectedVideoRule.qualities.map(String)
-      : selectedVideoRule?.resolutions.map(String) || selectedVideoModel?.qualities || [];
+  const videoDurations = selectedVideoModel?.limits.durations || [];
+  const videoRatios = selectedVideoModel?.limits.ratios || [];
+  const videoQualities = selectedVideoModel?.limits.resolutions || [];
 
   return (
     <aside className="studio-side-panel studio-inspector" aria-label="Node inspector">
@@ -730,20 +717,20 @@ export function NodeInspector() {
 
         {data.kind === "videoGenerate" ? (
           <>
+            <InspectorField label="Provider">
+              <input disabled value={data.providerId || "higgsfield"} />
+            </InspectorField>
             <InspectorField label="Model">
               <select
                 disabled={loadingVideoModels || !videoModels.length}
-                value={selectedVideoModel?.id || data.model}
+                value={selectedVideoModel?.id || data.modelId || data.model}
                 onChange={(event) => {
                   const model = videoModels.find((item) => item.id === event.target.value);
                   if (!model) return;
-                  const params = normalizeVideoParamsForModel(getVideoRuleId(model), {
-                    duration: model.durationDefault,
-                    ratio: model.ratios[0],
-                    quality: model.qualities[0],
-                    generateAudio: model.supportsAudio !== false,
-                  });
+                  const params = normalizeStudioVideoModelParams(model, {});
                   update({
+                    providerId: model.providerId,
+                    modelId: model.id,
                     model: model.id,
                     duration: params.duration,
                     ratio: params.ratio,
@@ -753,8 +740,13 @@ export function NodeInspector() {
                 }}
               >
                 {!videoModels.length ? (
-                  <option value={data.model}>
-                    {loadingVideoModels ? "Loading models..." : data.model}
+                  <option value={data.modelId || data.model}>
+                    {loadingVideoModels ? "Loading runtime inventory..." : data.model}
+                  </option>
+                ) : null}
+                {videoModels.length && !selectedVideoModel ? (
+                  <option value={data.modelId || data.model}>
+                    Unavailable: {data.modelId || data.model}
                   </option>
                 ) : null}
                 {videoModels.map((model) => (
@@ -763,6 +755,11 @@ export function NodeInspector() {
               </select>
             </InspectorField>
             {videoModelsError ? <p className="studio-inspector-error">{videoModelsError}</p> : null}
+            {!STUDIO_HIGGSFIELD_VIDEO_GENERATION_ENABLED ? (
+              <p className="studio-node-footnote">
+                Runtime models are visible, but Studio Higgsfield execution is disabled by feature flag.
+              </p>
+            ) : null}
             <div className="studio-inspector-grid">
               <InspectorField label="Duration">
                 <select

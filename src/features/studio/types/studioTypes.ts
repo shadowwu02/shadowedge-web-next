@@ -167,6 +167,10 @@ export type ImageGenerateNodeData = StudioNodeBase & {
 
 export type VideoGenerateNodeData = StudioNodeBase & {
   kind: "videoGenerate";
+  /** Optional for Canvas v7 compatibility; legacy nodes resolve to Higgsfield. */
+  providerId?: string;
+  /** Runtime catalog model identity. `model` remains for older Canvas snapshots. */
+  modelId?: string;
   model: string;
   duration: number;
   ratio: string;

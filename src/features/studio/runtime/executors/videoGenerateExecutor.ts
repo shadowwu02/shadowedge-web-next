@@ -1,4 +1,15 @@
-import { STUDIO_VIDEO_EXECUTION_ENABLED } from "@/config/studioFeatures";
+import {
+  STUDIO_HIGGSFIELD_VIDEO_GENERATION_ENABLED,
+  STUDIO_VIDEO_EXECUTION_ENABLED,
+} from "@/config/studioFeatures";
+import {
+  estimateStudioVideoModelCredits,
+  normalizeStudioVideoModelParams,
+  resolveStudioVideoGenerationModel,
+  resolveStudioVideoGenerationProvider,
+  StudioVideoModelResolutionError,
+  validateStudioVideoModelReferences,
+} from "@/features/studio/capabilities/studioVideoModelResolver";
 import type {
   NodeExecutionContext,
   NodeExecutionResult,
@@ -6,9 +17,9 @@ import type {
 } from "@/features/studio/runtime/types";
 import {
   createVideoTask,
-  getVideoModels,
   getVideoStatus,
 } from "@/lib/video-api";
+import { loadStudioProviderModelInventory } from "@/lib/studio-provider-models-api";
 import { getVideoErrorReasonCode } from "@/lib/video/videoErrorDisplay";
 import { buildVideoGenerationRequest } from "@/lib/video/videoGenerationRequest";
 import {
@@ -20,13 +31,7 @@ import {
   getSafeHistoryOutputUrl,
   normalizeVideoPollingStatus,
 } from "@/lib/video/historyUtils";
-import {
-  getVideoModelRule,
-  hasVideoModelRule,
-  normalizeVideoParamsForModel,
-} from "@/lib/video/videoModelRules";
 import { VIDEO_PROMPT_FRONTEND_LIMIT } from "@/lib/video/videoPromptLimits";
-import { validateReferenceSelectionForRule } from "@/lib/video/videoReferenceRules";
 import {
   isVideoActiveStatus,
   isVideoCompletedStatus,
@@ -47,6 +52,11 @@ const JOB_VISIBILITY_RETRY_MS = 2_000;
 
 type StudioVideoErrorCode =
   | "STUDIO_VIDEO_EXECUTION_DISABLED"
+  | "STUDIO_HIGGSFIELD_VIDEO_GENERATION_DISABLED"
+  | "STUDIO_PROVIDER_MODEL_INVENTORY_UNAVAILABLE"
+  | "STUDIO_VIDEO_MODEL_UNAVAILABLE"
+  | "STUDIO_VIDEO_MODEL_LIMITS_INCOMPLETE"
+  | "STUDIO_VIDEO_PROVIDER_UNAVAILABLE"
   | "AUTH_REQUIRED"
   | "INSUFFICIENT_CREDITS"
   | "FORBIDDEN"
@@ -159,56 +169,6 @@ function collectReferenceMedia(context: NodeExecutionContext) {
   } satisfies UploadMediaItem));
 }
 
-function normalizeModelKey(value: unknown) {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[./\s-]+/g, "_")
-    .replace(/[^\w]/g, "");
-}
-
-function findConfiguredModel(models: VideoModel[], configuredModel: string) {
-  const requested = normalizeModelKey(configuredModel);
-  return (
-    models.find((model) =>
-      [model.id, model.providerModel, model.label]
-        .map(normalizeModelKey)
-        .filter(Boolean)
-        .includes(requested),
-    ) || models[0]
-  );
-}
-
-function buildRuleBackedModel(configuredModel: string): VideoModel {
-  const rule = getVideoModelRule(configuredModel || "generic");
-  const qualities = (rule.qualities.length ? rule.qualities : rule.resolutions).map(String);
-  return {
-    id: rule.modelId,
-    label: rule.label,
-    provider: rule.provider,
-    providerModel: rule.modelId,
-    credits: Number(rule.credits || rule.creditRules.baseCredits || 12),
-    creditBase: Number(rule.creditRules.baseCredits || rule.credits || 12),
-    durations: rule.durations,
-    durationDefault: rule.defaultDuration,
-    ratios: rule.ratios.map(String),
-    qualities,
-    supportsAudio: true,
-    uploadSlots: rule.uploadSlots.map(String),
-  };
-}
-
-function getModelRuleId(model: VideoModel) {
-  const candidates = [model.id, model.providerModel, model.label].filter(
-    (value): value is string => Boolean(value),
-  );
-  return (
-    candidates.find((candidate) => hasVideoModelRule(candidate)) ||
-    candidates[0] ||
-    "generic"
-  );
-}
-
 function mapReasonCode(message: string, errorCode = ""): StudioVideoErrorCode {
   const normalizedCode = errorCode.trim().toUpperCase();
   if (
@@ -232,6 +192,17 @@ function mapReasonCode(message: string, errorCode = ""): StudioVideoErrorCode {
 function friendlyMessage(code: StudioVideoErrorCode, fallback = "") {
   if (code === "STUDIO_VIDEO_EXECUTION_DISABLED") {
     return "Studio video execution is disabled in this environment.";
+  }
+  if (code === "STUDIO_HIGGSFIELD_VIDEO_GENERATION_DISABLED") {
+    return "Studio Higgsfield video generation is disabled in this environment.";
+  }
+  if (
+    code === "STUDIO_PROVIDER_MODEL_INVENTORY_UNAVAILABLE" ||
+    code === "STUDIO_VIDEO_MODEL_UNAVAILABLE" ||
+    code === "STUDIO_VIDEO_MODEL_LIMITS_INCOMPLETE" ||
+    code === "STUDIO_VIDEO_PROVIDER_UNAVAILABLE"
+  ) {
+    return fallback || "The selected runtime video model is unavailable.";
   }
   if (code === "AUTH_REQUIRED") {
     return "Your session expired. Sign in again before running this video node.";
@@ -288,6 +259,13 @@ function jobIdentityOutputs(identity: VideoJobIdentity) {
 }
 
 function failureFromError(error: unknown, identity: VideoJobIdentity) {
+  if (error instanceof StudioVideoModelResolutionError) {
+    return failure(
+      error.code as StudioVideoErrorCode,
+      error.message,
+      jobIdentityOutputs(identity),
+    );
+  }
   if (error instanceof ApiError) {
     if (error.status === 401 || error.kind === "auth") {
       return failure("AUTH_REQUIRED", "", jobIdentityOutputs(identity));
@@ -405,6 +383,25 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
       return failure("STUDIO_VIDEO_EXECUTION_DISABLED");
     }
 
+    const providerId = configString(context, "providerId") || "higgsfield";
+    if (
+      providerId === "higgsfield" &&
+      !STUDIO_HIGGSFIELD_VIDEO_GENERATION_ENABLED
+    ) {
+      return failure("STUDIO_HIGGSFIELD_VIDEO_GENERATION_DISABLED");
+    }
+    let provider: ReturnType<typeof resolveStudioVideoGenerationProvider>;
+    try {
+      provider = resolveStudioVideoGenerationProvider(providerId);
+    } catch (error) {
+      if (error instanceof StudioVideoModelResolutionError) {
+        return failure(error.code as StudioVideoErrorCode, error.message);
+      }
+      return failure(
+        "STUDIO_VIDEO_PROVIDER_UNAVAILABLE",
+        "Studio could not resolve the selected video provider.",
+      );
+    }
     const savedIdentity = asRecord(context.config.jobIdentity);
     let identity = normalizeVideoJobIdentity({
       jobId: context.config.jobId || savedIdentity.jobId,
@@ -415,7 +412,8 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
         context.config.providerJobId || savedIdentity.providerJobId,
       statusJobId: context.config.statusJobId || savedIdentity.statusJobId,
     });
-    let modelId = configString(context, "model");
+    let modelId =
+      configString(context, "modelId") || configString(context, "model");
     const savedStatus = configString(context, "status").toLowerCase();
     const canResume =
       Boolean(identity.statusJobId) &&
@@ -441,31 +439,61 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
           );
         }
 
-        const models = await getVideoModels().catch(() => []);
-        const model =
-          findConfiguredModel(models, modelId) || buildRuleBackedModel(modelId);
-        modelId = model.id;
-
-        const ruleId = getModelRuleId(model);
-        const rule = getVideoModelRule(ruleId);
-        const params = normalizeVideoParamsForModel(ruleId, {
+        const inventory = await loadStudioProviderModelInventory(
+          provider.providerId,
+          "video_generate",
+        );
+        const inventoryModel = resolveStudioVideoGenerationModel(inventory, {
+          providerId: provider.providerId,
+          modelId,
+        });
+        modelId = inventoryModel.id;
+        const params = normalizeStudioVideoModelParams(inventoryModel, {
           duration:
             Number(context.config.duration) ||
-            Number(promptInput?.duration) ||
-            model.durationDefault,
+            Number(promptInput?.duration),
           ratio:
             configString(context, "ratio") ||
-            String(promptInput?.ratio || "") ||
-            model.ratios[0],
+            String(promptInput?.ratio || ""),
           quality:
             configString(context, "quality") ||
+            configString(context, "resolution"),
+          resolution:
             configString(context, "resolution") ||
-            model.qualities[0],
-          generateAudio: model.supportsAudio !== false,
+            configString(context, "quality"),
         });
         const media = collectReferenceMedia(context);
-        const mediaIssue = validateReferenceSelectionForRule(rule, [], media);
+        const mediaIssue = validateStudioVideoModelReferences(
+          inventoryModel,
+          media,
+        );
         if (mediaIssue) return failure("PARAMETER_ISSUE", mediaIssue);
+
+        const estimatedCredits = estimateStudioVideoModelCredits(
+          inventoryModel,
+          params,
+        );
+        if (estimatedCredits === null) {
+          return failure(
+            "PARAMETER_ISSUE",
+            "Runtime cost metadata is unavailable for this video model.",
+          );
+        }
+        const model: VideoModel = {
+          id: inventoryModel.id,
+          label: inventoryModel.label,
+          provider: inventoryModel.providerId,
+          providerModel: inventoryModel.metadata.providerModel,
+          desc: inventoryModel.metadata.description,
+          credits: estimatedCredits,
+          creditBase: inventoryModel.metadata.creditBase || estimatedCredits,
+          durations: inventoryModel.limits.durations,
+          durationDefault: inventoryModel.limits.durations[0],
+          ratios: inventoryModel.limits.ratios,
+          qualities: inventoryModel.limits.resolutions,
+          supportsAudio: inventoryModel.metadata.supportsAudio,
+          uploadSlots: inventoryModel.limits.uploadSlots,
+        };
 
         const request = buildVideoGenerationRequest({
           prompt,
@@ -473,12 +501,15 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
           duration: params.duration,
           ratio: params.ratio,
           quality: params.quality,
-          generateAudio: Boolean(params.generateAudio),
+          generateAudio: inventoryModel.metadata.supportsAudio,
           media,
+          estimatedCredits,
           meta: {
             source: "studio_canvas",
             studioProjectId: context.projectId,
             studioNodeId: context.nodeId,
+            studioProviderId: provider.providerId,
+            studioModelId: inventoryModel.id,
           },
         });
         const submitted = await createVideoTask(request);
@@ -498,6 +529,8 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
           outputs: {
             executor: "video_generate",
             ...jobIdentityOutputs(identity),
+            providerId: provider.providerId,
+            modelId: inventoryModel.id,
             model: model.id,
             duration: params.duration,
             ratio: params.ratio,
@@ -515,6 +548,8 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
           outputs: {
             executor: "video_generate",
             ...jobIdentityOutputs(identity),
+            providerId,
+            modelId,
             model: modelId,
             providerStatus: savedStatus,
             resumed: true,
@@ -545,6 +580,8 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
         outputs: {
           executor: "video_generate",
           ...jobIdentityOutputs(identity),
+          providerId,
+          modelId,
           videoUrl,
           thumbnail: status.thumbnail || status.thumbnailUrl || videoUrl,
           outputUrls: status.outputUrls || status.output_urls || [videoUrl],

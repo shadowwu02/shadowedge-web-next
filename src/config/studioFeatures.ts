@@ -35,6 +35,9 @@ const configuredProviderExecution = parseBooleanFlag(
 const configuredHiggsfieldVideoEdit = parseBooleanFlag(
   process.env.NEXT_PUBLIC_HIGGSFIELD_VIDEO_EDIT_ENABLED,
 );
+const configuredStudioHiggsfieldVideoGeneration = parseBooleanFlag(
+  process.env.NEXT_PUBLIC_STUDIO_HIGGSFIELD_VIDEO_GENERATION_ENABLED,
+);
 
 // Local development can exercise the executor without extra setup. Production
 // builds remain off unless the public rollout flag is explicitly enabled.
@@ -73,6 +76,10 @@ export const STUDIO_PROVIDER_EXECUTION_ENABLED =
 // so this flag cannot enable Higgsfield Video Edit by itself.
 export const HIGGSFIELD_VIDEO_EDIT_ENABLED =
   configuredHiggsfieldVideoEdit ?? false;
+// Studio uses the existing paid Video API, but selecting Higgsfield runtime
+// models remains an explicit rollout decision in every environment.
+export const STUDIO_HIGGSFIELD_VIDEO_GENERATION_ENABLED =
+  configuredStudioHiggsfieldVideoGeneration ?? false;
 
 export const studioFeatures = Object.freeze({
   imageExecutionEnabled: STUDIO_IMAGE_EXECUTION_ENABLED,
@@ -85,4 +92,6 @@ export const studioFeatures = Object.freeze({
   motionControlExecutionEnabled: STUDIO_MOTION_CONTROL_EXECUTION_ENABLED,
   providerExecutionEnabled: STUDIO_PROVIDER_EXECUTION_ENABLED,
   higgsfieldVideoEditEnabled: HIGGSFIELD_VIDEO_EDIT_ENABLED,
+  higgsfieldVideoGenerationEnabled:
+    STUDIO_HIGGSFIELD_VIDEO_GENERATION_ENABLED,
 });

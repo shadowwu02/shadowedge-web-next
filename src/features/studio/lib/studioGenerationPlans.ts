@@ -42,6 +42,12 @@ function normalizeGenerationPlanSource(
         ? plan.sourceNodeType
         : "remake_pipeline",
     pipelineNodeId: plan.pipelineNodeId || sourceNodeId,
+    items: plan.items.map((item) => ({
+      ...item,
+      providerId:
+        item.providerId || (item.type === "video_generate" ? "higgsfield" : undefined),
+      modelId: item.modelId || item.model,
+    })),
   };
 }
 
