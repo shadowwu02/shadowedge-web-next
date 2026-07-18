@@ -5,6 +5,7 @@ import type {
 import { estimateVideoCreditsForParams } from "@/lib/video/videoModelRules";
 
 export const MAX_CONCURRENT_VIDEO_GENERATIONS = 1;
+export const MAX_STUDIO_VIDEO_TASKS_PER_RUN = 3;
 
 export type StudioGenerationPlanStatus =
   | "draft"
@@ -22,6 +23,9 @@ export type StudioGenerationPlanItem = {
   estimatedCredits: number;
   startedAt: string | null;
   finishedAt: string | null;
+  jobId?: string;
+  costCredits?: number;
+  creditsBalance?: number;
   errorCode?: string;
   message?: string;
 };
@@ -37,7 +41,7 @@ export type StudioGenerationPlan = {
   updatedAt: string;
   confirmedAt: string | null;
   completedAt: string | null;
-  mock: true;
+  mock: boolean;
 };
 
 export function estimateStudioVideoNodeCredits(node: StudioNode) {
@@ -85,6 +89,6 @@ export function buildStudioGenerationPlan({
     updatedAt: timestamp,
     confirmedAt: null,
     completedAt: null,
-    mock: true,
+    mock: false,
   };
 }

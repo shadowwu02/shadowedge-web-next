@@ -57,7 +57,7 @@ export function VideoGenerateNode({ data, id, selected }: NodeProps<StudioNode>)
         </div>
         {data.queueStatus ? (
           <div>
-            <dt>Mock queue</dt>
+            <dt>Queue</dt>
             <dd>{data.queueStatus}</dd>
           </div>
         ) : null}
@@ -65,7 +65,7 @@ export function VideoGenerateNode({ data, id, selected }: NodeProps<StudioNode>)
       <StudioCostPreview data={data} />
       {data.pipelineExecutionBlocked ? (
         <p className="studio-node-footnote">
-          Pipeline plan only; real generation stays locked even after the mock queue completes.
+          Pipeline-controlled node. Paid execution requires an explicitly enabled and confirmed Generation Plan.
         </p>
       ) : null}
       {data.jobId ? <p className="studio-node-footnote">Job {data.jobId}</p> : null}

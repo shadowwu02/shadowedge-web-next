@@ -79,7 +79,7 @@ export function StudioRunHistoryPanel() {
                   {run.mode === "retry"
                     ? "Single-node retry"
                     : run.mode === "generation_plan"
-                      ? `${run.tasks || run.nodes.length} mock tasks / ${run.estimatedCredits || 0} estimated credits`
+                      ? `${run.tasks || run.nodes.length} video tasks / ${run.estimatedCredits || 0} estimated credits`
                       : `${run.nodes.length} nodes`} ·{" "}
                   {relativeTime(run.createdAt)}
                 </small>

@@ -1,4 +1,6 @@
 import type { NodeProps } from "@xyflow/react";
+import { STUDIO_GENERATION_ORCHESTRATOR_ENABLED } from "@/config/studioFeatures";
+import { MAX_STUDIO_VIDEO_TASKS_PER_RUN } from "@/features/studio/runtime/generationQueue";
 import { StudioRetryButton } from "@/features/studio/components/StudioRetryButton";
 import { StudioNodeFrame } from "@/features/studio/nodes/StudioNodeFrame";
 import {
@@ -34,7 +36,10 @@ export function RemakePipelineNode({ data, id, selected }: NodeProps<StudioNode>
   const completedTasks =
     generationPlan?.items.filter((item) => item.status === "completed").length || 0;
   const runningTask = generationPlan?.items.find(
-    (item) => item.status === "running" || item.status === "queued",
+    (item) =>
+      item.status === "running" ||
+      item.status === "queued" ||
+      item.status === "processing",
   );
   const itemCredits = generationPlan?.items.map((item) => item.estimatedCredits) || [];
   const unitCreditLabel = itemCredits.length
@@ -59,7 +64,7 @@ export function RemakePipelineNode({ data, id, selected }: NodeProps<StudioNode>
       </dl>
       {planReady ? (
         <div className="studio-node-copy" role="status">
-          Remake Plan Ready. Review every planned Video Node before a future generation step.
+          Remake Plan Ready. Review every planned Video Node before confirming paid generation.
         </div>
       ) : null}
       {generationPlan ? (
@@ -95,14 +100,18 @@ export function RemakePipelineNode({ data, id, selected }: NodeProps<StudioNode>
         disabled={
           !generationPlan ||
           generationQueue.running ||
-          (generationPlan.status !== "draft" && generationPlan.status !== "failed")
+          generationPlan.status !== "draft"
         }
         onClick={(event) => {
           event.stopPropagation();
           if (generationPlan) void startGenerationPlan(generationPlan.id);
         }}
         onMouseDown={(event) => event.stopPropagation()}
-        title="Runs a local mock queue only; no video provider is called."
+        title={
+          STUDIO_GENERATION_ORCHESTRATOR_ENABLED
+            ? "Confirm and run the controlled paid video queue"
+            : "STUDIO_GENERATION_DISABLED"
+        }
         type="button"
       >
         Start Generation
@@ -123,7 +132,9 @@ export function RemakePipelineNode({ data, id, selected }: NodeProps<StudioNode>
       >
         Cancel
       </button>
-      <p className="studio-node-footnote">Mock queue only / concurrency 1 / no provider / no credits</p>
+      <p className="studio-node-footnote">
+        Real worker {STUDIO_GENERATION_ORCHESTRATOR_ENABLED ? "enabled" : "disabled"} / concurrency 1 / max {MAX_STUDIO_VIDEO_TASKS_PER_RUN} tasks / no auto retry
+      </p>
     </StudioNodeFrame>
   );
 }

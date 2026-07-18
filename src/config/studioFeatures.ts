@@ -11,6 +11,9 @@ const configuredImageExecution = parseBooleanFlag(
 const configuredVideoExecution = parseBooleanFlag(
   process.env.NEXT_PUBLIC_STUDIO_VIDEO_EXECUTION_ENABLED,
 );
+const configuredGenerationOrchestrator = parseBooleanFlag(
+  process.env.NEXT_PUBLIC_STUDIO_GENERATION_ORCHESTRATOR_ENABLED,
+);
 const configuredRemakeExecution = parseBooleanFlag(
   process.env.NEXT_PUBLIC_STUDIO_REMAKE_EXECUTION_ENABLED,
 );
@@ -27,6 +30,10 @@ export const STUDIO_IMAGE_EXECUTION_ENABLED =
   configuredImageExecution ?? process.env.NODE_ENV === "development";
 export const STUDIO_VIDEO_EXECUTION_ENABLED =
   configuredVideoExecution ?? process.env.NODE_ENV === "development";
+// A Generation Plan can dispatch several paid video jobs. Keep the
+// orchestrator opt-in in every environment, including local development.
+export const STUDIO_GENERATION_ORCHESTRATOR_ENABLED =
+  configuredGenerationOrchestrator ?? false;
 // Remake analysis can dispatch a paid VLM through the existing API. Keep it
 // opt-in in every environment, including local development.
 export const STUDIO_REMAKE_EXECUTION_ENABLED =
@@ -42,6 +49,7 @@ export const STUDIO_VIDEO_EDIT_ENABLED = configuredVideoEdit ?? false;
 export const studioFeatures = Object.freeze({
   imageExecutionEnabled: STUDIO_IMAGE_EXECUTION_ENABLED,
   videoExecutionEnabled: STUDIO_VIDEO_EXECUTION_ENABLED,
+  generationOrchestratorEnabled: STUDIO_GENERATION_ORCHESTRATOR_ENABLED,
   remakeExecutionEnabled: STUDIO_REMAKE_EXECUTION_ENABLED,
   renderEnabled: STUDIO_RENDER_ENABLED,
   videoEditEnabled: STUDIO_VIDEO_EDIT_ENABLED,

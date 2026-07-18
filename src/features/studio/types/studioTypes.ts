@@ -24,6 +24,7 @@ export type StudioGenerationQueueItemStatus =
   | "waiting"
   | "queued"
   | "running"
+  | "processing"
   | "completed"
   | "failed";
 export type OutputType = "image" | "video" | "audio";

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  STUDIO_GENERATION_ORCHESTRATOR_ENABLED,
   STUDIO_IMAGE_EXECUTION_ENABLED,
   STUDIO_REMAKE_EXECUTION_ENABLED,
   STUDIO_VIDEO_EXECUTION_ENABLED,
@@ -75,7 +76,8 @@ export function StudioToolbar({
           Node runtime · image {STUDIO_IMAGE_EXECUTION_ENABLED ? "on" : "off"} · video{" "}
           {STUDIO_VIDEO_EXECUTION_ENABLED ? "on" : "off"} · remake{" "}
           {STUDIO_REMAKE_EXECUTION_ENABLED ? "on" : "off"} · lock {runLockState}
-          {generationQueue.running ? " · mock queue running (max 1)" : ""}
+          {` · orchestrator ${STUDIO_GENERATION_ORCHESTRATOR_ENABLED ? "on" : "off"}`}
+          {generationQueue.running ? " · generation queue running (max 1)" : ""}
         </span>
       </div>
 

@@ -30,21 +30,22 @@ function isGenerationPlan(value: unknown): value is StudioGenerationPlan {
 
 function normalizeInterruptedPlan(plan: StudioGenerationPlan) {
   if (plan.status !== "confirmed" && plan.status !== "running") return plan;
+  const interruptedAt = new Date().toISOString();
   return {
     ...plan,
-    status: "draft" as const,
-    updatedAt: new Date().toISOString(),
-    confirmedAt: null,
+    status: "failed" as const,
+    updatedAt: interruptedAt,
+    completedAt: interruptedAt,
     items: plan.items.map((item) =>
       item.status === "completed"
         ? item
         : {
             ...item,
-            status: "waiting" as const,
-            startedAt: null,
-            finishedAt: null,
-            errorCode: undefined,
-            message: undefined,
+            status: "failed" as const,
+            finishedAt: interruptedAt,
+            errorCode: "QUEUE_INTERRUPTED",
+            message:
+              "The local worker was interrupted. Check any saved job ID before creating a new plan; Studio will not retry automatically.",
           },
     ),
   };

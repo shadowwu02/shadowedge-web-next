@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useState, type ChangeEvent } from "react";
-import { STUDIO_VIDEO_EDIT_ENABLED } from "@/config/studioFeatures";
+import {
+  STUDIO_GENERATION_ORCHESTRATOR_ENABLED,
+  STUDIO_VIDEO_EDIT_ENABLED,
+} from "@/config/studioFeatures";
+import { MAX_STUDIO_VIDEO_TASKS_PER_RUN } from "@/features/studio/runtime/generationQueue";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import { getImageModels } from "@/lib/image-api";
 import { getVideoModels } from "@/lib/video-api";
@@ -427,15 +431,18 @@ export function NodeInspector() {
               disabled={
                 !selectedGenerationPlan ||
                 generationQueue.running ||
-                (selectedGenerationPlan.status !== "draft" &&
-                  selectedGenerationPlan.status !== "failed")
+                selectedGenerationPlan.status !== "draft"
               }
               onClick={() => {
                 if (selectedGenerationPlan) {
                   void startGenerationPlan(selectedGenerationPlan.id);
                 }
               }}
-              title="Runs the local mock queue only."
+              title={
+                STUDIO_GENERATION_ORCHESTRATOR_ENABLED
+                  ? "Confirm and run the controlled paid video queue"
+                  : "STUDIO_GENERATION_DISABLED"
+              }
               type="button"
             >
               Start Generation
@@ -457,7 +464,7 @@ export function NodeInspector() {
               Cancel
             </button>
             <p className="studio-node-footnote">
-              Cost uses existing model rules. Start runs waiting → queued → running → completed (mock), with no provider call or credit charge.
+              Cost uses existing model rules. Real worker {STUDIO_GENERATION_ORCHESTRATOR_ENABLED ? "enabled" : "disabled"}; concurrency 1, max {MAX_STUDIO_VIDEO_TASKS_PER_RUN} tasks, no automatic retry.
             </p>
             {data.errorMessage ? (
               <div className="studio-inspector-runtime-error" role="alert">
@@ -719,7 +726,7 @@ export function NodeInspector() {
               <input disabled value={data.status || "idle"} />
             </InspectorField>
             {data.queueStatus ? (
-              <InspectorField label="Mock queue status">
+              <InspectorField label="Queue status">
                 <input disabled value={data.queueStatus} />
               </InspectorField>
             ) : null}
