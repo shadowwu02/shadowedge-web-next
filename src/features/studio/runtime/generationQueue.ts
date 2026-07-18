@@ -4,6 +4,7 @@ import type {
 } from "@/features/studio/types/studioTypes";
 import { buildVideoEditGenerationPlanItem } from "@/features/studio/runtime/videoEditPlan";
 import { buildMotionControlGenerationPlanItem } from "@/features/studio/runtime/motionControlPlan";
+import { buildCameraControlGenerationPlanItem } from "@/features/studio/runtime/cameraControlPlan";
 import { estimateVideoCreditsForParams } from "@/lib/video/videoModelRules";
 
 export const MAX_CONCURRENT_VIDEO_GENERATIONS = 1;
@@ -21,11 +22,12 @@ export type StudioGenerationPlanSourceType =
   | "remake_pipeline"
   | "videoGenerate"
   | "video_edit"
-  | "motion_control";
+  | "motion_control"
+  | "camera_control";
 
 export type StudioGenerationPlanItem = {
   nodeId: string;
-  type: "video_generate" | "video_edit" | "motion_control";
+  type: "video_generate" | "video_edit" | "motion_control" | "camera_control";
   status: StudioGenerationQueueItemStatus;
   model: string;
   estimatedCredits: number;
@@ -105,6 +107,11 @@ export function buildStudioGenerationPlanFromNode({
       throw new Error("The selected node is not a Motion Control Node.");
     }
     taskNodes = [sourceNode];
+  } else if (nodeType === "camera_control") {
+    if (sourceNode.data.kind !== "cameraControl") {
+      throw new Error("The selected node is not a Camera Control Node.");
+    }
+    taskNodes = [sourceNode];
   } else {
     if (sourceNode.data.kind !== "remakePipeline") {
       throw new Error("The selected node is not a Remake Pipeline Node.");
@@ -162,6 +169,20 @@ export function buildStudioGenerationPlanFromNode({
         }),
       ];
     }
+    if (node.data.kind === "cameraControl") {
+      if (
+        node.data.status === "completed" &&
+        Boolean(node.data.result?.videoUrl)
+      ) {
+        return [];
+      }
+      return [
+        buildCameraControlGenerationPlanItem({
+          nodeId: node.id,
+          preset: node.data.preset,
+        }),
+      ];
+    }
     return [];
   });
 
@@ -185,6 +206,9 @@ export function buildStudioGenerationPlanFromNode({
     updatedAt: timestamp,
     confirmedAt: null,
     completedAt: null,
-    mock: nodeType === "video_edit" || nodeType === "motion_control",
+    mock:
+      nodeType === "video_edit" ||
+      nodeType === "motion_control" ||
+      nodeType === "camera_control",
   };
 }

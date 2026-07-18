@@ -20,6 +20,7 @@ import { RemakeShotNode } from "@/features/studio/nodes/RemakeShotNode";
 import { VideoGenerateNode } from "@/features/studio/nodes/VideoGenerateNode";
 import { VideoEditNode } from "@/features/studio/nodes/VideoEditNode";
 import { MotionControlNode } from "@/features/studio/nodes/MotionControlNode";
+import { CameraControlNode } from "@/features/studio/nodes/CameraControlNode";
 import {
   getCurrentStudioSnapshot,
   useStudioStore,
@@ -41,6 +42,7 @@ const nodeTypes = {
   videoGenerate: VideoGenerateNode,
   video_edit: VideoEditNode,
   motion_control: MotionControlNode,
+  camera_control: CameraControlNode,
   output: OutputNode,
 } satisfies NodeTypes;
 

@@ -16,6 +16,7 @@ const nodeLabels: Record<StudioNodeType, string> = {
   videoGenerate: "Video Generate",
   video_edit: "Video Edit",
   motion_control: "Motion Control",
+  camera_control: "Camera Control",
   output: "Output",
 };
 
@@ -59,6 +60,7 @@ export function StudioRunHistoryPanel() {
                   node.type === "videoGenerate" ||
                   node.type === "video_edit" ||
                   node.type === "motion_control" ||
+                  node.type === "camera_control" ||
                   node.type === "imageGenerate" ||
                   node.type === "remakeAnalysis" ||
                   node.type === "remake_pipeline",

@@ -12,6 +12,7 @@ export type StudioNodeType =
   | "videoGenerate"
   | "video_edit"
   | "motion_control"
+  | "camera_control"
   | "output";
 
 export type AssetType = "image" | "video" | "audio";
@@ -279,6 +280,47 @@ export type MotionControlNodeData = StudioNodeBase & {
   errorMessage: string;
 };
 
+export type CameraControlPreset =
+  | "dolly"
+  | "crane"
+  | "orbit"
+  | "handheld"
+  | "pan"
+  | "tilt"
+  | "zoom";
+
+export type CameraControlConfig = {
+  preset: CameraControlPreset;
+  prompt: string;
+  duration: number;
+  strength?: number;
+};
+
+export type CameraControlNodeData = StudioNodeBase &
+  CameraControlConfig & {
+    kind: "cameraControl";
+    sourceImage: MotionControlAssetRef | null;
+    characterRefs: string[];
+    status: GenerationNodeStatus;
+    generationPlanId: string;
+    queueStatus: StudioGenerationQueueItemStatus | null;
+    jobIdentity: (VideoJobIdentity & { clientJobId: string }) | null;
+    result: {
+      videoUrl: string;
+      thumbnail: string;
+      jobId: string;
+      clientJobId: string;
+      databaseJobId: string;
+      providerJobId: string;
+      statusJobId: string;
+      mock: boolean;
+    } | null;
+    timelineBound: boolean;
+    timelineBindError: string;
+    errorCode: string;
+    errorMessage: string;
+  };
+
 export type OutputNodeData = StudioNodeBase & {
   kind: "output";
   resultPreview: string;
@@ -301,6 +343,7 @@ export type StudioNodeData = (
   | VideoGenerateNodeData
   | VideoEditNodeData
   | MotionControlNodeData
+  | CameraControlNodeData
   | OutputNodeData
 ) &
   Record<string, unknown>;
@@ -482,6 +525,11 @@ export const STUDIO_NODE_DEFINITIONS: Array<{
     type: "motion_control",
     label: "Motion Control",
     description: "Character image and motion-reference workflow",
+  },
+  {
+    type: "camera_control",
+    label: "Camera Control",
+    description: "Preset or prompt-directed camera motion mock",
   },
   {
     type: "output",

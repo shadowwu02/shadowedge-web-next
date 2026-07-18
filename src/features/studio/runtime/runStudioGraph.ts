@@ -137,6 +137,13 @@ function getNodeInputIds(
       .forEach((sourceNodeId) => inputIds.add(sourceNodeId));
   }
 
+  if (node.data.kind === "cameraControl") {
+    const sourceNodeId = String(node.data.sourceImage?.sourceNodeId || "").trim();
+    if (sourceNodeId && sourceNodeId !== node.id && nodeById.has(sourceNodeId)) {
+      inputIds.add(sourceNodeId);
+    }
+  }
+
   return Array.from(inputIds);
 }
 
@@ -254,6 +261,25 @@ function persistedNodeOutput(node: StudioNode): Record<string, unknown> {
       mock: data.result?.mock === true,
     };
   }
+  if (data.kind === "cameraControl") {
+    return {
+      executor: "camera_control",
+      jobId: data.result?.jobId || "",
+      type: "video",
+      url: data.result?.videoUrl || "",
+      videoUrl: data.result?.videoUrl || "",
+      thumbnail: data.result?.thumbnail || "",
+      source: "generated",
+      preset: data.preset,
+      prompt: data.prompt,
+      duration: data.duration,
+      characterIds: data.characterRefs,
+      status: data.status,
+      errorCode: data.errorCode,
+      message: data.errorMessage,
+      mock: data.result?.mock === true,
+    };
+  }
   if (data.kind === "remakeAnalysis") {
     return {
       executor: "remake_analysis",
@@ -321,6 +347,7 @@ export function getStudioRetryPreflight(
     (data.kind === "videoGenerate" && data.status === "completed" && Boolean(data.videoUrl || data.result)) ||
     (data.kind === "videoEdit" && data.status === "completed" && Boolean(data.result?.videoUrl)) ||
     (data.kind === "motionControl" && data.status === "completed" && Boolean(data.result?.videoUrl)) ||
+    (data.kind === "cameraControl" && data.status === "completed" && Boolean(data.result?.videoUrl)) ||
     (data.kind === "remakeAnalysis" && data.status === "completed" && Boolean(data.storyboardId)) ||
     (data.kind === "remakePipeline" && data.status === "completed" && data.shotCount > 0) ||
     (data.kind === "output" && data.status === "completed" && Boolean(data.resultPreview));
@@ -338,7 +365,8 @@ export function getStudioRetryPreflight(
       (input.executor === "image_generate" ||
         input.executor === "video_generate" ||
         input.executor === "video_edit" ||
-        input.executor === "motion_control") &&
+        input.executor === "motion_control" ||
+        input.executor === "camera_control") &&
       (input.status !== "completed" || !(input.imageUrl || input.videoUrl)),
   );
   if (invalidGeneratedInput) {
@@ -443,6 +471,25 @@ export function getStudioRetryPreflight(
     }
   }
 
+  if (data.kind === "cameraControl") {
+    const imageOrCharacter = inputs.find(
+      (input) =>
+        (input.assetType === "image" &&
+          typeof input.url === "string" &&
+          input.url.trim()) ||
+        (input.executor === "character" &&
+          Array.isArray(input.referenceImages) &&
+          input.referenceImages.length > 0),
+    );
+    if (!imageOrCharacter) {
+      return {
+        ok: false,
+        errorCode: "UPSTREAM_INPUT_INVALID",
+        message: "Connect a Character or ready Image Asset before retrying Camera Control.",
+      };
+    }
+  }
+
   return { ok: true, errorCode: "", message: "" };
 }
 
@@ -529,7 +576,8 @@ export async function runStudioGraph({
       node.type === "imageGenerate" ||
       node.type === "videoGenerate" ||
       node.type === "video_edit" ||
-      node.type === "motion_control"
+      node.type === "motion_control" ||
+      node.type === "camera_control"
     ) {
       const executor =
         node.type === "videoGenerate"
@@ -538,6 +586,8 @@ export async function runStudioGraph({
             ? "video_edit"
             : node.type === "motion_control"
               ? "motion_control"
+              : node.type === "camera_control"
+                ? "camera_control"
             : "image_generate";
       const message =
         node.type === "videoGenerate"
@@ -546,6 +596,8 @@ export async function runStudioGraph({
             ? "Video Edit Nodes must be confirmed through a Generation Plan and Queue."
             : node.type === "motion_control"
               ? "Motion Control Nodes must be confirmed through a Generation Plan and Queue."
+              : node.type === "camera_control"
+                ? "Camera Control Nodes must be confirmed through a Generation Plan and Queue."
             : "Paid Image Generate Nodes are blocked until Image Queue support is available.";
       const blockedResult: NodeExecutionResult = {
         status: "failed",
@@ -554,7 +606,8 @@ export async function runStudioGraph({
           errorCode:
             node.type === "videoGenerate" ||
             node.type === "video_edit" ||
-            node.type === "motion_control"
+            node.type === "motion_control" ||
+            node.type === "camera_control"
               ? "GENERATION_PLAN_REQUIRED"
               : "STUDIO_IMAGE_QUEUE_UNSUPPORTED",
           message,
@@ -665,7 +718,8 @@ export async function runSingleStudioNode({
     (node.type === "imageGenerate" ||
       node.type === "videoGenerate" ||
       node.type === "video_edit" ||
-      node.type === "motion_control") &&
+      node.type === "motion_control" ||
+      node.type === "camera_control") &&
     executionSource !== "generation_queue"
   ) {
     const executor =
@@ -675,6 +729,8 @@ export async function runSingleStudioNode({
           ? "video_edit"
           : node.type === "motion_control"
             ? "motion_control"
+            : node.type === "camera_control"
+              ? "camera_control"
           : "image_generate";
     const message =
       node.type === "videoGenerate"
@@ -683,6 +739,8 @@ export async function runSingleStudioNode({
           ? "Video Edit Nodes must be confirmed through a Generation Plan and Queue."
           : node.type === "motion_control"
             ? "Motion Control Nodes must be confirmed through a Generation Plan and Queue."
+            : node.type === "camera_control"
+              ? "Camera Control Nodes must be confirmed through a Generation Plan and Queue."
           : "Paid Image Generate Nodes are blocked until Image Queue support is available.";
     const blockedResult: NodeExecutionResult = {
       status: "failed",
@@ -691,7 +749,8 @@ export async function runSingleStudioNode({
         errorCode:
           node.type === "videoGenerate" ||
           node.type === "video_edit" ||
-          node.type === "motion_control"
+          node.type === "motion_control" ||
+          node.type === "camera_control"
             ? "GENERATION_PLAN_REQUIRED"
             : "STUDIO_IMAGE_QUEUE_UNSUPPORTED",
         message,

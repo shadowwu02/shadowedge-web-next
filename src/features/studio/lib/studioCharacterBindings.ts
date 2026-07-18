@@ -14,6 +14,7 @@ type CharacterBindingEdge = {
 const CHARACTER_TARGET_KINDS = new Set([
   "videoGenerate",
   "motionControl",
+  "cameraControl",
   "remakeShot",
 ]);
 

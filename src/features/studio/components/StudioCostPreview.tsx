@@ -62,6 +62,8 @@ export function StudioCostPreview({ data }: { data: StudioNodeData }) {
           ? 0
           : data.kind === "motionControl"
             ? 0
+            : data.kind === "cameraControl"
+              ? 0
             : null;
 
   if (estimatedCredits === null) return null;

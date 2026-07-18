@@ -9,6 +9,7 @@ import { ImageGenerateExecutor } from "@/features/studio/runtime/executors/image
 import { VideoGenerateExecutor } from "@/features/studio/runtime/executors/videoGenerateExecutor";
 import { VideoEditExecutor } from "@/features/studio/runtime/executors/videoEditExecutor";
 import { MotionControlExecutor } from "@/features/studio/runtime/executors/motionControlExecutor";
+import { CameraControlExecutor } from "@/features/studio/runtime/executors/cameraControlExecutor";
 import { RemakeAnalysisExecutor } from "@/features/studio/runtime/executors/remakeAnalysisExecutor";
 import { RemakePipelineExecutor } from "@/features/studio/runtime/executors/remakePipelineExecutor";
 import type { StudioNodeType } from "@/features/studio/types/studioTypes";
@@ -185,6 +186,7 @@ export const executorRegistry = {
   video_generate: VideoGenerateExecutor,
   video_edit: VideoEditExecutor,
   motion_control: MotionControlExecutor,
+  camera_control: CameraControlExecutor,
   output: OutputExecutor,
 } satisfies Record<StudioExecutorKey, StudioNodeExecutor>;
 
@@ -199,6 +201,7 @@ export const studioExecutorTypeMap = {
   videoGenerate: "video_generate",
   video_edit: "video_edit",
   motion_control: "motion_control",
+  camera_control: "camera_control",
   output: "output",
 } satisfies StudioExecutorTypeMap;
 

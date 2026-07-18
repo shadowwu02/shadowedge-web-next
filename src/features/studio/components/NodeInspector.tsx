@@ -7,6 +7,7 @@ import {
   STUDIO_VIDEO_EDIT_EXECUTION_ENABLED,
 } from "@/config/studioFeatures";
 import { MAX_STUDIO_VIDEO_TASKS_PER_RUN } from "@/features/studio/runtime/generationQueue";
+import { CAMERA_CONTROL_PRESETS } from "@/features/studio/capabilities/studioCapabilities";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import { getImageModels } from "@/lib/image-api";
 import { getVideoModels } from "@/lib/video-api";
@@ -126,7 +127,8 @@ export function NodeInspector() {
         )
       : selectedNode.data.kind === "videoGenerate" ||
           selectedNode.data.kind === "videoEdit" ||
-          selectedNode.data.kind === "motionControl"
+          selectedNode.data.kind === "motionControl" ||
+          selectedNode.data.kind === "cameraControl"
         ? generationPlans.find(
             (plan) =>
               plan.id === selectedNode.data.generationPlanId ||
@@ -1197,6 +1199,135 @@ export function NodeInspector() {
             {data.errorMessage ? (
               <div className="studio-inspector-runtime-error" role="alert">
                 <strong>{data.errorCode || "MOTION_CONTROL_FAILED"}</strong>
+                <span>{data.errorMessage}</span>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+
+        {data.kind === "cameraControl" ? (
+          <>
+            <InspectorField label="Camera preset">
+              <select value={data.preset} onChange={updateText("preset")}>
+                {CAMERA_CONTROL_PRESETS.map((preset) => (
+                  <option key={preset} value={preset}>
+                    {preset[0].toUpperCase() + preset.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </InspectorField>
+            <InspectorField label="Camera prompt">
+              <textarea
+                maxLength={2_000}
+                placeholder="Slow dolly in while preserving the subject"
+                rows={5}
+                value={data.prompt}
+                onChange={updateText("prompt")}
+              />
+            </InspectorField>
+            <div className="studio-inspector-grid">
+              <InspectorField label="Duration">
+                <input
+                  min={1}
+                  type="number"
+                  value={data.duration}
+                  onChange={(event) =>
+                    update({ duration: Math.max(1, Number(event.target.value) || 1) })
+                  }
+                />
+              </InspectorField>
+              <InspectorField label="Strength (optional)">
+                <input
+                  max={1}
+                  min={0}
+                  placeholder="Provider-dependent"
+                  step={0.1}
+                  type="number"
+                  value={data.strength ?? ""}
+                  onChange={(event) =>
+                    update({
+                      strength: event.target.value
+                        ? Math.min(1, Math.max(0, Number(event.target.value)))
+                        : undefined,
+                    })
+                  }
+                />
+              </InspectorField>
+            </div>
+            <InspectorField label="Character / image input">
+              <input
+                disabled
+                placeholder="Connect a Character or Image Asset"
+                value={data.characterRefs.join(", ") || data.sourceImage?.sourceNodeId || ""}
+              />
+            </InspectorField>
+            <div className="studio-inspector-grid">
+              <InspectorField label="Status">
+                <input disabled value={data.status} />
+              </InspectorField>
+              <InspectorField label="Execution">
+                <input disabled value={data.result?.mock ? "Mock Completed" : "Mock adapter only"} />
+              </InspectorField>
+            </div>
+            <div className="studio-node-copy" role="status">
+              <strong>Camera Generation Plan</strong>
+              <span>
+                {selectedGenerationPlan
+                  ? `${selectedGenerationPlan.items.length} Camera task / ${selectedGenerationPlan.status}`
+                  : "Create a zero-credit mock plan before queue execution."}
+              </span>
+            </div>
+            <button
+              className="studio-node-action"
+              disabled={
+                generationQueue.running ||
+                (data.status === "completed" && Boolean(data.result?.videoUrl))
+              }
+              onClick={() =>
+                createGenerationPlanFromNode({
+                  nodeId: selectedNode.id,
+                  nodeType: "camera_control",
+                  projectId,
+                })
+              }
+              type="button"
+            >
+              {selectedGenerationPlan ? "Review Camera Plan" : "Create Camera Generation Plan"}
+            </button>
+            <button
+              className="studio-node-action"
+              disabled={
+                !selectedGenerationPlan ||
+                generationQueue.running ||
+                selectedGenerationPlan.status !== "draft"
+              }
+              onClick={() => {
+                if (selectedGenerationPlan) void startGenerationPlan(selectedGenerationPlan.id);
+              }}
+              type="button"
+            >
+              Confirm Mock Camera
+            </button>
+            <button
+              className="studio-node-action"
+              disabled={
+                !selectedGenerationPlan ||
+                selectedGenerationPlan.status === "completed" ||
+                selectedGenerationPlan.status === "cancelled"
+              }
+              onClick={() => {
+                if (selectedGenerationPlan) cancelGenerationPlan(selectedGenerationPlan.id);
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+            <p className="studio-node-footnote">
+              P2-A4 stores provider-neutral camera metadata and runs only the local mock.
+            </p>
+            {data.errorMessage ? (
+              <div className="studio-inspector-runtime-error" role="alert">
+                <strong>{data.errorCode || "CAMERA_CONTROL_FAILED"}</strong>
                 <span>{data.errorMessage}</span>
               </div>
             ) : null}
