@@ -456,19 +456,29 @@ export async function runStudioGraph({
     };
     onNodeStart(runningState);
 
-    if (node.type === "imageGenerate" || node.type === "videoGenerate") {
+    if (
+      node.type === "imageGenerate" ||
+      node.type === "videoGenerate" ||
+      node.type === "video_edit"
+    ) {
       const executor =
-        node.type === "videoGenerate" ? "video_generate" : "image_generate";
+        node.type === "videoGenerate"
+          ? "video_generate"
+          : node.type === "video_edit"
+            ? "video_edit"
+            : "image_generate";
       const message =
         node.type === "videoGenerate"
           ? "Paid Video Generate Nodes must be confirmed through a Generation Plan and Queue."
+          : node.type === "video_edit"
+            ? "Video Edit Nodes must be confirmed through a Generation Plan and Queue."
           : "Paid Image Generate Nodes are blocked until Image Queue support is available.";
       const blockedResult: NodeExecutionResult = {
         status: "failed",
         outputs: {
           executor,
           errorCode:
-            node.type === "videoGenerate"
+            node.type === "videoGenerate" || node.type === "video_edit"
               ? "GENERATION_PLAN_REQUIRED"
               : "STUDIO_IMAGE_QUEUE_UNSUPPORTED",
           message,
@@ -576,21 +586,29 @@ export async function runSingleStudioNode({
   });
 
   if (
-    (node.type === "imageGenerate" || node.type === "videoGenerate") &&
+    (node.type === "imageGenerate" ||
+      node.type === "videoGenerate" ||
+      node.type === "video_edit") &&
     executionSource !== "generation_queue"
   ) {
     const executor =
-      node.type === "videoGenerate" ? "video_generate" : "image_generate";
+      node.type === "videoGenerate"
+        ? "video_generate"
+        : node.type === "video_edit"
+          ? "video_edit"
+          : "image_generate";
     const message =
       node.type === "videoGenerate"
         ? "Paid Video Generate Nodes must be confirmed through a Generation Plan and Queue."
+        : node.type === "video_edit"
+          ? "Video Edit Nodes must be confirmed through a Generation Plan and Queue."
         : "Paid Image Generate Nodes are blocked until Image Queue support is available.";
     const blockedResult: NodeExecutionResult = {
       status: "failed",
       outputs: {
         executor,
         errorCode:
-          node.type === "videoGenerate"
+          node.type === "videoGenerate" || node.type === "video_edit"
             ? "GENERATION_PLAN_REQUIRED"
             : "STUDIO_IMAGE_QUEUE_UNSUPPORTED",
         message,

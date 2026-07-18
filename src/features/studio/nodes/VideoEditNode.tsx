@@ -1,5 +1,6 @@
 import type { NodeProps } from "@xyflow/react";
-import { STUDIO_VIDEO_EDIT_ENABLED } from "@/config/studioFeatures";
+import { STUDIO_VIDEO_EDIT_EXECUTION_ENABLED } from "@/config/studioFeatures";
+import { StudioCostPreview } from "@/features/studio/components/StudioCostPreview";
 import { StudioRetryButton } from "@/features/studio/components/StudioRetryButton";
 import { StudioNodeFrame } from "@/features/studio/nodes/StudioNodeFrame";
 import {
@@ -30,7 +31,7 @@ export function VideoEditNode({ data, id, selected }: NodeProps<StudioNode>) {
     <StudioNodeFrame
       eyebrow="AI Video Edit"
       selected={selected}
-      status={runtimeStatus}
+      status={data.queueStatus || runtimeStatus}
       title={data.title}
     >
       <div className="studio-node-preview studio-node-preview-video">
@@ -54,15 +55,16 @@ export function VideoEditNode({ data, id, selected }: NodeProps<StudioNode>) {
         <div><dt>Runtime</dt><dd>{data.result?.mock ? "Mock Completed" : "Mock only"}</dd></div>
       </dl>
       <p className="studio-node-footnote">
-        Provider execution {STUDIO_VIDEO_EDIT_ENABLED ? "reserved" : "disabled"} / no credits
+        Provider execution {STUDIO_VIDEO_EDIT_EXECUTION_ENABLED ? "gated" : "disabled"} / local mock / no credits
       </p>
+      <StudioCostPreview data={data} />
       {data.errorMessage ? (
         <p className="studio-node-error" title={data.errorCode}>{data.errorMessage}</p>
       ) : null}
       <StudioRetryButton nodeId={id} status={runtimeStatus} />
       <button
         className="studio-node-action nodrag nopan"
-        disabled={data.status !== "completed" || !resultUrl}
+        disabled={data.status !== "completed" || !resultUrl || data.timelineBound}
         onClick={(event) => {
           event.stopPropagation();
           addNodeToTimeline(id);
@@ -70,7 +72,7 @@ export function VideoEditNode({ data, id, selected }: NodeProps<StudioNode>) {
         onMouseDown={(event) => event.stopPropagation()}
         type="button"
       >
-        Add To Timeline
+        {data.timelineBound ? "Added To Timeline" : "Add To Timeline"}
       </button>
       {data.status === "completed" && resultUrl ? (
         <button

@@ -23,6 +23,9 @@ const configuredRender = parseBooleanFlag(
 const configuredVideoEdit = parseBooleanFlag(
   process.env.NEXT_PUBLIC_STUDIO_VIDEO_EDIT_ENABLED,
 );
+const configuredVideoEditExecution = parseBooleanFlag(
+  process.env.NEXT_PUBLIC_STUDIO_VIDEO_EDIT_EXECUTION_ENABLED,
+);
 
 // Local development can exercise the executor without extra setup. Production
 // builds remain off unless the public rollout flag is explicitly enabled.
@@ -45,6 +48,10 @@ export const STUDIO_RENDER_ENABLED =
 // This flag reserves the future provider execution boundary. The P1-A5 node
 // remains a local pass-through mock and never dispatches provider work.
 export const STUDIO_VIDEO_EDIT_ENABLED = configuredVideoEdit ?? false;
+// Real edit adapters remain fail-closed. P2-A1 only registers a local mock
+// adapter, so toggling this flag cannot dispatch provider work yet.
+export const STUDIO_VIDEO_EDIT_EXECUTION_ENABLED =
+  configuredVideoEditExecution ?? false;
 
 export const studioFeatures = Object.freeze({
   imageExecutionEnabled: STUDIO_IMAGE_EXECUTION_ENABLED,
@@ -53,4 +60,5 @@ export const studioFeatures = Object.freeze({
   remakeExecutionEnabled: STUDIO_REMAKE_EXECUTION_ENABLED,
   renderEnabled: STUDIO_RENDER_ENABLED,
   videoEditEnabled: STUDIO_VIDEO_EDIT_ENABLED,
+  videoEditExecutionEnabled: STUDIO_VIDEO_EDIT_EXECUTION_ENABLED,
 });

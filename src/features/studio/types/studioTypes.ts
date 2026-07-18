@@ -194,18 +194,34 @@ export type VideoEditAssetRef = {
   thumbnail: string;
 };
 
+export type VideoEditParameters = {
+  strength?: number;
+  preserveMotion?: boolean;
+  extendSeconds?: number;
+};
+
 export type VideoEditNodeData = StudioNodeBase & {
   kind: "videoEdit";
   sourceVideo: VideoEditAssetRef | null;
   mode: VideoEditMode;
   prompt: string;
+  parameters: VideoEditParameters;
   status: GenerationNodeStatus;
+  generationPlanId: string;
+  queueStatus: StudioGenerationQueueItemStatus | null;
+  jobIdentity: (VideoJobIdentity & { clientJobId: string }) | null;
   result: {
     videoUrl: string;
     thumbnail: string;
     jobId: string;
+    clientJobId: string;
+    databaseJobId: string;
+    providerJobId: string;
+    statusJobId: string;
     mock: boolean;
   } | null;
+  timelineBound: boolean;
+  timelineBindError: string;
   errorCode: string;
   errorMessage: string;
 };

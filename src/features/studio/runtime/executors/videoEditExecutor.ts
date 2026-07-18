@@ -1,4 +1,5 @@
-import { STUDIO_VIDEO_EDIT_ENABLED } from "@/config/studioFeatures";
+import { STUDIO_VIDEO_EDIT_EXECUTION_ENABLED } from "@/config/studioFeatures";
+import { mockVideoEditProviderAdapter } from "@/features/studio/runtime/providers/videoEditProviderAdapter";
 import type {
   NodeExecutionContext,
   NodeExecutionResult,
@@ -44,8 +45,6 @@ function findSourceVideo(context: NodeExecutionContext) {
 
 export const VideoEditExecutor: StudioNodeExecutor = {
   async execute(context): Promise<NodeExecutionResult> {
-    // Keep the asynchronous contract visible without touching an API or provider.
-    await new Promise<void>((resolve) => setTimeout(resolve, 120));
     const sourceVideo = findSourceVideo(context);
     if (!sourceVideo) {
       const message = "Connect a ready Video Asset before running Video Edit.";
@@ -63,25 +62,83 @@ export const VideoEditExecutor: StudioNodeExecutor = {
       };
     }
 
-    const jobId = `mock-video-edit-${context.nodeId}`;
+    const mode = stringValue(context.config.mode) || "video_to_video";
+    const parameters = asRecord(context.config.parameters);
+    const submitted = await mockVideoEditProviderAdapter.submit({
+      projectId: context.projectId,
+      nodeId: context.nodeId,
+      sourceVideo,
+      mode:
+        mode === "replace_background" || mode === "extend"
+          ? mode
+          : "video_to_video",
+      prompt: stringValue(context.config.prompt),
+      parameters,
+    });
+    context.reportProgress({
+      status: "queued",
+      outputs: {
+        executor: "video_edit",
+        status: "queued",
+        jobIdentity: submitted.identity,
+        ...submitted.identity,
+        mock: true,
+        providerCalled: false,
+      },
+    });
+    await new Promise<void>((resolve) => setTimeout(resolve, 120));
+    context.reportProgress({
+      status: "processing",
+      outputs: {
+        executor: "video_edit",
+        status: "processing",
+        jobIdentity: submitted.identity,
+        ...submitted.identity,
+        mock: true,
+        providerCalled: false,
+      },
+    });
+    const completed = await mockVideoEditProviderAdapter.status(
+      submitted.identity,
+    );
+    if (completed.status !== "completed" || !completed.videoUrl) {
+      const message = completed.message || "The mock Video Edit job failed.";
+      return {
+        status: "failed",
+        outputs: {
+          executor: "video_edit",
+          status: "failed",
+          jobIdentity: completed.identity,
+          ...completed.identity,
+          errorCode: completed.errorCode || "VIDEO_EDIT_MOCK_FAILED",
+          message,
+          mock: true,
+          providerCalled: false,
+        },
+        error: message,
+      };
+    }
+
     return {
       status: "completed",
       outputs: {
         executor: "video_edit",
         status: "completed",
         type: "video",
-        url: sourceVideo.url,
-        videoUrl: sourceVideo.url,
-        thumbnail: sourceVideo.thumbnail || sourceVideo.url,
+        url: completed.videoUrl,
+        videoUrl: completed.videoUrl,
+        thumbnail: completed.thumbnail || completed.videoUrl,
         source: "generated",
         sourceVideo,
-        mode: stringValue(context.config.mode) || "video_to_video",
+        mode,
         prompt: stringValue(context.config.prompt),
-        jobId,
+        parameters,
+        jobIdentity: completed.identity,
+        ...completed.identity,
         mock: true,
         message: "Mock Completed",
         providerCalled: false,
-        providerExecutionEnabled: STUDIO_VIDEO_EDIT_ENABLED,
+        providerExecutionEnabled: STUDIO_VIDEO_EDIT_EXECUTION_ENABLED,
       },
     };
   },

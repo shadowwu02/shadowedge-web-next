@@ -3,7 +3,7 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import {
   STUDIO_GENERATION_ORCHESTRATOR_ENABLED,
-  STUDIO_VIDEO_EDIT_ENABLED,
+  STUDIO_VIDEO_EDIT_EXECUTION_ENABLED,
 } from "@/config/studioFeatures";
 import { MAX_STUDIO_VIDEO_TASKS_PER_RUN } from "@/features/studio/runtime/generationQueue";
 import { useStudioStore } from "@/features/studio/store/studioStore";
@@ -83,7 +83,8 @@ export function NodeInspector() {
             (!selectedNode.data.generationPlanId &&
               plan.sourceNodeId === selectedNode.id),
         )
-      : selectedNode.data.kind === "videoGenerate"
+      : selectedNode.data.kind === "videoGenerate" ||
+          selectedNode.data.kind === "videoEdit"
         ? generationPlans.find(
             (plan) =>
               plan.id === selectedNode.data.generationPlanId ||
@@ -883,13 +884,81 @@ export function NodeInspector() {
                   value={
                     data.result?.mock
                       ? "Mock Completed"
-                      : STUDIO_VIDEO_EDIT_ENABLED
-                        ? "Provider reserved"
-                        : "Mock only"
+                      : STUDIO_VIDEO_EDIT_EXECUTION_ENABLED
+                        ? "Provider gate enabled / mock adapter"
+                        : "Mock adapter only"
                   }
                 />
               </InspectorField>
             </div>
+            {data.queueStatus ? (
+              <InspectorField label="Queue status">
+                <input disabled value={data.queueStatus} />
+              </InspectorField>
+            ) : null}
+            <div className="studio-node-copy" role="status">
+              <strong>Edit Generation Plan</strong>
+              <span>
+                {selectedGenerationPlan
+                  ? `${selectedGenerationPlan.items.length} Video Edit task · ${selectedGenerationPlan.status}`
+                  : "Create a zero-credit mock plan before queue execution."}
+              </span>
+            </div>
+            {selectedGenerationPlan ? (
+              <div className="studio-inspector-grid">
+                <InspectorField label="Plan status">
+                  <input disabled value={selectedGenerationPlan.status} />
+                </InspectorField>
+                <InspectorField label="Estimated cost">
+                  <input disabled value={`${selectedGenerationPlan.estimatedCredits} credits`} />
+                </InspectorField>
+              </div>
+            ) : null}
+            <button
+              className="studio-node-action"
+              disabled={
+                generationQueue.running ||
+                (data.status === "completed" && Boolean(data.result?.videoUrl))
+              }
+              onClick={() =>
+                createGenerationPlanFromNode({
+                  nodeId: selectedNode.id,
+                  nodeType: "video_edit",
+                  projectId,
+                })
+              }
+              type="button"
+            >
+              {selectedGenerationPlan ? "Review Edit Plan" : "Create Edit Generation Plan"}
+            </button>
+            <button
+              className="studio-node-action"
+              disabled={
+                !selectedGenerationPlan ||
+                generationQueue.running ||
+                selectedGenerationPlan.status !== "draft"
+              }
+              onClick={() => {
+                if (selectedGenerationPlan) void startGenerationPlan(selectedGenerationPlan.id);
+              }}
+              type="button"
+            >
+              Confirm Mock Edit
+            </button>
+            <button
+              className="studio-node-action"
+              disabled={
+                !selectedGenerationPlan ||
+                selectedGenerationPlan.status === "completed" ||
+                selectedGenerationPlan.status === "cancelled"
+              }
+              onClick={() => {
+                if (selectedGenerationPlan) cancelGenerationPlan(selectedGenerationPlan.id);
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
             <InspectorField label="Result video">
               <input
                 disabled
@@ -898,7 +967,7 @@ export function NodeInspector() {
               />
             </InspectorField>
             <p className="studio-node-footnote">
-              The P1-A5 executor is a local pass-through mock. It never calls a provider or charges credits.
+              P2-A1 uses the unified queue and a local adapter. It never calls a provider or charges credits.
             </p>
             {data.errorMessage ? (
               <div className="studio-inspector-runtime-error" role="alert">

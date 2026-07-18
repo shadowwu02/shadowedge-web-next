@@ -58,7 +58,9 @@ export function StudioCostPreview({ data }: { data: StudioNodeData }) {
         })
       : data.kind === "imageGenerate"
         ? imageCost
-        : null;
+        : data.kind === "videoEdit"
+          ? 0
+          : null;
 
   if (estimatedCredits === null) return null;
   return (

@@ -507,8 +507,14 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
       sourceVideo: null,
       mode: "video_to_video",
       prompt: "Transform the scene while preserving the subject and motion.",
+      parameters: {},
       status: "idle",
+      generationPlanId: "",
+      queueStatus: null,
+      jobIdentity: null,
       result: null,
+      timelineBound: false,
+      timelineBindError: "",
       errorCode: "",
       errorMessage: "",
     };
@@ -586,6 +592,22 @@ function normalizeStudioNodes(nodes: StudioNode[]) {
       (!data.model || data.model === "Model placeholder")
     ) {
       data.model = "seedance_2_0";
+    }
+    if (data.kind === "videoEdit" && data.result) {
+      data.result = {
+        videoUrl: data.result.videoUrl || "",
+        thumbnail: data.result.thumbnail || data.result.videoUrl || "",
+        jobId: data.result.jobId || "",
+        clientJobId: data.result.clientJobId || data.result.jobId || "",
+        databaseJobId: data.result.databaseJobId || "",
+        providerJobId: data.result.providerJobId || "",
+        statusJobId:
+          data.result.statusJobId ||
+          data.result.databaseJobId ||
+          data.result.jobId ||
+          "",
+        mock: data.result.mock === true,
+      };
     }
     return { ...node, data } satisfies StudioNode;
   });
@@ -666,7 +688,7 @@ function createGenerationPlanRunRecord(
     estimatedCredits: plan.estimatedCredits,
     nodes: plan.items.map((item) => ({
       nodeId: item.nodeId,
-      type: "videoGenerate",
+      type: item.type === "video_edit" ? "video_edit" : "videoGenerate",
       status: item.status,
       startedAt: item.startedAt,
       finishedAt: item.finishedAt,
@@ -889,11 +911,18 @@ function applyRuntimeOutputToCanvas(
       const videoUrl = outputString(runtime.outputs, "videoUrl");
       const thumbnail = outputString(runtime.outputs, "thumbnail");
       const jobId = outputString(runtime.outputs, "jobId");
+      const clientJobId = outputString(runtime.outputs, "clientJobId");
+      const databaseJobId = outputString(runtime.outputs, "databaseJobId");
+      const providerJobId = outputString(runtime.outputs, "providerJobId");
+      const statusJobId = outputString(runtime.outputs, "statusJobId");
+      const jobIdentity = asRecord(runtime.outputs.jobIdentity);
       const errorCode = outputString(runtime.outputs, "errorCode");
       const errorMessage =
         outputString(runtime.outputs, "message") || runtime.error || "";
       const status =
-        runtime.status === "completed" || runtime.status === "failed"
+        runtime.status === "completed" ||
+        runtime.status === "failed" ||
+        runtime.status === "queued"
           ? runtime.status
           : "processing";
       changed = true;
@@ -911,12 +940,34 @@ function applyRuntimeOutputToCanvas(
                   thumbnail: outputString(sourceVideo, "thumbnail"),
                 }
               : node.data.sourceVideo,
+          jobIdentity: Object.keys(jobIdentity).length
+            ? {
+                jobId: String(jobIdentity.jobId || jobId),
+                clientJobId: String(jobIdentity.clientJobId || clientJobId || jobId),
+                databaseJobId:
+                  String(jobIdentity.databaseJobId || databaseJobId || "") ||
+                  undefined,
+                providerJobId:
+                  String(jobIdentity.providerJobId || providerJobId || "") ||
+                  undefined,
+                statusJobId: String(
+                  jobIdentity.statusJobId ||
+                    statusJobId ||
+                    databaseJobId ||
+                    jobId,
+                ),
+              }
+            : node.data.jobIdentity,
           result:
             runtime.status === "completed" && videoUrl
               ? {
                   videoUrl,
                   thumbnail: thumbnail || videoUrl,
                   jobId,
+                  clientJobId: clientJobId || jobId,
+                  databaseJobId,
+                  providerJobId,
+                  statusJobId: statusJobId || databaseJobId || jobId,
                   mock: runtime.outputs.mock === true,
                 }
               : node.data.result,
@@ -977,7 +1028,8 @@ function applyVideoRuntimeToDownstreamOutputs(
   edges: StudioEdge[],
   runtime: StudioNodeRuntimeState,
 ) {
-  if (outputString(runtime.outputs, "executor") !== "video_generate") {
+  const executor = outputString(runtime.outputs, "executor");
+  if (executor !== "video_generate" && executor !== "video_edit") {
     return { changed: false, nodes };
   }
 
@@ -1028,7 +1080,8 @@ function applyVideoRuntimeToTimeline(
   runtime: StudioNodeRuntimeState,
   nodes: StudioNode[],
 ) {
-  if (outputString(runtime.outputs, "executor") !== "video_generate") {
+  const executor = outputString(runtime.outputs, "executor");
+  if (executor !== "video_generate" && executor !== "video_edit") {
     return { changed: false, timeline, bound: false, errorCode: "" };
   }
 
@@ -1038,7 +1091,9 @@ function applyVideoRuntimeToTimeline(
   const duration = positiveDuration(runtime.outputs.duration, 0);
   if (runtime.status === "completed" && videoUrl) {
     const sourceNode = nodes.find(
-      (node) => node.id === runtime.nodeId && node.data.kind === "videoGenerate",
+      (node) =>
+        node.id === runtime.nodeId &&
+        (node.data.kind === "videoGenerate" || node.data.kind === "videoEdit"),
     );
     const result = bindCompletedVideoResultToTimeline({
       timeline,
@@ -1051,12 +1106,17 @@ function applyVideoRuntimeToTimeline(
           ? sourceNode.data.duration
           : 4),
       title:
-        sourceNode?.data.kind === "videoGenerate"
+        sourceNode?.data.kind === "videoGenerate" ||
+        sourceNode?.data.kind === "videoEdit"
           ? sourceNode.data.title
           : "Generated video",
       model:
         model ||
-        (sourceNode?.data.kind === "videoGenerate" ? sourceNode.data.model : ""),
+        (sourceNode?.data.kind === "videoGenerate"
+          ? sourceNode.data.model
+          : sourceNode?.data.kind === "videoEdit"
+            ? `video_edit:${sourceNode.data.mode}`
+            : ""),
       createdAt: runtime.finishedAt || nowIso(),
     });
     return {
@@ -1103,7 +1163,9 @@ function applyVideoTimelineBindingState(
   binding: { bound: boolean; errorCode: string },
 ) {
   if (
-    outputString(runtime.outputs, "executor") !== "video_generate" ||
+    !["video_generate", "video_edit"].includes(
+      outputString(runtime.outputs, "executor"),
+    ) ||
     runtime.status !== "completed"
   ) {
     return { changed: false, nodes };
@@ -1111,7 +1173,10 @@ function applyVideoTimelineBindingState(
 
   let changed = false;
   const nextNodes = nodes.map((node) => {
-    if (node.id !== runtime.nodeId || node.data.kind !== "videoGenerate") {
+    if (
+      node.id !== runtime.nodeId ||
+      (node.data.kind !== "videoGenerate" && node.data.kind !== "videoEdit")
+    ) {
       return node;
     }
     const timelineBindError = binding.bound
@@ -1884,11 +1949,26 @@ export const useStudioStore = create<StudioState>()(
           return null;
         }
         if (
+          nodeType === "video_edit" &&
+          sourceNode.data.kind !== "videoEdit"
+        ) {
+          set({ runtimeError: "The selected node is not a Video Edit Node." });
+          return null;
+        }
+        if (
           sourceNode.data.kind === "videoGenerate" &&
           sourceNode.data.status === "completed" &&
           Boolean(sourceNode.data.videoUrl || sourceNode.data.result)
         ) {
           set({ runtimeError: "This Video Node already has a completed result." });
+          return null;
+        }
+        if (
+          sourceNode.data.kind === "videoEdit" &&
+          sourceNode.data.status === "completed" &&
+          Boolean(sourceNode.data.result?.videoUrl)
+        ) {
+          set({ runtimeError: "This Video Edit Node already has a completed result." });
           return null;
         }
 
@@ -1906,7 +1986,9 @@ export const useStudioStore = create<StudioState>()(
             runtimeError:
               "GENERATION_PLAN_ALREADY_ACTIVE: Review or cancel the existing plan before creating another one.",
             nodes: current.nodes.map((node) =>
-              node.id === nodeId && node.data.kind === "videoGenerate"
+              node.id === nodeId &&
+              (node.data.kind === "videoGenerate" ||
+                node.data.kind === "videoEdit")
                 ? {
                     ...node,
                     data: {
@@ -1965,7 +2047,11 @@ export const useStudioStore = create<StudioState>()(
                 },
               };
             }
-            if (plannedNodeIds.has(node.id) && node.data.kind === "videoGenerate") {
+            if (
+              plannedNodeIds.has(node.id) &&
+              (node.data.kind === "videoGenerate" ||
+                node.data.kind === "videoEdit")
+            ) {
               return {
                 ...node,
                 data: {
@@ -2000,16 +2086,19 @@ export const useStudioStore = create<StudioState>()(
           set({ runtimeError: "Only one Studio runtime or generation queue can run at a time." });
           return;
         }
-        if (!STUDIO_GENERATION_ORCHESTRATOR_ENABLED) {
+        const plan = initialState.generationPlans.find((item) => item.id === planId);
+        if (!plan || plan.status !== "draft") {
+          set({ runtimeError: "Create a new waiting Generation Plan before starting." });
+          return;
+        }
+        const hasPaidVideoTask = plan.items.some(
+          (item) => item.type === "video_generate",
+        );
+        if (hasPaidVideoTask && !STUDIO_GENERATION_ORCHESTRATOR_ENABLED) {
           set({
             runtimeError:
               "STUDIO_GENERATION_DISABLED: Real Studio generation is disabled in this environment.",
           });
-          return;
-        }
-        const plan = initialState.generationPlans.find((item) => item.id === planId);
-        if (!plan || plan.status !== "draft") {
-          set({ runtimeError: "Create a new waiting Generation Plan before starting." });
           return;
         }
         if (!plan.items.length || plan.items.length > MAX_STUDIO_VIDEO_TASKS_PER_RUN) {
@@ -2056,7 +2145,11 @@ export const useStudioStore = create<StudioState>()(
                 };
               }
               const queueStatus = itemStatusByNodeId.get(node.id);
-              if (queueStatus && node.data.kind === "videoGenerate") {
+              if (
+                queueStatus &&
+                (node.data.kind === "videoGenerate" ||
+                  node.data.kind === "videoEdit")
+              ) {
                 return {
                   ...node,
                   data: {
@@ -2199,18 +2292,24 @@ export const useStudioStore = create<StudioState>()(
             if (!currentPlan || currentPlan.status === "cancelled") break;
             if (item.status === "completed") continue;
             const node = get().nodes.find((candidate) => candidate.id === item.nodeId);
-            if (!node || node.data.kind !== "videoGenerate") {
+            const expectedKind =
+              item.type === "video_edit" ? "videoEdit" : "videoGenerate";
+            if (!node || node.data.kind !== expectedKind) {
+              const executor =
+                item.type === "video_edit" ? "video_edit" : "video_generate";
+              const label =
+                item.type === "video_edit" ? "Video Edit Node" : "Video Node";
               updatePlanItem(item.nodeId, "failed", {
                 nodeId: item.nodeId,
                 status: "failed",
                 startedAt: null,
                 finishedAt: nowIso(),
                 outputs: {
-                  executor: "video_generate",
+                  executor,
                   errorCode: "VIDEO_NODE_NOT_FOUND",
-                  message: "The planned Video Node no longer exists.",
+                  message: `The planned ${label} no longer exists.`,
                 },
-                error: "The planned Video Node no longer exists.",
+                error: `The planned ${label} no longer exists.`,
               });
               break;
             }
@@ -2316,7 +2415,11 @@ export const useStudioStore = create<StudioState>()(
                 data: { ...node.data, confirmationState: "cancelled" },
               };
             }
-            if (cancelledNodeIds.has(node.id) && node.data.kind === "videoGenerate") {
+            if (
+              cancelledNodeIds.has(node.id) &&
+              (node.data.kind === "videoGenerate" ||
+                node.data.kind === "videoEdit")
+            ) {
               return {
                 ...node,
                 data: {
@@ -2337,8 +2440,14 @@ export const useStudioStore = create<StudioState>()(
           const sourceNode = state.nodes.find((node) => node.id === nodeId);
           if (!sourceNode) return state;
 
-          if (sourceNode.data.kind === "videoGenerate") {
-            const videoUrl = sourceNode.data.videoUrl || sourceNode.data.result;
+          if (
+            sourceNode.data.kind === "videoGenerate" ||
+            sourceNode.data.kind === "videoEdit"
+          ) {
+            const videoUrl =
+              sourceNode.data.kind === "videoGenerate"
+                ? sourceNode.data.videoUrl || sourceNode.data.result
+                : sourceNode.data.result?.videoUrl || "";
             if (sourceNode.data.status !== "completed" || !videoUrl.trim()) {
               return state;
             }
@@ -2346,10 +2455,19 @@ export const useStudioStore = create<StudioState>()(
               timeline: state.timeline,
               sourceNodeId: sourceNode.id,
               url: videoUrl,
-              thumbnail: sourceNode.data.thumbnail,
-              duration: sourceNode.data.duration,
+              thumbnail:
+                sourceNode.data.kind === "videoGenerate"
+                  ? sourceNode.data.thumbnail
+                  : sourceNode.data.result?.thumbnail || videoUrl,
+              duration:
+                sourceNode.data.kind === "videoGenerate"
+                  ? sourceNode.data.duration
+                  : 4,
               title: sourceNode.data.title,
-              model: sourceNode.data.model,
+              model:
+                sourceNode.data.kind === "videoGenerate"
+                  ? sourceNode.data.model
+                  : `video_edit:${sourceNode.data.mode}`,
               createdAt: nowIso(),
             });
             const timelineBindError = binding.bound
@@ -2362,7 +2480,9 @@ export const useStudioStore = create<StudioState>()(
             const snapshot = takeSnapshot(state);
             return {
               nodes: state.nodes.map((node) =>
-                node.id === sourceNode.id && node.data.kind === "videoGenerate"
+                node.id === sourceNode.id &&
+                (node.data.kind === "videoGenerate" ||
+                  node.data.kind === "videoEdit")
                   ? {
                       ...node,
                       data: {
@@ -2572,7 +2692,8 @@ export const useStudioStore = create<StudioState>()(
               removedVideoClip && !sourceStillBound
                 ? state.nodes.map((node) =>
                     node.id === removedVideoClip.sourceNodeId &&
-                    node.data.kind === "videoGenerate"
+                    (node.data.kind === "videoGenerate" ||
+                      node.data.kind === "videoEdit")
                       ? {
                           ...node,
                           data: {
@@ -2971,19 +3092,54 @@ export const useStudioStore = create<StudioState>()(
               Boolean(node.data.videoUrl || node.data.result)
             ),
         );
+        const standaloneVideoEditNodes = state.nodes.filter(
+          (node) =>
+            node.data.kind === "videoEdit" &&
+            !(
+              node.data.status === "completed" &&
+              Boolean(node.data.result?.videoUrl)
+            ),
+        );
+        const selectedVideoEditNode = standaloneVideoEditNodes.find(
+          (node) => node.id === state.selectedNodeId,
+        );
+        if (selectedVideoEditNode) {
+          get().createGenerationPlanFromNode({
+            nodeId: selectedVideoEditNode.id,
+            nodeType: "video_edit",
+            projectId: state.projectId,
+          });
+          return;
+        }
+        const selectedVideoNode = standaloneVideoNodes.find(
+          (node) => node.id === state.selectedNodeId,
+        );
+        if (selectedVideoNode) {
+          get().createGenerationPlanFromNode({
+            nodeId: selectedVideoNode.id,
+            nodeType: "videoGenerate",
+            projectId: state.projectId,
+          });
+          return;
+        }
+        if (standaloneVideoEditNodes.length + standaloneVideoNodes.length > 1) {
+          set({
+            runtimeError:
+              "STUDIO_GENERATION_SELECTION_REQUIRED: Select one Video Generate or Video Edit Node. Batch execution is disabled.",
+            runLockState: "idle",
+          });
+          return;
+        }
+        if (standaloneVideoEditNodes.length === 1) {
+          get().createGenerationPlanFromNode({
+            nodeId: standaloneVideoEditNodes[0].id,
+            nodeType: "video_edit",
+            projectId: state.projectId,
+          });
+          return;
+        }
         if (standaloneVideoNodes.length) {
-          const selectedVideoNode = standaloneVideoNodes.find(
-            (node) => node.id === state.selectedNodeId,
-          );
-          if (!selectedVideoNode && standaloneVideoNodes.length > 1) {
-            set({
-              runtimeError:
-                "STUDIO_GENERATION_SELECTION_REQUIRED: Select one Video Generate Node. Standalone batch generation is disabled.",
-              runLockState: "idle",
-            });
-            return;
-          }
-          const targetNode = selectedVideoNode || standaloneVideoNodes[0];
+          const targetNode = standaloneVideoNodes[0];
           get().createGenerationPlanFromNode({
             nodeId: targetNode.id,
             nodeType: "videoGenerate",
@@ -2995,19 +3151,20 @@ export const useStudioStore = create<StudioState>()(
         const paidGenerationNodes = state.nodes.filter(
           (node) =>
             node.data.kind === "imageGenerate" ||
-            node.data.kind === "videoGenerate",
+            node.data.kind === "videoGenerate" ||
+            node.data.kind === "videoEdit",
         );
         const nonPaidNodes = state.nodes.filter(
           (node) =>
             node.data.kind !== "imageGenerate" &&
-            node.data.kind !== "videoGenerate",
+            node.data.kind !== "videoGenerate" &&
+            node.data.kind !== "videoEdit",
         );
         const canRunNonPaidWorkflow = nonPaidNodes.some(
           (node) =>
             node.data.kind === "remakeAnalysis" ||
             node.data.kind === "remakePipeline" ||
-            node.data.kind === "remakeShot" ||
-            node.data.kind === "videoEdit",
+            node.data.kind === "remakeShot",
         );
         if (paidGenerationNodes.length && !canRunNonPaidWorkflow) {
           const imageNode = paidGenerationNodes.find(
@@ -3190,6 +3347,14 @@ export const useStudioStore = create<StudioState>()(
           get().createGenerationPlanFromNode({
             nodeId,
             nodeType: "videoGenerate",
+            projectId: state.projectId,
+          });
+          return;
+        }
+        if (node.data.kind === "videoEdit") {
+          get().createGenerationPlanFromNode({
+            nodeId,
+            nodeType: "video_edit",
             projectId: state.projectId,
           });
           return;
