@@ -3,6 +3,7 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import {
   STUDIO_GENERATION_ORCHESTRATOR_ENABLED,
+  STUDIO_MOTION_CONTROL_EXECUTION_ENABLED,
   STUDIO_VIDEO_EDIT_EXECUTION_ENABLED,
 } from "@/config/studioFeatures";
 import { MAX_STUDIO_VIDEO_TASKS_PER_RUN } from "@/features/studio/runtime/generationQueue";
@@ -84,7 +85,8 @@ export function NodeInspector() {
               plan.sourceNodeId === selectedNode.id),
         )
       : selectedNode.data.kind === "videoGenerate" ||
-          selectedNode.data.kind === "videoEdit"
+          selectedNode.data.kind === "videoEdit" ||
+          selectedNode.data.kind === "motionControl"
         ? generationPlans.find(
             (plan) =>
               plan.id === selectedNode.data.generationPlanId ||
@@ -972,6 +974,146 @@ export function NodeInspector() {
             {data.errorMessage ? (
               <div className="studio-inspector-runtime-error" role="alert">
                 <strong>{data.errorCode || "VIDEO_EDIT_FAILED"}</strong>
+                <span>{data.errorMessage}</span>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+
+        {data.kind === "motionControl" ? (
+          <>
+            <InspectorField label="Mode">
+              <select value={data.mode} onChange={updateText("mode")}>
+                <option value="character_motion">Character Motion</option>
+                <option value="camera_motion">Camera Motion</option>
+                <option value="motion_transfer">Motion Transfer</option>
+              </select>
+            </InspectorField>
+            <InspectorField label="Motion prompt">
+              <textarea
+                maxLength={2_000}
+                placeholder="Preserve identity and transfer the reference action"
+                rows={6}
+                value={data.prompt}
+                onChange={updateText("prompt")}
+              />
+            </InspectorField>
+            <div className="studio-inspector-grid">
+              <InspectorField label="Character image">
+                <input
+                  disabled
+                  placeholder="Connect an Image Asset"
+                  value={data.sourceImage?.sourceNodeId || ""}
+                />
+              </InspectorField>
+              <InspectorField label="Motion video">
+                <input
+                  disabled
+                  placeholder="Connect a Video Asset"
+                  value={data.motionReferenceVideo?.sourceNodeId || ""}
+                />
+              </InspectorField>
+            </div>
+            <div className="studio-inspector-grid">
+              <InspectorField label="Status">
+                <input disabled value={data.status} />
+              </InspectorField>
+              <InspectorField label="Execution">
+                <input
+                  disabled
+                  value={
+                    data.result?.mock
+                      ? "Mock Completed"
+                      : STUDIO_MOTION_CONTROL_EXECUTION_ENABLED
+                        ? "Provider gate enabled / mock adapter"
+                        : "Mock adapter only"
+                  }
+                />
+              </InspectorField>
+            </div>
+            {data.queueStatus ? (
+              <InspectorField label="Queue status">
+                <input disabled value={data.queueStatus} />
+              </InspectorField>
+            ) : null}
+            <div className="studio-node-copy" role="status">
+              <strong>Motion Generation Plan</strong>
+              <span>
+                {selectedGenerationPlan
+                  ? `${selectedGenerationPlan.items.length} Motion task · ${selectedGenerationPlan.status}`
+                  : "Create a zero-credit mock plan before queue execution."}
+              </span>
+            </div>
+            {selectedGenerationPlan ? (
+              <div className="studio-inspector-grid">
+                <InspectorField label="Plan status">
+                  <input disabled value={selectedGenerationPlan.status} />
+                </InspectorField>
+                <InspectorField label="Estimated cost">
+                  <input disabled value={`${selectedGenerationPlan.estimatedCredits} credits`} />
+                </InspectorField>
+              </div>
+            ) : null}
+            <button
+              className="studio-node-action"
+              disabled={
+                generationQueue.running ||
+                (data.status === "completed" && Boolean(data.result?.videoUrl))
+              }
+              onClick={() =>
+                createGenerationPlanFromNode({
+                  nodeId: selectedNode.id,
+                  nodeType: "motion_control",
+                  projectId,
+                })
+              }
+              type="button"
+            >
+              {selectedGenerationPlan
+                ? "Review Motion Plan"
+                : "Create Motion Generation Plan"}
+            </button>
+            <button
+              className="studio-node-action"
+              disabled={
+                !selectedGenerationPlan ||
+                generationQueue.running ||
+                selectedGenerationPlan.status !== "draft"
+              }
+              onClick={() => {
+                if (selectedGenerationPlan) void startGenerationPlan(selectedGenerationPlan.id);
+              }}
+              type="button"
+            >
+              Confirm Mock Motion
+            </button>
+            <button
+              className="studio-node-action"
+              disabled={
+                !selectedGenerationPlan ||
+                selectedGenerationPlan.status === "completed" ||
+                selectedGenerationPlan.status === "cancelled"
+              }
+              onClick={() => {
+                if (selectedGenerationPlan) cancelGenerationPlan(selectedGenerationPlan.id);
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+            <InspectorField label="Result video">
+              <input
+                disabled
+                placeholder="Mock result appears after Queue execution"
+                value={data.result?.videoUrl || ""}
+              />
+            </InspectorField>
+            <p className="studio-node-footnote">
+              P2-A2 uses a local adapter and reference-video pass-through. It never calls a provider or charges credits.
+            </p>
+            {data.errorMessage ? (
+              <div className="studio-inspector-runtime-error" role="alert">
+                <strong>{data.errorCode || "MOTION_CONTROL_FAILED"}</strong>
                 <span>{data.errorMessage}</span>
               </div>
             ) : null}

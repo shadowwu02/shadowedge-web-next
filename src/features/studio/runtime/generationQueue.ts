@@ -3,6 +3,7 @@ import type {
   StudioNode,
 } from "@/features/studio/types/studioTypes";
 import { buildVideoEditGenerationPlanItem } from "@/features/studio/runtime/videoEditPlan";
+import { buildMotionControlGenerationPlanItem } from "@/features/studio/runtime/motionControlPlan";
 import { estimateVideoCreditsForParams } from "@/lib/video/videoModelRules";
 
 export const MAX_CONCURRENT_VIDEO_GENERATIONS = 1;
@@ -19,11 +20,12 @@ export type StudioGenerationPlanStatus =
 export type StudioGenerationPlanSourceType =
   | "remake_pipeline"
   | "videoGenerate"
-  | "video_edit";
+  | "video_edit"
+  | "motion_control";
 
 export type StudioGenerationPlanItem = {
   nodeId: string;
-  type: "video_generate" | "video_edit";
+  type: "video_generate" | "video_edit" | "motion_control";
   status: StudioGenerationQueueItemStatus;
   model: string;
   estimatedCredits: number;
@@ -98,6 +100,11 @@ export function buildStudioGenerationPlanFromNode({
       throw new Error("The selected node is not a Video Edit Node.");
     }
     taskNodes = [sourceNode];
+  } else if (nodeType === "motion_control") {
+    if (sourceNode.data.kind !== "motionControl") {
+      throw new Error("The selected node is not a Motion Control Node.");
+    }
+    taskNodes = [sourceNode];
   } else {
     if (sourceNode.data.kind !== "remakePipeline") {
       throw new Error("The selected node is not a Remake Pipeline Node.");
@@ -141,6 +148,20 @@ export function buildStudioGenerationPlanFromNode({
         },
       ];
     }
+    if (node.data.kind === "motionControl") {
+      if (
+        node.data.status === "completed" &&
+        Boolean(node.data.result?.videoUrl)
+      ) {
+        return [];
+      }
+      return [
+        buildMotionControlGenerationPlanItem({
+          nodeId: node.id,
+          mode: node.data.mode,
+        }),
+      ];
+    }
     return [];
   });
 
@@ -164,6 +185,6 @@ export function buildStudioGenerationPlanFromNode({
     updatedAt: timestamp,
     confirmedAt: null,
     completedAt: null,
-    mock: nodeType === "video_edit",
+    mock: nodeType === "video_edit" || nodeType === "motion_control",
   };
 }

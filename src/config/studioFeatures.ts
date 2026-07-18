@@ -26,6 +26,9 @@ const configuredVideoEdit = parseBooleanFlag(
 const configuredVideoEditExecution = parseBooleanFlag(
   process.env.NEXT_PUBLIC_STUDIO_VIDEO_EDIT_EXECUTION_ENABLED,
 );
+const configuredMotionControlExecution = parseBooleanFlag(
+  process.env.NEXT_PUBLIC_STUDIO_MOTION_CONTROL_EXECUTION_ENABLED,
+);
 
 // Local development can exercise the executor without extra setup. Production
 // builds remain off unless the public rollout flag is explicitly enabled.
@@ -52,6 +55,10 @@ export const STUDIO_VIDEO_EDIT_ENABLED = configuredVideoEdit ?? false;
 // adapter, so toggling this flag cannot dispatch provider work yet.
 export const STUDIO_VIDEO_EDIT_EXECUTION_ENABLED =
   configuredVideoEditExecution ?? false;
+// P2-A2 only registers a local mock adapter. Real motion providers remain
+// unavailable even if this future rollout gate is explicitly enabled.
+export const STUDIO_MOTION_CONTROL_EXECUTION_ENABLED =
+  configuredMotionControlExecution ?? false;
 
 export const studioFeatures = Object.freeze({
   imageExecutionEnabled: STUDIO_IMAGE_EXECUTION_ENABLED,
@@ -61,4 +68,5 @@ export const studioFeatures = Object.freeze({
   renderEnabled: STUDIO_RENDER_ENABLED,
   videoEditEnabled: STUDIO_VIDEO_EDIT_ENABLED,
   videoEditExecutionEnabled: STUDIO_VIDEO_EDIT_EXECUTION_ENABLED,
+  motionControlExecutionEnabled: STUDIO_MOTION_CONTROL_EXECUTION_ENABLED,
 });

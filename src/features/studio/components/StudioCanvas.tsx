@@ -18,6 +18,7 @@ import { RemakePipelineNode } from "@/features/studio/nodes/RemakePipelineNode";
 import { RemakeShotNode } from "@/features/studio/nodes/RemakeShotNode";
 import { VideoGenerateNode } from "@/features/studio/nodes/VideoGenerateNode";
 import { VideoEditNode } from "@/features/studio/nodes/VideoEditNode";
+import { MotionControlNode } from "@/features/studio/nodes/MotionControlNode";
 import {
   getCurrentStudioSnapshot,
   useStudioStore,
@@ -37,6 +38,7 @@ const nodeTypes = {
   imageGenerate: ImageGenerateNode,
   videoGenerate: VideoGenerateNode,
   video_edit: VideoEditNode,
+  motion_control: MotionControlNode,
   output: OutputNode,
 } satisfies NodeTypes;
 

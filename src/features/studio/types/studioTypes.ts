@@ -10,6 +10,7 @@ export type StudioNodeType =
   | "imageGenerate"
   | "videoGenerate"
   | "video_edit"
+  | "motion_control"
   | "output";
 
 export type AssetType = "image" | "video" | "audio";
@@ -226,6 +227,44 @@ export type VideoEditNodeData = StudioNodeBase & {
   errorMessage: string;
 };
 
+export type MotionControlMode =
+  | "character_motion"
+  | "camera_motion"
+  | "motion_transfer";
+
+export type MotionControlAssetRef = {
+  assetId: string;
+  sourceNodeId: string;
+  url: string;
+  thumbnail: string;
+};
+
+export type MotionControlNodeData = StudioNodeBase & {
+  kind: "motionControl";
+  sourceImage: MotionControlAssetRef | null;
+  motionReferenceVideo: MotionControlAssetRef | null;
+  mode: MotionControlMode;
+  prompt: string;
+  status: GenerationNodeStatus;
+  generationPlanId: string;
+  queueStatus: StudioGenerationQueueItemStatus | null;
+  jobIdentity: (VideoJobIdentity & { clientJobId: string }) | null;
+  result: {
+    videoUrl: string;
+    thumbnail: string;
+    jobId: string;
+    clientJobId: string;
+    databaseJobId: string;
+    providerJobId: string;
+    statusJobId: string;
+    mock: boolean;
+  } | null;
+  timelineBound: boolean;
+  timelineBindError: string;
+  errorCode: string;
+  errorMessage: string;
+};
+
 export type OutputNodeData = StudioNodeBase & {
   kind: "output";
   resultPreview: string;
@@ -246,6 +285,7 @@ export type StudioNodeData = (
   | ImageGenerateNodeData
   | VideoGenerateNodeData
   | VideoEditNodeData
+  | MotionControlNodeData
   | OutputNodeData
 ) &
   Record<string, unknown>;
@@ -415,6 +455,11 @@ export const STUDIO_NODE_DEFINITIONS: Array<{
     type: "video_edit",
     label: "Video Edit",
     description: "Mock video-to-video editing workflow",
+  },
+  {
+    type: "motion_control",
+    label: "Motion Control",
+    description: "Character image and motion-reference workflow",
   },
   {
     type: "output",

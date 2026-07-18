@@ -37,7 +37,8 @@ function normalizeGenerationPlanSource(
     sourceNodeId,
     sourceNodeType:
       plan.sourceNodeType === "videoGenerate" ||
-      plan.sourceNodeType === "video_edit"
+      plan.sourceNodeType === "video_edit" ||
+      plan.sourceNodeType === "motion_control"
         ? plan.sourceNodeType
         : "remake_pipeline",
     pipelineNodeId: plan.pipelineNodeId || sourceNodeId,

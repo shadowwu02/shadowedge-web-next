@@ -48,6 +48,7 @@ export type StudioExecutorKey =
   | "image_generate"
   | "video_generate"
   | "video_edit"
+  | "motion_control"
   | "output";
 
 export type StudioNodeExecutor = {

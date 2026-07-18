@@ -519,6 +519,25 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
       errorMessage: "",
     };
   }
+  if (type === "motion_control") {
+    return {
+      kind: "motionControl",
+      title: "Motion control",
+      sourceImage: null,
+      motionReferenceVideo: null,
+      mode: "character_motion",
+      prompt: "Transfer the reference motion while preserving the character identity.",
+      status: "idle",
+      generationPlanId: "",
+      queueStatus: null,
+      jobIdentity: null,
+      result: null,
+      timelineBound: false,
+      timelineBindError: "",
+      errorCode: "",
+      errorMessage: "",
+    };
+  }
   return {
     kind: "output",
     title: "Workflow output",
@@ -594,6 +613,22 @@ function normalizeStudioNodes(nodes: StudioNode[]) {
       data.model = "seedance_2_0";
     }
     if (data.kind === "videoEdit" && data.result) {
+      data.result = {
+        videoUrl: data.result.videoUrl || "",
+        thumbnail: data.result.thumbnail || data.result.videoUrl || "",
+        jobId: data.result.jobId || "",
+        clientJobId: data.result.clientJobId || data.result.jobId || "",
+        databaseJobId: data.result.databaseJobId || "",
+        providerJobId: data.result.providerJobId || "",
+        statusJobId:
+          data.result.statusJobId ||
+          data.result.databaseJobId ||
+          data.result.jobId ||
+          "",
+        mock: data.result.mock === true,
+      };
+    }
+    if (data.kind === "motionControl" && data.result) {
       data.result = {
         videoUrl: data.result.videoUrl || "",
         thumbnail: data.result.thumbnail || data.result.videoUrl || "",
@@ -688,7 +723,12 @@ function createGenerationPlanRunRecord(
     estimatedCredits: plan.estimatedCredits,
     nodes: plan.items.map((item) => ({
       nodeId: item.nodeId,
-      type: item.type === "video_edit" ? "video_edit" : "videoGenerate",
+      type:
+        item.type === "video_edit"
+          ? "video_edit"
+          : item.type === "motion_control"
+            ? "motion_control"
+            : "videoGenerate",
       status: item.status,
       startedAt: item.startedAt,
       finishedAt: item.finishedAt,
@@ -977,6 +1017,85 @@ function applyRuntimeOutputToCanvas(
       } satisfies StudioNode;
     }
 
+    if (node.data.kind === "motionControl") {
+      const sourceImage = asRecord(runtime.outputs.sourceImage);
+      const motionReferenceVideo = asRecord(
+        runtime.outputs.motionReferenceVideo,
+      );
+      const videoUrl = outputString(runtime.outputs, "videoUrl");
+      const thumbnail = outputString(runtime.outputs, "thumbnail");
+      const jobId = outputString(runtime.outputs, "jobId");
+      const clientJobId = outputString(runtime.outputs, "clientJobId");
+      const databaseJobId = outputString(runtime.outputs, "databaseJobId");
+      const providerJobId = outputString(runtime.outputs, "providerJobId");
+      const statusJobId = outputString(runtime.outputs, "statusJobId");
+      const jobIdentity = asRecord(runtime.outputs.jobIdentity);
+      const errorCode = outputString(runtime.outputs, "errorCode");
+      const errorMessage =
+        outputString(runtime.outputs, "message") || runtime.error || "";
+      const status =
+        runtime.status === "completed" ||
+        runtime.status === "failed" ||
+        runtime.status === "queued"
+          ? runtime.status
+          : "processing";
+      changed = true;
+      const normalizeAsset = (value: Record<string, unknown>) => ({
+        assetId: outputString(value, "assetId"),
+        sourceNodeId: outputString(value, "sourceNodeId"),
+        url: outputString(value, "url"),
+        thumbnail: outputString(value, "thumbnail"),
+      });
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          status,
+          sourceImage: sourceImage.url
+            ? normalizeAsset(sourceImage)
+            : node.data.sourceImage,
+          motionReferenceVideo: motionReferenceVideo.url
+            ? normalizeAsset(motionReferenceVideo)
+            : node.data.motionReferenceVideo,
+          jobIdentity: Object.keys(jobIdentity).length
+            ? {
+                jobId: String(jobIdentity.jobId || jobId),
+                clientJobId: String(
+                  jobIdentity.clientJobId || clientJobId || jobId,
+                ),
+                databaseJobId:
+                  String(jobIdentity.databaseJobId || databaseJobId || "") ||
+                  undefined,
+                providerJobId:
+                  String(jobIdentity.providerJobId || providerJobId || "") ||
+                  undefined,
+                statusJobId: String(
+                  jobIdentity.statusJobId ||
+                    statusJobId ||
+                    databaseJobId ||
+                    jobId,
+                ),
+              }
+            : node.data.jobIdentity,
+          result:
+            runtime.status === "completed" && videoUrl
+              ? {
+                  videoUrl,
+                  thumbnail: thumbnail || videoUrl,
+                  jobId,
+                  clientJobId: clientJobId || jobId,
+                  databaseJobId,
+                  providerJobId,
+                  statusJobId: statusJobId || databaseJobId || jobId,
+                  mock: runtime.outputs.mock === true,
+                }
+              : node.data.result,
+          errorCode: runtime.status === "failed" ? errorCode : "",
+          errorMessage: runtime.status === "failed" ? errorMessage : "",
+        },
+      } satisfies StudioNode;
+    }
+
     if (node.data.kind === "output" && runtime.status === "failed") {
       changed = true;
       return {
@@ -1029,7 +1148,11 @@ function applyVideoRuntimeToDownstreamOutputs(
   runtime: StudioNodeRuntimeState,
 ) {
   const executor = outputString(runtime.outputs, "executor");
-  if (executor !== "video_generate" && executor !== "video_edit") {
+  if (
+    executor !== "video_generate" &&
+    executor !== "video_edit" &&
+    executor !== "motion_control"
+  ) {
     return { changed: false, nodes };
   }
 
@@ -1081,7 +1204,11 @@ function applyVideoRuntimeToTimeline(
   nodes: StudioNode[],
 ) {
   const executor = outputString(runtime.outputs, "executor");
-  if (executor !== "video_generate" && executor !== "video_edit") {
+  if (
+    executor !== "video_generate" &&
+    executor !== "video_edit" &&
+    executor !== "motion_control"
+  ) {
     return { changed: false, timeline, bound: false, errorCode: "" };
   }
 
@@ -1093,7 +1220,9 @@ function applyVideoRuntimeToTimeline(
     const sourceNode = nodes.find(
       (node) =>
         node.id === runtime.nodeId &&
-        (node.data.kind === "videoGenerate" || node.data.kind === "videoEdit"),
+        (node.data.kind === "videoGenerate" ||
+          node.data.kind === "videoEdit" ||
+          node.data.kind === "motionControl"),
     );
     const result = bindCompletedVideoResultToTimeline({
       timeline,
@@ -1107,7 +1236,8 @@ function applyVideoRuntimeToTimeline(
           : 4),
       title:
         sourceNode?.data.kind === "videoGenerate" ||
-        sourceNode?.data.kind === "videoEdit"
+        sourceNode?.data.kind === "videoEdit" ||
+        sourceNode?.data.kind === "motionControl"
           ? sourceNode.data.title
           : "Generated video",
       model:
@@ -1116,6 +1246,8 @@ function applyVideoRuntimeToTimeline(
           ? sourceNode.data.model
           : sourceNode?.data.kind === "videoEdit"
             ? `video_edit:${sourceNode.data.mode}`
+            : sourceNode?.data.kind === "motionControl"
+              ? `motion_control:${sourceNode.data.mode}`
             : ""),
       createdAt: runtime.finishedAt || nowIso(),
     });
@@ -1163,7 +1295,7 @@ function applyVideoTimelineBindingState(
   binding: { bound: boolean; errorCode: string },
 ) {
   if (
-    !["video_generate", "video_edit"].includes(
+    !["video_generate", "video_edit", "motion_control"].includes(
       outputString(runtime.outputs, "executor"),
     ) ||
     runtime.status !== "completed"
@@ -1175,7 +1307,9 @@ function applyVideoTimelineBindingState(
   const nextNodes = nodes.map((node) => {
     if (
       node.id !== runtime.nodeId ||
-      (node.data.kind !== "videoGenerate" && node.data.kind !== "videoEdit")
+      (node.data.kind !== "videoGenerate" &&
+        node.data.kind !== "videoEdit" &&
+        node.data.kind !== "motionControl")
     ) {
       return node;
     }
@@ -1793,6 +1927,18 @@ export const useStudioStore = create<StudioState>()(
             thumbnail = sourceNode.data.result.thumbnail || url;
             jobId = sourceNode.data.result.jobId;
             model = `video_edit:${sourceNode.data.mode}`;
+          } else if (sourceNode.data.kind === "motionControl") {
+            if (
+              sourceNode.data.status !== "completed" ||
+              !sourceNode.data.result?.videoUrl
+            ) {
+              return state;
+            }
+            assetType = "video";
+            url = sourceNode.data.result.videoUrl;
+            thumbnail = sourceNode.data.result.thumbnail || url;
+            jobId = sourceNode.data.result.jobId;
+            model = `motion_control:${sourceNode.data.mode}`;
           } else {
             return state;
           }
@@ -1956,6 +2102,13 @@ export const useStudioStore = create<StudioState>()(
           return null;
         }
         if (
+          nodeType === "motion_control" &&
+          sourceNode.data.kind !== "motionControl"
+        ) {
+          set({ runtimeError: "The selected node is not a Motion Control Node." });
+          return null;
+        }
+        if (
           sourceNode.data.kind === "videoGenerate" &&
           sourceNode.data.status === "completed" &&
           Boolean(sourceNode.data.videoUrl || sourceNode.data.result)
@@ -1969,6 +2122,14 @@ export const useStudioStore = create<StudioState>()(
           Boolean(sourceNode.data.result?.videoUrl)
         ) {
           set({ runtimeError: "This Video Edit Node already has a completed result." });
+          return null;
+        }
+        if (
+          sourceNode.data.kind === "motionControl" &&
+          sourceNode.data.status === "completed" &&
+          Boolean(sourceNode.data.result?.videoUrl)
+        ) {
+          set({ runtimeError: "This Motion Control Node already has a completed result." });
           return null;
         }
 
@@ -1988,7 +2149,8 @@ export const useStudioStore = create<StudioState>()(
             nodes: current.nodes.map((node) =>
               node.id === nodeId &&
               (node.data.kind === "videoGenerate" ||
-                node.data.kind === "videoEdit")
+                node.data.kind === "videoEdit" ||
+                node.data.kind === "motionControl")
                 ? {
                     ...node,
                     data: {
@@ -2050,7 +2212,8 @@ export const useStudioStore = create<StudioState>()(
             if (
               plannedNodeIds.has(node.id) &&
               (node.data.kind === "videoGenerate" ||
-                node.data.kind === "videoEdit")
+                node.data.kind === "videoEdit" ||
+                node.data.kind === "motionControl")
             ) {
               return {
                 ...node,
@@ -2148,7 +2311,8 @@ export const useStudioStore = create<StudioState>()(
               if (
                 queueStatus &&
                 (node.data.kind === "videoGenerate" ||
-                  node.data.kind === "videoEdit")
+                  node.data.kind === "videoEdit" ||
+                  node.data.kind === "motionControl")
               ) {
                 return {
                   ...node,
@@ -2293,12 +2457,24 @@ export const useStudioStore = create<StudioState>()(
             if (item.status === "completed") continue;
             const node = get().nodes.find((candidate) => candidate.id === item.nodeId);
             const expectedKind =
-              item.type === "video_edit" ? "videoEdit" : "videoGenerate";
+              item.type === "video_edit"
+                ? "videoEdit"
+                : item.type === "motion_control"
+                  ? "motionControl"
+                  : "videoGenerate";
             if (!node || node.data.kind !== expectedKind) {
               const executor =
-                item.type === "video_edit" ? "video_edit" : "video_generate";
+                item.type === "video_edit"
+                  ? "video_edit"
+                  : item.type === "motion_control"
+                    ? "motion_control"
+                    : "video_generate";
               const label =
-                item.type === "video_edit" ? "Video Edit Node" : "Video Node";
+                item.type === "video_edit"
+                  ? "Video Edit Node"
+                  : item.type === "motion_control"
+                    ? "Motion Control Node"
+                    : "Video Node";
               updatePlanItem(item.nodeId, "failed", {
                 nodeId: item.nodeId,
                 status: "failed",
@@ -2418,7 +2594,8 @@ export const useStudioStore = create<StudioState>()(
             if (
               cancelledNodeIds.has(node.id) &&
               (node.data.kind === "videoGenerate" ||
-                node.data.kind === "videoEdit")
+                node.data.kind === "videoEdit" ||
+                node.data.kind === "motionControl")
             ) {
               return {
                 ...node,
@@ -2442,7 +2619,8 @@ export const useStudioStore = create<StudioState>()(
 
           if (
             sourceNode.data.kind === "videoGenerate" ||
-            sourceNode.data.kind === "videoEdit"
+            sourceNode.data.kind === "videoEdit" ||
+            sourceNode.data.kind === "motionControl"
           ) {
             const videoUrl =
               sourceNode.data.kind === "videoGenerate"
@@ -2467,7 +2645,9 @@ export const useStudioStore = create<StudioState>()(
               model:
                 sourceNode.data.kind === "videoGenerate"
                   ? sourceNode.data.model
-                  : `video_edit:${sourceNode.data.mode}`,
+                  : sourceNode.data.kind === "videoEdit"
+                    ? `video_edit:${sourceNode.data.mode}`
+                    : `motion_control:${sourceNode.data.mode}`,
               createdAt: nowIso(),
             });
             const timelineBindError = binding.bound
@@ -2482,7 +2662,8 @@ export const useStudioStore = create<StudioState>()(
               nodes: state.nodes.map((node) =>
                 node.id === sourceNode.id &&
                 (node.data.kind === "videoGenerate" ||
-                  node.data.kind === "videoEdit")
+                  node.data.kind === "videoEdit" ||
+                  node.data.kind === "motionControl")
                   ? {
                       ...node,
                       data: {
@@ -2693,7 +2874,8 @@ export const useStudioStore = create<StudioState>()(
                 ? state.nodes.map((node) =>
                     node.id === removedVideoClip.sourceNodeId &&
                     (node.data.kind === "videoGenerate" ||
-                      node.data.kind === "videoEdit")
+                      node.data.kind === "videoEdit" ||
+                      node.data.kind === "motionControl")
                       ? {
                           ...node,
                           data: {
@@ -3100,6 +3282,25 @@ export const useStudioStore = create<StudioState>()(
               Boolean(node.data.result?.videoUrl)
             ),
         );
+        const standaloneMotionControlNodes = state.nodes.filter(
+          (node) =>
+            node.data.kind === "motionControl" &&
+            !(
+              node.data.status === "completed" &&
+              Boolean(node.data.result?.videoUrl)
+            ),
+        );
+        const selectedMotionControlNode = standaloneMotionControlNodes.find(
+          (node) => node.id === state.selectedNodeId,
+        );
+        if (selectedMotionControlNode) {
+          get().createGenerationPlanFromNode({
+            nodeId: selectedMotionControlNode.id,
+            nodeType: "motion_control",
+            projectId: state.projectId,
+          });
+          return;
+        }
         const selectedVideoEditNode = standaloneVideoEditNodes.find(
           (node) => node.id === state.selectedNodeId,
         );
@@ -3122,10 +3323,15 @@ export const useStudioStore = create<StudioState>()(
           });
           return;
         }
-        if (standaloneVideoEditNodes.length + standaloneVideoNodes.length > 1) {
+        if (
+          standaloneVideoEditNodes.length +
+            standaloneVideoNodes.length +
+            standaloneMotionControlNodes.length >
+          1
+        ) {
           set({
             runtimeError:
-              "STUDIO_GENERATION_SELECTION_REQUIRED: Select one Video Generate or Video Edit Node. Batch execution is disabled.",
+              "STUDIO_GENERATION_SELECTION_REQUIRED: Select one Video Generate, Video Edit, or Motion Control Node. Batch execution is disabled.",
             runLockState: "idle",
           });
           return;
@@ -3134,6 +3340,14 @@ export const useStudioStore = create<StudioState>()(
           get().createGenerationPlanFromNode({
             nodeId: standaloneVideoEditNodes[0].id,
             nodeType: "video_edit",
+            projectId: state.projectId,
+          });
+          return;
+        }
+        if (standaloneMotionControlNodes.length === 1) {
+          get().createGenerationPlanFromNode({
+            nodeId: standaloneMotionControlNodes[0].id,
+            nodeType: "motion_control",
             projectId: state.projectId,
           });
           return;
@@ -3152,13 +3366,15 @@ export const useStudioStore = create<StudioState>()(
           (node) =>
             node.data.kind === "imageGenerate" ||
             node.data.kind === "videoGenerate" ||
-            node.data.kind === "videoEdit",
+            node.data.kind === "videoEdit" ||
+            node.data.kind === "motionControl",
         );
         const nonPaidNodes = state.nodes.filter(
           (node) =>
             node.data.kind !== "imageGenerate" &&
             node.data.kind !== "videoGenerate" &&
-            node.data.kind !== "videoEdit",
+            node.data.kind !== "videoEdit" &&
+            node.data.kind !== "motionControl",
         );
         const canRunNonPaidWorkflow = nonPaidNodes.some(
           (node) =>
@@ -3355,6 +3571,14 @@ export const useStudioStore = create<StudioState>()(
           get().createGenerationPlanFromNode({
             nodeId,
             nodeType: "video_edit",
+            projectId: state.projectId,
+          });
+          return;
+        }
+        if (node.data.kind === "motionControl") {
+          get().createGenerationPlanFromNode({
+            nodeId,
+            nodeType: "motion_control",
             projectId: state.projectId,
           });
           return;
