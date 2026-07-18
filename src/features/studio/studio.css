@@ -511,9 +511,11 @@
 }
 
 .studio-timeline-panel {
-  flex: 0 0 292px;
+  display: grid;
+  flex: 0 0 min(420px, 56vh);
   min-width: 0;
   overflow: hidden;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   border-top: 1px solid rgba(244, 244, 244, 0.075);
   background:
     linear-gradient(90deg, color-mix(in srgb, var(--studio-accent) 4%, transparent), transparent 30%),
@@ -523,11 +525,15 @@
 .studio-timeline-editor-body {
   display: grid;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   grid-template-columns: minmax(0, 1fr) 270px;
 }
 
 .studio-timeline-sequence {
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .studio-timeline-ruler-row {
@@ -661,6 +667,10 @@
   border-bottom: 1px solid rgba(244, 244, 244, 0.045);
 }
 
+.studio-timeline-track-row-compact {
+  min-height: 92px;
+}
+
 .studio-timeline-track-label {
   display: grid;
   place-content: center;
@@ -709,6 +719,67 @@
     box-shadow 150ms ease,
     opacity 150ms ease,
     transform 150ms ease;
+}
+
+.studio-timeline-audio-clip,
+.studio-timeline-subtitle-clip {
+  grid-template-columns: 46px minmax(0, 1fr);
+  cursor: pointer;
+}
+
+.studio-timeline-audio-clip {
+  border-color: rgba(117, 211, 157, 0.25);
+  background: linear-gradient(90deg, rgba(39, 107, 73, 0.16), rgba(20, 23, 29, 0.96));
+}
+
+.studio-timeline-subtitle-clip {
+  border-color: rgba(115, 164, 245, 0.25);
+  background: linear-gradient(90deg, rgba(44, 77, 132, 0.17), rgba(20, 23, 29, 0.96));
+}
+
+.studio-timeline-audio-clip .studio-timeline-clip-preview,
+.studio-timeline-subtitle-clip .studio-timeline-clip-preview {
+  width: 46px;
+  height: 48px;
+}
+
+.studio-subtitle-track {
+  align-items: center;
+}
+
+.studio-subtitle-composer {
+  display: grid;
+  min-width: 330px;
+  grid-template-columns: minmax(120px, 1fr) 58px 58px auto;
+  gap: 5px;
+  align-items: center;
+  border: 1px dashed rgba(244, 244, 244, 0.1);
+  border-radius: 10px;
+  padding: 7px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.studio-subtitle-composer input,
+.studio-subtitle-composer button {
+  min-width: 0;
+  border: 1px solid rgba(244, 244, 244, 0.09);
+  border-radius: 7px;
+  background: rgba(5, 7, 10, 0.72);
+  padding: 6px 7px;
+  color: rgba(244, 244, 244, 0.72);
+  font-size: 8px;
+  outline: none;
+}
+
+.studio-subtitle-composer button {
+  border-color: color-mix(in srgb, var(--studio-accent) 30%, transparent);
+  color: var(--studio-accent-soft);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.studio-subtitle-composer button:disabled {
+  opacity: 0.35;
 }
 
 .studio-timeline-clip:hover,
@@ -836,6 +907,7 @@
 
 .studio-clip-inspector {
   min-width: 0;
+  overflow-y: auto;
   border-left: 1px solid rgba(244, 244, 244, 0.065);
   background: rgba(10, 12, 16, 0.82);
   padding: 12px;
@@ -935,6 +1007,63 @@
   outline: none;
 }
 
+.studio-clip-inspector-fields select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(244, 244, 244, 0.085);
+  border-radius: 8px;
+  background: rgba(5, 7, 10, 0.72);
+  padding: 6px 7px;
+  color: rgba(244, 244, 244, 0.74);
+  font-size: 9px;
+  outline: none;
+}
+
+.studio-clip-inspector-textarea,
+.studio-clip-inspector-control {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.studio-clip-inspector-textarea > span,
+.studio-clip-inspector-control > span {
+  color: rgba(214, 214, 214, 0.32);
+  font-size: 7px;
+  text-transform: uppercase;
+}
+
+.studio-clip-inspector-textarea textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid rgba(244, 244, 244, 0.085);
+  border-radius: 8px;
+  background: rgba(5, 7, 10, 0.72);
+  padding: 7px;
+  color: rgba(244, 244, 244, 0.74);
+  font-size: 9px;
+  line-height: 1.45;
+  outline: none;
+}
+
+.studio-clip-inspector-control > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 7px;
+}
+
+.studio-clip-inspector-control input {
+  width: 100%;
+  accent-color: var(--studio-accent);
+}
+
+.studio-clip-inspector-control strong {
+  color: var(--studio-accent-soft);
+  font-size: 8px;
+  text-align: right;
+}
+
 .studio-clip-inspector-fields label > div > span {
   color: rgba(214, 214, 214, 0.32);
   font-size: 8px;
@@ -968,6 +1097,10 @@
   border-color: rgba(218, 116, 91, 0.25);
   background: rgba(91, 31, 26, 0.13);
   color: rgba(248, 193, 179, 0.78);
+}
+
+.studio-clip-inspector-actions-single {
+  grid-template-columns: 1fr;
 }
 
 .studio-clip-inspector > small {

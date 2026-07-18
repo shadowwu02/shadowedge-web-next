@@ -60,7 +60,7 @@ export function AssetNode({ data, id, selected }: NodeProps<StudioNode>) {
           <dd>{data.status}</dd>
         </div>
       </dl>
-      {data.assetType === "video" ? (
+      {data.assetType === "video" || data.assetType === "audio" ? (
         <button
           className="studio-node-action nodrag nopan"
           disabled={data.status !== "ready" || !data.url}
@@ -71,7 +71,7 @@ export function AssetNode({ data, id, selected }: NodeProps<StudioNode>) {
           onMouseDown={(event) => event.stopPropagation()}
           type="button"
         >
-          Add To Timeline
+          Add {data.assetType === "audio" ? "Audio" : "Video"} To Timeline
         </button>
       ) : null}
     </StudioNodeFrame>

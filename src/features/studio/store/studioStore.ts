@@ -39,8 +39,14 @@ import type {
   StudioProject,
   StudioProjectSummary,
   StudioAssetItem,
+  StudioAudioTimelineClip,
+  StudioAudioTimelineTrack,
   StudioTimeline,
-  StudioTimelineClip,
+  StudioSubtitlePosition,
+  StudioSubtitleTimelineClip,
+  StudioSubtitleTimelineTrack,
+  StudioVideoTimelineClip,
+  StudioVideoTimelineTrack,
 } from "@/features/studio/types/studioTypes";
 
 export const SHADOWEDGE_STUDIO_CANVAS_STORAGE_KEY = "shadowedge_studio_canvas_v1";
@@ -54,8 +60,10 @@ export function getStudioCanvasStorageKey(brandId: BrandId) {
 export const STUDIO_CANVAS_STORAGE_KEY = getStudioCanvasStorageKey(activeBrand.id);
 
 const defaultViewport: Viewport = { x: 8, y: 36, zoom: 0.82 };
-const STUDIO_CANVAS_VERSION = 2;
+const STUDIO_CANVAS_VERSION = 3;
 const DEFAULT_VIDEO_TRACK_ID = "track-video-1";
+const DEFAULT_AUDIO_TRACK_ID = "track-audio-1";
+const DEFAULT_SUBTITLE_TRACK_ID = "track-subtitle-1";
 const historyLimit = 50;
 let nodeSequence = 0;
 
@@ -64,7 +72,13 @@ function nowIso() {
 }
 
 function createEmptyTimeline(): StudioTimeline {
-  return { tracks: [] };
+  return {
+    tracks: [
+      { id: DEFAULT_VIDEO_TRACK_ID, type: "video", clips: [] },
+      { id: DEFAULT_AUDIO_TRACK_ID, type: "audio", clips: [] },
+      { id: DEFAULT_SUBTITLE_TRACK_ID, type: "subtitle", clips: [] },
+    ],
+  };
 }
 
 function positiveDuration(value: unknown, fallback = 4) {
@@ -81,7 +95,25 @@ function nonNegativeTime(value: unknown, fallback = 0) {
     : fallback;
 }
 
-function reflowTimelineClips(clips: StudioTimelineClip[]) {
+function clampVolume(value: unknown, fallback = 1) {
+  const volume = Number(value);
+  return Number.isFinite(volume)
+    ? Math.round(Math.min(1, Math.max(0, volume)) * 100) / 100
+    : fallback;
+}
+
+function subtitleFontSize(value: unknown, fallback = 32) {
+  const size = Number(value);
+  return Number.isFinite(size)
+    ? Math.round(Math.min(96, Math.max(12, size)))
+    : fallback;
+}
+
+function subtitlePosition(value: unknown): StudioSubtitlePosition {
+  return value === "top" || value === "center" ? value : "bottom";
+}
+
+function reflowTimelineClips(clips: StudioVideoTimelineClip[]) {
   let start = 0;
   return clips.map((clip) => {
     const duration = positiveDuration(clip.duration);
@@ -92,27 +124,78 @@ function reflowTimelineClips(clips: StudioTimelineClip[]) {
 }
 
 function normalizeStudioTimeline(timeline?: StudioTimeline): StudioTimeline {
-  if (!timeline || !Array.isArray(timeline.tracks)) return createEmptyTimeline();
-  return {
-    tracks: timeline.tracks
-      .filter((track) => track?.type === "video" && Array.isArray(track.clips))
-      .map((track) => ({
-        id: String(track.id || DEFAULT_VIDEO_TRACK_ID),
-        type: "video" as const,
-        clips: track.clips.map((clip) => ({
-          ...clip,
-          start: nonNegativeTime(clip.start),
-          duration: positiveDuration(clip.duration),
-          metadata: clip.metadata || {},
-        })),
-      })),
+  const tracks = timeline && Array.isArray(timeline.tracks) ? timeline.tracks : [];
+  const videoTrack = tracks.find((track) => track?.type === "video");
+  const audioTrack = tracks.find((track) => track?.type === "audio");
+  const subtitleTrack = tracks.find((track) => track?.type === "subtitle");
+
+  const normalizedVideo: StudioVideoTimelineTrack = {
+    id: String(videoTrack?.id || DEFAULT_VIDEO_TRACK_ID),
+    type: "video",
+    clips:
+      videoTrack?.type === "video" && Array.isArray(videoTrack.clips)
+        ? videoTrack.clips.map((clip) => ({
+            ...clip,
+            start: nonNegativeTime(clip.start),
+            duration: positiveDuration(clip.duration),
+            metadata: clip.metadata || {},
+          }))
+        : [],
   };
+  const normalizedAudio: StudioAudioTimelineTrack = {
+    id: String(audioTrack?.id || DEFAULT_AUDIO_TRACK_ID),
+    type: "audio",
+    clips:
+      audioTrack?.type === "audio" && Array.isArray(audioTrack.clips)
+        ? audioTrack.clips
+            .filter((clip) => Boolean(clip?.url))
+            .map((clip) => ({
+              ...clip,
+              sourceNodeId: String(clip.sourceNodeId || ""),
+              sourceType: clip.sourceType === "generated" ? "generated" : "asset",
+              url: String(clip.url || ""),
+              thumbnail: String(clip.thumbnail || ""),
+              start: nonNegativeTime(clip.start),
+              duration: positiveDuration(clip.duration),
+              createdAt: String(clip.createdAt || nowIso()),
+              metadata: {
+                title: String(clip.metadata?.title || "Audio clip"),
+                volume: clampVolume(clip.metadata?.volume),
+              },
+            }))
+        : [],
+  };
+  const normalizedSubtitles: StudioSubtitleTimelineTrack = {
+    id: String(subtitleTrack?.id || DEFAULT_SUBTITLE_TRACK_ID),
+    type: "subtitle",
+    clips:
+      subtitleTrack?.type === "subtitle" && Array.isArray(subtitleTrack.clips)
+        ? subtitleTrack.clips
+            .filter((clip) => Boolean(String(clip?.text || "").trim()))
+            .map((clip) => ({
+              id: String(clip.id || `subtitle-${Date.now()}-${++nodeSequence}`),
+              text: String(clip.text || "").trim().slice(0, 2_000),
+              start: nonNegativeTime(clip.start),
+              duration: positiveDuration(clip.duration, 3),
+              createdAt: String(clip.createdAt || nowIso()),
+              style: {
+                fontSize: subtitleFontSize(clip.style?.fontSize),
+                position: subtitlePosition(clip.style?.position),
+              },
+            }))
+        : [],
+  };
+
+  return { tracks: [normalizedVideo, normalizedAudio, normalizedSubtitles] };
 }
 
 function createTimelineClip(
   sourceNode: StudioNode,
   nodes: StudioNode[],
-): StudioTimelineClip | null {
+):
+  | { trackType: "video"; clip: StudioVideoTimelineClip }
+  | { trackType: "audio"; clip: StudioAudioTimelineClip }
+  | null {
   const createdAt = nowIso();
   const id = `timeline-clip-${Date.now()}-${++nodeSequence}`;
 
@@ -120,36 +203,42 @@ function createTimelineClip(
     const url = sourceNode.data.videoUrl || sourceNode.data.result;
     if (sourceNode.data.status !== "completed" || !url.trim()) return null;
     return {
-      id,
-      sourceNodeId: sourceNode.id,
-      sourceType: "video_node",
-      thumbnail: sourceNode.data.thumbnail || "",
-      url,
-      start: 0,
-      duration: positiveDuration(sourceNode.data.duration),
-      createdAt,
-      metadata: {
-        title: sourceNode.data.title,
-        model: sourceNode.data.model,
-        status: sourceNode.data.status,
+      trackType: "video",
+      clip: {
+        id,
+        sourceNodeId: sourceNode.id,
+        sourceType: "video_node",
+        thumbnail: sourceNode.data.thumbnail || "",
+        url,
+        start: 0,
+        duration: positiveDuration(sourceNode.data.duration),
+        createdAt,
+        metadata: {
+          title: sourceNode.data.title,
+          model: sourceNode.data.model,
+          status: sourceNode.data.status,
+        },
       },
     };
   }
 
   if (sourceNode.data.kind === "remakeShot") {
     return {
-      id,
-      sourceNodeId: sourceNode.id,
-      sourceType: "shot_node",
-      thumbnail: sourceNode.data.referenceFrames[0] || "",
-      url: "",
-      start: 0,
-      duration: positiveDuration(sourceNode.data.duration),
-      createdAt,
-      metadata: {
-        title: `Shot ${sourceNode.data.shotNumber}`,
-        model: sourceNode.data.model,
-        status: sourceNode.data.status,
+      trackType: "video",
+      clip: {
+        id,
+        sourceNodeId: sourceNode.id,
+        sourceType: "shot_node",
+        thumbnail: sourceNode.data.referenceFrames[0] || "",
+        url: "",
+        start: 0,
+        duration: positiveDuration(sourceNode.data.duration),
+        createdAt,
+        metadata: {
+          title: `Shot ${sourceNode.data.shotNumber}`,
+          model: sourceNode.data.model,
+          status: sourceNode.data.status,
+        },
       },
     };
   }
@@ -164,24 +253,53 @@ function createTimelineClip(
     const originDuration =
       originNode?.data.kind === "videoGenerate" ? originNode.data.duration : undefined;
     return {
-      id,
-      sourceNodeId: sourceNode.id,
-      sourceType: "asset",
-      thumbnail: sourceNode.data.thumbnail || "",
-      url: sourceNode.data.url,
-      start: 0,
-      duration: positiveDuration(
-        sourceNode.data.metadata?.duration,
-        positiveDuration(originDuration),
-      ),
-      createdAt,
-      metadata: {
-        title: sourceNode.data.title,
-        model:
-          typeof sourceNode.data.metadata?.model === "string"
-            ? sourceNode.data.metadata.model
-            : undefined,
-        status: sourceNode.data.status,
+      trackType: "video",
+      clip: {
+        id,
+        sourceNodeId: sourceNode.id,
+        sourceType: "asset",
+        thumbnail: sourceNode.data.thumbnail || "",
+        url: sourceNode.data.url,
+        start: 0,
+        duration: positiveDuration(
+          sourceNode.data.metadata?.duration,
+          positiveDuration(originDuration),
+        ),
+        createdAt,
+        metadata: {
+          title: sourceNode.data.title,
+          model:
+            typeof sourceNode.data.metadata?.model === "string"
+              ? sourceNode.data.metadata.model
+              : undefined,
+          status: sourceNode.data.status,
+        },
+      },
+    };
+  }
+
+  if (
+    sourceNode.data.kind === "asset" &&
+    sourceNode.data.assetType === "audio" &&
+    sourceNode.data.status === "ready" &&
+    sourceNode.data.url.trim()
+  ) {
+    return {
+      trackType: "audio",
+      clip: {
+        id,
+        sourceNodeId: sourceNode.id,
+        sourceType:
+          sourceNode.data.source === "generated" ? "generated" : "asset",
+        url: sourceNode.data.url,
+        thumbnail: sourceNode.data.thumbnail || "",
+        start: 0,
+        duration: positiveDuration(sourceNode.data.metadata?.duration, 5),
+        createdAt,
+        metadata: {
+          title: sourceNode.data.title,
+          volume: clampVolume(sourceNode.data.metadata?.volume),
+        },
       },
     };
   }
@@ -721,6 +839,11 @@ type StudioState = StudioCanvasSnapshot & {
   createAssetFromResultNode: (nodeId: string) => void;
   createVideoNodeFromRemakeShot: (nodeId: string) => void;
   addNodeToTimeline: (nodeId: string) => void;
+  addSubtitleTimelineClip: (input: {
+    text: string;
+    start: number;
+    duration: number;
+  }) => void;
   moveTimelineClip: (
     trackId: string,
     clipId: string,
@@ -733,7 +856,14 @@ type StudioState = StudioCanvasSnapshot & {
   updateTimelineClip: (
     trackId: string,
     clipId: string,
-    patch: { start?: number; duration?: number },
+    patch: {
+      start?: number;
+      duration?: number;
+      text?: string;
+      volume?: number;
+      fontSize?: number;
+      position?: StudioSubtitlePosition;
+    },
   ) => void;
   deleteNode: (nodeId: string) => void;
   updateNodeData: (nodeId: string, patch: Record<string, unknown>) => void;
@@ -1064,26 +1194,78 @@ export const useStudioStore = create<StudioState>()(
         set((state) => {
           const sourceNode = state.nodes.find((node) => node.id === nodeId);
           if (!sourceNode) return state;
-          const clip = createTimelineClip(sourceNode, state.nodes);
-          if (!clip) return state;
+          const created = createTimelineClip(sourceNode, state.nodes);
+          if (!created) return state;
 
           const snapshot = takeSnapshot(state);
-          const videoTrack = state.timeline.tracks.find(
-            (track) => track.id === DEFAULT_VIDEO_TRACK_ID,
-          );
-          const currentClips = videoTrack?.clips || [];
-          const clips = reflowTimelineClips([...currentClips, clip]);
-          const nextTrack = {
-            id: DEFAULT_VIDEO_TRACK_ID,
-            type: "video" as const,
-            clips,
+          let tracks = state.timeline.tracks;
+          if (created.trackType === "video") {
+            const videoTrack = tracks.find((track) => track.type === "video");
+            const currentClips = videoTrack?.type === "video" ? videoTrack.clips : [];
+            const nextTrack: StudioVideoTimelineTrack = {
+              id: videoTrack?.id || DEFAULT_VIDEO_TRACK_ID,
+              type: "video",
+              clips: reflowTimelineClips([...currentClips, created.clip]),
+            };
+            tracks = videoTrack
+              ? tracks.map((track) => (track.type === "video" ? nextTrack : track))
+              : [nextTrack, ...tracks];
+          } else {
+            const audioTrack = tracks.find((track) => track.type === "audio");
+            const currentClips = audioTrack?.type === "audio" ? audioTrack.clips : [];
+            const start = currentClips.reduce(
+              (maximum, clip) => Math.max(maximum, clip.start + clip.duration),
+              0,
+            );
+            const nextTrack: StudioAudioTimelineTrack = {
+              id: audioTrack?.id || DEFAULT_AUDIO_TRACK_ID,
+              type: "audio",
+              clips: [...currentClips, { ...created.clip, start }],
+            };
+            tracks = audioTrack
+              ? tracks.map((track) => (track.type === "audio" ? nextTrack : track))
+              : [...tracks, nextTrack];
+          }
+
+          return {
+            timeline: { tracks },
+            selectedTimelineClipId: created.clip.id,
+            past: appendHistory(state.past, snapshot),
+            future: [],
+            dirty: true,
+            updatedAt: nowIso(),
           };
-          const tracks = videoTrack
+        }),
+
+      addSubtitleTimelineClip: ({ text, start, duration }) =>
+        set((state) => {
+          const cleanText = text.trim().slice(0, 2_000);
+          if (!cleanText) return state;
+          const snapshot = takeSnapshot(state);
+          const subtitleTrack = state.timeline.tracks.find(
+            (track) => track.type === "subtitle",
+          );
+          const clip: StudioSubtitleTimelineClip = {
+            id: `subtitle-${Date.now()}-${++nodeSequence}`,
+            text: cleanText,
+            start: nonNegativeTime(start),
+            duration: positiveDuration(duration, 3),
+            createdAt: nowIso(),
+            style: { fontSize: 32, position: "bottom" },
+          };
+          const nextTrack: StudioSubtitleTimelineTrack = {
+            id: subtitleTrack?.id || DEFAULT_SUBTITLE_TRACK_ID,
+            type: "subtitle",
+            clips: [
+              ...(subtitleTrack?.type === "subtitle" ? subtitleTrack.clips : []),
+              clip,
+            ].sort((left, right) => left.start - right.start),
+          };
+          const tracks = subtitleTrack
             ? state.timeline.tracks.map((track) =>
-                track.id === DEFAULT_VIDEO_TRACK_ID ? nextTrack : track,
+                track.type === "subtitle" ? nextTrack : track,
               )
             : [...state.timeline.tracks, nextTrack];
-
           return {
             timeline: { tracks },
             selectedTimelineClipId: clip.id,
@@ -1097,7 +1279,7 @@ export const useStudioStore = create<StudioState>()(
       moveTimelineClip: (trackId, clipId, direction) =>
         set((state) => {
           const track = state.timeline.tracks.find((item) => item.id === trackId);
-          if (!track) return state;
+          if (!track || track.type !== "video") return state;
           const index = track.clips.findIndex((clip) => clip.id === clipId);
           const targetIndex = direction === "earlier" ? index - 1 : index + 1;
           if (index < 0 || targetIndex < 0 || targetIndex >= track.clips.length) {
@@ -1113,7 +1295,7 @@ export const useStudioStore = create<StudioState>()(
           return {
             timeline: {
               tracks: state.timeline.tracks.map((item) =>
-                item.id === trackId
+                item.type === "video" && item.id === trackId
                   ? { ...item, clips: reflowTimelineClips(reordered) }
                   : item,
               ),
@@ -1129,7 +1311,7 @@ export const useStudioStore = create<StudioState>()(
         set((state) => {
           if (clipId === targetClipId) return state;
           const track = state.timeline.tracks.find((item) => item.id === trackId);
-          if (!track) return state;
+          if (!track || track.type !== "video") return state;
           const sourceIndex = track.clips.findIndex((clip) => clip.id === clipId);
           const targetIndex = track.clips.findIndex((clip) => clip.id === targetClipId);
           if (sourceIndex < 0 || targetIndex < 0) return state;
@@ -1141,7 +1323,7 @@ export const useStudioStore = create<StudioState>()(
           return {
             timeline: {
               tracks: state.timeline.tracks.map((item) =>
-                item.id === trackId
+                item.type === "video" && item.id === trackId
                   ? { ...item, clips: reflowTimelineClips(reordered) }
                   : item,
               ),
@@ -1161,19 +1343,29 @@ export const useStudioStore = create<StudioState>()(
           const track = state.timeline.tracks.find((item) => item.id === trackId);
           if (!track || !track.clips.some((clip) => clip.id === clipId)) return state;
           const snapshot = takeSnapshot(state);
+          const tracks = state.timeline.tracks.map((item) => {
+            if (item.id !== trackId) return item;
+            if (item.type === "video") {
+              return {
+                ...item,
+                clips: reflowTimelineClips(
+                  item.clips.filter((clip) => clip.id !== clipId),
+                ),
+              };
+            }
+            if (item.type === "audio") {
+              return {
+                ...item,
+                clips: item.clips.filter((clip) => clip.id !== clipId),
+              };
+            }
+            return {
+              ...item,
+              clips: item.clips.filter((clip) => clip.id !== clipId),
+            };
+          });
           return {
-            timeline: {
-              tracks: state.timeline.tracks.map((item) =>
-                item.id === trackId
-                  ? {
-                      ...item,
-                      clips: reflowTimelineClips(
-                        item.clips.filter((clip) => clip.id !== clipId),
-                      ),
-                    }
-                  : item,
-              ),
-            },
+            timeline: { tracks },
             selectedTimelineClipId:
               state.selectedTimelineClipId === clipId
                 ? null
@@ -1188,9 +1380,10 @@ export const useStudioStore = create<StudioState>()(
       duplicateTimelineClip: (trackId, clipId) =>
         set((state) => {
           const track = state.timeline.tracks.find((item) => item.id === trackId);
+          if (!track || track.type !== "video") return state;
           const sourceIndex = track?.clips.findIndex((clip) => clip.id === clipId) ?? -1;
           const sourceClip = sourceIndex >= 0 ? track?.clips[sourceIndex] : undefined;
-          if (!track || !sourceClip) return state;
+          if (!sourceClip) return state;
 
           const snapshot = takeSnapshot(state);
           const duplicateId = `timeline-clip-${Date.now()}-${++nodeSequence}`;
@@ -1210,7 +1403,7 @@ export const useStudioStore = create<StudioState>()(
           return {
             timeline: {
               tracks: state.timeline.tracks.map((item) =>
-                item.id === trackId
+                item.type === "video" && item.id === trackId
                   ? { ...item, clips: reflowTimelineClips(clips) }
                   : item,
               ),
@@ -1228,31 +1421,91 @@ export const useStudioStore = create<StudioState>()(
           const track = state.timeline.tracks.find((item) => item.id === trackId);
           if (!track || !track.clips.some((clip) => clip.id === clipId)) return state;
           const snapshot = takeSnapshot(state);
-          return {
-            timeline: {
-              tracks: state.timeline.tracks.map((item) =>
-                item.id === trackId
+          const tracks = state.timeline.tracks.map((item) => {
+            if (item.id !== trackId) return item;
+            if (item.type === "video") {
+              return {
+                ...item,
+                clips: item.clips.map((clip) =>
+                  clip.id === clipId
+                    ? {
+                        ...clip,
+                        start:
+                          patch.start === undefined
+                            ? clip.start
+                            : nonNegativeTime(patch.start, clip.start),
+                        duration:
+                          patch.duration === undefined
+                            ? clip.duration
+                            : positiveDuration(patch.duration, clip.duration),
+                      }
+                    : clip,
+                ),
+              };
+            }
+            if (item.type === "audio") {
+              return {
+                ...item,
+                clips: item.clips.map((clip) =>
+                  clip.id === clipId
+                    ? {
+                        ...clip,
+                        start:
+                          patch.start === undefined
+                            ? clip.start
+                            : nonNegativeTime(patch.start, clip.start),
+                        duration:
+                          patch.duration === undefined
+                            ? clip.duration
+                            : positiveDuration(patch.duration, clip.duration),
+                        metadata: {
+                          ...clip.metadata,
+                          volume:
+                            patch.volume === undefined
+                              ? clip.metadata.volume
+                              : clampVolume(patch.volume),
+                        },
+                      }
+                    : clip,
+                ),
+              };
+            }
+            return {
+              ...item,
+              clips: item.clips.map((clip) =>
+                clip.id === clipId
                   ? {
-                      ...item,
-                      clips: item.clips.map((clip) =>
-                        clip.id === clipId
-                          ? {
-                              ...clip,
-                              start:
-                                patch.start === undefined
-                                  ? clip.start
-                                  : nonNegativeTime(patch.start, clip.start),
-                              duration:
-                                patch.duration === undefined
-                                  ? clip.duration
-                                  : positiveDuration(patch.duration, clip.duration),
-                            }
-                          : clip,
-                      ),
+                      ...clip,
+                      text:
+                        patch.text === undefined
+                          ? clip.text
+                          : patch.text.slice(0, 2_000),
+                      start:
+                        patch.start === undefined
+                          ? clip.start
+                          : nonNegativeTime(patch.start, clip.start),
+                      duration:
+                        patch.duration === undefined
+                          ? clip.duration
+                          : positiveDuration(patch.duration, clip.duration),
+                      style: {
+                        ...clip.style,
+                        fontSize:
+                          patch.fontSize === undefined
+                            ? clip.style?.fontSize
+                            : subtitleFontSize(patch.fontSize),
+                        position:
+                          patch.position === undefined
+                            ? clip.style?.position
+                            : subtitlePosition(patch.position),
+                      },
                     }
-                  : item,
+                  : clip,
               ),
-            },
+            };
+          });
+          return {
+            timeline: { tracks },
             past: appendHistory(state.past, snapshot),
             future: [],
             dirty: true,

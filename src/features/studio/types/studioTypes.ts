@@ -169,7 +169,7 @@ export type StudioTimelineClipMetadata = {
   status?: string;
 };
 
-export type StudioTimelineClip = {
+export type StudioVideoTimelineClip = {
   id: string;
   sourceNodeId: string;
   sourceType: StudioTimelineClipSource;
@@ -182,11 +182,62 @@ export type StudioTimelineClip = {
   metadata?: StudioTimelineClipMetadata;
 };
 
-export type StudioTimelineTrack = {
+export type StudioAudioTimelineClip = {
+  id: string;
+  sourceNodeId: string;
+  sourceType: "asset" | "generated";
+  url: string;
+  thumbnail?: string;
+  start: number;
+  duration: number;
+  createdAt: string;
+  metadata: {
+    title?: string;
+    volume?: number;
+  };
+};
+
+export type StudioSubtitlePosition = "top" | "center" | "bottom";
+
+export type StudioSubtitleTimelineClip = {
+  id: string;
+  text: string;
+  start: number;
+  duration: number;
+  createdAt: string;
+  style?: {
+    fontSize?: number;
+    position?: StudioSubtitlePosition;
+  };
+};
+
+export type StudioTimelineClip =
+  | StudioVideoTimelineClip
+  | StudioAudioTimelineClip
+  | StudioSubtitleTimelineClip;
+
+export type StudioVideoTimelineTrack = {
   id: string;
   type: "video";
-  clips: StudioTimelineClip[];
+  clips: StudioVideoTimelineClip[];
 };
+
+export type StudioAudioTimelineTrack = {
+  id: string;
+  type: "audio";
+  clips: StudioAudioTimelineClip[];
+};
+
+export type StudioSubtitleTimelineTrack = {
+  id: string;
+  type: "subtitle";
+  clips: StudioSubtitleTimelineClip[];
+};
+
+export type StudioTimelineTrack =
+  | StudioVideoTimelineTrack
+  | StudioAudioTimelineTrack
+  | StudioSubtitleTimelineTrack;
 
 export type StudioTimeline = {
   tracks: StudioTimelineTrack[];
