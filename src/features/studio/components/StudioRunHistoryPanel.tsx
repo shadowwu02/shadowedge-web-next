@@ -12,6 +12,7 @@ const nodeLabels: Record<StudioNodeType, string> = {
   remakeShot: "Remake Shot",
   imageGenerate: "Image Generate",
   videoGenerate: "Video Generate",
+  video_edit: "Video Edit",
   output: "Output",
 };
 

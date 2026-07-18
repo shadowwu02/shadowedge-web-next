@@ -17,6 +17,9 @@ const configuredRemakeExecution = parseBooleanFlag(
 const configuredRender = parseBooleanFlag(
   process.env.NEXT_PUBLIC_STUDIO_RENDER_ENABLED,
 );
+const configuredVideoEdit = parseBooleanFlag(
+  process.env.NEXT_PUBLIC_STUDIO_VIDEO_EDIT_ENABLED,
+);
 
 // Local development can exercise the executor without extra setup. Production
 // builds remain off unless the public rollout flag is explicitly enabled.
@@ -32,10 +35,14 @@ export const STUDIO_REMAKE_EXECUTION_ENABLED =
 // Keep production rollout opt-in while allowing local integration testing.
 export const STUDIO_RENDER_ENABLED =
   configuredRender ?? process.env.NODE_ENV === "development";
+// This flag reserves the future provider execution boundary. The P1-A5 node
+// remains a local pass-through mock and never dispatches provider work.
+export const STUDIO_VIDEO_EDIT_ENABLED = configuredVideoEdit ?? false;
 
 export const studioFeatures = Object.freeze({
   imageExecutionEnabled: STUDIO_IMAGE_EXECUTION_ENABLED,
   videoExecutionEnabled: STUDIO_VIDEO_EXECUTION_ENABLED,
   remakeExecutionEnabled: STUDIO_REMAKE_EXECUTION_ENABLED,
   renderEnabled: STUDIO_RENDER_ENABLED,
+  videoEditEnabled: STUDIO_VIDEO_EDIT_ENABLED,
 });

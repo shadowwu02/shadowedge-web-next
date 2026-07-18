@@ -16,6 +16,7 @@ import { PromptNode } from "@/features/studio/nodes/PromptNode";
 import { RemakeAnalysisNode } from "@/features/studio/nodes/RemakeAnalysisNode";
 import { RemakeShotNode } from "@/features/studio/nodes/RemakeShotNode";
 import { VideoGenerateNode } from "@/features/studio/nodes/VideoGenerateNode";
+import { VideoEditNode } from "@/features/studio/nodes/VideoEditNode";
 import {
   getCurrentStudioSnapshot,
   useStudioStore,
@@ -33,6 +34,7 @@ const nodeTypes = {
   remakeShot: RemakeShotNode,
   imageGenerate: ImageGenerateNode,
   videoGenerate: VideoGenerateNode,
+  video_edit: VideoEditNode,
   output: OutputNode,
 } satisfies NodeTypes;
 

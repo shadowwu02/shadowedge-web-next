@@ -7,6 +7,7 @@ export type StudioNodeType =
   | "remakeShot"
   | "imageGenerate"
   | "videoGenerate"
+  | "video_edit"
   | "output";
 
 export type AssetType = "image" | "video" | "audio";
@@ -136,6 +137,34 @@ export type VideoGenerateNodeData = StudioNodeBase & {
   sourceShotId: string;
 };
 
+export type VideoEditMode =
+  | "video_to_video"
+  | "replace_background"
+  | "extend";
+
+export type VideoEditAssetRef = {
+  assetId: string;
+  sourceNodeId: string;
+  url: string;
+  thumbnail: string;
+};
+
+export type VideoEditNodeData = StudioNodeBase & {
+  kind: "videoEdit";
+  sourceVideo: VideoEditAssetRef | null;
+  mode: VideoEditMode;
+  prompt: string;
+  status: GenerationNodeStatus;
+  result: {
+    videoUrl: string;
+    thumbnail: string;
+    jobId: string;
+    mock: boolean;
+  } | null;
+  errorCode: string;
+  errorMessage: string;
+};
+
 export type OutputNodeData = StudioNodeBase & {
   kind: "output";
   resultPreview: string;
@@ -154,6 +183,7 @@ export type StudioNodeData = (
   | RemakeShotNodeData
   | ImageGenerateNodeData
   | VideoGenerateNodeData
+  | VideoEditNodeData
   | OutputNodeData
 ) &
   Record<string, unknown>;
@@ -313,6 +343,11 @@ export const STUDIO_NODE_DEFINITIONS: Array<{
     type: "videoGenerate",
     label: "Video Generate",
     description: "Video generation through the existing API",
+  },
+  {
+    type: "video_edit",
+    label: "Video Edit",
+    description: "Mock video-to-video editing workflow",
   },
   {
     type: "output",

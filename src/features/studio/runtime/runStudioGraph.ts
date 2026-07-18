@@ -52,6 +52,13 @@ function getNodeInputIds(
     }
   }
 
+  if (node.data.kind === "videoEdit") {
+    const sourceNodeId = String(node.data.sourceVideo?.sourceNodeId || "").trim();
+    if (sourceNodeId && sourceNodeId !== node.id && nodeById.has(sourceNodeId)) {
+      inputIds.add(sourceNodeId);
+    }
+  }
+
   return Array.from(inputIds);
 }
 
@@ -63,6 +70,7 @@ function persistedNodeOutput(node: StudioNode): Record<string, unknown> {
       assetId: data.assetId,
       assetType: data.assetType,
       url: data.url,
+      thumbnail: data.thumbnail || data.url,
       source: data.source,
       status: data.status,
     };
@@ -113,6 +121,23 @@ function persistedNodeOutput(node: StudioNode): Record<string, unknown> {
       status: data.status,
       errorCode: data.errorCode,
       message: data.errorMessage,
+    };
+  }
+  if (data.kind === "videoEdit") {
+    return {
+      executor: "video_edit",
+      jobId: data.result?.jobId || "",
+      type: "video",
+      url: data.result?.videoUrl || "",
+      videoUrl: data.result?.videoUrl || "",
+      thumbnail: data.result?.thumbnail || "",
+      source: "generated",
+      mode: data.mode,
+      prompt: data.prompt,
+      status: data.status,
+      errorCode: data.errorCode,
+      message: data.errorMessage,
+      mock: data.result?.mock === true,
     };
   }
   if (data.kind === "remakeAnalysis") {
@@ -166,6 +191,7 @@ export function getStudioRetryPreflight(
   const hasCompletedResult =
     (data.kind === "imageGenerate" && data.status === "completed" && Boolean(data.imageUrl || data.result)) ||
     (data.kind === "videoGenerate" && data.status === "completed" && Boolean(data.videoUrl || data.result)) ||
+    (data.kind === "videoEdit" && data.status === "completed" && Boolean(data.result?.videoUrl)) ||
     (data.kind === "remakeAnalysis" && data.status === "completed" && Boolean(data.storyboardId)) ||
     (data.kind === "output" && data.status === "completed" && Boolean(data.resultPreview));
   if (hasCompletedResult) {
@@ -179,7 +205,9 @@ export function getStudioRetryPreflight(
   const inputs = Object.values(buildPersistedInputs(node, nodes, edges));
   const invalidGeneratedInput = inputs.find(
     (input) =>
-      (input.executor === "image_generate" || input.executor === "video_generate") &&
+      (input.executor === "image_generate" ||
+        input.executor === "video_generate" ||
+        input.executor === "video_edit") &&
       (input.status !== "completed" || !(input.imageUrl || input.videoUrl)),
   );
   if (invalidGeneratedInput) {
@@ -212,6 +240,22 @@ export function getStudioRetryPreflight(
         ok: false,
         errorCode: "UPSTREAM_INPUT_INVALID",
         message: "Connect a ready Video Asset before retrying Remake analysis.",
+      };
+    }
+  }
+
+  if (data.kind === "videoEdit") {
+    const video = inputs.find(
+      (input) =>
+        input.assetType === "video" &&
+        typeof input.url === "string" &&
+        input.url.trim(),
+    );
+    if (!video) {
+      return {
+        ok: false,
+        errorCode: "UPSTREAM_INPUT_INVALID",
+        message: "Connect a ready Video Asset before retrying Video Edit.",
       };
     }
   }

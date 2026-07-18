@@ -7,6 +7,7 @@ import type {
 } from "@/features/studio/runtime/types";
 import { ImageGenerateExecutor } from "@/features/studio/runtime/executors/imageGenerateExecutor";
 import { VideoGenerateExecutor } from "@/features/studio/runtime/executors/videoGenerateExecutor";
+import { VideoEditExecutor } from "@/features/studio/runtime/executors/videoEditExecutor";
 import { RemakeAnalysisExecutor } from "@/features/studio/runtime/executors/remakeAnalysisExecutor";
 import type { StudioNodeType } from "@/features/studio/types/studioTypes";
 
@@ -49,6 +50,7 @@ export const AssetExecutor: StudioNodeExecutor = {
       assetId: configValue(context, "assetId"),
       assetType: configValue(context, "assetType"),
       url: configValue(context, "url"),
+      thumbnail: configValue(context, "thumbnail"),
       source: configValue(context, "source"),
     });
   },
@@ -151,6 +153,7 @@ export const executorRegistry = {
   remake_shot: RemakeShotExecutor,
   image_generate: ImageGenerateExecutor,
   video_generate: VideoGenerateExecutor,
+  video_edit: VideoEditExecutor,
   output: OutputExecutor,
 } satisfies Record<StudioExecutorKey, StudioNodeExecutor>;
 
@@ -161,6 +164,7 @@ export const studioExecutorTypeMap = {
   remakeShot: "remake_shot",
   imageGenerate: "image_generate",
   videoGenerate: "video_generate",
+  video_edit: "video_edit",
   output: "output",
 } satisfies StudioExecutorTypeMap;
 

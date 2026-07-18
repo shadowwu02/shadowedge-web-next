@@ -44,6 +44,7 @@ export type StudioExecutorKey =
   | "remake_shot"
   | "image_generate"
   | "video_generate"
+  | "video_edit"
   | "output";
 
 export type StudioNodeExecutor = {

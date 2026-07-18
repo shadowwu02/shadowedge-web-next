@@ -60,7 +60,7 @@ export function getStudioCanvasStorageKey(brandId: BrandId) {
 export const STUDIO_CANVAS_STORAGE_KEY = getStudioCanvasStorageKey(activeBrand.id);
 
 const defaultViewport: Viewport = { x: 8, y: 36, zoom: 0.82 };
-const STUDIO_CANVAS_VERSION = 3;
+const STUDIO_CANVAS_VERSION = 4;
 const DEFAULT_VIDEO_TRACK_ID = "track-video-1";
 const DEFAULT_AUDIO_TRACK_ID = "track-audio-1";
 const DEFAULT_SUBTITLE_TRACK_ID = "track-subtitle-1";
@@ -216,6 +216,42 @@ function createTimelineClip(
         metadata: {
           title: sourceNode.data.title,
           model: sourceNode.data.model,
+          status: sourceNode.data.status,
+        },
+      },
+    };
+  }
+
+  if (sourceNode.data.kind === "videoEdit") {
+    const result = sourceNode.data.result;
+    if (
+      sourceNode.data.status !== "completed" ||
+      !result?.videoUrl.trim()
+    ) {
+      return null;
+    }
+    const sourceVideo = sourceNode.data.sourceVideo;
+    const sourceAsset = sourceVideo
+      ? nodes.find((node) => node.id === sourceVideo.sourceNodeId)
+      : null;
+    const sourceDuration =
+      sourceAsset?.data.kind === "asset"
+        ? sourceAsset.data.metadata?.duration
+        : undefined;
+    return {
+      trackType: "video",
+      clip: {
+        id,
+        sourceNodeId: sourceNode.id,
+        sourceType: "video_node",
+        thumbnail: result.thumbnail || "",
+        url: result.videoUrl,
+        start: 0,
+        duration: positiveDuration(sourceDuration),
+        createdAt,
+        metadata: {
+          title: sourceNode.data.title,
+          model: "Mock Video Edit",
           status: sourceNode.data.status,
         },
       },
@@ -414,6 +450,19 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
       errorCode: "",
       errorMessage: "",
       sourceShotId: "",
+    };
+  }
+  if (type === "video_edit") {
+    return {
+      kind: "videoEdit",
+      title: "AI video edit",
+      sourceVideo: null,
+      mode: "video_to_video",
+      prompt: "Transform the scene while preserving the subject and motion.",
+      status: "idle",
+      result: null,
+      errorCode: "",
+      errorMessage: "",
     };
   }
   return {
@@ -671,6 +720,48 @@ function applyRuntimeOutputToCanvas(
           videoUrl: videoUrl || node.data.videoUrl,
           thumbnail: thumbnail || videoUrl || node.data.thumbnail,
           result: videoUrl || node.data.result,
+          errorCode: runtime.status === "failed" ? errorCode : "",
+          errorMessage: runtime.status === "failed" ? errorMessage : "",
+        },
+      } satisfies StudioNode;
+    }
+
+    if (node.data.kind === "videoEdit") {
+      const sourceVideo = asRecord(runtime.outputs.sourceVideo);
+      const videoUrl = outputString(runtime.outputs, "videoUrl");
+      const thumbnail = outputString(runtime.outputs, "thumbnail");
+      const jobId = outputString(runtime.outputs, "jobId");
+      const errorCode = outputString(runtime.outputs, "errorCode");
+      const errorMessage =
+        outputString(runtime.outputs, "message") || runtime.error || "";
+      const status =
+        runtime.status === "completed" || runtime.status === "failed"
+          ? runtime.status
+          : "processing";
+      changed = true;
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          status,
+          sourceVideo:
+            sourceVideo.url
+              ? {
+                  assetId: outputString(sourceVideo, "assetId"),
+                  sourceNodeId: outputString(sourceVideo, "sourceNodeId"),
+                  url: outputString(sourceVideo, "url"),
+                  thumbnail: outputString(sourceVideo, "thumbnail"),
+                }
+              : node.data.sourceVideo,
+          result:
+            runtime.status === "completed" && videoUrl
+              ? {
+                  videoUrl,
+                  thumbnail: thumbnail || videoUrl,
+                  jobId,
+                  mock: runtime.outputs.mock === true,
+                }
+              : node.data.result,
           errorCode: runtime.status === "failed" ? errorCode : "",
           errorMessage: runtime.status === "failed" ? errorMessage : "",
         },
@@ -1066,6 +1157,18 @@ export const useStudioStore = create<StudioState>()(
             thumbnail = sourceNode.data.thumbnail || url;
             jobId = sourceNode.data.jobId;
             model = sourceNode.data.model;
+          } else if (sourceNode.data.kind === "videoEdit") {
+            if (
+              sourceNode.data.status !== "completed" ||
+              !sourceNode.data.result?.videoUrl
+            ) {
+              return state;
+            }
+            assetType = "video";
+            url = sourceNode.data.result.videoUrl;
+            thumbnail = sourceNode.data.result.thumbnail || url;
+            jobId = sourceNode.data.result.jobId;
+            model = `video_edit:${sourceNode.data.mode}`;
           } else {
             return state;
           }

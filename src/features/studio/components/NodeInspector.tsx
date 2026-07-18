@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ChangeEvent } from "react";
+import { STUDIO_VIDEO_EDIT_ENABLED } from "@/config/studioFeatures";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import { getImageModels } from "@/lib/image-api";
 import { getVideoModels } from "@/lib/video-api";
@@ -586,6 +587,67 @@ export function NodeInspector() {
             {data.errorMessage ? (
               <div className="studio-inspector-runtime-error" role="alert">
                 <strong>{data.errorCode || "VIDEO_GENERATION_FAILED"}</strong>
+                <span>{data.errorMessage}</span>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+
+        {data.kind === "videoEdit" ? (
+          <>
+            <InspectorField label="Mode">
+              <select value={data.mode} onChange={updateText("mode")}>
+                <option value="video_to_video">Video To Video</option>
+                <option value="replace_background">Replace Background</option>
+                <option value="extend">Extend Video</option>
+              </select>
+            </InspectorField>
+            <InspectorField label="Edit prompt">
+              <textarea
+                maxLength={2_000}
+                placeholder="Change the background to a futuristic city"
+                rows={7}
+                value={data.prompt}
+                onChange={updateText("prompt")}
+              />
+            </InspectorField>
+            <InspectorField label="Source video">
+              <input
+                disabled
+                placeholder="Connect a Video Asset Node"
+                value={data.sourceVideo?.sourceNodeId || ""}
+              />
+            </InspectorField>
+            <div className="studio-inspector-grid">
+              <InspectorField label="Status">
+                <input disabled value={data.status} />
+              </InspectorField>
+              <InspectorField label="Execution">
+                <input
+                  disabled
+                  value={
+                    data.result?.mock
+                      ? "Mock Completed"
+                      : STUDIO_VIDEO_EDIT_ENABLED
+                        ? "Provider reserved"
+                        : "Mock only"
+                  }
+                />
+              </InspectorField>
+            </div>
+            <InspectorField label="Result video">
+              <input
+                disabled
+                placeholder="Mock result appears after Run"
+                value={data.result?.videoUrl || ""}
+              />
+            </InspectorField>
+            <p className="studio-node-footnote">
+              The P1-A5 executor is a local pass-through mock. It never calls a provider or charges credits.
+            </p>
+            {data.errorMessage ? (
+              <div className="studio-inspector-runtime-error" role="alert">
+                <strong>{data.errorCode || "VIDEO_EDIT_FAILED"}</strong>
                 <span>{data.errorMessage}</span>
               </div>
             ) : null}
