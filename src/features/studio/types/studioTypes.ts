@@ -178,6 +178,8 @@ export type VideoGenerateNodeData = StudioNodeBase & {
   pipelineExecutionBlocked: boolean;
   generationPlanId: string;
   queueStatus: StudioGenerationQueueItemStatus | null;
+  timelineBound: boolean;
+  timelineBindError: string;
 };
 
 export type VideoEditMode =

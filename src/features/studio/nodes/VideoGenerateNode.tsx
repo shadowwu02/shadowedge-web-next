@@ -74,23 +74,40 @@ export function VideoGenerateNode({ data, id, selected }: NodeProps<StudioNode>)
           {data.errorMessage}
         </p>
       ) : null}
+      {data.timelineBindError ? (
+        <p className="studio-node-error" title={data.timelineBindError}>
+          Timeline binding failed. The completed video is safe; retry the timeline binding below.
+        </p>
+      ) : null}
       <StudioRetryButton nodeId={id} status={runtimeStatus} />
       <button
         className="studio-node-action nodrag nopan"
-        disabled={data.status !== "completed" || !Boolean(data.videoUrl || data.result)}
+        disabled={
+          data.timelineBound ||
+          data.status !== "completed" ||
+          !Boolean(data.videoUrl || data.result)
+        }
         onClick={(event) => {
           event.stopPropagation();
           addNodeToTimeline(id);
         }}
         onMouseDown={(event) => event.stopPropagation()}
         title={
-          data.status === "completed"
-            ? "Add this result to the video timeline"
-            : "Complete this video node before adding it to the timeline"
+          data.timelineBound
+            ? "This result is already bound to the video timeline"
+            : data.timelineBindError
+              ? "Retry binding this completed result to the video timeline"
+              : data.status === "completed"
+                ? "Add this result to the video timeline"
+                : "Complete this video node before adding it to the timeline"
         }
         type="button"
       >
-        Add To Timeline
+        {data.timelineBound
+          ? "Timeline Bound"
+          : data.timelineBindError
+            ? "Retry Timeline Binding"
+            : "Add To Timeline"}
       </button>
       {data.status === "completed" && data.videoUrl ? (
         <button

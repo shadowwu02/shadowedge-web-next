@@ -21,6 +21,10 @@ import {
   listStudioGenerationPlans,
   saveStudioGenerationPlan,
 } from "@/features/studio/lib/studioGenerationPlans";
+import {
+  bindCompletedVideoResultToTimeline,
+  TIMELINE_BIND_FAILED,
+} from "@/features/studio/lib/studioTimelineBinding";
 import { getStudioExecutor } from "@/features/studio/runtime/executorRegistry";
 import {
   buildStudioGenerationPlanFromNode,
@@ -492,6 +496,8 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
       pipelineExecutionBlocked: false,
       generationPlanId: "",
       queueStatus: null,
+      timelineBound: false,
+      timelineBindError: "",
     };
   }
   if (type === "video_edit") {
@@ -1020,15 +1026,47 @@ function applyVideoRuntimeToDownstreamOutputs(
 function applyVideoRuntimeToTimeline(
   timeline: StudioTimeline,
   runtime: StudioNodeRuntimeState,
+  nodes: StudioNode[],
 ) {
   if (outputString(runtime.outputs, "executor") !== "video_generate") {
-    return { changed: false, timeline };
+    return { changed: false, timeline, bound: false, errorCode: "" };
   }
 
   const videoUrl = outputString(runtime.outputs, "videoUrl");
   const thumbnail = outputString(runtime.outputs, "thumbnail") || videoUrl;
   const model = outputString(runtime.outputs, "model");
   const duration = positiveDuration(runtime.outputs.duration, 0);
+  if (runtime.status === "completed" && videoUrl) {
+    const sourceNode = nodes.find(
+      (node) => node.id === runtime.nodeId && node.data.kind === "videoGenerate",
+    );
+    const result = bindCompletedVideoResultToTimeline({
+      timeline,
+      sourceNodeId: runtime.nodeId,
+      url: videoUrl,
+      thumbnail,
+      duration:
+        duration ||
+        (sourceNode?.data.kind === "videoGenerate"
+          ? sourceNode.data.duration
+          : 4),
+      title:
+        sourceNode?.data.kind === "videoGenerate"
+          ? sourceNode.data.title
+          : "Generated video",
+      model:
+        model ||
+        (sourceNode?.data.kind === "videoGenerate" ? sourceNode.data.model : ""),
+      createdAt: runtime.finishedAt || nowIso(),
+    });
+    return {
+      changed: result.changed,
+      timeline: result.timeline,
+      bound: result.bound,
+      errorCode: result.errorCode,
+    };
+  }
+
   let changed = false;
   const tracks = timeline.tracks.map((track) => {
     if (track.type !== "video") return track;
@@ -1051,7 +1089,52 @@ function applyVideoRuntimeToTimeline(
     return { ...track, clips };
   });
 
-  return { changed, timeline: changed ? { tracks } : timeline };
+  return {
+    changed,
+    timeline: changed ? { tracks } : timeline,
+    bound: false,
+    errorCode: "",
+  };
+}
+
+function applyVideoTimelineBindingState(
+  nodes: StudioNode[],
+  runtime: StudioNodeRuntimeState,
+  binding: { bound: boolean; errorCode: string },
+) {
+  if (
+    outputString(runtime.outputs, "executor") !== "video_generate" ||
+    runtime.status !== "completed"
+  ) {
+    return { changed: false, nodes };
+  }
+
+  let changed = false;
+  const nextNodes = nodes.map((node) => {
+    if (node.id !== runtime.nodeId || node.data.kind !== "videoGenerate") {
+      return node;
+    }
+    const timelineBindError = binding.bound
+      ? ""
+      : binding.errorCode || TIMELINE_BIND_FAILED;
+    if (
+      node.data.timelineBound === binding.bound &&
+      node.data.timelineBindError === timelineBindError
+    ) {
+      return node;
+    }
+    changed = true;
+    return {
+      ...node,
+      data: {
+        ...node.data,
+        timelineBound: binding.bound,
+        timelineBindError,
+      },
+    } satisfies StudioNode;
+  });
+
+  return { changed, nodes: nextNodes };
 }
 
 function materializeRemakeShotNodes(
@@ -1998,14 +2081,27 @@ export const useStudioStore = create<StudioState>()(
               current.edges,
               runtime,
             );
-            const timeline = applyVideoRuntimeToTimeline(current.timeline, runtime);
-            const changed = applied.changed || downstream.changed || timeline.changed;
+            const timeline = applyVideoRuntimeToTimeline(
+              current.timeline,
+              runtime,
+              downstream.nodes,
+            );
+            const bindingState = applyVideoTimelineBindingState(
+              downstream.nodes,
+              runtime,
+              timeline,
+            );
+            const changed =
+              applied.changed ||
+              downstream.changed ||
+              timeline.changed ||
+              bindingState.changed;
             return {
               runtimeState: {
                 ...current.runtimeState,
                 [runtime.nodeId]: runtime,
               },
-              nodes: downstream.nodes,
+              nodes: bindingState.nodes,
               timeline: timeline.timeline,
               dirty: changed ? true : current.dirty,
               updatedAt: changed ? nowIso() : current.updatedAt,
@@ -2240,6 +2336,53 @@ export const useStudioStore = create<StudioState>()(
         set((state) => {
           const sourceNode = state.nodes.find((node) => node.id === nodeId);
           if (!sourceNode) return state;
+
+          if (sourceNode.data.kind === "videoGenerate") {
+            const videoUrl = sourceNode.data.videoUrl || sourceNode.data.result;
+            if (sourceNode.data.status !== "completed" || !videoUrl.trim()) {
+              return state;
+            }
+            const binding = bindCompletedVideoResultToTimeline({
+              timeline: state.timeline,
+              sourceNodeId: sourceNode.id,
+              url: videoUrl,
+              thumbnail: sourceNode.data.thumbnail,
+              duration: sourceNode.data.duration,
+              title: sourceNode.data.title,
+              model: sourceNode.data.model,
+              createdAt: nowIso(),
+            });
+            const timelineBindError = binding.bound
+              ? ""
+              : binding.errorCode || TIMELINE_BIND_FAILED;
+            const nodeChanged =
+              sourceNode.data.timelineBound !== binding.bound ||
+              sourceNode.data.timelineBindError !== timelineBindError;
+            if (!binding.changed && !nodeChanged) return state;
+            const snapshot = takeSnapshot(state);
+            return {
+              nodes: state.nodes.map((node) =>
+                node.id === sourceNode.id && node.data.kind === "videoGenerate"
+                  ? {
+                      ...node,
+                      data: {
+                        ...node.data,
+                        timelineBound: binding.bound,
+                        timelineBindError,
+                      },
+                    }
+                  : node,
+              ),
+              timeline: binding.timeline,
+              selectedTimelineClipId:
+                binding.clipId || state.selectedTimelineClipId,
+              past: appendHistory(state.past, snapshot),
+              future: [],
+              dirty: true,
+              updatedAt: nowIso(),
+            };
+          }
+
           const created = createTimelineClip(sourceNode, state.nodes);
           if (!created) return state;
 
@@ -2388,6 +2531,10 @@ export const useStudioStore = create<StudioState>()(
         set((state) => {
           const track = state.timeline.tracks.find((item) => item.id === trackId);
           if (!track || !track.clips.some((clip) => clip.id === clipId)) return state;
+          const removedVideoClip =
+            track.type === "video"
+              ? track.clips.find((clip) => clip.id === clipId)
+              : undefined;
           const snapshot = takeSnapshot(state);
           const tracks = state.timeline.tracks.map((item) => {
             if (item.id !== trackId) return item;
@@ -2410,7 +2557,33 @@ export const useStudioStore = create<StudioState>()(
               clips: item.clips.filter((clip) => clip.id !== clipId),
             };
           });
+          const sourceStillBound = removedVideoClip
+            ? tracks.some(
+                (item) =>
+                  item.type === "video" &&
+                  item.clips.some(
+                    (clip) =>
+                      clip.sourceNodeId === removedVideoClip.sourceNodeId,
+                  ),
+              )
+            : false;
           return {
+            nodes:
+              removedVideoClip && !sourceStillBound
+                ? state.nodes.map((node) =>
+                    node.id === removedVideoClip.sourceNodeId &&
+                    node.data.kind === "videoGenerate"
+                      ? {
+                          ...node,
+                          data: {
+                            ...node.data,
+                            timelineBound: false,
+                            timelineBindError: "",
+                          },
+                        }
+                      : node,
+                  )
+                : state.nodes,
             timeline: { tracks },
             selectedTimelineClipId:
               state.selectedTimelineClipId === clipId
@@ -2940,16 +3113,36 @@ export const useStudioStore = create<StudioState>()(
                         edges: materialized.edges,
                         timeline: current.timeline,
                       };
+                const downstream = applyVideoRuntimeToDownstreamOutputs(
+                  pipelinePlan.nodes,
+                  pipelinePlan.edges,
+                  nodeRuntime,
+                );
+                const timeline = applyVideoRuntimeToTimeline(
+                  pipelinePlan.timeline,
+                  nodeRuntime,
+                  downstream.nodes,
+                );
+                const bindingState = applyVideoTimelineBindingState(
+                  downstream.nodes,
+                  nodeRuntime,
+                  timeline,
+                );
                 const changed =
-                  canvas.changed || materialized.changed || pipelinePlan.changed;
+                  canvas.changed ||
+                  materialized.changed ||
+                  pipelinePlan.changed ||
+                  downstream.changed ||
+                  timeline.changed ||
+                  bindingState.changed;
                 return {
                   runtimeState: {
                     ...current.runtimeState,
                     [nodeRuntime.nodeId]: nodeRuntime,
                   },
-                  nodes: pipelinePlan.nodes,
+                  nodes: bindingState.nodes,
                   edges: pipelinePlan.edges,
-                  timeline: pipelinePlan.timeline,
+                  timeline: timeline.timeline,
                   dirty: changed ? true : current.dirty,
                   updatedAt: changed ? nowIso() : current.updatedAt,
                 };
