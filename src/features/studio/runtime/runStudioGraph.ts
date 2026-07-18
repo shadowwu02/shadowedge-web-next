@@ -52,6 +52,71 @@ function getNodeInputIds(
     }
   }
 
+  if (node.data.kind === "remakePipeline") {
+    const sourceNodeId = String(node.data.sourceVideo?.sourceNodeId || "").trim();
+    if (sourceNodeId && sourceNodeId !== node.id && nodeById.has(sourceNodeId)) {
+      inputIds.add(sourceNodeId);
+    }
+
+    const connectedVideoIds = Array.from(inputIds).filter((inputId) => {
+      const input = nodeById.get(inputId);
+      return input?.data.kind === "asset" && input.data.assetType === "video";
+    });
+    const analysisIds = new Set<string>();
+    const configuredAnalysisId = String(node.data.analysisNodeId || "").trim();
+    if (configuredAnalysisId && nodeById.get(configuredAnalysisId)?.data.kind === "remakeAnalysis") {
+      analysisIds.add(configuredAnalysisId);
+    }
+    Array.from(inputIds).forEach((inputId) => {
+      if (nodeById.get(inputId)?.data.kind === "remakeAnalysis") {
+        analysisIds.add(inputId);
+      }
+    });
+    if (!analysisIds.size && connectedVideoIds.length) {
+      nodeById.forEach((candidate) => {
+        if (
+          candidate.data.kind === "remakeAnalysis" &&
+          candidate.data.status === "completed" &&
+          (connectedVideoIds.includes(candidate.data.videoInput) ||
+            edges.some(
+              (edge) =>
+                connectedVideoIds.includes(edge.source) &&
+                edge.target === candidate.id,
+            ))
+        ) {
+          analysisIds.add(candidate.id);
+        }
+      });
+    }
+    analysisIds.forEach((analysisId) => {
+      inputIds.add(analysisId);
+      const analysisNode = nodeById.get(analysisId);
+      if (analysisNode?.data.kind !== "remakeAnalysis") return;
+      const configuredVideoId = String(analysisNode.data.videoInput || "").trim();
+      if (configuredVideoId && nodeById.get(configuredVideoId)?.data.kind === "asset") {
+        inputIds.add(configuredVideoId);
+      }
+      edges
+        .filter((edge) => edge.target === analysisId)
+        .map((edge) => edge.source)
+        .filter((sourceId) => {
+          const source = nodeById.get(sourceId);
+          return source?.data.kind === "asset" && source.data.assetType === "video";
+        })
+        .forEach((sourceId) => inputIds.add(sourceId));
+    });
+    if (!(node.data.status === "completed" && node.data.shotCount > 0)) {
+      nodeById.forEach((candidate) => {
+        if (
+          candidate.data.kind === "remakeShot" &&
+          analysisIds.has(candidate.data.analysisNodeId)
+        ) {
+          inputIds.add(candidate.id);
+        }
+      });
+    }
+  }
+
   if (node.data.kind === "videoEdit") {
     const sourceNodeId = String(node.data.sourceVideo?.sourceNodeId || "").trim();
     if (sourceNodeId && sourceNodeId !== node.id && nodeById.has(sourceNodeId)) {
@@ -88,7 +153,11 @@ function persistedNodeOutput(node: StudioNode): Record<string, unknown> {
   if (data.kind === "remakeShot") {
     return {
       executor: "remake_shot",
+      analysisNodeId: data.analysisNodeId,
+      storyboardId: data.storyboardId,
       shotId: data.shotId,
+      shotNumber: data.shotNumber,
+      description: data.description,
       prompt: data.prompt,
       camera: data.camera,
       duration: data.duration,
@@ -96,6 +165,7 @@ function persistedNodeOutput(node: StudioNode): Record<string, unknown> {
       model: data.model,
       quality: data.quality,
       referenceImages: data.referenceFrames,
+      sourceTimeRange: data.sourceTimeRange,
       status: data.status,
     };
   }
@@ -150,6 +220,20 @@ function persistedNodeOutput(node: StudioNode): Record<string, unknown> {
       message: data.errorMessage,
     };
   }
+  if (data.kind === "remakePipeline") {
+    return {
+      executor: "remake_pipeline",
+      analysisNodeId: data.analysisNodeId,
+      shotCount: data.shotCount,
+      videoNodeCount: data.videoNodeCount,
+      timelineClipCount: data.timelineClipCount,
+      status: data.status,
+      generationStarted: data.generationStarted,
+      providerCallMade: data.providerCallMade,
+      errorCode: data.errorCode,
+      message: data.errorMessage,
+    };
+  }
   return {
     executor: "output",
     jobId: data.jobId,
@@ -193,6 +277,7 @@ export function getStudioRetryPreflight(
     (data.kind === "videoGenerate" && data.status === "completed" && Boolean(data.videoUrl || data.result)) ||
     (data.kind === "videoEdit" && data.status === "completed" && Boolean(data.result?.videoUrl)) ||
     (data.kind === "remakeAnalysis" && data.status === "completed" && Boolean(data.storyboardId)) ||
+    (data.kind === "remakePipeline" && data.status === "completed" && data.shotCount > 0) ||
     (data.kind === "output" && data.status === "completed" && Boolean(data.resultPreview));
   if (hasCompletedResult) {
     return {
@@ -242,6 +327,35 @@ export function getStudioRetryPreflight(
         message: "Connect a ready Video Asset before retrying Remake analysis.",
       };
     }
+  }
+
+  if (data.kind === "remakePipeline") {
+    const video = inputs.find(
+      (input) => input.assetType === "video" && typeof input.url === "string" && input.url.trim(),
+    );
+    const analysis = inputs.find(
+      (input) =>
+        input.executor === "remake_analysis" &&
+        input.status === "completed" &&
+        typeof input.storyboardId === "string" &&
+        input.storyboardId.trim(),
+    );
+    const shot = inputs.find((input) => input.executor === "remake_shot");
+    if (!video || !analysis || !shot) {
+      return {
+        ok: false,
+        errorCode: "REMAKE_PIPELINE_INPUT_INVALID",
+        message: "A ready Video Asset, completed Remake Analysis, and Shot Nodes are required.",
+      };
+    }
+  }
+
+  if (data.kind === "videoGenerate" && data.pipelineExecutionBlocked) {
+    return {
+      ok: false,
+      errorCode: "REMAKE_PIPELINE_GENERATION_LOCKED",
+      message: "This planned video is locked until a future generation confirmation flow is enabled.",
+    };
   }
 
   if (data.kind === "videoEdit") {
@@ -319,6 +433,19 @@ export async function runStudioGraph({
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
 
   for (const node of executionOrder) {
+    if (
+      node.data.kind === "remakePipeline" &&
+      node.data.status === "completed" &&
+      node.data.shotCount > 0
+    ) {
+      continue;
+    }
+    if (
+      node.data.kind === "videoGenerate" &&
+      node.data.pipelineExecutionBlocked
+    ) {
+      continue;
+    }
     const startedAt = nowIso();
     const runningState: StudioNodeRuntimeState = {
       nodeId: node.id,

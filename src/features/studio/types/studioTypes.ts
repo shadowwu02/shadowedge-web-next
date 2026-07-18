@@ -4,6 +4,7 @@ export type StudioNodeType =
   | "asset"
   | "prompt"
   | "remakeAnalysis"
+  | "remake_pipeline"
   | "remakeShot"
   | "imageGenerate"
   | "videoGenerate"
@@ -77,6 +78,29 @@ export type RemakeAnalysisNodeData = StudioNodeBase & {
   errorMessage: string;
 };
 
+export type RemakePipelineNodeData = StudioNodeBase & {
+  kind: "remakePipeline";
+  sourceVideo: {
+    assetId: string;
+    sourceNodeId: string;
+    url: string;
+    thumbnail: string;
+  } | null;
+  analysisNodeId: string;
+  status: GenerationNodeStatus;
+  shotCount: number;
+  videoNodeCount: number;
+  timelineClipCount: number;
+  shotNodeIds: string[];
+  videoNodeIds: string[];
+  timelineClipIds: string[];
+  confirmationState: "none" | "awaiting" | "cancelled";
+  generationStarted: boolean;
+  providerCallMade: boolean;
+  errorCode: string;
+  errorMessage: string;
+};
+
 export type RemakeShotNodeData = StudioNodeBase & {
   kind: "remakeShot";
   analysisNodeId: string;
@@ -135,6 +159,8 @@ export type VideoGenerateNodeData = StudioNodeBase & {
   errorCode: string;
   errorMessage: string;
   sourceShotId: string;
+  sourcePipelineId: string;
+  pipelineExecutionBlocked: boolean;
 };
 
 export type VideoEditMode =
@@ -180,6 +206,7 @@ export type StudioNodeData = (
   | AssetNodeData
   | PromptNodeData
   | RemakeAnalysisNodeData
+  | RemakePipelineNodeData
   | RemakeShotNodeData
   | ImageGenerateNodeData
   | VideoGenerateNodeData
@@ -328,6 +355,11 @@ export const STUDIO_NODE_DEFINITIONS: Array<{
     type: "remakeAnalysis",
     label: "Remake Analysis",
     description: "Analyze one video into editable shot nodes",
+  },
+  {
+    type: "remake_pipeline",
+    label: "Remake Pipeline",
+    description: "Build a local shot, video node, and timeline production plan",
   },
   {
     type: "remakeShot",

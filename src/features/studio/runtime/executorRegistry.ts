@@ -9,6 +9,7 @@ import { ImageGenerateExecutor } from "@/features/studio/runtime/executors/image
 import { VideoGenerateExecutor } from "@/features/studio/runtime/executors/videoGenerateExecutor";
 import { VideoEditExecutor } from "@/features/studio/runtime/executors/videoEditExecutor";
 import { RemakeAnalysisExecutor } from "@/features/studio/runtime/executors/remakeAnalysisExecutor";
+import { RemakePipelineExecutor } from "@/features/studio/runtime/executors/remakePipelineExecutor";
 import type { StudioNodeType } from "@/features/studio/types/studioTypes";
 
 const MOCK_EXECUTION_DELAY_MS = 120;
@@ -85,13 +86,18 @@ export const RemakeShotExecutor: StudioNodeExecutor = {
       outputs: {
         executor: "remake_shot",
         status: "completed",
+        analysisNodeId: configValue(context, "analysisNodeId"),
+        storyboardId: configValue(context, "storyboardId"),
         shotId: configValue(context, "shotId"),
+        shotNumber: configValue(context, "shotNumber"),
+        description: configValue(context, "description"),
         prompt: configValue(context, "prompt"),
         camera: configValue(context, "camera"),
         duration: configValue(context, "duration"),
         ratio: configValue(context, "ratio"),
         model: configValue(context, "model"),
         quality: configValue(context, "quality"),
+        sourceTimeRange: configValue(context, "sourceTimeRange"),
         referenceImages,
       },
     };
@@ -150,6 +156,7 @@ export const executorRegistry = {
   asset: AssetExecutor,
   prompt: PromptExecutor,
   remake_analysis: RemakeAnalysisExecutor,
+  remake_pipeline: RemakePipelineExecutor,
   remake_shot: RemakeShotExecutor,
   image_generate: ImageGenerateExecutor,
   video_generate: VideoGenerateExecutor,
@@ -161,6 +168,7 @@ export const studioExecutorTypeMap = {
   asset: "asset",
   prompt: "prompt",
   remakeAnalysis: "remake_analysis",
+  remake_pipeline: "remake_pipeline",
   remakeShot: "remake_shot",
   imageGenerate: "image_generate",
   videoGenerate: "video_generate",

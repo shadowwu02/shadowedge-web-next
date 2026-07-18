@@ -56,6 +56,11 @@ export function VideoGenerateNode({ data, id, selected }: NodeProps<StudioNode>)
         </div>
       </dl>
       <StudioCostPreview data={data} />
+      {data.pipelineExecutionBlocked ? (
+        <p className="studio-node-footnote">
+          Pipeline plan only; automatic generation is locked.
+        </p>
+      ) : null}
       {data.jobId ? <p className="studio-node-footnote">Job {data.jobId}</p> : null}
       {data.errorMessage ? (
         <p className="studio-node-error" title={data.errorCode}>

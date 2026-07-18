@@ -14,6 +14,7 @@ import { ImageGenerateNode } from "@/features/studio/nodes/ImageGenerateNode";
 import { OutputNode } from "@/features/studio/nodes/OutputNode";
 import { PromptNode } from "@/features/studio/nodes/PromptNode";
 import { RemakeAnalysisNode } from "@/features/studio/nodes/RemakeAnalysisNode";
+import { RemakePipelineNode } from "@/features/studio/nodes/RemakePipelineNode";
 import { RemakeShotNode } from "@/features/studio/nodes/RemakeShotNode";
 import { VideoGenerateNode } from "@/features/studio/nodes/VideoGenerateNode";
 import { VideoEditNode } from "@/features/studio/nodes/VideoEditNode";
@@ -31,6 +32,7 @@ const nodeTypes = {
   asset: AssetNode,
   prompt: PromptNode,
   remakeAnalysis: RemakeAnalysisNode,
+  remake_pipeline: RemakePipelineNode,
   remakeShot: RemakeShotNode,
   imageGenerate: ImageGenerateNode,
   videoGenerate: VideoGenerateNode,

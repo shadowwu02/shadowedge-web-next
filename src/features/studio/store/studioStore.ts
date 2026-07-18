@@ -60,7 +60,7 @@ export function getStudioCanvasStorageKey(brandId: BrandId) {
 export const STUDIO_CANVAS_STORAGE_KEY = getStudioCanvasStorageKey(activeBrand.id);
 
 const defaultViewport: Viewport = { x: 8, y: 36, zoom: 0.82 };
-const STUDIO_CANVAS_VERSION = 4;
+const STUDIO_CANVAS_VERSION = 5;
 const DEFAULT_VIDEO_TRACK_ID = "track-video-1";
 const DEFAULT_AUDIO_TRACK_ID = "track-audio-1";
 const DEFAULT_SUBTITLE_TRACK_ID = "track-subtitle-1";
@@ -389,6 +389,26 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
       errorMessage: "",
     };
   }
+  if (type === "remake_pipeline") {
+    return {
+      kind: "remakePipeline",
+      title: "Remake auto movie plan",
+      sourceVideo: null,
+      analysisNodeId: "",
+      status: "idle",
+      shotCount: 0,
+      videoNodeCount: 0,
+      timelineClipCount: 0,
+      shotNodeIds: [],
+      videoNodeIds: [],
+      timelineClipIds: [],
+      confirmationState: "none",
+      generationStarted: false,
+      providerCallMade: false,
+      errorCode: "",
+      errorMessage: "",
+    };
+  }
   if (type === "remakeShot") {
     return {
       kind: "remakeShot",
@@ -450,6 +470,8 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
       errorCode: "",
       errorMessage: "",
       sourceShotId: "",
+      sourcePipelineId: "",
+      pipelineExecutionBlocked: false,
     };
   }
   if (type === "video_edit") {
@@ -647,6 +669,52 @@ function applyRuntimeOutputToCanvas(
           providerCallMade:
             runtime.outputs.providerCallMade === true || node.data.providerCallMade,
           vlmCalled: runtime.outputs.vlmCalled === true || node.data.vlmCalled,
+          errorCode:
+            runtime.status === "failed"
+              ? outputString(runtime.outputs, "errorCode")
+              : "",
+          errorMessage:
+            runtime.status === "failed"
+              ? outputString(runtime.outputs, "message") || runtime.error || ""
+              : "",
+        },
+      } satisfies StudioNode;
+    }
+
+    if (node.data.kind === "remakePipeline") {
+      const sourceVideo = asRecord(runtime.outputs.sourceVideo);
+      const status =
+        runtime.status === "completed" || runtime.status === "failed"
+          ? runtime.status
+          : "processing";
+      changed = true;
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          status,
+          sourceVideo:
+            sourceVideo.url
+              ? {
+                  assetId: outputString(sourceVideo, "assetId"),
+                  sourceNodeId: outputString(sourceVideo, "sourceNodeId"),
+                  url: outputString(sourceVideo, "url"),
+                  thumbnail: outputString(sourceVideo, "thumbnail"),
+                }
+              : node.data.sourceVideo,
+          analysisNodeId:
+            outputString(runtime.outputs, "analysisNodeId") ||
+            node.data.analysisNodeId,
+          shotCount: Number(runtime.outputs.shotCount) || node.data.shotCount,
+          videoNodeCount:
+            Number(runtime.outputs.videoNodeCount) || node.data.videoNodeCount,
+          timelineClipCount:
+            Number(runtime.outputs.timelineClipCount) ||
+            node.data.timelineClipCount,
+          confirmationState:
+            runtime.status === "completed" ? "awaiting" : node.data.confirmationState,
+          generationStarted: false,
+          providerCallMade: false,
           errorCode:
             runtime.status === "failed"
               ? outputString(runtime.outputs, "errorCode")
@@ -900,6 +968,219 @@ function materializeRemakeShotNodes(
   });
 
   return { changed, nodes: nextNodes, edges: nextEdges };
+}
+
+function materializeRemakePipelinePlan(
+  nodes: StudioNode[],
+  edges: StudioEdge[],
+  timeline: StudioTimeline,
+  runtime: StudioNodeRuntimeState,
+) {
+  const pipelineNode = nodes.find(
+    (node) => node.id === runtime.nodeId && node.data.kind === "remakePipeline",
+  );
+  const shots = Array.isArray(runtime.outputs.shots)
+    ? runtime.outputs.shots.map(asRecord)
+    : [];
+  if (!pipelineNode || pipelineNode.data.kind !== "remakePipeline" || !shots.length) {
+    return { changed: false, nodes, edges, timeline };
+  }
+
+  const nextNodes = [...nodes];
+  const nextEdges = [...edges];
+  const shotNodeIds: string[] = [];
+  const videoNodeIds: string[] = [];
+  const timelineClipIds: string[] = [];
+  const analysisNodeId =
+    outputString(runtime.outputs, "analysisNodeId") ||
+    pipelineNode.data.analysisNodeId;
+  const storyboardId = outputString(runtime.outputs, "storyboardId");
+  const createdAt = nowIso();
+  const videoTrack = timeline.tracks.find((track) => track.type === "video");
+  let videoClips = videoTrack?.type === "video" ? [...videoTrack.clips] : [];
+
+  shots.forEach((shot, index) => {
+    const shotId = String(shot.shotId || `shot-${index + 1}`);
+    const shotNumber = Math.max(1, Number(shot.shotNumber) || index + 1);
+    const sourceTimeRange = asRecord(shot.sourceTimeRange);
+    const sourceShotNodeId = outputString(shot, "sourceNodeId");
+    let shotNode = nextNodes.find(
+      (node) =>
+        node.data.kind === "remakeShot" &&
+        (node.id === sourceShotNodeId ||
+          (node.data.analysisNodeId === analysisNodeId &&
+            node.data.shotId === shotId)),
+    );
+    if (!shotNode || shotNode.data.kind !== "remakeShot") {
+      const shotNodeId = `remake-shot-${safeNodeIdPart(pipelineNode.id)}-${safeNodeIdPart(shotId)}`;
+      shotNode = {
+        id: shotNodeId,
+        type: "remakeShot",
+        position: {
+          x: pipelineNode.position.x + 340 + Math.floor(index / 4) * 650,
+          y: pipelineNode.position.y + (index % 4) * 280,
+        },
+        data: {
+          kind: "remakeShot",
+          title: `Shot ${shotNumber}`,
+          analysisNodeId,
+          storyboardId,
+          shotId,
+          shotNumber,
+          description: String(shot.description || `Storyboard shot ${shotNumber}`),
+          prompt: String(shot.prompt || ""),
+          duration: Math.max(1, Number(shot.duration) || 4),
+          camera: String(shot.camera || ""),
+          referenceFrames: Array.isArray(shot.referenceFrames)
+            ? shot.referenceFrames.map(String).filter(Boolean)
+            : [],
+          sourceTimeRange: {
+            start: Math.max(0, Number(sourceTimeRange.start) || 0),
+            end: Math.max(0, Number(sourceTimeRange.end) || 0),
+          },
+          model: String(shot.model || "seedance_2_0"),
+          ratio: String(shot.ratio || "16:9"),
+          quality: String(shot.quality || "720p"),
+          status: "ready",
+        },
+      };
+      nextNodes.push(shotNode);
+    }
+    if (!shotNode || shotNode.data.kind !== "remakeShot") return;
+    const shotData = shotNode.data;
+    shotNodeIds.push(shotNode.id);
+
+    if (!nextEdges.some((edge) => edge.source === pipelineNode.id && edge.target === shotNode.id)) {
+      nextEdges.push({
+        id: `edge-${safeNodeIdPart(pipelineNode.id)}-${safeNodeIdPart(shotNode.id)}`,
+        source: pipelineNode.id,
+        target: shotNode.id,
+        type: "smoothstep",
+        animated: true,
+      });
+    }
+
+    let videoNode = nextNodes.find(
+      (node) =>
+        node.data.kind === "videoGenerate" &&
+        node.data.sourceShotId === shotNode.id,
+    );
+    if (!videoNode || videoNode.data.kind !== "videoGenerate") {
+      const defaults = createNodeData("videoGenerate");
+      if (defaults.kind !== "videoGenerate") return;
+      const videoNodeId = `video-generate-${safeNodeIdPart(pipelineNode.id)}-${safeNodeIdPart(shotId)}`;
+      const newVideoNode: StudioNode = {
+        id: videoNodeId,
+        type: "videoGenerate",
+        position: {
+          x: shotNode.position.x + 330,
+          y: shotNode.position.y + 20,
+        },
+        data: {
+          ...defaults,
+          title: `Generate Shot ${shotNumber}`,
+          model: shotData.model,
+          duration: shotData.duration,
+          ratio: shotData.ratio,
+          quality: shotData.quality,
+          resolution: shotData.quality,
+          references: shotData.referenceFrames,
+          promptInput: shotNode.id,
+          imageInput: "",
+          videoInput: "",
+          sourceShotId: shotNode.id,
+          sourcePipelineId: pipelineNode.id,
+          pipelineExecutionBlocked: true,
+          status: "idle",
+        },
+      };
+      videoNode = newVideoNode;
+      nextNodes.push(newVideoNode);
+    }
+    if (!videoNode || videoNode.data.kind !== "videoGenerate") return;
+    const videoData = videoNode.data;
+    videoNodeIds.push(videoNode.id);
+
+    if (!nextEdges.some((edge) => edge.source === shotNode.id && edge.target === videoNode.id)) {
+      nextEdges.push({
+        id: `edge-${safeNodeIdPart(shotNode.id)}-${safeNodeIdPart(videoNode.id)}`,
+        source: shotNode.id,
+        target: videoNode.id,
+        type: "smoothstep",
+        animated: true,
+      });
+    }
+
+    const existingClip = videoClips.find((clip) => clip.sourceNodeId === videoNode.id);
+    if (existingClip) {
+      timelineClipIds.push(existingClip.id);
+      return;
+    }
+    const completedVideo =
+      videoData.status === "completed"
+        ? videoData.videoUrl || videoData.result
+        : "";
+    const clipId = `timeline-clip-${safeNodeIdPart(pipelineNode.id)}-${safeNodeIdPart(shotId)}`;
+    timelineClipIds.push(clipId);
+    videoClips.push({
+      id: clipId,
+      sourceNodeId: videoNode.id,
+      sourceType: "video_node",
+      thumbnail: videoData.thumbnail,
+      url: completedVideo,
+      start: 0,
+      duration: positiveDuration(videoData.duration),
+      createdAt,
+      metadata: {
+        title: `Shot ${shotNumber} Video`,
+        model: videoData.model,
+        status: completedVideo ? "completed" : "planned",
+      },
+    });
+  });
+
+  videoClips = reflowTimelineClips(videoClips);
+  const nextVideoTrack: StudioVideoTimelineTrack = {
+    id: videoTrack?.id || DEFAULT_VIDEO_TRACK_ID,
+    type: "video",
+    clips: videoClips,
+  };
+  const nextTimeline: StudioTimeline = {
+    tracks: videoTrack
+      ? timeline.tracks.map((track) =>
+          track.type === "video" ? nextVideoTrack : track,
+        )
+      : [nextVideoTrack, ...timeline.tracks],
+  };
+  const finalizedNodes = nextNodes.map((node) =>
+    node.id === pipelineNode.id && node.data.kind === "remakePipeline"
+      ? {
+          ...node,
+          data: {
+            ...node.data,
+            status: "completed" as const,
+            shotCount: shotNodeIds.length,
+            videoNodeCount: videoNodeIds.length,
+            timelineClipCount: timelineClipIds.length,
+            shotNodeIds,
+            videoNodeIds,
+            timelineClipIds,
+            confirmationState: "awaiting" as const,
+            generationStarted: false,
+            providerCallMade: false,
+            errorCode: "",
+            errorMessage: "",
+          },
+        }
+      : node,
+  );
+
+  return {
+    changed: true,
+    nodes: finalizedNodes,
+    edges: nextEdges,
+    timeline: nextTimeline,
+  };
 }
 
 type StudioState = StudioCanvasSnapshot & {
@@ -1912,14 +2193,30 @@ export const useStudioStore = create<StudioState>()(
                   nodeRuntime.status === "completed"
                     ? materializeRemakeShotNodes(canvas.nodes, current.edges, nodeRuntime)
                     : { changed: false, nodes: canvas.nodes, edges: current.edges };
-                const changed = canvas.changed || materialized.changed;
+                const pipelinePlan =
+                  nodeRuntime.status === "completed"
+                    ? materializeRemakePipelinePlan(
+                        materialized.nodes,
+                        materialized.edges,
+                        current.timeline,
+                        nodeRuntime,
+                      )
+                    : {
+                        changed: false,
+                        nodes: materialized.nodes,
+                        edges: materialized.edges,
+                        timeline: current.timeline,
+                      };
+                const changed =
+                  canvas.changed || materialized.changed || pipelinePlan.changed;
                 return {
                   runtimeState: {
                     ...current.runtimeState,
                     [nodeRuntime.nodeId]: nodeRuntime,
                   },
-                  nodes: materialized.nodes,
-                  edges: materialized.edges,
+                  nodes: pipelinePlan.nodes,
+                  edges: pipelinePlan.edges,
+                  timeline: pipelinePlan.timeline,
                   dirty: changed ? true : current.dirty,
                   updatedAt: changed ? nowIso() : current.updatedAt,
                 };
@@ -2056,14 +2353,30 @@ export const useStudioStore = create<StudioState>()(
                   nodeRuntime.status === "completed"
                     ? materializeRemakeShotNodes(canvas.nodes, current.edges, nodeRuntime)
                     : { changed: false, nodes: canvas.nodes, edges: current.edges };
-                const changed = canvas.changed || materialized.changed;
+                const pipelinePlan =
+                  nodeRuntime.status === "completed"
+                    ? materializeRemakePipelinePlan(
+                        materialized.nodes,
+                        materialized.edges,
+                        current.timeline,
+                        nodeRuntime,
+                      )
+                    : {
+                        changed: false,
+                        nodes: materialized.nodes,
+                        edges: materialized.edges,
+                        timeline: current.timeline,
+                      };
+                const changed =
+                  canvas.changed || materialized.changed || pipelinePlan.changed;
                 return {
                   runtimeState: {
                     ...current.runtimeState,
                     [nodeId]: nodeRuntime,
                   },
-                  nodes: materialized.nodes,
-                  edges: materialized.edges,
+                  nodes: pipelinePlan.nodes,
+                  edges: pipelinePlan.edges,
+                  timeline: pipelinePlan.timeline,
                   dirty: changed ? true : current.dirty,
                   updatedAt: changed ? nowIso() : current.updatedAt,
                 };

@@ -9,6 +9,7 @@ const nodeLabels: Record<StudioNodeType, string> = {
   asset: "Asset",
   prompt: "Prompt",
   remakeAnalysis: "Remake Analysis",
+  remake_pipeline: "Remake Pipeline",
   remakeShot: "Remake Shot",
   imageGenerate: "Image Generate",
   videoGenerate: "Video Generate",
@@ -55,7 +56,8 @@ export function StudioRunHistoryPanel() {
                 (node) =>
                   node.type === "videoGenerate" ||
                   node.type === "imageGenerate" ||
-                  node.type === "remakeAnalysis",
+                  node.type === "remakeAnalysis" ||
+                  node.type === "remake_pipeline",
               ) ||
               run.nodes[0];
             return (

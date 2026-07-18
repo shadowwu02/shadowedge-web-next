@@ -324,6 +324,72 @@ export function NodeInspector() {
           </>
         ) : null}
 
+        {data.kind === "remakePipeline" ? (
+          <>
+            <InspectorField label="Source video">
+              <input
+                disabled
+                placeholder="Connect the analyzed Video Asset"
+                value={data.sourceVideo?.sourceNodeId || ""}
+              />
+            </InspectorField>
+            <InspectorField label="Completed analysis">
+              <input
+                disabled
+                placeholder="Connect or reuse a completed Remake Analysis"
+                value={data.analysisNodeId}
+              />
+            </InspectorField>
+            <div className="studio-inspector-grid">
+              <InspectorField label="Shots">
+                <input disabled value={data.shotCount} />
+              </InspectorField>
+              <InspectorField label="Video nodes">
+                <input disabled value={data.videoNodeCount} />
+              </InspectorField>
+            </div>
+            <div className="studio-inspector-grid">
+              <InspectorField label="Timeline clips">
+                <input disabled value={data.timelineClipCount} />
+              </InspectorField>
+              <InspectorField label="Confirmation">
+                <input disabled value={data.confirmationState} />
+              </InspectorField>
+            </div>
+            <div className="studio-node-copy" role="status">
+              <strong>Remake Plan</strong>
+              <span>
+                {data.status === "completed"
+                  ? `${data.shotCount} shots / ${data.videoNodeCount} planned videos / Timeline ready`
+                  : "Run this node after Remake Analysis has created Shot Nodes."}
+              </span>
+            </div>
+            <button className="studio-node-action" disabled type="button">
+              Start Generation
+            </button>
+            <button
+              className="studio-node-action"
+              disabled={
+                data.status !== "completed" ||
+                data.confirmationState === "cancelled"
+              }
+              onClick={() => update({ confirmationState: "cancelled" })}
+              type="button"
+            >
+              Cancel
+            </button>
+            <p className="studio-node-footnote">
+              P1-A6 only creates and saves a local production plan. It never calls Remake, Video, or provider APIs.
+            </p>
+            {data.errorMessage ? (
+              <div className="studio-inspector-runtime-error" role="alert">
+                <strong>{data.errorCode || "REMAKE_PIPELINE_FAILED"}</strong>
+                <span>{data.errorMessage}</span>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+
         {data.kind === "remakeShot" ? (
           <>
             <div className="studio-inspector-grid">

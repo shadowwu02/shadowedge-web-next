@@ -41,6 +41,7 @@ export type StudioExecutorKey =
   | "asset"
   | "prompt"
   | "remake_analysis"
+  | "remake_pipeline"
   | "remake_shot"
   | "image_generate"
   | "video_generate"
