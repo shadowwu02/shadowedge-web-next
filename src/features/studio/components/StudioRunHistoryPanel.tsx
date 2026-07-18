@@ -68,9 +68,19 @@ export function StudioRunHistoryPanel() {
                     {run.status}
                   </span>
                 </div>
-                <p>{focusNode ? nodeLabels[focusNode.type] : "Workflow"}</p>
+                <p>
+                  {run.type === "generation_plan"
+                    ? "Generation Plan"
+                    : focusNode
+                      ? nodeLabels[focusNode.type]
+                      : "Workflow"}
+                </p>
                 <small>
-                  {run.mode === "retry" ? "Single-node retry" : `${run.nodes.length} nodes`} ·{" "}
+                  {run.mode === "retry"
+                    ? "Single-node retry"
+                    : run.mode === "generation_plan"
+                      ? `${run.tasks || run.nodes.length} mock tasks / ${run.estimatedCredits || 0} estimated credits`
+                      : `${run.nodes.length} nodes`} ·{" "}
                   {relativeTime(run.createdAt)}
                 </small>
                 {focusNode?.errorCode || focusNode?.message ? (

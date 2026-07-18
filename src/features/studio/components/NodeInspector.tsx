@@ -55,7 +55,34 @@ export function NodeInspector() {
   const createVideoNodeFromRemakeShot = useStudioStore(
     (state) => state.createVideoNodeFromRemakeShot,
   );
+  const generationPlans = useStudioStore((state) => state.generationPlans);
+  const generationQueue = useStudioStore((state) => state.generationQueue);
+  const createGenerationPlan = useStudioStore(
+    (state) => state.createGenerationPlan,
+  );
+  const startGenerationPlan = useStudioStore(
+    (state) => state.startGenerationPlan,
+  );
+  const cancelGenerationPlan = useStudioStore(
+    (state) => state.cancelGenerationPlan,
+  );
   const selectedNode = nodes.find((node) => node.id === selectedNodeId);
+  const selectedGenerationPlan =
+    selectedNode?.data.kind === "remakePipeline"
+      ? generationPlans.find(
+          (plan) =>
+            plan.id === selectedNode.data.generationPlanId ||
+            (!selectedNode.data.generationPlanId &&
+              plan.pipelineNodeId === selectedNode.id),
+        )
+      : undefined;
+  const selectedPlanItemCredits =
+    selectedGenerationPlan?.items.map((item) => item.estimatedCredits) || [];
+  const selectedPlanUnitCost = selectedPlanItemCredits.length
+    ? Math.min(...selectedPlanItemCredits) === Math.max(...selectedPlanItemCredits)
+      ? `${selectedPlanItemCredits[0]} credits`
+      : `${Math.min(...selectedPlanItemCredits)}–${Math.max(...selectedPlanItemCredits)} credits`
+    : "Not calculated";
   const [imageModels, setImageModels] = useState<ImageModel[]>([]);
   const [imageModelsError, setImageModelsError] = useState("");
   const [videoModels, setVideoModels] = useState<VideoModel[]>([]);
@@ -364,22 +391,73 @@ export function NodeInspector() {
                   : "Run this node after Remake Analysis has created Shot Nodes."}
               </span>
             </div>
-            <button className="studio-node-action" disabled type="button">
+            {selectedGenerationPlan ? (
+              <>
+                <div className="studio-inspector-grid">
+                  <InspectorField label="Queue status">
+                    <input disabled value={selectedGenerationPlan.status} />
+                  </InspectorField>
+                  <InspectorField label="Video tasks">
+                    <input disabled value={selectedGenerationPlan.items.length} />
+                  </InspectorField>
+                </div>
+                <div className="studio-inspector-grid">
+                  <InspectorField label="Per-task credits">
+                    <input disabled value={selectedPlanUnitCost} />
+                  </InspectorField>
+                  <InspectorField label="Estimated total">
+                    <input disabled value={`${selectedGenerationPlan.estimatedCredits} credits`} />
+                  </InspectorField>
+                </div>
+              </>
+            ) : null}
+            <p className="studio-node-footnote">
+              Video tasks: {selectedGenerationPlan?.items.length || data.videoNodeCount} / concurrency: 1
+            </p>
+            <button
+              className="studio-node-action"
+              disabled={data.status !== "completed" || generationQueue.running}
+              onClick={() => createGenerationPlan(selectedNode.id)}
+              type="button"
+            >
+              Generate Plan
+            </button>
+            <button
+              className="studio-node-action"
+              disabled={
+                !selectedGenerationPlan ||
+                generationQueue.running ||
+                (selectedGenerationPlan.status !== "draft" &&
+                  selectedGenerationPlan.status !== "failed")
+              }
+              onClick={() => {
+                if (selectedGenerationPlan) {
+                  void startGenerationPlan(selectedGenerationPlan.id);
+                }
+              }}
+              title="Runs the local mock queue only."
+              type="button"
+            >
               Start Generation
             </button>
             <button
               className="studio-node-action"
               disabled={
-                data.status !== "completed" ||
-                data.confirmationState === "cancelled"
+                !selectedGenerationPlan ||
+                selectedGenerationPlan.status === "completed" ||
+                selectedGenerationPlan.status === "cancelled"
               }
-              onClick={() => update({ confirmationState: "cancelled" })}
+              onClick={() => {
+                if (selectedGenerationPlan) {
+                  cancelGenerationPlan(selectedGenerationPlan.id);
+                }
+              }}
               type="button"
             >
               Cancel
             </button>
             <p className="studio-node-footnote">
-              P1-A6 only creates and saves a local production plan. It never calls Remake, Video, or provider APIs.
+              Cost uses existing model rules. Start runs waiting → queued → running → completed (mock), with no provider call or credit charge.
             </p>
             {data.errorMessage ? (
               <div className="studio-inspector-runtime-error" role="alert">
@@ -640,6 +718,11 @@ export function NodeInspector() {
             <InspectorField label="Status">
               <input disabled value={data.status || "idle"} />
             </InspectorField>
+            {data.queueStatus ? (
+              <InspectorField label="Mock queue status">
+                <input disabled value={data.queueStatus} />
+              </InspectorField>
+            ) : null}
             <InspectorField label="Job ID">
               <input disabled placeholder="Created after Run" value={data.jobId || ""} />
             </InspectorField>

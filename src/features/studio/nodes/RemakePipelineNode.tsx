@@ -12,10 +12,36 @@ export function RemakePipelineNode({ data, id, selected }: NodeProps<StudioNode>
     id,
     data.kind === "remakePipeline" ? data.status : "idle",
   );
-  const updateNodeData = useStudioStore((state) => state.updateNodeData);
+  const generationPlans = useStudioStore((state) => state.generationPlans);
+  const generationQueue = useStudioStore((state) => state.generationQueue);
+  const createGenerationPlan = useStudioStore(
+    (state) => state.createGenerationPlan,
+  );
+  const startGenerationPlan = useStudioStore(
+    (state) => state.startGenerationPlan,
+  );
+  const cancelGenerationPlan = useStudioStore(
+    (state) => state.cancelGenerationPlan,
+  );
   if (data.kind !== "remakePipeline") return null;
 
   const planReady = data.status === "completed" && data.shotCount > 0;
+  const generationPlan = generationPlans.find(
+    (plan) =>
+      plan.id === data.generationPlanId ||
+      (!data.generationPlanId && plan.pipelineNodeId === id),
+  );
+  const completedTasks =
+    generationPlan?.items.filter((item) => item.status === "completed").length || 0;
+  const runningTask = generationPlan?.items.find(
+    (item) => item.status === "running" || item.status === "queued",
+  );
+  const itemCredits = generationPlan?.items.map((item) => item.estimatedCredits) || [];
+  const unitCreditLabel = itemCredits.length
+    ? Math.min(...itemCredits) === Math.max(...itemCredits)
+      ? `${itemCredits[0]} credits each`
+      : `${Math.min(...itemCredits)}–${Math.max(...itemCredits)} credits each`
+    : "Awaiting plan";
   return (
     <StudioNodeFrame
       eyebrow="Remake Pipeline"
@@ -36,6 +62,15 @@ export function RemakePipelineNode({ data, id, selected }: NodeProps<StudioNode>
           Remake Plan Ready. Review every planned Video Node before a future generation step.
         </div>
       ) : null}
+      {generationPlan ? (
+        <dl className="studio-node-meta">
+          <div><dt>Plan</dt><dd>{generationPlan.status}</dd></div>
+          <div><dt>Tasks</dt><dd>{completedTasks}/{generationPlan.items.length}</dd></div>
+          <div><dt>Unit cost</dt><dd>{unitCreditLabel}</dd></div>
+          <div><dt>Estimated</dt><dd>{generationPlan.estimatedCredits} credits</dd></div>
+          <div><dt>Queue</dt><dd>{runningTask?.status || "waiting"} / max 1</dd></div>
+        </dl>
+      ) : null}
       {data.confirmationState === "cancelled" ? (
         <p className="studio-node-footnote">Generation handoff cancelled; the editable plan remains saved.</p>
       ) : null}
@@ -45,25 +80,50 @@ export function RemakePipelineNode({ data, id, selected }: NodeProps<StudioNode>
       <StudioRetryButton nodeId={id} status={runtimeStatus} />
       <button
         className="studio-node-action nodrag nopan"
-        disabled
-        title="Reserved for a later phase; P1-A6 never creates video jobs."
+        disabled={!planReady || generationQueue.running}
+        onClick={(event) => {
+          event.stopPropagation();
+          createGenerationPlan(id);
+        }}
+        onMouseDown={(event) => event.stopPropagation()}
+        type="button"
+      >
+        Generate Plan
+      </button>
+      <button
+        className="studio-node-action nodrag nopan"
+        disabled={
+          !generationPlan ||
+          generationQueue.running ||
+          (generationPlan.status !== "draft" && generationPlan.status !== "failed")
+        }
+        onClick={(event) => {
+          event.stopPropagation();
+          if (generationPlan) void startGenerationPlan(generationPlan.id);
+        }}
+        onMouseDown={(event) => event.stopPropagation()}
+        title="Runs a local mock queue only; no video provider is called."
         type="button"
       >
         Start Generation
       </button>
       <button
         className="studio-node-action nodrag nopan"
-        disabled={!planReady || data.confirmationState === "cancelled"}
+        disabled={
+          !generationPlan ||
+          generationPlan.status === "completed" ||
+          generationPlan.status === "cancelled"
+        }
         onClick={(event) => {
           event.stopPropagation();
-          updateNodeData(id, { confirmationState: "cancelled" });
+          if (generationPlan) cancelGenerationPlan(generationPlan.id);
         }}
         onMouseDown={(event) => event.stopPropagation()}
         type="button"
       >
         Cancel
       </button>
-      <p className="studio-node-footnote">Local planning only / no provider / no credits</p>
+      <p className="studio-node-footnote">Mock queue only / concurrency 1 / no provider / no credits</p>
     </StudioNodeFrame>
   );
 }

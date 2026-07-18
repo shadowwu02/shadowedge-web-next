@@ -21,7 +21,9 @@ function isRunRecord(value: unknown): value is StudioRunRecord {
       run.projectId &&
       run.createdAt &&
       (run.status === "running" || run.status === "completed" || run.status === "failed") &&
-      (run.mode === "graph" || run.mode === "retry") &&
+      (run.mode === "graph" ||
+        run.mode === "retry" ||
+        run.mode === "generation_plan") &&
       Array.isArray(run.nodes),
   );
 }

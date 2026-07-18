@@ -18,12 +18,13 @@ export function VideoGenerateNode({ data, id, selected }: NodeProps<StudioNode>)
   );
   const addNodeToTimeline = useStudioStore((state) => state.addNodeToTimeline);
   if (data.kind !== "videoGenerate") return null;
+  const displayStatus = data.queueStatus || runtimeStatus;
 
   return (
     <StudioNodeFrame
       eyebrow="Video"
       selected={selected}
-      status={runtimeStatus}
+      status={displayStatus}
       title={data.title}
     >
       <div className="studio-node-preview studio-node-preview-video">
@@ -54,11 +55,17 @@ export function VideoGenerateNode({ data, id, selected }: NodeProps<StudioNode>)
           <dt>Media</dt>
           <dd>{data.imageInput || data.videoInput || "Not connected"}</dd>
         </div>
+        {data.queueStatus ? (
+          <div>
+            <dt>Mock queue</dt>
+            <dd>{data.queueStatus}</dd>
+          </div>
+        ) : null}
       </dl>
       <StudioCostPreview data={data} />
       {data.pipelineExecutionBlocked ? (
         <p className="studio-node-footnote">
-          Pipeline plan only; automatic generation is locked.
+          Pipeline plan only; real generation stays locked even after the mock queue completes.
         </p>
       ) : null}
       {data.jobId ? <p className="studio-node-footnote">Job {data.jobId}</p> : null}

@@ -16,7 +16,16 @@ import {
   listStudioRunHistory,
   saveStudioRunRecord,
 } from "@/features/studio/lib/studioRunHistory";
+import {
+  listStudioGenerationPlans,
+  saveStudioGenerationPlan,
+} from "@/features/studio/lib/studioGenerationPlans";
 import { getStudioExecutor } from "@/features/studio/runtime/executorRegistry";
+import {
+  buildStudioGenerationPlan,
+  MAX_CONCURRENT_VIDEO_GENERATIONS,
+  type StudioGenerationPlan,
+} from "@/features/studio/runtime/generationQueue";
 import {
   getStudioRetryPreflight,
   runSingleStudioNode,
@@ -60,15 +69,23 @@ export function getStudioCanvasStorageKey(brandId: BrandId) {
 export const STUDIO_CANVAS_STORAGE_KEY = getStudioCanvasStorageKey(activeBrand.id);
 
 const defaultViewport: Viewport = { x: 8, y: 36, zoom: 0.82 };
-const STUDIO_CANVAS_VERSION = 5;
+const STUDIO_CANVAS_VERSION = 6;
 const DEFAULT_VIDEO_TRACK_ID = "track-video-1";
 const DEFAULT_AUDIO_TRACK_ID = "track-audio-1";
 const DEFAULT_SUBTITLE_TRACK_ID = "track-subtitle-1";
 const historyLimit = 50;
 let nodeSequence = 0;
 
+const MOCK_QUEUE_TRANSITION_MS = 140;
+
 function nowIso() {
   return new Date().toISOString();
+}
+
+async function waitForMockQueueTransition() {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, MOCK_QUEUE_TRANSITION_MS);
+  });
 }
 
 function createEmptyTimeline(): StudioTimeline {
@@ -403,6 +420,8 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
       videoNodeIds: [],
       timelineClipIds: [],
       confirmationState: "none",
+      generationPlanId: "",
+      estimatedCredits: 0,
       generationStarted: false,
       providerCallMade: false,
       errorCode: "",
@@ -472,6 +491,7 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
       sourceShotId: "",
       sourcePipelineId: "",
       pipelineExecutionBlocked: false,
+      queueStatus: null,
     };
   }
   if (type === "video_edit") {
@@ -616,6 +636,36 @@ function createRunRecord(
       status: "ready",
       startedAt: null,
       finishedAt: null,
+    })),
+  };
+}
+
+function createGenerationPlanRunRecord(
+  plan: StudioGenerationPlan,
+): StudioRunRecord {
+  const status =
+    plan.status === "completed"
+      ? "completed"
+      : plan.status === "failed" || plan.status === "cancelled"
+        ? "failed"
+        : "running";
+  return {
+    id: `run-${plan.id}`,
+    projectId: plan.projectId,
+    createdAt: plan.confirmedAt || plan.createdAt,
+    status,
+    mode: "generation_plan",
+    type: "generation_plan",
+    tasks: plan.items.length,
+    estimatedCredits: plan.estimatedCredits,
+    nodes: plan.items.map((item) => ({
+      nodeId: item.nodeId,
+      type: "videoGenerate",
+      status: item.status,
+      startedAt: item.startedAt,
+      finishedAt: item.finishedAt,
+      errorCode: item.errorCode,
+      message: item.message,
     })),
   };
 }
@@ -1199,6 +1249,12 @@ type StudioState = StudioCanvasSnapshot & {
   runtimeRunning: boolean;
   runLockState: StudioRunLockState;
   runHistory: StudioRunRecord[];
+  generationPlans: StudioGenerationPlan[];
+  generationQueue: {
+    activePlanId: string | null;
+    running: boolean;
+    maxConcurrent: number;
+  };
   runtimeError: string;
   selectedTimelineClipId: string | null;
   addNode: (type: StudioNodeType) => void;
@@ -1210,6 +1266,9 @@ type StudioState = StudioCanvasSnapshot & {
   }) => void;
   createAssetFromResultNode: (nodeId: string) => void;
   createVideoNodeFromRemakeShot: (nodeId: string) => void;
+  createGenerationPlan: (pipelineNodeId: string) => void;
+  startGenerationPlan: (planId: string) => Promise<void>;
+  cancelGenerationPlan: (planId: string) => void;
   addNodeToTimeline: (nodeId: string) => void;
   addSubtitleTimelineClip: (input: {
     text: string;
@@ -1287,6 +1346,12 @@ export const useStudioStore = create<StudioState>()(
       runtimeRunning: false,
       runLockState: "idle",
       runHistory: [],
+      generationPlans: [],
+      generationQueue: {
+        activePlanId: null,
+        running: false,
+        maxConcurrent: MAX_CONCURRENT_VIDEO_GENERATIONS,
+      },
       runtimeError: "",
       selectedTimelineClipId: null,
 
@@ -1573,6 +1638,311 @@ export const useStudioStore = create<StudioState>()(
             dirty: true,
           };
         }),
+
+      createGenerationPlan: (pipelineNodeId) => {
+        const state = get();
+        if (state.generationQueue.running || state.runtimeRunning) {
+          set({ runtimeError: "Wait for the active Studio runtime to finish." });
+          return;
+        }
+        const pipelineNode = state.nodes.find(
+          (node) =>
+            node.id === pipelineNodeId && node.data.kind === "remakePipeline",
+        );
+        if (
+          !pipelineNode ||
+          pipelineNode.data.kind !== "remakePipeline" ||
+          pipelineNode.data.status !== "completed"
+        ) {
+          set({ runtimeError: "Complete the Remake Pipeline plan first." });
+          return;
+        }
+        const videoNodeIds = new Set(pipelineNode.data.videoNodeIds);
+        const videoNodes = state.nodes.filter(
+          (node) =>
+            videoNodeIds.has(node.id) && node.data.kind === "videoGenerate",
+        );
+        if (!videoNodes.length) {
+          set({ runtimeError: "This Remake Pipeline has no planned Video Nodes." });
+          return;
+        }
+
+        const plan = buildStudioGenerationPlan({
+          pipelineNodeId,
+          projectId: state.projectId || "local",
+          videoNodes,
+        });
+        const plans = saveStudioGenerationPlan(plan);
+        const snapshot = takeSnapshot(state);
+        const plannedNodeIds = new Set(plan.items.map((item) => item.nodeId));
+        set((current) => ({
+          generationPlans: plans,
+          nodes: current.nodes.map((node) => {
+            if (node.id === pipelineNodeId && node.data.kind === "remakePipeline") {
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  generationPlanId: plan.id,
+                  estimatedCredits: plan.estimatedCredits,
+                  confirmationState: "awaiting",
+                  generationStarted: false,
+                },
+              };
+            }
+            if (plannedNodeIds.has(node.id) && node.data.kind === "videoGenerate") {
+              return {
+                ...node,
+                data: { ...node.data, queueStatus: "waiting" },
+              };
+            }
+            return node;
+          }),
+          past: appendHistory(current.past, snapshot),
+          future: [],
+          dirty: true,
+          updatedAt: nowIso(),
+          runtimeError: "",
+        }));
+      },
+
+      startGenerationPlan: async (planId) => {
+        const initialState = get();
+        if (initialState.generationQueue.running || initialState.runtimeRunning) {
+          set({ runtimeError: "Only one Studio runtime or mock queue can run at a time." });
+          return;
+        }
+        const plan = initialState.generationPlans.find((item) => item.id === planId);
+        if (!plan || (plan.status !== "draft" && plan.status !== "failed")) {
+          set({ runtimeError: "Create a new waiting Generation Plan before starting." });
+          return;
+        }
+
+        const syncPlan = (updatedPlan: StudioGenerationPlan) => {
+          const plans = saveStudioGenerationPlan(updatedPlan);
+          const runHistory = updatedPlan.confirmedAt
+            ? saveStudioRunRecord(createGenerationPlanRunRecord(updatedPlan))
+            : get().runHistory;
+          const itemStatusByNodeId = new Map(
+            updatedPlan.items.map((item) => [item.nodeId, item.status]),
+          );
+          set((current) => ({
+            generationPlans: plans,
+            runHistory,
+            nodes: current.nodes.map((node) => {
+              if (
+                node.id === updatedPlan.pipelineNodeId &&
+                node.data.kind === "remakePipeline"
+              ) {
+                return {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    generationPlanId: updatedPlan.id,
+                    estimatedCredits: updatedPlan.estimatedCredits,
+                    confirmationState:
+                      updatedPlan.status === "cancelled"
+                        ? "cancelled"
+                        : "confirmed",
+                    generationStarted: false,
+                  },
+                };
+              }
+              const queueStatus = itemStatusByNodeId.get(node.id);
+              if (queueStatus && node.data.kind === "videoGenerate") {
+                return {
+                  ...node,
+                  data: { ...node.data, queueStatus },
+                };
+              }
+              return node;
+            }),
+            dirty: true,
+            updatedAt: nowIso(),
+          }));
+        };
+
+        const confirmedAt = nowIso();
+        const confirmedPlan: StudioGenerationPlan = {
+          ...plan,
+          status: "confirmed",
+          confirmedAt,
+          updatedAt: confirmedAt,
+          completedAt: null,
+          items: plan.items.map((item) => ({
+            ...item,
+            status: "waiting",
+            startedAt: null,
+            finishedAt: null,
+            errorCode: undefined,
+            message: undefined,
+          })),
+        };
+        set({
+          generationQueue: {
+            activePlanId: planId,
+            running: true,
+            maxConcurrent: MAX_CONCURRENT_VIDEO_GENERATIONS,
+          },
+          runtimeError: "",
+        });
+        syncPlan(confirmedPlan);
+        await waitForMockQueueTransition();
+
+        const confirmedState = get().generationPlans.find((item) => item.id === planId);
+        if (!confirmedState || confirmedState.status === "cancelled") {
+          set({
+            generationQueue: {
+              activePlanId: null,
+              running: false,
+              maxConcurrent: MAX_CONCURRENT_VIDEO_GENERATIONS,
+            },
+          });
+          return;
+        }
+        syncPlan({ ...confirmedState, status: "running", updatedAt: nowIso() });
+
+        try {
+          for (const item of confirmedState.items) {
+            const currentPlan = get().generationPlans.find(
+              (candidate) => candidate.id === planId,
+            );
+            if (!currentPlan || currentPlan.status === "cancelled") break;
+            if (item.status === "completed") continue;
+
+            const updateItem = (
+              status: "queued" | "running" | "completed",
+            ) => {
+              const latestPlan = get().generationPlans.find(
+                (candidate) => candidate.id === planId,
+              );
+              if (!latestPlan || latestPlan.status === "cancelled") return null;
+              const timestamp = nowIso();
+              const updatedPlan: StudioGenerationPlan = {
+                ...latestPlan,
+                status: "running",
+                updatedAt: timestamp,
+                items: latestPlan.items.map((candidate) =>
+                  candidate.nodeId === item.nodeId
+                    ? {
+                        ...candidate,
+                        status,
+                        startedAt:
+                          status === "running"
+                            ? candidate.startedAt || timestamp
+                            : candidate.startedAt,
+                        finishedAt:
+                          status === "completed" ? timestamp : candidate.finishedAt,
+                        message:
+                          status === "completed"
+                            ? "Mock queue completed; no provider call or credit charge."
+                            : undefined,
+                      }
+                    : candidate,
+                ),
+              };
+              syncPlan(updatedPlan);
+              return updatedPlan;
+            };
+
+            if (!updateItem("queued")) break;
+            await waitForMockQueueTransition();
+            if (!updateItem("running")) break;
+            await waitForMockQueueTransition();
+            if (!updateItem("completed")) break;
+            await waitForMockQueueTransition();
+          }
+
+          const latestPlan = get().generationPlans.find(
+            (candidate) => candidate.id === planId,
+          );
+          if (latestPlan && latestPlan.status !== "cancelled") {
+            const completedAt = nowIso();
+            const completed = latestPlan.items.every(
+              (item) => item.status === "completed",
+            );
+            syncPlan({
+              ...latestPlan,
+              status: completed ? "completed" : "failed",
+              updatedAt: completedAt,
+              completedAt,
+            });
+          }
+        } finally {
+          set((current) => ({
+            generationQueue:
+              current.generationQueue.activePlanId === planId
+                ? {
+                    activePlanId: null,
+                    running: false,
+                    maxConcurrent: MAX_CONCURRENT_VIDEO_GENERATIONS,
+                  }
+                : current.generationQueue,
+          }));
+        }
+      },
+
+      cancelGenerationPlan: (planId) => {
+        const state = get();
+        const plan = state.generationPlans.find((item) => item.id === planId);
+        if (!plan || plan.status === "completed" || plan.status === "cancelled") return;
+        const cancelledAt = nowIso();
+        const cancelledPlan: StudioGenerationPlan = {
+          ...plan,
+          status: "cancelled",
+          updatedAt: cancelledAt,
+          completedAt: cancelledAt,
+          items: plan.items.map((item) =>
+            item.status === "completed"
+              ? item
+              : {
+                  ...item,
+                  status: "failed",
+                  finishedAt: cancelledAt,
+                  errorCode: "MOCK_QUEUE_CANCELLED",
+                  message: "Mock generation queue cancelled before provider execution.",
+                },
+          ),
+        };
+        const plans = saveStudioGenerationPlan(cancelledPlan);
+        const runHistory = cancelledPlan.confirmedAt
+          ? saveStudioRunRecord(createGenerationPlanRunRecord(cancelledPlan))
+          : state.runHistory;
+        const cancelledNodeIds = new Set(
+          cancelledPlan.items
+            .filter((item) => item.status === "failed")
+            .map((item) => item.nodeId),
+        );
+        set((current) => ({
+          generationPlans: plans,
+          runHistory,
+          generationQueue:
+            current.generationQueue.activePlanId === planId
+              ? {
+                  activePlanId: null,
+                  running: false,
+                  maxConcurrent: MAX_CONCURRENT_VIDEO_GENERATIONS,
+                }
+              : current.generationQueue,
+          nodes: current.nodes.map((node) => {
+            if (node.id === plan.pipelineNodeId && node.data.kind === "remakePipeline") {
+              return {
+                ...node,
+                data: { ...node.data, confirmationState: "cancelled" },
+              };
+            }
+            if (cancelledNodeIds.has(node.id) && node.data.kind === "videoGenerate") {
+              return {
+                ...node,
+                data: { ...node.data, queueStatus: "failed" },
+              };
+            }
+            return node;
+          }),
+          dirty: true,
+          updatedAt: nowIso(),
+        }));
+      },
 
       addNodeToTimeline: (nodeId) =>
         set((state) => {
@@ -2117,11 +2487,12 @@ export const useStudioStore = create<StudioState>()(
         set({
           hasHydrated,
           runHistory: hasHydrated ? listStudioRunHistory() : [],
+          generationPlans: hasHydrated ? listStudioGenerationPlans() : [],
         }),
 
       runNodes: async () => {
         const state = get();
-        if (state.runtimeRunning) {
+        if (state.runtimeRunning || state.generationQueue.running) {
           set({ runLockState: "locked" });
           return;
         }
@@ -2242,7 +2613,7 @@ export const useStudioStore = create<StudioState>()(
 
       retryNode: async (nodeId) => {
         const state = get();
-        if (state.runtimeRunning) {
+        if (state.runtimeRunning || state.generationQueue.running) {
           set({ runLockState: "locked" });
           return;
         }

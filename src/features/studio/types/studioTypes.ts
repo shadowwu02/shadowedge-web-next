@@ -20,6 +20,12 @@ export type StudioAssetSource =
   | "rendered"
   | "remake";
 export type GenerationNodeStatus = "idle" | "ready" | "queued" | "processing" | "completed" | "failed";
+export type StudioGenerationQueueItemStatus =
+  | "waiting"
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed";
 export type OutputType = "image" | "video" | "audio";
 
 type StudioNodeBase = {
@@ -94,7 +100,9 @@ export type RemakePipelineNodeData = StudioNodeBase & {
   shotNodeIds: string[];
   videoNodeIds: string[];
   timelineClipIds: string[];
-  confirmationState: "none" | "awaiting" | "cancelled";
+  confirmationState: "none" | "awaiting" | "confirmed" | "cancelled";
+  generationPlanId: string;
+  estimatedCredits: number;
   generationStarted: boolean;
   providerCallMade: boolean;
   errorCode: string;
@@ -161,6 +169,7 @@ export type VideoGenerateNodeData = StudioNodeBase & {
   sourceShotId: string;
   sourcePipelineId: string;
   pipelineExecutionBlocked: boolean;
+  queueStatus: StudioGenerationQueueItemStatus | null;
 };
 
 export type VideoEditMode =

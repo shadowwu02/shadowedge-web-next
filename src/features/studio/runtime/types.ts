@@ -2,6 +2,7 @@ import type { StudioNodeType } from "@/features/studio/types/studioTypes";
 
 export type NodeExecutionStatus =
   | "idle"
+  | "waiting"
   | "ready"
   | "running"
   | "queued"
@@ -82,7 +83,10 @@ export type StudioRunRecord = {
   projectId: string;
   createdAt: string;
   status: StudioRunStatus;
-  mode: "graph" | "retry";
+  mode: "graph" | "retry" | "generation_plan";
+  type?: "generation_plan";
+  tasks?: number;
+  estimatedCredits?: number;
   nodes: StudioRunNodeRecord[];
 };
 
