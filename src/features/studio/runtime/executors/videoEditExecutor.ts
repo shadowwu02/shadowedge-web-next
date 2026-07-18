@@ -1,5 +1,9 @@
 import { STUDIO_VIDEO_EDIT_EXECUTION_ENABLED } from "@/config/studioFeatures";
-import { mockVideoEditProviderAdapter } from "@/features/studio/runtime/providers/videoEditProviderAdapter";
+import { resolveProviderForCapability } from "@/features/studio/runtime/providers/providerRegistry";
+import {
+  getProviderJobStatus,
+  submitProviderJob,
+} from "@/features/studio/runtime/providers/providerRuntime";
 import type {
   NodeExecutionContext,
   NodeExecutionResult,
@@ -64,17 +68,55 @@ export const VideoEditExecutor: StudioNodeExecutor = {
 
     const mode = stringValue(context.config.mode) || "video_to_video";
     const parameters = asRecord(context.config.parameters);
-    const submitted = await mockVideoEditProviderAdapter.submit({
+    const normalizedMode =
+      mode === "replace_background" || mode === "extend"
+        ? mode
+        : "video_to_video";
+    const resolution = resolveProviderForCapability({
+      capability: "video_edit",
+      providerId: stringValue(context.config.providerId) || undefined,
+      mode: normalizedMode,
+    });
+    if (!resolution.ok) {
+      return {
+        status: "failed",
+        outputs: {
+          executor: "video_edit",
+          status: "failed",
+          errorCode: resolution.error.code,
+          message: resolution.error.message,
+          mock: true,
+          providerCalled: false,
+        },
+        error: resolution.error.message,
+      };
+    }
+    const submission = await submitProviderJob(resolution, {
+      capability: "video_edit",
       projectId: context.projectId,
       nodeId: context.nodeId,
-      sourceVideo,
-      mode:
-        mode === "replace_background" || mode === "extend"
-          ? mode
-          : "video_to_video",
-      prompt: stringValue(context.config.prompt),
-      parameters,
+      mode: normalizedMode,
+      payload: {
+        sourceVideo,
+        prompt: stringValue(context.config.prompt),
+        parameters,
+      },
     });
+    if (!submission.ok) {
+      return {
+        status: "failed",
+        outputs: {
+          executor: "video_edit",
+          status: "failed",
+          errorCode: submission.error.code,
+          message: submission.error.message,
+          mock: resolution.adapter.kind === "mock",
+          providerCalled: resolution.adapter.kind === "real",
+        },
+        error: submission.error.message,
+      };
+    }
+    const submitted = submission.result;
     context.reportProgress({
       status: "queued",
       outputs: {
@@ -98,10 +140,29 @@ export const VideoEditExecutor: StudioNodeExecutor = {
         providerCalled: false,
       },
     });
-    const completed = await mockVideoEditProviderAdapter.status(
+    const statusResult = await getProviderJobStatus(
+      resolution,
       submitted.identity,
     );
-    if (completed.status !== "completed" || !completed.videoUrl) {
+    if (!statusResult.ok) {
+      return {
+        status: "failed",
+        outputs: {
+          executor: "video_edit",
+          status: "failed",
+          jobIdentity: submitted.identity,
+          ...submitted.identity,
+          errorCode: statusResult.error.code,
+          message: statusResult.error.message,
+          mock: resolution.adapter.kind === "mock",
+          providerCalled: resolution.adapter.kind === "real",
+        },
+        error: statusResult.error.message,
+      };
+    }
+    const completed = statusResult.result;
+    const completedVideoUrl = stringValue(completed.output?.videoUrl);
+    if (completed.status !== "completed" || !completedVideoUrl) {
       const message = completed.message || "The mock Video Edit job failed.";
       return {
         status: "failed",
@@ -125,19 +186,22 @@ export const VideoEditExecutor: StudioNodeExecutor = {
         executor: "video_edit",
         status: "completed",
         type: "video",
-        url: completed.videoUrl,
-        videoUrl: completed.videoUrl,
-        thumbnail: completed.thumbnail || completed.videoUrl,
+        url: completedVideoUrl,
+        videoUrl: completedVideoUrl,
+        thumbnail:
+          stringValue(completed.output?.thumbnail) || completedVideoUrl,
         source: "generated",
         sourceVideo,
-        mode,
+        mode: normalizedMode,
         prompt: stringValue(context.config.prompt),
         parameters,
         jobIdentity: completed.identity,
         ...completed.identity,
-        mock: true,
+        mock: completed.mock,
         message: "Mock Completed",
-        providerCalled: false,
+        providerCalled: completed.providerCalled,
+        providerId: resolution.provider.providerId,
+        adapterKey: resolution.adapter.key,
         providerExecutionEnabled: STUDIO_VIDEO_EDIT_EXECUTION_ENABLED,
       },
     };

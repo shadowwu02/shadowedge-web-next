@@ -29,6 +29,9 @@ const configuredVideoEditExecution = parseBooleanFlag(
 const configuredMotionControlExecution = parseBooleanFlag(
   process.env.NEXT_PUBLIC_STUDIO_MOTION_CONTROL_EXECUTION_ENABLED,
 );
+const configuredProviderExecution = parseBooleanFlag(
+  process.env.NEXT_PUBLIC_STUDIO_PROVIDER_EXECUTION_ENABLED,
+);
 
 // Local development can exercise the executor without extra setup. Production
 // builds remain off unless the public rollout flag is explicitly enabled.
@@ -59,6 +62,10 @@ export const STUDIO_VIDEO_EDIT_EXECUTION_ENABLED =
 // unavailable even if this future rollout gate is explicitly enabled.
 export const STUDIO_MOTION_CONTROL_EXECUTION_ENABLED =
   configuredMotionControlExecution ?? false;
+// Provider-neutral Studio adapters fail closed. Local mocks remain available
+// for contract validation because they have no network or billing path.
+export const STUDIO_PROVIDER_EXECUTION_ENABLED =
+  configuredProviderExecution ?? false;
 
 export const studioFeatures = Object.freeze({
   imageExecutionEnabled: STUDIO_IMAGE_EXECUTION_ENABLED,
@@ -69,4 +76,5 @@ export const studioFeatures = Object.freeze({
   videoEditEnabled: STUDIO_VIDEO_EDIT_ENABLED,
   videoEditExecutionEnabled: STUDIO_VIDEO_EDIT_EXECUTION_ENABLED,
   motionControlExecutionEnabled: STUDIO_MOTION_CONTROL_EXECUTION_ENABLED,
+  providerExecutionEnabled: STUDIO_PROVIDER_EXECUTION_ENABLED,
 });

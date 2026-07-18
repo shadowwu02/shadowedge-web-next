@@ -1,5 +1,9 @@
 import type { CameraControlConfig } from "@/features/studio/types/studioTypes";
-import type { VideoJobIdentity } from "@/lib/video/videoJobIdentity";
+import { createMockProviderAdapter } from "./mockProviderAdapter.ts";
+import type {
+  ProviderJobIdentity,
+  ProviderJobResult,
+} from "@/features/studio/runtime/providers/providerAdapter";
 
 export type CameraControlProviderInput = CameraControlConfig & {
   projectId: string | null;
@@ -14,8 +18,8 @@ export type CameraControlProviderInput = CameraControlConfig & {
 };
 
 export type CameraControlProviderResult = {
-  identity: VideoJobIdentity & { clientJobId: string };
-  status: "queued" | "processing" | "completed" | "failed" | "cancelled";
+  identity: ProviderJobIdentity;
+  status: ProviderJobResult["status"];
   videoUrl?: string;
   thumbnail?: string;
   errorCode?: string;
@@ -27,60 +31,55 @@ export type CameraControlProviderResult = {
 export interface CameraControlProviderAdapter {
   readonly key: string;
   submit(input: CameraControlProviderInput): Promise<CameraControlProviderResult>;
-  status(identity: CameraControlProviderResult["identity"]): Promise<CameraControlProviderResult>;
-  cancel(identity: CameraControlProviderResult["identity"]): Promise<CameraControlProviderResult>;
+  status(identity: ProviderJobIdentity): Promise<CameraControlProviderResult>;
+  cancel(identity: ProviderJobIdentity): Promise<CameraControlProviderResult>;
 }
 
-function createMockIdentity(nodeId: string): CameraControlProviderResult["identity"] {
-  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const clientJobId = `mock-camera-client-${nodeId}-${suffix}`;
-  const databaseJobId = `mock-camera-db-${nodeId}-${suffix}`;
-  const providerJobId = `mock-camera-provider-${nodeId}-${suffix}`;
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : undefined;
+}
+
+function legacyResult(result: ProviderJobResult): CameraControlProviderResult {
   return {
-    jobId: clientJobId,
-    clientJobId,
-    databaseJobId,
-    providerJobId,
-    statusJobId: databaseJobId,
+    identity: result.identity,
+    status: result.status,
+    videoUrl: stringValue(result.output?.videoUrl),
+    thumbnail: stringValue(result.output?.thumbnail),
+    errorCode: result.errorCode,
+    message: result.message,
+    mock: result.mock,
+    providerCalled: result.providerCalled,
   };
 }
 
-/** Local-only adapter with no HTTP client, provider credentials, or credits. */
+/** @deprecated Use Provider Registry + ProviderAdapter Runtime for new code. */
 export function createMockCameraControlProviderAdapter(): CameraControlProviderAdapter {
-  const jobs = new Map<string, CameraControlProviderInput>();
+  const adapter = createMockProviderAdapter();
   return {
-    key: "mock",
+    key: adapter.key,
     async submit(input) {
-      const identity = createMockIdentity(input.nodeId);
-      jobs.set(identity.statusJobId, input);
-      return { identity, status: "queued", mock: true, providerCalled: false };
+      return legacyResult(
+        await adapter.submit({
+          capability: "camera_control",
+          projectId: input.projectId,
+          nodeId: input.nodeId,
+          mode: "preset",
+          payload: {
+            sourceImage: input.sourceImage,
+            characterIds: input.characterIds,
+            preset: input.preset,
+            prompt: input.prompt,
+            duration: input.duration,
+            strength: input.strength,
+          },
+        }),
+      );
     },
     async status(identity) {
-      const input = jobs.get(identity.statusJobId);
-      if (!input) {
-        return {
-          identity,
-          status: "failed",
-          errorCode: "CAMERA_CONTROL_JOB_NOT_FOUND",
-          message: "The local Camera Control mock job could not be found.",
-          mock: true,
-          providerCalled: false,
-        };
-      }
-      return {
-        identity,
-        status: "completed",
-        // P2-A4 deliberately reuses the image URL as a deterministic mock
-        // result reference. It is not a generated or playable video.
-        videoUrl: input.sourceImage.url,
-        thumbnail: input.sourceImage.thumbnail || input.sourceImage.url,
-        message: "Mock Completed",
-        mock: true,
-        providerCalled: false,
-      };
+      return legacyResult(await adapter.status(identity));
     },
     async cancel(identity) {
-      return { identity, status: "cancelled", mock: true, providerCalled: false };
+      return legacyResult(await adapter.cancel(identity));
     },
   };
 }

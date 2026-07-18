@@ -1,4 +1,8 @@
-import type { VideoJobIdentity } from "@/lib/video/videoJobIdentity";
+import { createMockProviderAdapter } from "./mockProviderAdapter.ts";
+import type {
+  ProviderJobIdentity,
+  ProviderJobResult,
+} from "@/features/studio/runtime/providers/providerAdapter";
 
 export type MotionControlProviderInput = {
   projectId: string | null;
@@ -20,8 +24,8 @@ export type MotionControlProviderInput = {
 };
 
 export type MotionControlProviderResult = {
-  identity: VideoJobIdentity & { clientJobId: string };
-  status: "queued" | "processing" | "completed" | "failed" | "cancelled";
+  identity: ProviderJobIdentity;
+  status: ProviderJobResult["status"];
   videoUrl?: string;
   thumbnail?: string;
   errorCode?: string;
@@ -33,88 +37,52 @@ export type MotionControlProviderResult = {
 export interface MotionControlProviderAdapter {
   readonly key: string;
   submit(input: MotionControlProviderInput): Promise<MotionControlProviderResult>;
-  status(
-    identity: MotionControlProviderResult["identity"],
-  ): Promise<MotionControlProviderResult>;
-  cancel(
-    identity: MotionControlProviderResult["identity"],
-  ): Promise<MotionControlProviderResult>;
+  status(identity: ProviderJobIdentity): Promise<MotionControlProviderResult>;
+  cancel(identity: ProviderJobIdentity): Promise<MotionControlProviderResult>;
 }
 
-function createMockIdentity(
-  nodeId: string,
-): MotionControlProviderResult["identity"] {
-  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const clientJobId = `mock-motion-client-${nodeId}-${suffix}`;
-  const databaseJobId = `mock-motion-db-${nodeId}-${suffix}`;
-  const providerJobId = `mock-motion-provider-${nodeId}-${suffix}`;
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : undefined;
+}
+
+function legacyResult(result: ProviderJobResult): MotionControlProviderResult {
   return {
-    jobId: clientJobId,
-    clientJobId,
-    databaseJobId,
-    providerJobId,
-    statusJobId: databaseJobId,
+    identity: result.identity,
+    status: result.status,
+    videoUrl: stringValue(result.output?.videoUrl),
+    thumbnail: stringValue(result.output?.thumbnail),
+    errorCode: result.errorCode,
+    message: result.message,
+    mock: result.mock,
+    providerCalled: result.providerCalled,
   };
 }
 
-/** Local-only P2-A2 adapter. It has no HTTP client or provider credentials. */
+/** @deprecated Use Provider Registry + ProviderAdapter Runtime for new code. */
 export function createMockMotionControlProviderAdapter(): MotionControlProviderAdapter {
-  const jobs = new Map<
-    string,
-    { input: MotionControlProviderInput; result: MotionControlProviderResult }
-  >();
-
+  const adapter = createMockProviderAdapter();
   return {
-    key: "mock",
+    key: adapter.key,
     async submit(input) {
-      const identity = createMockIdentity(input.nodeId);
-      const result: MotionControlProviderResult = {
-        identity,
-        status: "queued",
-        mock: true,
-        providerCalled: false,
-      };
-      jobs.set(identity.statusJobId, { input, result });
-      return result;
+      return legacyResult(
+        await adapter.submit({
+          capability: "motion_control",
+          projectId: input.projectId,
+          nodeId: input.nodeId,
+          mode: input.mode,
+          payload: {
+            sourceImage: input.sourceImage,
+            motionReferenceVideo: input.motionReferenceVideo,
+            prompt: input.prompt,
+          },
+        }),
+      );
     },
     async status(identity) {
-      const job = jobs.get(identity.statusJobId);
-      if (!job) {
-        return {
-          identity,
-          status: "failed",
-          errorCode: "MOTION_CONTROL_JOB_NOT_FOUND",
-          message: "The local Motion Control mock job could not be found.",
-          mock: true,
-          providerCalled: false,
-        };
-      }
-      const result: MotionControlProviderResult = {
-        identity,
-        status: "completed",
-        // The reference video is intentionally passed through for a visible,
-        // deterministic mock result without generating new media.
-        videoUrl: job.input.motionReferenceVideo.url,
-        thumbnail:
-          job.input.motionReferenceVideo.thumbnail ||
-          job.input.sourceImage.thumbnail ||
-          job.input.sourceImage.url,
-        mock: true,
-        providerCalled: false,
-      };
-      jobs.set(identity.statusJobId, { ...job, result });
-      return result;
+      return legacyResult(await adapter.status(identity));
     },
     async cancel(identity) {
-      const job = jobs.get(identity.statusJobId);
-      const result: MotionControlProviderResult = {
-        identity,
-        status: "cancelled",
-        mock: true,
-        providerCalled: false,
-      };
-      if (job) jobs.set(identity.statusJobId, { ...job, result });
-      return result;
+      return legacyResult(await adapter.cancel(identity));
     },
   };
 }

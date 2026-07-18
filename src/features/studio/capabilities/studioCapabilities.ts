@@ -20,7 +20,7 @@ export type StudioCapabilityParameter = {
 };
 
 export type StudioCapabilityProvider = {
-  providerKey: string;
+  providerId: string;
   adapterKey: string;
   availability: "available" | "mock" | "metadata_only";
   supportedModes: readonly string[];
@@ -39,7 +39,7 @@ export type StudioCapability = {
 
 export type CapabilityCostRule = {
   capability: StudioCapabilityId;
-  providerKey: string;
+  providerId: string;
   creditsRule: "existing_video_rules" | "free_mock" | "future";
 };
 
@@ -70,7 +70,7 @@ export const STUDIO_CAPABILITIES = [
     ],
     providers: [
       {
-        providerKey: "shadowedge_video_api",
+        providerId: "shadowedge_video_api",
         adapterKey: "existing_video_executor",
         availability: "available",
         supportedModes: ["text_to_video", "image_to_video", "reference_video"],
@@ -91,21 +91,21 @@ export const STUDIO_CAPABILITIES = [
     ],
     providers: [
       {
-        providerKey: "mock",
-        adapterKey: "mock_video_edit",
+        providerId: "mock",
+        adapterKey: "mock_provider",
         availability: "mock",
         supportedModes: ["video_to_video", "replace_background", "extend"],
         supportedParameters: ["mode", "prompt", "strength"],
       },
       {
-        providerKey: "higgsfield",
+        providerId: "higgsfield",
         adapterKey: "unavailable",
         availability: "metadata_only",
         supportedModes: ["video_to_video", "replace_background", "extend"],
         supportedParameters: ["mode", "prompt"],
       },
       {
-        providerKey: "kling",
+        providerId: "kling",
         adapterKey: "unavailable",
         availability: "metadata_only",
         supportedModes: ["video_to_video", "replace_background", "extend"],
@@ -127,21 +127,21 @@ export const STUDIO_CAPABILITIES = [
     ],
     providers: [
       {
-        providerKey: "mock",
-        adapterKey: "mock_motion_control",
+        providerId: "mock",
+        adapterKey: "mock_provider",
         availability: "mock",
         supportedModes: ["character_motion", "motion_transfer", "camera_motion"],
         supportedParameters: ["mode", "prompt"],
       },
       {
-        providerKey: "higgsfield",
+        providerId: "higgsfield",
         adapterKey: "unavailable",
         availability: "metadata_only",
         supportedModes: ["character_motion", "motion_transfer", "camera_motion"],
         supportedParameters: ["mode", "prompt", "sceneSource", "orientationSource"],
       },
       {
-        providerKey: "kling",
+        providerId: "kling",
         adapterKey: "unavailable",
         availability: "metadata_only",
         supportedModes: ["character_motion", "motion_transfer", "camera_motion"],
@@ -163,21 +163,21 @@ export const STUDIO_CAPABILITIES = [
     ],
     providers: [
       {
-        providerKey: "mock",
-        adapterKey: "mock_camera_control",
+        providerId: "mock",
+        adapterKey: "mock_provider",
         availability: "mock",
         supportedModes: ["preset", "prompt"],
         supportedParameters: ["preset", "prompt", "duration", "strength"],
       },
       {
-        providerKey: "higgsfield",
+        providerId: "higgsfield",
         adapterKey: "unavailable",
         availability: "metadata_only",
         supportedModes: ["preset", "prompt"],
         supportedParameters: ["preset", "prompt", "duration"],
       },
       {
-        providerKey: "kling",
+        providerId: "kling",
         adapterKey: "unavailable",
         availability: "metadata_only",
         supportedModes: ["prompt"],
@@ -188,13 +188,13 @@ export const STUDIO_CAPABILITIES = [
 ] as const satisfies readonly StudioCapability[];
 
 export const STUDIO_CAPABILITY_COST_RULES = [
-  { capability: "video_generate", providerKey: "shadowedge_video_api", creditsRule: "existing_video_rules" },
-  { capability: "video_edit", providerKey: "mock", creditsRule: "free_mock" },
-  { capability: "motion_control", providerKey: "mock", creditsRule: "free_mock" },
-  { capability: "camera_control", providerKey: "mock", creditsRule: "free_mock" },
-  { capability: "video_edit", providerKey: "higgsfield", creditsRule: "future" },
-  { capability: "motion_control", providerKey: "higgsfield", creditsRule: "future" },
-  { capability: "camera_control", providerKey: "higgsfield", creditsRule: "future" },
+  { capability: "video_generate", providerId: "shadowedge_video_api", creditsRule: "existing_video_rules" },
+  { capability: "video_edit", providerId: "mock", creditsRule: "free_mock" },
+  { capability: "motion_control", providerId: "mock", creditsRule: "free_mock" },
+  { capability: "camera_control", providerId: "mock", creditsRule: "free_mock" },
+  { capability: "video_edit", providerId: "higgsfield", creditsRule: "future" },
+  { capability: "motion_control", providerId: "higgsfield", creditsRule: "future" },
+  { capability: "camera_control", providerId: "higgsfield", creditsRule: "future" },
 ] as const satisfies readonly CapabilityCostRule[];
 
 export function getStudioCapability(id: StudioCapabilityId) {
@@ -203,19 +203,19 @@ export function getStudioCapability(id: StudioCapabilityId) {
 
 export function getStudioCapabilityProvider(
   capabilityId: StudioCapabilityId,
-  providerKey: string,
+  providerId: string,
 ) {
   return getStudioCapability(capabilityId)?.providers.find(
-    (provider) => provider.providerKey === providerKey,
+    (provider) => provider.providerId === providerId,
   );
 }
 
 export function providerSupportsCapabilityMode(
   capabilityId: StudioCapabilityId,
-  providerKey: string,
+  providerId: string,
   mode: string,
 ) {
-  const provider = getStudioCapabilityProvider(capabilityId, providerKey);
+  const provider = getStudioCapabilityProvider(capabilityId, providerId);
   return Boolean(
     provider && (provider.supportedModes as readonly string[]).includes(mode),
   );
@@ -223,9 +223,9 @@ export function providerSupportsCapabilityMode(
 
 export function getCapabilityCostRule(
   capabilityId: StudioCapabilityId,
-  providerKey: string,
+  providerId: string,
 ) {
   return STUDIO_CAPABILITY_COST_RULES.find(
-    (rule) => rule.capability === capabilityId && rule.providerKey === providerKey,
+    (rule) => rule.capability === capabilityId && rule.providerId === providerId,
   );
 }

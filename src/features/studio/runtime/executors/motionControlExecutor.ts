@@ -1,5 +1,9 @@
 import { STUDIO_MOTION_CONTROL_EXECUTION_ENABLED } from "@/config/studioFeatures";
-import { mockMotionControlProviderAdapter } from "@/features/studio/runtime/providers/motionControlProviderAdapter";
+import { resolveProviderForCapability } from "@/features/studio/runtime/providers/providerRegistry";
+import {
+  getProviderJobStatus,
+  submitProviderJob,
+} from "@/features/studio/runtime/providers/providerRuntime";
 import type {
   NodeExecutionContext,
   NodeExecutionResult,
@@ -112,14 +116,51 @@ export const MotionControlExecutor: StudioNodeExecutor = {
       configuredMode === "motion_transfer"
         ? configuredMode
         : "character_motion";
-    const submitted = await mockMotionControlProviderAdapter.submit({
+    const resolution = resolveProviderForCapability({
+      capability: "motion_control",
+      providerId: stringValue(context.config.providerId) || undefined,
+      mode,
+    });
+    if (!resolution.ok) {
+      return {
+        status: "failed",
+        outputs: {
+          executor: "motion_control",
+          status: "failed",
+          errorCode: resolution.error.code,
+          message: resolution.error.message,
+          mock: true,
+          providerCalled: false,
+        },
+        error: resolution.error.message,
+      };
+    }
+    const submission = await submitProviderJob(resolution, {
+      capability: "motion_control",
       projectId: context.projectId,
       nodeId: context.nodeId,
-      sourceImage,
-      motionReferenceVideo,
       mode,
-      prompt: stringValue(context.config.prompt),
+      payload: {
+        sourceImage,
+        motionReferenceVideo,
+        prompt: stringValue(context.config.prompt),
+      },
     });
+    if (!submission.ok) {
+      return {
+        status: "failed",
+        outputs: {
+          executor: "motion_control",
+          status: "failed",
+          errorCode: submission.error.code,
+          message: submission.error.message,
+          mock: resolution.adapter.kind === "mock",
+          providerCalled: resolution.adapter.kind === "real",
+        },
+        error: submission.error.message,
+      };
+    }
+    const submitted = submission.result;
     context.reportProgress({
       status: "queued",
       outputs: {
@@ -143,10 +184,29 @@ export const MotionControlExecutor: StudioNodeExecutor = {
         providerCalled: false,
       },
     });
-    const completed = await mockMotionControlProviderAdapter.status(
+    const statusResult = await getProviderJobStatus(
+      resolution,
       submitted.identity,
     );
-    if (completed.status !== "completed" || !completed.videoUrl) {
+    if (!statusResult.ok) {
+      return {
+        status: "failed",
+        outputs: {
+          executor: "motion_control",
+          status: "failed",
+          jobIdentity: submitted.identity,
+          ...submitted.identity,
+          errorCode: statusResult.error.code,
+          message: statusResult.error.message,
+          mock: resolution.adapter.kind === "mock",
+          providerCalled: resolution.adapter.kind === "real",
+        },
+        error: statusResult.error.message,
+      };
+    }
+    const completed = statusResult.result;
+    const completedVideoUrl = stringValue(completed.output?.videoUrl);
+    if (completed.status !== "completed" || !completedVideoUrl) {
       const message = completed.message || "Motion Control mock failed.";
       return {
         status: "failed",
@@ -170,9 +230,10 @@ export const MotionControlExecutor: StudioNodeExecutor = {
         executor: "motion_control",
         status: "completed",
         type: "video",
-        url: completed.videoUrl,
-        videoUrl: completed.videoUrl,
-        thumbnail: completed.thumbnail || completed.videoUrl,
+        url: completedVideoUrl,
+        videoUrl: completedVideoUrl,
+        thumbnail:
+          stringValue(completed.output?.thumbnail) || completedVideoUrl,
         source: "generated",
         sourceImage,
         motionReferenceVideo,
@@ -181,9 +242,11 @@ export const MotionControlExecutor: StudioNodeExecutor = {
         prompt: stringValue(context.config.prompt),
         jobIdentity: completed.identity,
         ...completed.identity,
-        mock: true,
+        mock: completed.mock,
         message: "Mock Completed",
-        providerCalled: false,
+        providerCalled: completed.providerCalled,
+        providerId: resolution.provider.providerId,
+        adapterKey: resolution.adapter.key,
         providerExecutionEnabled: STUDIO_MOTION_CONTROL_EXECUTION_ENABLED,
       },
     };

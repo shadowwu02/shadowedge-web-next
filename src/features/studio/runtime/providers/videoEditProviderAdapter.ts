@@ -1,4 +1,8 @@
-import type { VideoJobIdentity } from "@/lib/video/videoJobIdentity";
+import { createMockProviderAdapter } from "./mockProviderAdapter.ts";
+import type {
+  ProviderJobIdentity,
+  ProviderJobResult,
+} from "@/features/studio/runtime/providers/providerAdapter";
 
 export type VideoEditMode =
   | "video_to_video"
@@ -20,8 +24,8 @@ export type VideoEditProviderInput = {
 };
 
 export type VideoEditProviderResult = {
-  identity: VideoJobIdentity & { clientJobId: string };
-  status: "queued" | "processing" | "completed" | "failed" | "cancelled";
+  identity: ProviderJobIdentity;
+  status: ProviderJobResult["status"];
   videoUrl?: string;
   thumbnail?: string;
   errorCode?: string;
@@ -33,81 +37,52 @@ export type VideoEditProviderResult = {
 export interface VideoEditProviderAdapter {
   readonly key: string;
   submit(input: VideoEditProviderInput): Promise<VideoEditProviderResult>;
-  status(identity: VideoEditProviderResult["identity"]): Promise<VideoEditProviderResult>;
-  cancel(identity: VideoEditProviderResult["identity"]): Promise<VideoEditProviderResult>;
+  status(identity: ProviderJobIdentity): Promise<VideoEditProviderResult>;
+  cancel(identity: ProviderJobIdentity): Promise<VideoEditProviderResult>;
 }
 
-function mockIdentity(nodeId: string): VideoEditProviderResult["identity"] {
-  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const clientJobId = `mock-edit-client-${nodeId}-${suffix}`;
-  const databaseJobId = `mock-edit-db-${nodeId}-${suffix}`;
-  const providerJobId = `mock-edit-provider-${nodeId}-${suffix}`;
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : undefined;
+}
+
+function legacyResult(result: ProviderJobResult): VideoEditProviderResult {
   return {
-    jobId: clientJobId,
-    clientJobId,
-    databaseJobId,
-    providerJobId,
-    statusJobId: databaseJobId,
+    identity: result.identity,
+    status: result.status,
+    videoUrl: stringValue(result.output?.videoUrl),
+    thumbnail: stringValue(result.output?.thumbnail),
+    errorCode: result.errorCode,
+    message: result.message,
+    mock: result.mock,
+    providerCalled: result.providerCalled,
   };
 }
 
-/**
- * Local-only adapter used by P2-A1. It has no HTTP client and therefore cannot
- * submit provider work or charge credits.
- */
+/** @deprecated Use Provider Registry + ProviderAdapter Runtime for new code. */
 export function createMockVideoEditProviderAdapter(): VideoEditProviderAdapter {
-  const jobs = new Map<
-    string,
-    { input: VideoEditProviderInput; result: VideoEditProviderResult }
-  >();
-
+  const adapter = createMockProviderAdapter();
   return {
-    key: "mock",
+    key: adapter.key,
     async submit(input) {
-      const identity = mockIdentity(input.nodeId);
-      const result: VideoEditProviderResult = {
-        identity,
-        status: "queued",
-        mock: true,
-        providerCalled: false,
-      };
-      jobs.set(identity.statusJobId, { input, result });
-      return result;
+      return legacyResult(
+        await adapter.submit({
+          capability: "video_edit",
+          projectId: input.projectId,
+          nodeId: input.nodeId,
+          mode: input.mode,
+          payload: {
+            sourceVideo: input.sourceVideo,
+            prompt: input.prompt,
+            parameters: input.parameters,
+          },
+        }),
+      );
     },
     async status(identity) {
-      const job = jobs.get(identity.statusJobId);
-      if (!job) {
-        return {
-          identity,
-          status: "failed",
-          errorCode: "VIDEO_EDIT_JOB_NOT_FOUND",
-          message: "The local mock edit job could not be found.",
-          mock: true,
-          providerCalled: false,
-        };
-      }
-      const result: VideoEditProviderResult = {
-        identity,
-        status: "completed",
-        videoUrl: job.input.sourceVideo.url,
-        thumbnail:
-          job.input.sourceVideo.thumbnail || job.input.sourceVideo.url,
-        mock: true,
-        providerCalled: false,
-      };
-      jobs.set(identity.statusJobId, { ...job, result });
-      return result;
+      return legacyResult(await adapter.status(identity));
     },
     async cancel(identity) {
-      const job = jobs.get(identity.statusJobId);
-      const result: VideoEditProviderResult = {
-        identity,
-        status: "cancelled",
-        mock: true,
-        providerCalled: false,
-      };
-      if (job) jobs.set(identity.statusJobId, { ...job, result });
-      return result;
+      return legacyResult(await adapter.cancel(identity));
     },
   };
 }
