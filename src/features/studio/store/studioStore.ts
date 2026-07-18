@@ -29,6 +29,7 @@ import { applyCharacterBindings } from "@/features/studio/lib/studioCharacterBin
 import { getStudioExecutor } from "@/features/studio/runtime/executorRegistry";
 import {
   buildStudioGenerationPlanFromNode,
+  getStudioVideoGenerationReadinessBlocker,
   isActiveStudioGenerationPlan,
   MAX_CONCURRENT_VIDEO_GENERATIONS,
   MAX_STUDIO_VIDEO_TASKS_PER_RUN,
@@ -66,6 +67,7 @@ import type {
   StudioVideoTimelineClip,
   StudioVideoTimelineTrack,
 } from "@/features/studio/types/studioTypes";
+import { getStudioProviderModelInventory } from "@/lib/studio-provider-models-api";
 
 export const SHADOWEDGE_STUDIO_CANVAS_STORAGE_KEY = "shadowedge_studio_canvas_v1";
 
@@ -2472,6 +2474,37 @@ export const useStudioStore = create<StudioState>()(
         const hasPaidVideoTask = plan.items.some(
           (item) => item.type === "video_generate",
         );
+        const paidVideoProviders = Array.from(
+          new Set(
+            plan.items
+              .filter((item) => item.type === "video_generate")
+              .map((item) => item.providerId || "higgsfield"),
+          ),
+        );
+        try {
+          await Promise.all(
+            paidVideoProviders.map((providerId) =>
+              getStudioProviderModelInventory(providerId, "video_generate"),
+            ),
+          );
+        } catch {
+          set({
+            runtimeError:
+              "PROVIDER_RUNTIME_UNAVAILABLE: Provider readiness could not be refreshed.",
+          });
+          return;
+        }
+        const readinessBlocker = paidVideoProviders
+          .map((providerId) =>
+            getStudioVideoGenerationReadinessBlocker(providerId),
+          )
+          .find(Boolean);
+        if (readinessBlocker) {
+          set({
+            runtimeError: `${readinessBlocker.code}: ${readinessBlocker.message}`,
+          });
+          return;
+        }
         if (hasPaidVideoTask && !STUDIO_GENERATION_ORCHESTRATOR_ENABLED) {
           set({
             runtimeError:

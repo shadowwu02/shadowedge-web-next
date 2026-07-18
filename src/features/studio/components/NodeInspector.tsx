@@ -15,6 +15,7 @@ import {
   resolveStudioVideoGenerationModel,
   type StudioProviderModelInventory,
 } from "@/features/studio/capabilities/studioVideoModelResolver";
+import { getStudioProviderReadinessBlocker } from "@/features/studio/capabilities/studioProviderReadiness";
 import { getImageModels } from "@/lib/image-api";
 import { loadStudioProviderModelInventory } from "@/lib/studio-provider-models-api";
 import {
@@ -170,8 +171,8 @@ export function NodeInspector() {
     void loadStudioProviderModelInventory("higgsfield", "video_generate")
       .then((inventory) => {
         if (cancelled) return;
+        setVideoInventory(inventory);
         if (inventory.enabled && inventory.models.length) {
-          setVideoInventory(inventory);
           setVideoModelsError("");
         } else {
           setVideoModelsError("No Higgsfield runtime video models are currently available.");
@@ -233,6 +234,9 @@ export function NodeInspector() {
   const videoDurations = selectedVideoModel?.limits.durations || [];
   const videoRatios = selectedVideoModel?.limits.ratios || [];
   const videoQualities = selectedVideoModel?.limits.resolutions || [];
+  const videoReadinessBlocker = getStudioProviderReadinessBlocker(
+    videoInventory?.readiness,
+  );
 
   return (
     <aside className="studio-side-panel studio-inspector" aria-label="Node inspector">
@@ -755,6 +759,12 @@ export function NodeInspector() {
               </select>
             </InspectorField>
             {videoModelsError ? <p className="studio-inspector-error">{videoModelsError}</p> : null}
+            {videoInventory && videoReadinessBlocker ? (
+              <div className="studio-inspector-runtime-error" role="alert">
+                <strong>{videoReadinessBlocker.code}</strong>
+                <span>{videoReadinessBlocker.message}</span>
+              </div>
+            ) : null}
             {!STUDIO_HIGGSFIELD_VIDEO_GENERATION_ENABLED ? (
               <p className="studio-node-footnote">
                 Runtime models are visible, but Studio Higgsfield execution is disabled by feature flag.
@@ -858,6 +868,7 @@ export function NodeInspector() {
               className="studio-node-action"
               disabled={
                 generationQueue.running ||
+                Boolean(videoReadinessBlocker) ||
                 (data.status === "completed" && Boolean(data.videoUrl || data.result))
               }
               onClick={() =>
@@ -876,6 +887,7 @@ export function NodeInspector() {
               disabled={
                 !selectedGenerationPlan ||
                 generationQueue.running ||
+                Boolean(videoReadinessBlocker) ||
                 selectedGenerationPlan.status !== "draft"
               }
               onClick={() => {

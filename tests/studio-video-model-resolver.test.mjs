@@ -20,6 +20,28 @@ function inventory() {
       modelCount: 1,
     },
     limits: { source: "backend_model_config", perModel: true },
+    readiness: {
+      provider: "higgsfield",
+      ready: true,
+      checks: {
+        catalog: true,
+        auth: true,
+        credential: true,
+        transport: true,
+        runtime: true,
+        workspace: true,
+        cost: true,
+      },
+      blockers: [],
+      error: null,
+      credential: {
+        strategy: "cli_session",
+        configured: true,
+        environmentVariables: ["HIGGSFIELD_CLI_BIN"],
+      },
+      checkedAt: "2026-07-18T12:00:00.000Z",
+      cached: false,
+    },
     models: [
       {
         id: "seedance_2_0",

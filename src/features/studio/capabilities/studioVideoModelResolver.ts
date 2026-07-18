@@ -1,3 +1,5 @@
+import type { StudioProviderReadiness } from "./studioProviderReadiness";
+
 export type StudioProviderVideoModel = {
   id: string;
   providerId: string;
@@ -38,6 +40,7 @@ export type StudioProviderModelInventory = {
     source: string;
     perModel: boolean;
   };
+  readiness: StudioProviderReadiness;
   enabled: boolean;
 };
 

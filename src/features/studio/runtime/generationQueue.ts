@@ -10,6 +10,10 @@ import {
   resolveStudioVideoGenerationModel,
 } from "@/features/studio/capabilities/studioVideoModelResolver";
 import { getCachedStudioProviderModelInventory } from "@/lib/studio-provider-models-api";
+import {
+  assertStudioProviderExecutionReady,
+  getStudioProviderReadinessBlocker,
+} from "@/features/studio/capabilities/studioProviderReadiness";
 
 export const MAX_CONCURRENT_VIDEO_GENERATIONS = 1;
 export const MAX_STUDIO_VIDEO_TASKS_PER_RUN = 3;
@@ -71,6 +75,7 @@ export function estimateStudioVideoNodeCredits(node: StudioNode) {
     "video_generate",
   );
   if (!inventory) return null;
+  assertStudioProviderExecutionReady(inventory.readiness);
   const model = resolveStudioVideoGenerationModel(inventory, {
     providerId,
     modelId: node.data.modelId || node.data.model,
@@ -80,6 +85,16 @@ export function estimateStudioVideoNodeCredits(node: StudioNode) {
     quality: node.data.quality,
     resolution: node.data.resolution,
   });
+}
+
+export function getStudioVideoGenerationReadinessBlocker(
+  providerId = "higgsfield",
+) {
+  const inventory = getCachedStudioProviderModelInventory(
+    providerId,
+    "video_generate",
+  );
+  return getStudioProviderReadinessBlocker(inventory?.readiness);
 }
 
 export function isActiveStudioGenerationPlan(plan: StudioGenerationPlan) {
