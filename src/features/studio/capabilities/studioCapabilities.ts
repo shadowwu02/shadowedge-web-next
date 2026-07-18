@@ -40,6 +40,9 @@ export type StudioCapability = {
 export type CapabilityCostRule = {
   capability: StudioCapabilityId;
   providerId: string;
+  model?: string;
+  duration?: number;
+  credits?: number;
   creditsRule: "existing_video_rules" | "free_mock" | "future";
 };
 
@@ -99,8 +102,8 @@ export const STUDIO_CAPABILITIES = [
       },
       {
         providerId: "higgsfield",
-        adapterKey: "unavailable",
-        availability: "metadata_only",
+        adapterKey: "higgsfield_video_edit",
+        availability: "available",
         supportedModes: ["video_to_video", "replace_background", "extend"],
         supportedParameters: ["mode", "prompt"],
       },
@@ -192,7 +195,12 @@ export const STUDIO_CAPABILITY_COST_RULES = [
   { capability: "video_edit", providerId: "mock", creditsRule: "free_mock" },
   { capability: "motion_control", providerId: "mock", creditsRule: "free_mock" },
   { capability: "camera_control", providerId: "mock", creditsRule: "free_mock" },
-  { capability: "video_edit", providerId: "higgsfield", creditsRule: "future" },
+  {
+    capability: "video_edit",
+    providerId: "higgsfield",
+    model: "kling_o1_video_edit",
+    creditsRule: "future",
+  },
   { capability: "motion_control", providerId: "higgsfield", creditsRule: "future" },
   { capability: "camera_control", providerId: "higgsfield", creditsRule: "future" },
 ] as const satisfies readonly CapabilityCostRule[];

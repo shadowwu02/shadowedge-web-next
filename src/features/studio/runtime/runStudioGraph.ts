@@ -158,6 +158,7 @@ function persistedNodeOutput(node: StudioNode): Record<string, unknown> {
       thumbnail: data.thumbnail || data.url,
       source: data.source,
       status: data.status,
+      metadata: data.metadata,
     };
   }
   if (data.kind === "character") {

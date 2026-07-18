@@ -101,7 +101,8 @@ test("motion_control resolves through the same adapter and supports cancel", asy
 });
 
 test("metadata-only or unknown providers fail closed", () => {
-  assert.equal(getStudioProvider("higgsfield")?.status, "metadata_only");
+  assert.equal(getStudioProvider("higgsfield")?.status, "available");
+  assert.deepEqual(getStudioProvider("higgsfield")?.capabilities, ["video_edit"]);
   for (const providerId of ["higgsfield", "missing-provider"]) {
     const resolution = resolveProviderForCapability({
       capability: "camera_control",

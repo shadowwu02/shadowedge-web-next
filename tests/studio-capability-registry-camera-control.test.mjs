@@ -24,6 +24,10 @@ test("Capability Registry resolves provider-neutral modes and metadata", () => {
     "metadata_only",
   );
   assert.equal(
+    getStudioCapabilityProvider("video_edit", "higgsfield")?.availability,
+    "available",
+  );
+  assert.equal(
     providerSupportsCapabilityMode("camera_control", "mock", "preset"),
     true,
   );

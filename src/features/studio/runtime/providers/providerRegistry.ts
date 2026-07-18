@@ -8,10 +8,12 @@ import type {
   ProviderAdapter,
 } from "@/features/studio/runtime/providers/providerAdapter";
 import { mockProviderAdapter } from "./mockProviderAdapter.ts";
+import { higgsfieldVideoEditAdapter } from "./higgsfieldVideoEditAdapter.ts";
 
 export type StudioProviderStatus =
   | "existing"
   | "mock"
+  | "available"
   | "metadata_only"
   | "disabled";
 
@@ -41,9 +43,9 @@ export const STUDIO_PROVIDER_REGISTRY: readonly StudioProviderDefinition[] = [
   {
     providerId: "higgsfield",
     name: "Higgsfield",
-    capabilities: ["video_edit", "motion_control", "camera_control"],
-    adapterKey: "unavailable",
-    status: "metadata_only",
+    capabilities: ["video_edit"],
+    adapterKey: "higgsfield_video_edit",
+    status: "available",
   },
   {
     providerId: "kling",
@@ -56,6 +58,7 @@ export const STUDIO_PROVIDER_REGISTRY: readonly StudioProviderDefinition[] = [
 
 const adapters = new Map<string, ProviderAdapter>([
   [mockProviderAdapter.key, mockProviderAdapter],
+  [higgsfieldVideoEditAdapter.key, higgsfieldVideoEditAdapter],
 ]);
 
 function unavailable(message: string): ProviderResolutionFailure {
