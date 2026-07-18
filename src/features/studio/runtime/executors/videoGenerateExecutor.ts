@@ -12,6 +12,11 @@ import {
 import { getVideoErrorReasonCode } from "@/lib/video/videoErrorDisplay";
 import { buildVideoGenerationRequest } from "@/lib/video/videoGenerationRequest";
 import {
+  getVideoStatusWithVisibilityGrace,
+  normalizeVideoJobIdentity,
+  type VideoJobIdentity,
+} from "@/lib/video/videoJobIdentity";
+import {
   getSafeHistoryOutputUrl,
   normalizeVideoPollingStatus,
 } from "@/lib/video/historyUtils";
@@ -37,6 +42,8 @@ import type {
 
 const POLLING_INTERVAL_MS = 6_000;
 const MAX_POLL_ATTEMPTS = 480;
+const JOB_VISIBILITY_GRACE_ATTEMPTS = 3;
+const JOB_VISIBILITY_RETRY_MS = 2_000;
 
 type StudioVideoErrorCode =
   | "STUDIO_VIDEO_EXECUTION_DISABLED"
@@ -45,6 +52,7 @@ type StudioVideoErrorCode =
   | "FORBIDDEN"
   | "MATERIAL_ISSUE"
   | "PARAMETER_ISSUE"
+  | "VIDEO_JOB_NOT_FOUND"
   | "PROVIDER_TEMPORARY"
   | "POLICY_OR_COPYRIGHT";
 
@@ -58,10 +66,14 @@ function configString(context: NodeExecutionContext, key: string) {
   return String(context.config[key] || "").trim();
 }
 
-function waitForNextPoll() {
+function waitForDuration(durationMs: number) {
   return new Promise<void>((resolve) => {
-    setTimeout(resolve, POLLING_INTERVAL_MS);
+    setTimeout(resolve, durationMs);
   });
+}
+
+function waitForNextPoll() {
+  return waitForDuration(POLLING_INTERVAL_MS);
 }
 
 function findPromptInput(context: NodeExecutionContext) {
@@ -202,6 +214,7 @@ function mapReasonCode(message: string, errorCode = ""): StudioVideoErrorCode {
   if (
     normalizedCode === "MATERIAL_ISSUE" ||
     normalizedCode === "PARAMETER_ISSUE" ||
+    normalizedCode === "VIDEO_JOB_NOT_FOUND" ||
     normalizedCode === "PROVIDER_TEMPORARY" ||
     normalizedCode === "POLICY_OR_COPYRIGHT"
   ) {
@@ -210,7 +223,8 @@ function mapReasonCode(message: string, errorCode = ""): StudioVideoErrorCode {
 
   const reason = getVideoErrorReasonCode(message, { errorCode });
   if (reason === "material") return "MATERIAL_ISSUE";
-  if (reason === "parameter" || reason === "not_found") return "PARAMETER_ISSUE";
+  if (reason === "parameter") return "PARAMETER_ISSUE";
+  if (reason === "not_found") return "VIDEO_JOB_NOT_FOUND";
   if (reason === "policy") return "POLICY_OR_COPYRIGHT";
   return "PROVIDER_TEMPORARY";
 }
@@ -233,6 +247,9 @@ function friendlyMessage(code: StudioVideoErrorCode, fallback = "") {
   }
   if (code === "PARAMETER_ISSUE") {
     return fallback || "Check the prompt, references, and video node settings.";
+  }
+  if (code === "VIDEO_JOB_NOT_FOUND") {
+    return fallback || "The video job could not be reconciled with this account.";
   }
   if (code === "POLICY_OR_COPYRIGHT") {
     return "The request was blocked by a safety or copyright policy.";
@@ -259,27 +276,38 @@ function failure(
   };
 }
 
-function failureFromError(error: unknown, jobId = "") {
+function jobIdentityOutputs(identity: VideoJobIdentity) {
+  return {
+    jobId: identity.jobId,
+    databaseJobId: identity.databaseJobId,
+    dbJobId: identity.databaseJobId,
+    providerJobId: identity.providerJobId,
+    statusJobId: identity.statusJobId,
+    jobIdentity: identity,
+  };
+}
+
+function failureFromError(error: unknown, identity: VideoJobIdentity) {
   if (error instanceof ApiError) {
     if (error.status === 401 || error.kind === "auth") {
-      return failure("AUTH_REQUIRED", "", { jobId });
+      return failure("AUTH_REQUIRED", "", jobIdentityOutputs(identity));
     }
     if (error.status === 402) {
-      return failure("INSUFFICIENT_CREDITS", "", { jobId });
+      return failure("INSUFFICIENT_CREDITS", "", jobIdentityOutputs(identity));
     }
     if (error.status === 403) {
-      return failure("FORBIDDEN", "", { jobId });
+      return failure("FORBIDDEN", "", jobIdentityOutputs(identity));
     }
     return failure(mapReasonCode(error.message, error.code || ""), error.message, {
-      jobId,
+      ...jobIdentityOutputs(identity),
     });
   }
 
   const message = error instanceof Error ? error.message : "Video generation failed.";
-  return failure(mapReasonCode(message), message, { jobId });
+  return failure(mapReasonCode(message), message, jobIdentityOutputs(identity));
 }
 
-function failureFromStatus(status: VideoStatusResponse, jobId: string) {
+function failureFromStatus(status: VideoStatusResponse, identity: VideoJobIdentity) {
   const message = String(
     status.providerPublicMessageEn ||
       status.providerPublicMessage ||
@@ -297,7 +325,7 @@ function failureFromStatus(status: VideoStatusResponse, jobId: string) {
       "",
   );
   return failure(mapReasonCode(message, errorCode), message, {
-    jobId,
+    ...jobIdentityOutputs(identity),
     refunded: status.refunded,
     refundAmount: status.refund_amount,
     costCredits: status.cost_credits,
@@ -314,12 +342,35 @@ function getProgressStatus(status: string) {
 }
 
 async function pollVideoJob(
-  jobId: string,
+  identity: VideoJobIdentity,
   context: NodeExecutionContext,
 ): Promise<VideoStatusResponse> {
+  let jobVisibilityConfirmed = false;
+
   for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt += 1) {
     if (attempt > 0) await waitForNextPoll();
-    const response = await getVideoStatus(jobId);
+    const response = jobVisibilityConfirmed
+      ? await getVideoStatus(identity.statusJobId)
+      : await getVideoStatusWithVisibilityGrace({
+          identity,
+          getStatus: getVideoStatus,
+          maxAttempts: JOB_VISIBILITY_GRACE_ATTEMPTS,
+          onNotVisible(progress) {
+            context.reportProgress({
+              status: "processing",
+              outputs: {
+                executor: "video_generate",
+                ...jobIdentityOutputs(identity),
+                errorCode: progress.code,
+                providerStatus: "job_not_visible_yet",
+                visibilityAttempt: progress.attempt,
+                visibilityMaxAttempts: progress.maxAttempts,
+              },
+            });
+          },
+          wait: () => waitForDuration(JOB_VISIBILITY_RETRY_MS),
+        });
+    jobVisibilityConfirmed = true;
     const status = response.data || {};
     const outputUrl = getSafeHistoryOutputUrl(status);
     const providerStatus = normalizeVideoPollingStatus(status.status, outputUrl);
@@ -328,7 +379,7 @@ async function pollVideoJob(
       status: getProgressStatus(providerStatus),
       outputs: {
         executor: "video_generate",
-        jobId,
+        ...jobIdentityOutputs(identity),
         providerStatus,
         videoUrl: outputUrl,
         thumbnail: status.thumbnail || status.thumbnailUrl || outputUrl,
@@ -354,11 +405,20 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
       return failure("STUDIO_VIDEO_EXECUTION_DISABLED");
     }
 
-    let jobId = configString(context, "jobId");
+    const savedIdentity = asRecord(context.config.jobIdentity);
+    let identity = normalizeVideoJobIdentity({
+      jobId: context.config.jobId || savedIdentity.jobId,
+      databaseJobId:
+        context.config.databaseJobId || savedIdentity.databaseJobId,
+      dbJobId: context.config.dbJobId || savedIdentity.dbJobId,
+      providerJobId:
+        context.config.providerJobId || savedIdentity.providerJobId,
+      statusJobId: context.config.statusJobId || savedIdentity.statusJobId,
+    });
     let modelId = configString(context, "model");
     const savedStatus = configString(context, "status").toLowerCase();
     const canResume =
-      Boolean(jobId) &&
+      Boolean(identity.statusJobId) &&
       (savedStatus === "queued" || savedStatus === "processing");
 
     try {
@@ -423,21 +483,21 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
         });
         const submitted = await createVideoTask(request);
         const result = submitted.data;
-        if (!result?.jobId) {
+        identity = normalizeVideoJobIdentity(result);
+        if (!result || !identity.statusJobId) {
           return failure(
             "PROVIDER_TEMPORARY",
-            "Video generation started without returning a job ID.",
+            "Video generation started without returning a usable job identity.",
           );
         }
 
-        jobId = result.jobId;
         submittedCreditsBalance = result.creditsBalance;
         submittedCost = result.cost;
         context.reportProgress({
           status: "queued",
           outputs: {
             executor: "video_generate",
-            jobId,
+            ...jobIdentityOutputs(identity),
             model: model.id,
             duration: params.duration,
             ratio: params.ratio,
@@ -454,7 +514,7 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
           status: savedStatus === "queued" ? "queued" : "processing",
           outputs: {
             executor: "video_generate",
-            jobId,
+            ...jobIdentityOutputs(identity),
             model: modelId,
             providerStatus: savedStatus,
             resumed: true,
@@ -462,13 +522,13 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
         });
       }
 
-      const status = await pollVideoJob(jobId, context);
+      const status = await pollVideoJob(identity, context);
       const providerStatus = normalizeVideoPollingStatus(
         status.status,
         getSafeHistoryOutputUrl(status),
       );
       if (isVideoFailedStatus(providerStatus)) {
-        return failureFromStatus(status, jobId);
+        return failureFromStatus(status, identity);
       }
 
       const videoUrl = getSafeHistoryOutputUrl(status);
@@ -476,7 +536,7 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
         return failure(
           "PROVIDER_TEMPORARY",
           "Video generation finished without a usable result.",
-          { jobId },
+          jobIdentityOutputs(identity),
         );
       }
 
@@ -484,7 +544,7 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
         status: "completed",
         outputs: {
           executor: "video_generate",
-          jobId,
+          ...jobIdentityOutputs(identity),
           videoUrl,
           thumbnail: status.thumbnail || status.thumbnailUrl || videoUrl,
           outputUrls: status.outputUrls || status.output_urls || [videoUrl],
@@ -495,7 +555,7 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
         },
       };
     } catch (error) {
-      return failureFromError(error, jobId);
+      return failureFromError(error, identity);
     }
   },
 };

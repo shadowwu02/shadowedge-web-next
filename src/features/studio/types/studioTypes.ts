@@ -1,4 +1,5 @@
 import type { Edge, Node, Viewport } from "@xyflow/react";
+import type { VideoJobIdentity } from "@/lib/video/videoJobIdentity";
 
 export type StudioNodeType =
   | "asset"
@@ -164,6 +165,10 @@ export type VideoGenerateNodeData = StudioNodeBase & {
   status: GenerationNodeStatus;
   result: string;
   jobId: string;
+  databaseJobId?: string;
+  providerJobId?: string;
+  statusJobId?: string;
+  jobIdentity?: VideoJobIdentity;
   videoUrl: string;
   thumbnail: string;
   errorCode: string;

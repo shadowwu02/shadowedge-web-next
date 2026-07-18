@@ -480,6 +480,9 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
       status: "idle",
       result: "",
       jobId: "",
+      databaseJobId: "",
+      providerJobId: "",
+      statusJobId: "",
       videoUrl: "",
       thumbnail: "",
       errorCode: "",
@@ -804,6 +807,12 @@ function applyRuntimeOutputToCanvas(
 
     if (node.data.kind === "videoGenerate") {
       const jobId = outputString(runtime.outputs, "jobId");
+      const databaseJobId =
+        outputString(runtime.outputs, "databaseJobId") ||
+        outputString(runtime.outputs, "dbJobId");
+      const providerJobId = outputString(runtime.outputs, "providerJobId");
+      const statusJobId = outputString(runtime.outputs, "statusJobId");
+      const jobIdentity = asRecord(runtime.outputs.jobIdentity);
       const videoUrl = outputString(runtime.outputs, "videoUrl");
       const thumbnail = outputString(runtime.outputs, "thumbnail");
       const errorCode = outputString(runtime.outputs, "errorCode");
@@ -825,6 +834,34 @@ function applyRuntimeOutputToCanvas(
           ...node.data,
           status,
           jobId: jobId || node.data.jobId,
+          databaseJobId: databaseJobId || node.data.databaseJobId,
+          providerJobId: providerJobId || node.data.providerJobId,
+          statusJobId: statusJobId || node.data.statusJobId,
+          jobIdentity: Object.keys(jobIdentity).length
+            ? {
+                jobId: String(jobIdentity.jobId || jobId || node.data.jobId),
+                databaseJobId: String(
+                  jobIdentity.databaseJobId ||
+                    databaseJobId ||
+                    node.data.databaseJobId ||
+                    "",
+                ) || undefined,
+                providerJobId: String(
+                  jobIdentity.providerJobId ||
+                    providerJobId ||
+                    node.data.providerJobId ||
+                    "",
+                ) || undefined,
+                statusJobId: String(
+                  jobIdentity.statusJobId ||
+                    statusJobId ||
+                    node.data.statusJobId ||
+                    databaseJobId ||
+                    jobId ||
+                    node.data.jobId,
+                ),
+              }
+            : node.data.jobIdentity,
           model: model || node.data.model,
           duration: Number(runtime.outputs.duration) || node.data.duration,
           ratio: outputString(runtime.outputs, "ratio") || node.data.ratio,
