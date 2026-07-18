@@ -40,6 +40,9 @@ export function StudioToolbar({
   const runLockState = useStudioStore((state) => state.runLockState);
   const runtimeError = useStudioStore((state) => state.runtimeError);
   const generationQueue = useStudioStore((state) => state.generationQueue);
+  const hasDraftGenerationPlan = useStudioStore((state) =>
+    state.generationPlans.some((plan) => plan.status === "draft"),
+  );
   const clearRuntimeError = useStudioStore((state) => state.clearRuntimeError);
   const runNodes = useStudioStore((state) => state.runNodes);
   const nodeCount = useStudioStore((state) => state.nodes.length);
@@ -110,17 +113,17 @@ export function StudioToolbar({
           className="studio-button studio-button-run"
           disabled={projectBusy || runtimeRunning || nodeCount === 0}
           onClick={() => void runNodes()}
-          title={
-            STUDIO_IMAGE_EXECUTION_ENABLED ||
-            STUDIO_VIDEO_EXECUTION_ENABLED ||
-            STUDIO_REMAKE_EXECUTION_ENABLED
-              ? "Runs enabled generation nodes through the existing APIs and credits flow"
-              : "Runs local executors; generation is disabled in this environment"
-          }
+          title="Paid Video Nodes create a Generation Plan before Queue execution; Image execution is fail-closed until its queue is available"
           type="button"
         >
           <span className="studio-run-icon" aria-hidden="true">▶</span>
-          {runLockState === "locked" ? "Locked" : runtimeRunning ? "Running..." : "Run"}
+          {runLockState === "locked"
+            ? "Locked"
+            : runtimeRunning
+              ? "Running..."
+              : hasDraftGenerationPlan
+                ? "Review Plan"
+                : "Run"}
         </button>
         <div className="studio-new-node-wrap">
           <button

@@ -23,10 +23,12 @@ import {
 } from "@/features/studio/lib/studioGenerationPlans";
 import { getStudioExecutor } from "@/features/studio/runtime/executorRegistry";
 import {
-  buildStudioGenerationPlan,
+  buildStudioGenerationPlanFromNode,
+  isActiveStudioGenerationPlan,
   MAX_CONCURRENT_VIDEO_GENERATIONS,
   MAX_STUDIO_VIDEO_TASKS_PER_RUN,
   type StudioGenerationPlan,
+  type StudioGenerationPlanSourceType,
 } from "@/features/studio/runtime/generationQueue";
 import {
   getStudioRetryPreflight,
@@ -485,6 +487,7 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
       sourceShotId: "",
       sourcePipelineId: "",
       pipelineExecutionBlocked: false,
+      generationPlanId: "",
       queueStatus: null,
     };
   }
@@ -1348,6 +1351,14 @@ type StudioState = StudioCanvasSnapshot & {
   }) => void;
   createAssetFromResultNode: (nodeId: string) => void;
   createVideoNodeFromRemakeShot: (nodeId: string) => void;
+  createGenerationPlanFromNode: (input: {
+    nodeId: string;
+    nodeType: StudioGenerationPlanSourceType;
+    projectId: string | null;
+  }) => {
+    planId: string;
+    tasks: StudioGenerationPlan["items"];
+  } | null;
   createGenerationPlan: (pipelineNodeId: string) => void;
   startGenerationPlan: (planId: string) => Promise<void>;
   cancelGenerationPlan: (planId: string) => void;
@@ -1721,58 +1732,108 @@ export const useStudioStore = create<StudioState>()(
           };
         }),
 
-      createGenerationPlan: (pipelineNodeId) => {
+      createGenerationPlanFromNode: ({ nodeId, nodeType, projectId }) => {
         const state = get();
         if (state.generationQueue.running || state.runtimeRunning) {
           set({ runtimeError: "Wait for the active Studio runtime to finish." });
-          return;
+          return null;
         }
-        const pipelineNode = state.nodes.find(
-          (node) =>
-            node.id === pipelineNodeId && node.data.kind === "remakePipeline",
-        );
+
+        const sourceNode = state.nodes.find((node) => node.id === nodeId);
+        if (!sourceNode || sourceNode.type !== nodeType) {
+          set({ runtimeError: "The Generation Plan source node was not found." });
+          return null;
+        }
         if (
-          !pipelineNode ||
-          pipelineNode.data.kind !== "remakePipeline" ||
-          pipelineNode.data.status !== "completed"
+          nodeType === "remake_pipeline" &&
+          (sourceNode.data.kind !== "remakePipeline" ||
+            sourceNode.data.status !== "completed")
         ) {
           set({ runtimeError: "Complete the Remake Pipeline plan first." });
-          return;
+          return null;
         }
-        const videoNodeIds = new Set(pipelineNode.data.videoNodeIds);
-        const videoNodes = state.nodes.filter(
-          (node) =>
-            videoNodeIds.has(node.id) &&
-            node.data.kind === "videoGenerate" &&
-            !(
-              node.data.status === "completed" &&
-              Boolean(node.data.videoUrl || node.data.result)
-            ),
+        if (
+          nodeType === "videoGenerate" &&
+          (sourceNode.data.kind !== "videoGenerate" ||
+            sourceNode.data.pipelineExecutionBlocked)
+        ) {
+          set({
+            runtimeError:
+              "Pipeline-controlled Video Nodes must use their parent Remake Generation Plan.",
+          });
+          return null;
+        }
+        if (
+          sourceNode.data.kind === "videoGenerate" &&
+          sourceNode.data.status === "completed" &&
+          Boolean(sourceNode.data.videoUrl || sourceNode.data.result)
+        ) {
+          set({ runtimeError: "This Video Node already has a completed result." });
+          return null;
+        }
+
+        const effectiveProjectId = projectId || state.projectId || "local";
+        const existingPlan = state.generationPlans.find(
+          (plan) =>
+            isActiveStudioGenerationPlan(plan) &&
+            plan.projectId === effectiveProjectId &&
+            (plan.sourceNodeId === nodeId ||
+              plan.items.some((item) => item.nodeId === nodeId)),
         );
-        if (!videoNodes.length) {
-          set({ runtimeError: "This Remake Pipeline has no unfinished Video Nodes." });
-          return;
+        if (existingPlan) {
+          set((current) => ({
+            selectedNodeId: nodeId,
+            runtimeError:
+              "GENERATION_PLAN_ALREADY_ACTIVE: Review or cancel the existing plan before creating another one.",
+            nodes: current.nodes.map((node) =>
+              node.id === nodeId && node.data.kind === "videoGenerate"
+                ? {
+                    ...node,
+                    data: {
+                      ...node.data,
+                      generationPlanId: existingPlan.id,
+                      queueStatus: node.data.queueStatus || "draft",
+                    },
+                  }
+                : node,
+            ),
+          }));
+          return { planId: existingPlan.id, tasks: existingPlan.items };
         }
-        if (videoNodes.length > MAX_STUDIO_VIDEO_TASKS_PER_RUN) {
+
+        let plan: StudioGenerationPlan;
+        try {
+          plan = buildStudioGenerationPlanFromNode({
+            nodeId,
+            nodeType,
+            projectId: effectiveProjectId,
+            nodes: state.nodes,
+          });
+        } catch (error) {
+          set({
+            runtimeError:
+              error instanceof Error
+                ? error.message
+                : "Generation Plan could not be created.",
+          });
+          return null;
+        }
+        if (plan.items.length > MAX_STUDIO_VIDEO_TASKS_PER_RUN) {
           set({
             runtimeError:
               `STUDIO_GENERATION_LIMIT_EXCEEDED: A controlled plan supports at most ${MAX_STUDIO_VIDEO_TASKS_PER_RUN} video tasks.`,
           });
-          return;
+          return null;
         }
 
-        const plan = buildStudioGenerationPlan({
-          pipelineNodeId,
-          projectId: state.projectId || "local",
-          videoNodes,
-        });
         const plans = saveStudioGenerationPlan(plan);
         const snapshot = takeSnapshot(state);
         const plannedNodeIds = new Set(plan.items.map((item) => item.nodeId));
         set((current) => ({
           generationPlans: plans,
+          selectedNodeId: nodeId,
           nodes: current.nodes.map((node) => {
-            if (node.id === pipelineNodeId && node.data.kind === "remakePipeline") {
+            if (node.id === nodeId && node.data.kind === "remakePipeline") {
               return {
                 ...node,
                 data: {
@@ -1787,7 +1848,11 @@ export const useStudioStore = create<StudioState>()(
             if (plannedNodeIds.has(node.id) && node.data.kind === "videoGenerate") {
               return {
                 ...node,
-                data: { ...node.data, queueStatus: "waiting" },
+                data: {
+                  ...node.data,
+                  generationPlanId: plan.id,
+                  queueStatus: "draft",
+                },
               };
             }
             return node;
@@ -1798,6 +1863,15 @@ export const useStudioStore = create<StudioState>()(
           updatedAt: nowIso(),
           runtimeError: "",
         }));
+        return { planId: plan.id, tasks: plan.items };
+      },
+
+      createGenerationPlan: (pipelineNodeId) => {
+        get().createGenerationPlanFromNode({
+          nodeId: pipelineNodeId,
+          nodeType: "remake_pipeline",
+          projectId: get().projectId,
+        });
       },
 
       startGenerationPlan: async (planId) => {
@@ -1865,7 +1939,11 @@ export const useStudioStore = create<StudioState>()(
               if (queueStatus && node.data.kind === "videoGenerate") {
                 return {
                   ...node,
-                  data: { ...node.data, queueStatus },
+                  data: {
+                    ...node.data,
+                    generationPlanId: updatedPlan.id,
+                    queueStatus,
+                  },
                 };
               }
               return node;
@@ -2010,6 +2088,7 @@ export const useStudioStore = create<StudioState>()(
               nodeId: item.nodeId,
               nodes: get().nodes,
               edges: get().edges,
+              executionSource: "generation_queue",
               onNodeStart: (runtime) => {
                 syncRuntime(runtime);
                 updatePlanItem(item.nodeId, "running", runtime);
@@ -2107,7 +2186,10 @@ export const useStudioStore = create<StudioState>()(
             if (cancelledNodeIds.has(node.id) && node.data.kind === "videoGenerate") {
               return {
                 ...node,
-                data: { ...node.data, queueStatus: "failed" },
+                data: {
+                  ...node.data,
+                  queueStatus: cancelledPlan.confirmedAt ? "failed" : null,
+                },
               };
             }
             return node;
@@ -2670,8 +2752,78 @@ export const useStudioStore = create<StudioState>()(
           return;
         }
 
+        const standaloneVideoNodes = state.nodes.filter(
+          (node) =>
+            node.data.kind === "videoGenerate" &&
+            !node.data.pipelineExecutionBlocked &&
+            !(
+              node.data.status === "completed" &&
+              Boolean(node.data.videoUrl || node.data.result)
+            ),
+        );
+        if (standaloneVideoNodes.length) {
+          const selectedVideoNode = standaloneVideoNodes.find(
+            (node) => node.id === state.selectedNodeId,
+          );
+          if (!selectedVideoNode && standaloneVideoNodes.length > 1) {
+            set({
+              runtimeError:
+                "STUDIO_GENERATION_SELECTION_REQUIRED: Select one Video Generate Node. Standalone batch generation is disabled.",
+              runLockState: "idle",
+            });
+            return;
+          }
+          const targetNode = selectedVideoNode || standaloneVideoNodes[0];
+          get().createGenerationPlanFromNode({
+            nodeId: targetNode.id,
+            nodeType: "videoGenerate",
+            projectId: state.projectId,
+          });
+          return;
+        }
+
+        const paidGenerationNodes = state.nodes.filter(
+          (node) =>
+            node.data.kind === "imageGenerate" ||
+            node.data.kind === "videoGenerate",
+        );
+        const nonPaidNodes = state.nodes.filter(
+          (node) =>
+            node.data.kind !== "imageGenerate" &&
+            node.data.kind !== "videoGenerate",
+        );
+        const canRunNonPaidWorkflow = nonPaidNodes.some(
+          (node) =>
+            node.data.kind === "remakeAnalysis" ||
+            node.data.kind === "remakePipeline" ||
+            node.data.kind === "remakeShot" ||
+            node.data.kind === "videoEdit",
+        );
+        if (paidGenerationNodes.length && !canRunNonPaidWorkflow) {
+          const imageNode = paidGenerationNodes.find(
+            (node) => node.data.kind === "imageGenerate",
+          );
+          set({
+            selectedNodeId: imageNode?.id || paidGenerationNodes[0]?.id || null,
+            runtimeError: imageNode
+              ? "STUDIO_IMAGE_QUEUE_UNSUPPORTED: Image Generate execution is fail-closed until it has a Generation Plan queue worker."
+              : "No unfinished standalone Video Generate Node is available for a new Generation Plan.",
+            runLockState: "idle",
+          });
+          return;
+        }
+
+        const runtimeNodes = paidGenerationNodes.length
+          ? nonPaidNodes
+          : state.nodes;
+        const runtimeNodeIds = new Set(runtimeNodes.map((node) => node.id));
+        const runtimeEdges = state.edges.filter(
+          (edge) =>
+            runtimeNodeIds.has(edge.source) && runtimeNodeIds.has(edge.target),
+        );
+
         const readyState = Object.fromEntries(
-          state.nodes.map((node) => {
+          runtimeNodes.map((node) => {
             getStudioExecutor(node.type);
             return [
               node.id,
@@ -2686,7 +2838,7 @@ export const useStudioStore = create<StudioState>()(
           }),
         );
 
-        let runRecord = createRunRecord(state.nodes, state.projectId, "graph");
+        let runRecord = createRunRecord(runtimeNodes, state.projectId, "graph");
         const publishRunRecord = (record: StudioRunRecord) => {
           runRecord = record;
           set({ runHistory: saveStudioRunRecord(record) });
@@ -2703,8 +2855,8 @@ export const useStudioStore = create<StudioState>()(
         try {
           await runStudioGraph({
             projectId: state.projectId,
-            nodes: state.nodes,
-            edges: state.edges,
+            nodes: runtimeNodes,
+            edges: runtimeEdges,
             onNodeStart: (nodeRuntime) => {
               publishRunRecord(updateRunRecordNode(runRecord, nodeRuntime));
               set((current) => ({
@@ -2801,6 +2953,23 @@ export const useStudioStore = create<StudioState>()(
         const runtimeStatus = state.runtimeState[nodeId]?.status;
         if (persistedStatus !== "failed" && runtimeStatus !== "failed") {
           set({ runtimeError: "Only failed nodes can be retried." });
+          return;
+        }
+
+        if (node.data.kind === "videoGenerate") {
+          get().createGenerationPlanFromNode({
+            nodeId,
+            nodeType: "videoGenerate",
+            projectId: state.projectId,
+          });
+          return;
+        }
+        if (node.data.kind === "imageGenerate") {
+          set({
+            runtimeError:
+              "STUDIO_IMAGE_QUEUE_UNSUPPORTED: Image retry is blocked until it has a Generation Plan queue worker.",
+            runLockState: "idle",
+          });
           return;
         }
 

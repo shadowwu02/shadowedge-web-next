@@ -61,6 +61,10 @@ export function NodeInspector() {
   );
   const generationPlans = useStudioStore((state) => state.generationPlans);
   const generationQueue = useStudioStore((state) => state.generationQueue);
+  const projectId = useStudioStore((state) => state.projectId);
+  const createGenerationPlanFromNode = useStudioStore(
+    (state) => state.createGenerationPlanFromNode,
+  );
   const createGenerationPlan = useStudioStore(
     (state) => state.createGenerationPlan,
   );
@@ -71,15 +75,22 @@ export function NodeInspector() {
     (state) => state.cancelGenerationPlan,
   );
   const selectedNode = nodes.find((node) => node.id === selectedNodeId);
-  const selectedGenerationPlan =
-    selectedNode?.data.kind === "remakePipeline"
+  const selectedGenerationPlan = selectedNode
+    ? selectedNode.data.kind === "remakePipeline"
       ? generationPlans.find(
           (plan) =>
             plan.id === selectedNode.data.generationPlanId ||
             (!selectedNode.data.generationPlanId &&
-              plan.pipelineNodeId === selectedNode.id),
+              plan.sourceNodeId === selectedNode.id),
         )
-      : undefined;
+      : selectedNode.data.kind === "videoGenerate"
+        ? generationPlans.find(
+            (plan) =>
+              plan.id === selectedNode.data.generationPlanId ||
+              plan.items.some((item) => item.nodeId === selectedNode.id),
+          )
+        : undefined
+    : undefined;
   const selectedPlanItemCredits =
     selectedGenerationPlan?.items.map((item) => item.estimatedCredits) || [];
   const selectedPlanUnitCost = selectedPlanItemCredits.length
@@ -730,8 +741,96 @@ export function NodeInspector() {
                 <input disabled value={data.queueStatus} />
               </InspectorField>
             ) : null}
+            <div className="studio-node-copy" role="status">
+              <strong>Generation Plan</strong>
+              <span>
+                {selectedGenerationPlan
+                  ? `${selectedGenerationPlan.items.length} Video task · ${selectedGenerationPlan.status}`
+                  : "Run creates a cost preview. No provider call occurs before confirmation."}
+              </span>
+            </div>
+            {selectedGenerationPlan ? (
+              <>
+                <div className="studio-inspector-grid">
+                  <InspectorField label="Plan status">
+                    <input disabled value={selectedGenerationPlan.status} />
+                  </InspectorField>
+                  <InspectorField label="Tasks">
+                    <input disabled value={selectedGenerationPlan.items.length} />
+                  </InspectorField>
+                </div>
+                <div className="studio-inspector-grid">
+                  <InspectorField label="Model">
+                    <input disabled value={data.model} />
+                  </InspectorField>
+                  <InspectorField label="Estimated cost">
+                    <input
+                      disabled
+                      value={`${selectedGenerationPlan.estimatedCredits} credits`}
+                    />
+                  </InspectorField>
+                </div>
+              </>
+            ) : null}
+            <button
+              className="studio-node-action"
+              disabled={
+                generationQueue.running ||
+                (data.status === "completed" && Boolean(data.videoUrl || data.result))
+              }
+              onClick={() =>
+                createGenerationPlanFromNode({
+                  nodeId: selectedNode.id,
+                  nodeType: "videoGenerate",
+                  projectId,
+                })
+              }
+              type="button"
+            >
+              {selectedGenerationPlan ? "Review Generation Plan" : "Create Generation Plan"}
+            </button>
+            <button
+              className="studio-node-action"
+              disabled={
+                !selectedGenerationPlan ||
+                generationQueue.running ||
+                selectedGenerationPlan.status !== "draft"
+              }
+              onClick={() => {
+                if (selectedGenerationPlan) {
+                  void startGenerationPlan(selectedGenerationPlan.id);
+                }
+              }}
+              title={
+                STUDIO_GENERATION_ORCHESTRATOR_ENABLED
+                  ? "Confirm and run the controlled paid video queue"
+                  : "STUDIO_GENERATION_DISABLED"
+              }
+              type="button"
+            >
+              Confirm Generation
+            </button>
+            <button
+              className="studio-node-action"
+              disabled={
+                !selectedGenerationPlan ||
+                selectedGenerationPlan.status === "completed" ||
+                selectedGenerationPlan.status === "cancelled"
+              }
+              onClick={() => {
+                if (selectedGenerationPlan) {
+                  cancelGenerationPlan(selectedGenerationPlan.id);
+                }
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+            <p className="studio-node-footnote">
+              {data.duration}s · {data.ratio} · concurrency 1 · no automatic retry
+            </p>
             <InspectorField label="Job ID">
-              <input disabled placeholder="Created after Run" value={data.jobId || ""} />
+              <input disabled placeholder="Created after confirmation" value={data.jobId || ""} />
             </InspectorField>
             <InspectorField label="Video result">
               <input

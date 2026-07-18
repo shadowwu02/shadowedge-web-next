@@ -21,6 +21,7 @@ export type StudioAssetSource =
   | "remake";
 export type GenerationNodeStatus = "idle" | "ready" | "queued" | "processing" | "completed" | "failed";
 export type StudioGenerationQueueItemStatus =
+  | "draft"
   | "waiting"
   | "queued"
   | "running"
@@ -170,6 +171,7 @@ export type VideoGenerateNodeData = StudioNodeBase & {
   sourceShotId: string;
   sourcePipelineId: string;
   pipelineExecutionBlocked: boolean;
+  generationPlanId: string;
   queueStatus: StudioGenerationQueueItemStatus | null;
 };
 

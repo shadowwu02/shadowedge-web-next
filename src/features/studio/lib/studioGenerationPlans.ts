@@ -28,6 +28,21 @@ function isGenerationPlan(value: unknown): value is StudioGenerationPlan {
   );
 }
 
+function normalizeGenerationPlanSource(
+  plan: StudioGenerationPlan,
+): StudioGenerationPlan {
+  const sourceNodeId = plan.sourceNodeId || plan.pipelineNodeId;
+  return {
+    ...plan,
+    sourceNodeId,
+    sourceNodeType:
+      plan.sourceNodeType === "videoGenerate"
+        ? "videoGenerate"
+        : "remake_pipeline",
+    pipelineNodeId: plan.pipelineNodeId || sourceNodeId,
+  };
+}
+
 function normalizeInterruptedPlan(plan: StudioGenerationPlan) {
   if (plan.status !== "confirmed" && plan.status !== "running") return plan;
   const interruptedAt = new Date().toISOString();
@@ -62,6 +77,7 @@ export function listStudioGenerationPlans() {
     return Array.isArray(parsed)
       ? parsed
           .filter(isGenerationPlan)
+          .map(normalizeGenerationPlanSource)
           .map(normalizeInterruptedPlan)
           .slice(0, GENERATION_PLAN_LIMIT)
       : [];

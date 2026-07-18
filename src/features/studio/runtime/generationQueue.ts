@@ -15,6 +15,10 @@ export type StudioGenerationPlanStatus =
   | "failed"
   | "cancelled";
 
+export type StudioGenerationPlanSourceType =
+  | "remake_pipeline"
+  | "videoGenerate";
+
 export type StudioGenerationPlanItem = {
   nodeId: string;
   type: "video_generate";
@@ -33,6 +37,9 @@ export type StudioGenerationPlanItem = {
 export type StudioGenerationPlan = {
   id: string;
   projectId: string;
+  sourceNodeId: string;
+  sourceNodeType: StudioGenerationPlanSourceType;
+  /** Kept for Canvas P1-A7 localStorage compatibility. */
   pipelineNodeId: string;
   status: StudioGenerationPlanStatus;
   items: StudioGenerationPlanItem[];
@@ -54,31 +61,75 @@ export function estimateStudioVideoNodeCredits(node: StudioNode) {
   });
 }
 
-export function buildStudioGenerationPlan({
-  pipelineNodeId,
+export function isActiveStudioGenerationPlan(plan: StudioGenerationPlan) {
+  return (
+    plan.status === "draft" ||
+    plan.status === "confirmed" ||
+    plan.status === "running"
+  );
+}
+
+export function buildStudioGenerationPlanFromNode({
+  nodeId,
+  nodeType,
   projectId,
-  videoNodes,
+  nodes,
 }: {
-  pipelineNodeId: string;
+  nodeId: string;
+  nodeType: StudioGenerationPlanSourceType;
   projectId: string;
-  videoNodes: StudioNode[];
+  nodes: StudioNode[];
 }): StudioGenerationPlan {
+  const sourceNode = nodes.find((node) => node.id === nodeId);
+  if (!sourceNode || sourceNode.type !== nodeType) {
+    throw new Error("The Generation Plan source node was not found.");
+  }
+
+  let videoNodes: StudioNode[];
+  if (nodeType === "videoGenerate") {
+    if (sourceNode.data.kind !== "videoGenerate") {
+      throw new Error("The selected node is not a Video Generate Node.");
+    }
+    videoNodes = [sourceNode];
+  } else {
+    if (sourceNode.data.kind !== "remakePipeline") {
+      throw new Error("The selected node is not a Remake Pipeline Node.");
+    }
+    const plannedNodeIds = new Set(sourceNode.data.videoNodeIds);
+    videoNodes = nodes.filter((node) => plannedNodeIds.has(node.id));
+  }
+
   const timestamp = new Date().toISOString();
   const items = videoNodes
     .filter((node) => node.data.kind === "videoGenerate")
+    .filter(
+      (node) =>
+        !(
+          node.data.kind === "videoGenerate" &&
+          node.data.status === "completed" &&
+          Boolean(node.data.videoUrl || node.data.result)
+        ),
+    )
     .map((node) => ({
       nodeId: node.id,
       type: "video_generate" as const,
-      status: "waiting" as const,
+      status: "draft" as const,
       model: node.data.kind === "videoGenerate" ? node.data.model : "",
       estimatedCredits: estimateStudioVideoNodeCredits(node),
       startedAt: null,
       finishedAt: null,
     }));
+
+  if (!items.length) {
+    throw new Error("The selected source has no unfinished Video Generate task.");
+  }
+
   return {
     id: `generation-plan-${Date.now()}`,
     projectId,
-    pipelineNodeId,
+    sourceNodeId: nodeId,
+    sourceNodeType: nodeType,
+    pipelineNodeId: nodeId,
     status: "draft",
     items,
     estimatedCredits: items.reduce(

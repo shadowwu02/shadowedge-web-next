@@ -456,6 +456,39 @@ export async function runStudioGraph({
     };
     onNodeStart(runningState);
 
+    if (node.type === "imageGenerate" || node.type === "videoGenerate") {
+      const executor =
+        node.type === "videoGenerate" ? "video_generate" : "image_generate";
+      const message =
+        node.type === "videoGenerate"
+          ? "Paid Video Generate Nodes must be confirmed through a Generation Plan and Queue."
+          : "Paid Image Generate Nodes are blocked until Image Queue support is available.";
+      const blockedResult: NodeExecutionResult = {
+        status: "failed",
+        outputs: {
+          executor,
+          errorCode:
+            node.type === "videoGenerate"
+              ? "GENERATION_PLAN_REQUIRED"
+              : "STUDIO_IMAGE_QUEUE_UNSUPPORTED",
+          message,
+        },
+        error: message,
+      };
+      onNodeResult(
+        {
+          nodeId: node.id,
+          status: "failed",
+          startedAt,
+          finishedAt: nowIso(),
+          outputs: blockedResult.outputs,
+          error: message,
+        },
+        blockedResult,
+      );
+      break;
+    }
+
     const inputs = Object.fromEntries(
       getNodeInputIds(node, edges, nodeById).map((sourceId) => [
         sourceId,
@@ -522,11 +555,13 @@ export async function runSingleStudioNode({
   onNodeStart,
   onNodeProgress,
   onNodeResult,
+  executionSource = "direct",
 }: {
   projectId: string | null;
   nodeId: string;
   nodes: StudioNode[];
   edges: StudioEdge[];
+  executionSource?: "direct" | "generation_queue";
 } & StudioRuntimeCallbacks) {
   const node = nodes.find((item) => item.id === nodeId);
   if (!node) throw new Error("Studio node was not found.");
@@ -539,6 +574,42 @@ export async function runSingleStudioNode({
     finishedAt: null,
     outputs: {},
   });
+
+  if (
+    (node.type === "imageGenerate" || node.type === "videoGenerate") &&
+    executionSource !== "generation_queue"
+  ) {
+    const executor =
+      node.type === "videoGenerate" ? "video_generate" : "image_generate";
+    const message =
+      node.type === "videoGenerate"
+        ? "Paid Video Generate Nodes must be confirmed through a Generation Plan and Queue."
+        : "Paid Image Generate Nodes are blocked until Image Queue support is available.";
+    const blockedResult: NodeExecutionResult = {
+      status: "failed",
+      outputs: {
+        executor,
+        errorCode:
+          node.type === "videoGenerate"
+            ? "GENERATION_PLAN_REQUIRED"
+            : "STUDIO_IMAGE_QUEUE_UNSUPPORTED",
+        message,
+      },
+      error: message,
+    };
+    onNodeResult(
+      {
+        nodeId: node.id,
+        status: "failed",
+        startedAt,
+        finishedAt: nowIso(),
+        outputs: blockedResult.outputs,
+        error: message,
+      },
+      blockedResult,
+    );
+    return blockedResult;
+  }
 
   const { executor } = getStudioExecutor(node.type);
   let currentOutputs: Record<string, unknown> = {};

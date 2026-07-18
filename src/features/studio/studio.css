@@ -1651,6 +1651,7 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--studio-accent) 18%, transparent);
 }
 
+.studio-node-status-draft .studio-node-status-dot,
 .studio-node-status-waiting .studio-node-status-dot {
   background: #94a3b8;
 }

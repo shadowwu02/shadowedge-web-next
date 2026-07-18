@@ -2,6 +2,7 @@ import type { StudioNodeType } from "@/features/studio/types/studioTypes";
 
 export type NodeExecutionStatus =
   | "idle"
+  | "draft"
   | "waiting"
   | "ready"
   | "running"
