@@ -153,6 +153,19 @@ function persistedNodeOutput(node: StudioNode): Record<string, unknown> {
       status: data.status,
     };
   }
+  if (data.kind === "character") {
+    return {
+      executor: "character",
+      characterId: node.id,
+      name: data.name,
+      referenceImages: data.referenceImages,
+      description: data.description,
+      style: data.style,
+      attributes: data.attributes,
+      status: data.status,
+      providerCalled: false,
+    };
+  }
   if (data.kind === "prompt") {
     return {
       executor: "prompt",
@@ -178,6 +191,7 @@ function persistedNodeOutput(node: StudioNode): Record<string, unknown> {
       model: data.model,
       quality: data.quality,
       referenceImages: data.referenceFrames,
+      characterRefs: data.characterRefs,
       sourceTimeRange: data.sourceTimeRange,
       status: data.status,
     };

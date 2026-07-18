@@ -41,6 +41,7 @@ export type NodeExecutionResult<
 
 export type StudioExecutorKey =
   | "asset"
+  | "character"
   | "prompt"
   | "remake_analysis"
   | "remake_pipeline"

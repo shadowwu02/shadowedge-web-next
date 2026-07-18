@@ -55,7 +55,7 @@ export function MotionControlNode({ data, id, selected }: NodeProps<StudioNode>)
       </div>
       <dl className="studio-node-meta">
         <div><dt>Mode</dt><dd>{modeLabel(data.mode)}</dd></div>
-        <div><dt>Character</dt><dd>{data.sourceImage?.assetId || "Connect Image"}</dd></div>
+        <div><dt>Character</dt><dd>{data.characterRefs.join(", ") || data.sourceImage?.assetId || "Connect Character"}</dd></div>
         <div><dt>Motion</dt><dd>{data.motionReferenceVideo?.assetId || "Connect Video"}</dd></div>
       </dl>
       <p className="studio-node-footnote">

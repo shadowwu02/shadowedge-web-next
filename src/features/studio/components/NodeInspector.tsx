@@ -37,6 +37,46 @@ function InspectorField({
   );
 }
 
+function CharacterAttributesEditor({
+  onChange,
+  value,
+}: {
+  onChange: (value: Record<string, string>) => void;
+  value: Record<string, string>;
+}) {
+  const serialized = JSON.stringify(value, null, 2);
+  const [draft, setDraft] = useState(serialized);
+  const [error, setError] = useState("");
+
+  return (
+    <InspectorField label="Attributes (JSON)">
+      <textarea
+        aria-invalid={Boolean(error)}
+        onBlur={() => {
+          try {
+            const parsed = JSON.parse(draft) as unknown;
+            if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+              throw new Error("Attributes must be a JSON object.");
+            }
+            onChange(
+              Object.fromEntries(
+                Object.entries(parsed).map(([key, item]) => [key, String(item)]),
+              ),
+            );
+            setError("");
+          } catch {
+            setError("Use a JSON object such as {\"age\":\"adult\"}.");
+          }
+        }}
+        onChange={(event) => setDraft(event.target.value)}
+        rows={5}
+        value={draft}
+      />
+      {error ? <span className="studio-node-error">{error}</span> : null}
+    </InspectorField>
+  );
+}
+
 function normalizeVideoModelKey(value: unknown) {
   return String(value || "")
     .trim()
@@ -261,6 +301,43 @@ export function NodeInspector() {
                 <option value="processing">Processing</option>
               </select>
             </InspectorField>
+          </>
+        ) : null}
+
+        {data.kind === "character" ? (
+          <>
+            <InspectorField label="Character name">
+              <input value={data.name} onChange={updateText("name")} />
+            </InspectorField>
+            <InspectorField label="Reference image URLs">
+              <textarea
+                placeholder="One existing asset URL per line"
+                rows={5}
+                value={data.referenceImages.join("\n")}
+                onChange={(event) =>
+                  update({
+                    referenceImages: event.target.value
+                      .split(/\r?\n/)
+                      .map((value) => value.trim())
+                      .filter(Boolean),
+                  })
+                }
+              />
+            </InspectorField>
+            <InspectorField label="Description">
+              <textarea rows={4} value={data.description} onChange={updateText("description")} />
+            </InspectorField>
+            <InspectorField label="Style">
+              <input value={data.style} onChange={updateText("style")} />
+            </InspectorField>
+            <CharacterAttributesEditor
+              key={`${selectedNode.id}-${JSON.stringify(data.attributes)}`}
+              onChange={(attributes) => update({ attributes })}
+              value={data.attributes}
+            />
+            <p className="studio-node-footnote">
+              Metadata only. References are not analyzed, embedded, trained, or sent to a provider.
+            </p>
           </>
         ) : null}
 
@@ -514,6 +591,9 @@ export function NodeInspector() {
             </InspectorField>
             <InspectorField label="Camera">
               <input value={data.camera} onChange={updateText("camera")} />
+            </InspectorField>
+            <InspectorField label="Character refs">
+              <input disabled value={data.characterRefs.join(", ")} />
             </InspectorField>
             <div className="studio-inspector-grid">
               <InspectorField label="Model">
@@ -842,6 +922,9 @@ export function NodeInspector() {
                 value={data.videoUrl || data.result || ""}
               />
             </InspectorField>
+            <InspectorField label="Character refs">
+              <input disabled value={data.characterRefs.join(", ")} />
+            </InspectorField>
             {data.errorMessage ? (
               <div className="studio-inspector-runtime-error" role="alert">
                 <strong>{data.errorCode || "VIDEO_GENERATION_FAILED"}</strong>
@@ -1002,8 +1085,8 @@ export function NodeInspector() {
               <InspectorField label="Character image">
                 <input
                   disabled
-                  placeholder="Connect an Image Asset"
-                  value={data.sourceImage?.sourceNodeId || ""}
+                  placeholder="Connect a Character or Image Asset"
+                  value={data.characterRefs.join(", ") || data.sourceImage?.sourceNodeId || ""}
                 />
               </InspectorField>
               <InspectorField label="Motion video">

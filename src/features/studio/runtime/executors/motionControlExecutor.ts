@@ -36,6 +36,24 @@ function configuredAsset(value: unknown) {
     : null;
 }
 
+function characterImageRef(
+  sourceNodeId: string,
+  value: Record<string, unknown>,
+) {
+  const referenceImages = Array.isArray(value.referenceImages)
+    ? value.referenceImages.map(String).filter(Boolean)
+    : [];
+  const url = referenceImages[0] || "";
+  return url
+    ? {
+        assetId: stringValue(value.characterId) || sourceNodeId,
+        sourceNodeId,
+        url,
+        thumbnail: url,
+      }
+    : null;
+}
+
 function findInputs(context: NodeExecutionContext) {
   const inputs = Object.entries(context.inputs).map(([sourceNodeId, value]) => ({
     sourceNodeId,
@@ -47,22 +65,33 @@ function findInputs(context: NodeExecutionContext) {
   const video = inputs.find(
     ({ value }) => value.assetType === "video" && stringValue(value.url),
   );
+  const character = inputs.find(
+    ({ value }) => value.executor === "character" &&
+      Array.isArray(value.referenceImages) &&
+      value.referenceImages.some((url) => stringValue(url)),
+  );
+  const characterImage = character
+    ? characterImageRef(character.sourceNodeId, character.value)
+    : null;
   return {
     sourceImage: image
       ? assetRef(image.sourceNodeId, image.value)
-      : configuredAsset(context.config.sourceImage),
+      : characterImage
+        ? characterImage
+        : configuredAsset(context.config.sourceImage),
     motionReferenceVideo: video
       ? assetRef(video.sourceNodeId, video.value)
       : configuredAsset(context.config.motionReferenceVideo),
+    characterIds: character ? [character.sourceNodeId] : [],
   };
 }
 
 export const MotionControlExecutor: StudioNodeExecutor = {
   async execute(context): Promise<NodeExecutionResult> {
-    const { sourceImage, motionReferenceVideo } = findInputs(context);
+    const { sourceImage, motionReferenceVideo, characterIds } = findInputs(context);
     if (!sourceImage || !motionReferenceVideo) {
       const message =
-        "Connect one ready Image Asset and one Motion Reference Video Asset.";
+        "Connect one Character or ready Image Asset and one Motion Reference Video Asset.";
       return {
         status: "failed",
         outputs: {
@@ -147,6 +176,7 @@ export const MotionControlExecutor: StudioNodeExecutor = {
         source: "generated",
         sourceImage,
         motionReferenceVideo,
+        characterIds,
         mode,
         prompt: stringValue(context.config.prompt),
         jobIdentity: completed.identity,

@@ -3,6 +3,7 @@ import type { VideoJobIdentity } from "@/lib/video/videoJobIdentity";
 
 export type StudioNodeType =
   | "asset"
+  | "character"
   | "prompt"
   | "remakeAnalysis"
   | "remake_pipeline"
@@ -58,6 +59,16 @@ export type StudioAssetItem = {
   createdAt?: string;
   status: AssetStatus;
   metadata: Record<string, unknown>;
+};
+
+export type CharacterNodeData = StudioNodeBase & {
+  kind: "character";
+  name: string;
+  referenceImages: string[];
+  description: string;
+  style: string;
+  attributes: Record<string, string>;
+  status: "ready";
 };
 
 export type PromptNodeData = StudioNodeBase & {
@@ -124,6 +135,7 @@ export type RemakeShotNodeData = StudioNodeBase & {
   duration: number;
   camera: string;
   referenceFrames: string[];
+  characterRefs: string[];
   sourceTimeRange: {
     start: number;
     end: number;
@@ -160,6 +172,7 @@ export type VideoGenerateNodeData = StudioNodeBase & {
   quality: string;
   resolution: string;
   references: string[];
+  characterRefs: string[];
   promptInput: string;
   imageInput: string;
   videoInput: string;
@@ -243,6 +256,7 @@ export type MotionControlNodeData = StudioNodeBase & {
   kind: "motionControl";
   sourceImage: MotionControlAssetRef | null;
   motionReferenceVideo: MotionControlAssetRef | null;
+  characterRefs: string[];
   mode: MotionControlMode;
   prompt: string;
   status: GenerationNodeStatus;
@@ -278,6 +292,7 @@ export type OutputNodeData = StudioNodeBase & {
 
 export type StudioNodeData = (
   | AssetNodeData
+  | CharacterNodeData
   | PromptNodeData
   | RemakeAnalysisNodeData
   | RemakePipelineNodeData
@@ -310,6 +325,8 @@ export type StudioVideoTimelineClip = {
   start: number;
   duration: number;
   createdAt: string;
+  /** Character node ids carried with the shot for future continuity tooling. */
+  characterIds?: string[];
   /** Optional on read so clips created by Timeline schema v2 P1-A1 remain loadable. */
   metadata?: StudioTimelineClipMetadata;
 };
@@ -420,6 +437,11 @@ export const STUDIO_NODE_DEFINITIONS: Array<{
     type: "asset",
     label: "Asset",
     description: "Image, video, or audio input",
+  },
+  {
+    type: "character",
+    label: "Character",
+    description: "Reusable character definition and reference images",
   },
   {
     type: "prompt",

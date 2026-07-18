@@ -14,6 +14,7 @@ type CompletedVideoTimelineInput = {
   duration: number;
   title?: string;
   model?: string;
+  characterIds?: string[];
   createdAt?: string;
 };
 
@@ -73,6 +74,11 @@ export function bindCompletedVideoResultToTimeline(
     const duration = cleanDuration(input.duration);
     const thumbnail = String(input.thumbnail || url);
     const createdAt = String(input.createdAt || new Date().toISOString());
+    const inputCharacterIds = input.characterIds;
+    const hasCharacterIds = Array.isArray(inputCharacterIds);
+    const characterIds = hasCharacterIds
+      ? Array.from(new Set(inputCharacterIds.map(String).filter(Boolean)))
+      : undefined;
     const videoTrack = input.timeline.tracks.find(
       (track): track is StudioVideoTimelineTrack => track.type === "video",
     );
@@ -86,6 +92,7 @@ export function bindCompletedVideoResultToTimeline(
         url,
         thumbnail,
         duration,
+        characterIds: hasCharacterIds ? characterIds : existingClip.characterIds,
         metadata: {
           ...existingClip.metadata,
           title: input.title || existingClip.metadata?.title,
@@ -97,6 +104,9 @@ export function bindCompletedVideoResultToTimeline(
         existingClip.url !== nextClip.url ||
         existingClip.thumbnail !== nextClip.thumbnail ||
         existingClip.duration !== nextClip.duration ||
+        (hasCharacterIds &&
+          JSON.stringify(existingClip.characterIds || []) !==
+            JSON.stringify(characterIds || [])) ||
         existingClip.metadata?.title !== nextClip.metadata?.title ||
         existingClip.metadata?.model !== nextClip.metadata?.model ||
         existingClip.metadata?.status !== "completed";
@@ -143,6 +153,7 @@ export function bindCompletedVideoResultToTimeline(
       start,
       duration,
       createdAt,
+      ...(hasCharacterIds ? { characterIds } : {}),
       metadata: {
         title: input.title || "Generated video",
         model: input.model || "",

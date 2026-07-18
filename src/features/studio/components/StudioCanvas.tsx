@@ -10,6 +10,7 @@ import {
   type NodeTypes,
 } from "@xyflow/react";
 import { AssetNode } from "@/features/studio/nodes/AssetNode";
+import { CharacterNode } from "@/features/studio/nodes/CharacterNode";
 import { ImageGenerateNode } from "@/features/studio/nodes/ImageGenerateNode";
 import { OutputNode } from "@/features/studio/nodes/OutputNode";
 import { PromptNode } from "@/features/studio/nodes/PromptNode";
@@ -31,6 +32,7 @@ import type {
 
 const nodeTypes = {
   asset: AssetNode,
+  character: CharacterNode,
   prompt: PromptNode,
   remakeAnalysis: RemakeAnalysisNode,
   remake_pipeline: RemakePipelineNode,

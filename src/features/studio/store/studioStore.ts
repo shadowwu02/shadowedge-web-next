@@ -25,6 +25,7 @@ import {
   bindCompletedVideoResultToTimeline,
   TIMELINE_BIND_FAILED,
 } from "@/features/studio/lib/studioTimelineBinding";
+import { applyCharacterBindings } from "@/features/studio/lib/studioCharacterBindings";
 import { getStudioExecutor } from "@/features/studio/runtime/executorRegistry";
 import {
   buildStudioGenerationPlanFromNode,
@@ -155,6 +156,13 @@ function normalizeStudioTimeline(timeline?: StudioTimeline): StudioTimeline {
             ...clip,
             start: nonNegativeTime(clip.start),
             duration: positiveDuration(clip.duration),
+            ...(Array.isArray(clip.characterIds)
+              ? {
+                  characterIds: Array.from(
+                    new Set(clip.characterIds.map(String).filter(Boolean)),
+                  ),
+                }
+              : {}),
             metadata: clip.metadata || {},
           }))
         : [],
@@ -230,6 +238,7 @@ function createTimelineClip(
         start: 0,
         duration: positiveDuration(sourceNode.data.duration),
         createdAt,
+        characterIds: sourceNode.data.characterRefs,
         metadata: {
           title: sourceNode.data.title,
           model: sourceNode.data.model,
@@ -287,6 +296,7 @@ function createTimelineClip(
         start: 0,
         duration: positiveDuration(sourceNode.data.duration),
         createdAt,
+        characterIds: sourceNode.data.characterRefs,
         metadata: {
           title: `Shot ${sourceNode.data.shotNumber}`,
           model: sourceNode.data.model,
@@ -374,6 +384,18 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
       metadata: {},
     };
   }
+  if (type === "character") {
+    return {
+      kind: "character",
+      title: "Character asset",
+      name: "New character",
+      referenceImages: [],
+      description: "",
+      style: "",
+      attributes: {},
+      status: "ready",
+    };
+  }
   if (type === "prompt") {
     return {
       kind: "prompt",
@@ -441,6 +463,7 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
       duration: 4,
       camera: "",
       referenceFrames: [],
+      characterRefs: [],
       sourceTimeRange: { start: 0, end: 4 },
       model: "seedance_2_0",
       ratio: "16:9",
@@ -478,6 +501,7 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
       quality: "480p",
       resolution: "480p",
       references: [],
+      characterRefs: [],
       promptInput: "prompt-1",
       imageInput: "asset-1",
       videoInput: "",
@@ -525,6 +549,7 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
       title: "Motion control",
       sourceImage: null,
       motionReferenceVideo: null,
+      characterRefs: [],
       mode: "character_motion",
       prompt: "Transfer the reference motion while preserving the character identity.",
       status: "idle",
@@ -611,6 +636,26 @@ function normalizeStudioNodes(nodes: StudioNode[]) {
       (!data.model || data.model === "Model placeholder")
     ) {
       data.model = "seedance_2_0";
+    }
+    if (data.kind === "character") {
+      data.referenceImages = Array.isArray(data.referenceImages)
+        ? data.referenceImages.map(String).filter(Boolean)
+        : [];
+      data.attributes =
+        data.attributes && typeof data.attributes === "object" && !Array.isArray(data.attributes)
+          ? Object.fromEntries(
+              Object.entries(data.attributes).map(([key, value]) => [key, String(value)]),
+            )
+          : {};
+    }
+    if (
+      data.kind === "remakeShot" ||
+      data.kind === "videoGenerate" ||
+      data.kind === "motionControl"
+    ) {
+      data.characterRefs = Array.isArray(data.characterRefs)
+        ? Array.from(new Set(data.characterRefs.map(String).filter(Boolean)))
+        : [];
     }
     if (data.kind === "videoEdit" && data.result) {
       data.result = {
@@ -1249,6 +1294,11 @@ function applyVideoRuntimeToTimeline(
             : sourceNode?.data.kind === "motionControl"
               ? `motion_control:${sourceNode.data.mode}`
             : ""),
+      characterIds:
+        sourceNode?.data.kind === "videoGenerate" ||
+        sourceNode?.data.kind === "motionControl"
+          ? sourceNode.data.characterRefs
+          : [],
       createdAt: runtime.finishedAt || nowIso(),
     });
     return {
@@ -1381,6 +1431,9 @@ function materializeRemakeShotNodes(
       referenceFrames: Array.isArray(shot.referenceFrames)
         ? shot.referenceFrames.map(String).filter(Boolean)
         : [],
+      characterRefs: Array.isArray(shot.characterRefs)
+        ? shot.characterRefs.map(String).filter(Boolean)
+        : [],
       sourceTimeRange: {
         start: Math.max(0, Number(sourceTimeRange.start) || 0),
         end: Math.max(0, Number(sourceTimeRange.end) || 0),
@@ -1488,6 +1541,9 @@ function materializeRemakePipelinePlan(
           referenceFrames: Array.isArray(shot.referenceFrames)
             ? shot.referenceFrames.map(String).filter(Boolean)
             : [],
+          characterRefs: Array.isArray(shot.characterRefs)
+            ? shot.characterRefs.map(String).filter(Boolean)
+            : [],
           sourceTimeRange: {
             start: Math.max(0, Number(sourceTimeRange.start) || 0),
             end: Math.max(0, Number(sourceTimeRange.end) || 0),
@@ -1539,6 +1595,7 @@ function materializeRemakePipelinePlan(
           quality: shotData.quality,
           resolution: shotData.quality,
           references: shotData.referenceFrames,
+          characterRefs: shotData.characterRefs,
           promptInput: shotNode.id,
           imageInput: "",
           videoInput: "",
@@ -1585,6 +1642,7 @@ function materializeRemakePipelinePlan(
       start: 0,
       duration: positiveDuration(videoData.duration),
       createdAt,
+      characterIds: videoData.characterRefs,
       metadata: {
         title: `Shot ${shotNumber} Video`,
         model: videoData.model,
@@ -2038,6 +2096,7 @@ export const useStudioStore = create<StudioState>()(
               quality: shotNode.data.quality,
               resolution: shotNode.data.quality,
               references: shotNode.data.referenceFrames,
+              characterRefs: shotNode.data.characterRefs,
               promptInput: shotNode.id,
               imageInput: "",
               videoInput: "",
@@ -2648,6 +2707,11 @@ export const useStudioStore = create<StudioState>()(
                   : sourceNode.data.kind === "videoEdit"
                     ? `video_edit:${sourceNode.data.mode}`
                     : `motion_control:${sourceNode.data.mode}`,
+              characterIds:
+                sourceNode.data.kind === "videoGenerate" ||
+                sourceNode.data.kind === "motionControl"
+                  ? sourceNode.data.characterRefs
+                  : [],
               createdAt: nowIso(),
             });
             const timelineBindError = binding.bound
@@ -3087,13 +3151,18 @@ export const useStudioStore = create<StudioState>()(
               .filter((change) => change.type === "remove")
               .map((change) => change.id),
           );
+          const edges = recordsDeletion
+            ? state.edges.filter(
+                (edge) => !removedIds.has(edge.source) && !removedIds.has(edge.target),
+              )
+            : state.edges;
+          const nodes = applyCharacterBindings(
+            applyNodeChanges(changes, state.nodes),
+            edges,
+          );
           return {
-            nodes: applyNodeChanges(changes, state.nodes),
-            edges: recordsDeletion
-              ? state.edges.filter(
-                  (edge) => !removedIds.has(edge.source) && !removedIds.has(edge.target),
-                )
-              : state.edges,
+            nodes,
+            edges,
             selectedNodeId:
               state.selectedNodeId && removedIds.has(state.selectedNodeId)
                 ? null
@@ -3109,8 +3178,10 @@ export const useStudioStore = create<StudioState>()(
         set((state) => {
           const recordsDeletion = changes.some((change) => change.type === "remove");
           const snapshot = recordsDeletion ? takeSnapshot(state) : null;
+          const edges = applyEdgeChanges(changes, state.edges);
           return {
-            edges: applyEdgeChanges(changes, state.edges),
+            nodes: applyCharacterBindings(state.nodes, edges),
+            edges,
             past: snapshot ? appendHistory(state.past, snapshot) : state.past,
             future: snapshot ? [] : state.future,
             updatedAt: recordsDeletion ? nowIso() : state.updatedAt,
@@ -3128,22 +3199,24 @@ export const useStudioStore = create<StudioState>()(
             return state;
           }
           const snapshot = takeSnapshot(state);
+          const edges = addEdge(
+            {
+              ...connection,
+              id:
+                "edge-" +
+                connection.source +
+                "-" +
+                connection.target +
+                "-" +
+                Date.now(),
+              type: "smoothstep",
+              animated: true,
+            },
+            state.edges,
+          );
           return {
-            edges: addEdge(
-              {
-                ...connection,
-                id:
-                  "edge-" +
-                  connection.source +
-                  "-" +
-                  connection.target +
-                  "-" +
-                  Date.now(),
-                type: "smoothstep",
-                animated: true,
-              },
-              state.edges,
-            ),
+            nodes: applyCharacterBindings(state.nodes, edges),
+            edges,
             past: appendHistory(state.past, snapshot),
             future: [],
             updatedAt: nowIso(),

@@ -58,6 +58,24 @@ export const AssetExecutor: StudioNodeExecutor = {
   },
 };
 
+export const CharacterExecutor: StudioNodeExecutor = {
+  async execute(context) {
+    await waitForMockRuntime();
+    return complete("character", {
+      characterId: context.nodeId,
+      name: configValue(context, "name"),
+      referenceImages: Array.isArray(context.config.referenceImages)
+        ? context.config.referenceImages.map(String).filter(Boolean)
+        : [],
+      description: configValue(context, "description"),
+      style: configValue(context, "style"),
+      attributes: asRecord(configValue(context, "attributes")),
+      status: "ready",
+      providerCalled: false,
+    });
+  },
+};
+
 export const PromptExecutor: StudioNodeExecutor = {
   async execute(context) {
     await waitForMockRuntime();
@@ -100,6 +118,9 @@ export const RemakeShotExecutor: StudioNodeExecutor = {
         quality: configValue(context, "quality"),
         sourceTimeRange: configValue(context, "sourceTimeRange"),
         referenceImages,
+        characterRefs: Array.isArray(context.config.characterRefs)
+          ? context.config.characterRefs.map(String).filter(Boolean)
+          : [],
       },
     };
   },
@@ -155,6 +176,7 @@ export const OutputExecutor: StudioNodeExecutor = {
 
 export const executorRegistry = {
   asset: AssetExecutor,
+  character: CharacterExecutor,
   prompt: PromptExecutor,
   remake_analysis: RemakeAnalysisExecutor,
   remake_pipeline: RemakePipelineExecutor,
@@ -168,6 +190,7 @@ export const executorRegistry = {
 
 export const studioExecutorTypeMap = {
   asset: "asset",
+  character: "character",
   prompt: "prompt",
   remakeAnalysis: "remake_analysis",
   remake_pipeline: "remake_pipeline",

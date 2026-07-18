@@ -7,6 +7,7 @@ import type { StudioNodeType } from "@/features/studio/types/studioTypes";
 
 const nodeLabels: Record<StudioNodeType, string> = {
   asset: "Asset",
+  character: "Character",
   prompt: "Prompt",
   remakeAnalysis: "Remake Analysis",
   remake_pipeline: "Remake Pipeline",
