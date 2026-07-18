@@ -69,7 +69,16 @@ function createEmptyTimeline(): StudioTimeline {
 
 function positiveDuration(value: unknown, fallback = 4) {
   const duration = Number(value);
-  return Number.isFinite(duration) && duration > 0 ? duration : fallback;
+  return Number.isFinite(duration) && duration > 0
+    ? Math.round(duration * 1000) / 1000
+    : fallback;
+}
+
+function nonNegativeTime(value: unknown, fallback = 0) {
+  const time = Number(value);
+  return Number.isFinite(time) && time >= 0
+    ? Math.round(time * 1000) / 1000
+    : fallback;
 }
 
 function reflowTimelineClips(clips: StudioTimelineClip[]) {
@@ -90,7 +99,12 @@ function normalizeStudioTimeline(timeline?: StudioTimeline): StudioTimeline {
       .map((track) => ({
         id: String(track.id || DEFAULT_VIDEO_TRACK_ID),
         type: "video" as const,
-        clips: reflowTimelineClips(track.clips),
+        clips: track.clips.map((clip) => ({
+          ...clip,
+          start: nonNegativeTime(clip.start),
+          duration: positiveDuration(clip.duration),
+          metadata: clip.metadata || {},
+        })),
       })),
   };
 }
@@ -114,6 +128,11 @@ function createTimelineClip(
       start: 0,
       duration: positiveDuration(sourceNode.data.duration),
       createdAt,
+      metadata: {
+        title: sourceNode.data.title,
+        model: sourceNode.data.model,
+        status: sourceNode.data.status,
+      },
     };
   }
 
@@ -127,6 +146,11 @@ function createTimelineClip(
       start: 0,
       duration: positiveDuration(sourceNode.data.duration),
       createdAt,
+      metadata: {
+        title: `Shot ${sourceNode.data.shotNumber}`,
+        model: sourceNode.data.model,
+        status: sourceNode.data.status,
+      },
     };
   }
 
@@ -151,6 +175,14 @@ function createTimelineClip(
         positiveDuration(originDuration),
       ),
       createdAt,
+      metadata: {
+        title: sourceNode.data.title,
+        model:
+          typeof sourceNode.data.metadata?.model === "string"
+            ? sourceNode.data.metadata.model
+            : undefined,
+        status: sourceNode.data.status,
+      },
     };
   }
 
@@ -678,6 +710,7 @@ type StudioState = StudioCanvasSnapshot & {
   runLockState: StudioRunLockState;
   runHistory: StudioRunRecord[];
   runtimeError: string;
+  selectedTimelineClipId: string | null;
   addNode: (type: StudioNodeType) => void;
   addAssetNode: (asset: StudioAssetItem) => void;
   createAssetFromResultNode: (nodeId: string) => void;
@@ -687,6 +720,15 @@ type StudioState = StudioCanvasSnapshot & {
     trackId: string,
     clipId: string,
     direction: "earlier" | "later",
+  ) => void;
+  reorderTimelineClip: (trackId: string, clipId: string, targetClipId: string) => void;
+  selectTimelineClip: (clipId: string | null) => void;
+  deleteTimelineClip: (trackId: string, clipId: string) => void;
+  duplicateTimelineClip: (trackId: string, clipId: string) => void;
+  updateTimelineClip: (
+    trackId: string,
+    clipId: string,
+    patch: { start?: number; duration?: number },
   ) => void;
   deleteNode: (nodeId: string) => void;
   updateNodeData: (nodeId: string, patch: Record<string, unknown>) => void;
@@ -739,6 +781,7 @@ export const useStudioStore = create<StudioState>()(
       runLockState: "idle",
       runHistory: [],
       runtimeError: "",
+      selectedTimelineClipId: null,
 
       addNode: (type) =>
         set((state) => {
@@ -984,6 +1027,7 @@ export const useStudioStore = create<StudioState>()(
 
           return {
             timeline: { tracks },
+            selectedTimelineClipId: clip.id,
             past: appendHistory(state.past, snapshot),
             future: [],
             dirty: true,
@@ -1012,6 +1056,141 @@ export const useStudioStore = create<StudioState>()(
               tracks: state.timeline.tracks.map((item) =>
                 item.id === trackId
                   ? { ...item, clips: reflowTimelineClips(reordered) }
+                  : item,
+              ),
+            },
+            past: appendHistory(state.past, snapshot),
+            future: [],
+            dirty: true,
+            updatedAt: nowIso(),
+          };
+        }),
+
+      reorderTimelineClip: (trackId, clipId, targetClipId) =>
+        set((state) => {
+          if (clipId === targetClipId) return state;
+          const track = state.timeline.tracks.find((item) => item.id === trackId);
+          if (!track) return state;
+          const sourceIndex = track.clips.findIndex((clip) => clip.id === clipId);
+          const targetIndex = track.clips.findIndex((clip) => clip.id === targetClipId);
+          if (sourceIndex < 0 || targetIndex < 0) return state;
+
+          const snapshot = takeSnapshot(state);
+          const reordered = [...track.clips];
+          const [moved] = reordered.splice(sourceIndex, 1);
+          reordered.splice(targetIndex, 0, moved);
+          return {
+            timeline: {
+              tracks: state.timeline.tracks.map((item) =>
+                item.id === trackId
+                  ? { ...item, clips: reflowTimelineClips(reordered) }
+                  : item,
+              ),
+            },
+            selectedTimelineClipId: clipId,
+            past: appendHistory(state.past, snapshot),
+            future: [],
+            dirty: true,
+            updatedAt: nowIso(),
+          };
+        }),
+
+      selectTimelineClip: (clipId) => set({ selectedTimelineClipId: clipId }),
+
+      deleteTimelineClip: (trackId, clipId) =>
+        set((state) => {
+          const track = state.timeline.tracks.find((item) => item.id === trackId);
+          if (!track || !track.clips.some((clip) => clip.id === clipId)) return state;
+          const snapshot = takeSnapshot(state);
+          return {
+            timeline: {
+              tracks: state.timeline.tracks.map((item) =>
+                item.id === trackId
+                  ? {
+                      ...item,
+                      clips: reflowTimelineClips(
+                        item.clips.filter((clip) => clip.id !== clipId),
+                      ),
+                    }
+                  : item,
+              ),
+            },
+            selectedTimelineClipId:
+              state.selectedTimelineClipId === clipId
+                ? null
+                : state.selectedTimelineClipId,
+            past: appendHistory(state.past, snapshot),
+            future: [],
+            dirty: true,
+            updatedAt: nowIso(),
+          };
+        }),
+
+      duplicateTimelineClip: (trackId, clipId) =>
+        set((state) => {
+          const track = state.timeline.tracks.find((item) => item.id === trackId);
+          const sourceIndex = track?.clips.findIndex((clip) => clip.id === clipId) ?? -1;
+          const sourceClip = sourceIndex >= 0 ? track?.clips[sourceIndex] : undefined;
+          if (!track || !sourceClip) return state;
+
+          const snapshot = takeSnapshot(state);
+          const duplicateId = `timeline-clip-${Date.now()}-${++nodeSequence}`;
+          const duplicate = {
+            ...sourceClip,
+            id: duplicateId,
+            createdAt: nowIso(),
+            metadata: {
+              ...sourceClip.metadata,
+              title: sourceClip.metadata?.title
+                ? `${sourceClip.metadata.title} Copy`
+                : "Clip Copy",
+            },
+          };
+          const clips = [...track.clips];
+          clips.splice(sourceIndex + 1, 0, duplicate);
+          return {
+            timeline: {
+              tracks: state.timeline.tracks.map((item) =>
+                item.id === trackId
+                  ? { ...item, clips: reflowTimelineClips(clips) }
+                  : item,
+              ),
+            },
+            selectedTimelineClipId: duplicateId,
+            past: appendHistory(state.past, snapshot),
+            future: [],
+            dirty: true,
+            updatedAt: nowIso(),
+          };
+        }),
+
+      updateTimelineClip: (trackId, clipId, patch) =>
+        set((state) => {
+          const track = state.timeline.tracks.find((item) => item.id === trackId);
+          if (!track || !track.clips.some((clip) => clip.id === clipId)) return state;
+          const snapshot = takeSnapshot(state);
+          return {
+            timeline: {
+              tracks: state.timeline.tracks.map((item) =>
+                item.id === trackId
+                  ? {
+                      ...item,
+                      clips: item.clips.map((clip) =>
+                        clip.id === clipId
+                          ? {
+                              ...clip,
+                              start:
+                                patch.start === undefined
+                                  ? clip.start
+                                  : nonNegativeTime(patch.start, clip.start),
+                              duration:
+                                patch.duration === undefined
+                                  ? clip.duration
+                                  : positiveDuration(patch.duration, clip.duration),
+                            }
+                          : clip,
+                      ),
+                    }
                   : item,
               ),
             },
@@ -1178,6 +1357,7 @@ export const useStudioStore = create<StudioState>()(
           runtimeRunning: false,
           runLockState: "idle",
           runtimeError: "",
+          selectedTimelineClipId: null,
         }),
 
       loadTemplateCanvas: (canvas) =>
@@ -1195,6 +1375,7 @@ export const useStudioStore = create<StudioState>()(
           runtimeRunning: false,
           runLockState: "idle",
           runtimeError: "",
+          selectedTimelineClipId: null,
         })),
 
       markProjectSaved: (project) =>
@@ -1213,6 +1394,7 @@ export const useStudioStore = create<StudioState>()(
           return {
             ...previous,
             selectedNodeId: null,
+            selectedTimelineClipId: null,
             past: state.past.slice(0, -1),
             future: [takeSnapshot(state), ...state.future].slice(0, historyLimit),
             updatedAt: nowIso(),
@@ -1227,6 +1409,7 @@ export const useStudioStore = create<StudioState>()(
           return {
             ...next,
             selectedNodeId: null,
+            selectedTimelineClipId: null,
             past: appendHistory(state.past, takeSnapshot(state)),
             future: state.future.slice(1),
             updatedAt: nowIso(),

@@ -158,6 +158,12 @@ export type StudioEdge = Edge;
 
 export type StudioTimelineClipSource = "video_node" | "shot_node" | "asset";
 
+export type StudioTimelineClipMetadata = {
+  title?: string;
+  model?: string;
+  status?: string;
+};
+
 export type StudioTimelineClip = {
   id: string;
   sourceNodeId: string;
@@ -167,6 +173,8 @@ export type StudioTimelineClip = {
   start: number;
   duration: number;
   createdAt: string;
+  /** Optional on read so clips created by Timeline schema v2 P1-A1 remain loadable. */
+  metadata?: StudioTimelineClipMetadata;
 };
 
 export type StudioTimelineTrack = {
