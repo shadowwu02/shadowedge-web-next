@@ -11,7 +11,12 @@ export type StudioNodeType =
 
 export type AssetType = "image" | "video" | "audio";
 export type AssetStatus = "ready" | "missing" | "processing";
-export type StudioAssetSource = "upload" | "history" | "generated" | "remake";
+export type StudioAssetSource =
+  | "upload"
+  | "history"
+  | "generated"
+  | "rendered"
+  | "remake";
 export type GenerationNodeStatus = "idle" | "ready" | "queued" | "processing" | "completed" | "failed";
 export type OutputType = "image" | "video" | "audio";
 

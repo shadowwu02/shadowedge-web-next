@@ -40,6 +40,7 @@ function formatDate(value?: string) {
 
 function sourceLabel(asset: StudioAssetItem) {
   if (asset.source === "generated") return "Generated";
+  if (asset.source === "rendered") return "Rendered";
   if (asset.source === "history") return "History";
   if (asset.source === "remake") return "Remake";
   return "Upload";

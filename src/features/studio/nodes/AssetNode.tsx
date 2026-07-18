@@ -11,11 +11,17 @@ export function AssetNode({ data, id, selected }: NodeProps<StudioNode>) {
   const addNodeToTimeline = useStudioStore((state) => state.addNodeToTimeline);
   if (data.kind !== "asset") return null;
   const previewUrl = data.thumbnail || data.url;
+  const eyebrow =
+    data.source === "rendered"
+      ? "Rendered Asset"
+      : data.source === "generated"
+        ? "Generated Asset"
+        : "Input";
 
   return (
     <StudioNodeFrame
       acceptsInput={Boolean(data.originNodeId)}
-      eyebrow={data.source === "generated" ? "Generated Asset" : "Input"}
+      eyebrow={eyebrow}
       selected={selected}
       status={runtimeStatus}
       title={data.title}

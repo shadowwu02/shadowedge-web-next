@@ -713,6 +713,11 @@ type StudioState = StudioCanvasSnapshot & {
   selectedTimelineClipId: string | null;
   addNode: (type: StudioNodeType) => void;
   addAssetNode: (asset: StudioAssetItem) => void;
+  addRenderedAssetNode: (input: {
+    jobId: string;
+    url: string;
+    thumbnail?: string;
+  }) => void;
   createAssetFromResultNode: (nodeId: string) => void;
   createVideoNodeFromRemakeShot: (nodeId: string) => void;
   addNodeToTimeline: (nodeId: string) => void;
@@ -827,6 +832,60 @@ export const useStudioStore = create<StudioState>()(
               thumbnail: asset.thumbnail,
               source: asset.source,
               metadata: asset.metadata,
+            },
+          };
+
+          return {
+            nodes: [...state.nodes, node],
+            selectedNodeId: id,
+            past: appendHistory(state.past, snapshot),
+            future: [],
+            updatedAt: nowIso(),
+            dirty: true,
+          };
+        }),
+
+      addRenderedAssetNode: ({ jobId, url, thumbnail }) =>
+        set((state) => {
+          const cleanJobId = jobId.trim();
+          const cleanUrl = url.trim();
+          if (!cleanJobId || !cleanUrl) return state;
+
+          const assetId = `render:${cleanJobId}`;
+          const existingAsset = state.nodes.find(
+            (node) =>
+              node.data.kind === "asset" &&
+              (node.data.assetId === assetId ||
+                node.data.metadata?.renderJobId === cleanJobId),
+          );
+          if (existingAsset) return { selectedNodeId: existingAsset.id };
+
+          nodeSequence += 1;
+          const snapshot = takeSnapshot(state);
+          const id = `asset-render-${safeNodeIdPart(cleanJobId)}-${nodeSequence}`;
+          const offset = state.nodes.length * 31;
+          const node: StudioNode = {
+            id,
+            type: "asset",
+            position: {
+              x: 160 + (offset % 520),
+              y: 160 + (offset % 320),
+            },
+            data: {
+              kind: "asset",
+              title: "Rendered video",
+              assetId,
+              assetType: "video",
+              originNodeId: "",
+              status: "ready",
+              url: cleanUrl,
+              thumbnail: thumbnail?.trim() || "",
+              source: "rendered",
+              metadata: {
+                renderJobId: cleanJobId,
+                projectId: state.projectId,
+                source: "studio_render",
+              },
             },
           };
 

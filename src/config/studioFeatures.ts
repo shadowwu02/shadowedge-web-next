@@ -14,6 +14,9 @@ const configuredVideoExecution = parseBooleanFlag(
 const configuredRemakeExecution = parseBooleanFlag(
   process.env.NEXT_PUBLIC_STUDIO_REMAKE_EXECUTION_ENABLED,
 );
+const configuredRender = parseBooleanFlag(
+  process.env.NEXT_PUBLIC_STUDIO_RENDER_ENABLED,
+);
 
 // Local development can exercise the executor without extra setup. Production
 // builds remain off unless the public rollout flag is explicitly enabled.
@@ -25,9 +28,14 @@ export const STUDIO_VIDEO_EXECUTION_ENABLED =
 // opt-in in every environment, including local development.
 export const STUDIO_REMAKE_EXECUTION_ENABLED =
   configuredRemakeExecution ?? false;
+// Rendering uses user-owned Timeline media and an asynchronous FFmpeg worker.
+// Keep production rollout opt-in while allowing local integration testing.
+export const STUDIO_RENDER_ENABLED =
+  configuredRender ?? process.env.NODE_ENV === "development";
 
 export const studioFeatures = Object.freeze({
   imageExecutionEnabled: STUDIO_IMAGE_EXECUTION_ENABLED,
   videoExecutionEnabled: STUDIO_VIDEO_EXECUTION_ENABLED,
   remakeExecutionEnabled: STUDIO_REMAKE_EXECUTION_ENABLED,
+  renderEnabled: STUDIO_RENDER_ENABLED,
 });
