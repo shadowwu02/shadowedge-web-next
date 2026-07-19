@@ -134,7 +134,7 @@ function kling26Inventory({ providerCostReady = false } = {}) {
           supportsAudio: false,
           providerCost: {
             ready: providerCostReady,
-            source: providerCostReady ? "contract_test" : "unknown",
+            source: providerCostReady ? "higgsfield_cli_cost_quote" : "unknown",
             verifiedScopes: providerCostReady
               ? ["5s_720p_16_9_audio_false"]
               : [],
@@ -150,10 +150,13 @@ function kling26Inventory({ providerCostReady = false } = {}) {
                     ratio: "16:9",
                     audio: false,
                     mode: "default",
-                    providerCost: 999,
-                    currency: "test_credits",
+                    providerCost: 5,
+                    currency: "higgsfield_credits",
                     verified: true,
-                    source: "contract_test",
+                    source: "higgsfield_cli_cost_quote",
+                    evidenceId:
+                      "higgsfield-cli-quote-kling2_6-5s-720p-16x9-audio-false-20260719",
+                    confidence: "high",
                   },
                 ]
               : [],
@@ -184,7 +187,9 @@ function kling26Inventory({ providerCostReady = false } = {}) {
                 },
               ]
             : [],
-          blockers: providerCostReady ? [] : ["PROVIDER_COST_NOT_CONFIGURED"],
+          blockers: providerCostReady
+            ? ["PROVIDER_COST_SCOPE_INCOMPLETE"]
+            : ["PROVIDER_COST_NOT_CONFIGURED"],
         },
       },
     ],
@@ -378,7 +383,7 @@ test("readiness presentation distinguishes Ready, Limited, and Coming Soon", () 
   );
 });
 
-test("a mock verified Kling 2.6 variant uses the existing resolver and executor mapping", () => {
+test("the quoted Kling 2.6 scope uses the existing resolver and executor mapping", () => {
   const model = resolveStudioVideoGenerationModel(
     kling26Inventory({ providerCostReady: true }),
     { providerId: "higgsfield", modelId: "kling2_6" },
@@ -391,7 +396,19 @@ test("a mock verified Kling 2.6 variant uses the existing resolver and executor 
     audio: false,
   });
 
-  assert.equal(resolveStudioVideoProviderCostRule(model, params)?.providerCost, 999);
+  assert.equal(resolveStudioVideoProviderCostRule(model, params)?.providerCost, 5);
+  assert.equal(getStudioVideoModelReadinessPresentation(model).reason, "5s / 720p only");
+  assert.throws(
+    () =>
+      normalizeStudioVideoModelParams(model, {
+        duration: 10,
+        ratio: "16:9",
+        resolution: "720p",
+        mode: "default",
+        audio: false,
+      }),
+    (error) => error.code === "PROVIDER_COST_NOT_CONFIGURED",
+  );
   assert.equal(estimateStudioVideoModelCredits(model, params), 18);
   assert.deepEqual(resolveStudioVideoGenerationProvider("higgsfield"), {
     providerId: "higgsfield",

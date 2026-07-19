@@ -31,6 +31,8 @@ export type StudioProviderCostRule = {
   verified: boolean;
   source: string;
   verifiedAt?: string | null;
+  evidenceId?: string | null;
+  confidence?: string | null;
 };
 
 export type StudioProviderVideoModel = {
