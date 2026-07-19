@@ -25,6 +25,10 @@ import {
   bindCompletedVideoResultToTimeline,
   TIMELINE_BIND_FAILED,
 } from "@/features/studio/lib/studioTimelineBinding";
+import {
+  bindVideoResultToOutputNodes,
+  OUTPUT_NODE_CONNECTION_REQUIRED,
+} from "@/features/studio/lib/studioOutputBinding";
 import { applyCharacterBindings } from "@/features/studio/lib/studioCharacterBindings";
 import { getStudioExecutor } from "@/features/studio/runtime/executorRegistry";
 import {
@@ -86,6 +90,9 @@ const DEFAULT_AUDIO_TRACK_ID = "track-audio-1";
 const DEFAULT_SUBTITLE_TRACK_ID = "track-subtitle-1";
 const historyLimit = 50;
 let nodeSequence = 0;
+
+const OUTPUT_NODE_CONNECTION_MESSAGE =
+  "Connect the completed Video Node to an Output Node to enable preview, asset creation, and download.";
 
 function nowIso() {
   return new Date().toISOString();
@@ -591,9 +598,12 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
   return {
     kind: "output",
     title: "Workflow output",
+    sourceNodeId: "",
     resultPreview: "Awaiting an upstream result",
+    videoUrl: "",
     outputType: "video",
     createdAt: "",
+    completedAt: "",
     status: "idle",
     jobId: "",
     thumbnail: "",
@@ -1316,49 +1326,83 @@ function applyVideoRuntimeToDownstreamOutputs(
     executor !== "motion_control" &&
     executor !== "camera_control"
   ) {
-    return { changed: false, nodes };
+    return {
+      changed: false,
+      nodes,
+      bound: false,
+      targetNodeIds: [],
+      errorCode: "" as const,
+    };
   }
 
-  const targetIds = new Set(
-    edges
-      .filter((edge) => edge.source === runtime.nodeId)
-      .map((edge) => edge.target),
-  );
-  if (!targetIds.size) return { changed: false, nodes };
-
-  const videoUrl = outputString(runtime.outputs, "videoUrl");
-  const thumbnail = outputString(runtime.outputs, "thumbnail") || videoUrl;
-  const jobId = outputString(runtime.outputs, "jobId");
-  const message = outputString(runtime.outputs, "message") || runtime.error || "";
-  let changed = false;
-  const nextNodes = nodes.map((node) => {
-    if (!targetIds.has(node.id) || node.data.kind !== "output") return node;
-    changed = true;
-    return {
-      ...node,
-      data: {
-        ...node.data,
-        status:
-          runtime.status === "completed" || runtime.status === "failed"
-            ? runtime.status
-            : "processing",
-        resultPreview:
-          runtime.status === "completed" && videoUrl
-            ? videoUrl
-            : node.data.resultPreview,
-        outputType: videoUrl ? "video" : node.data.outputType,
-        createdAt:
-          runtime.status === "completed"
-            ? runtime.finishedAt || nowIso()
-            : node.data.createdAt,
-        jobId: jobId || node.data.jobId,
-        thumbnail: thumbnail || node.data.thumbnail,
-        errorMessage: runtime.status === "failed" ? message : "",
-      },
-    } satisfies StudioNode;
+  return bindVideoResultToOutputNodes({
+    nodes,
+    edges,
+    sourceNodeId: runtime.nodeId,
+    status: runtime.status,
+    videoUrl: outputString(runtime.outputs, "videoUrl"),
+    thumbnail: outputString(runtime.outputs, "thumbnail"),
+    jobId: outputString(runtime.outputs, "jobId"),
+    completedAt: runtime.finishedAt || "",
+    errorMessage:
+      outputString(runtime.outputs, "message") || runtime.error || "",
   });
+}
 
-  return { changed, nodes: nextNodes };
+function outputBindingRuntimeError(
+  currentError: string,
+  binding: { bound: boolean; errorCode: string },
+) {
+  if (binding.errorCode === OUTPUT_NODE_CONNECTION_REQUIRED) {
+    return OUTPUT_NODE_CONNECTION_MESSAGE;
+  }
+  if (binding.bound && currentError === OUTPUT_NODE_CONNECTION_MESSAGE) return "";
+  return currentError;
+}
+
+function bindPersistedCompletedVideoOutputs(
+  nodes: StudioNode[],
+  edges: StudioEdge[],
+) {
+  let nextNodes = nodes;
+  let changed = false;
+  for (const sourceNode of nodes) {
+    let videoUrl = "";
+    let thumbnail = "";
+    let jobId = "";
+    if (sourceNode.data.kind === "videoGenerate") {
+      if (sourceNode.data.status !== "completed") continue;
+      videoUrl = sourceNode.data.videoUrl || sourceNode.data.result;
+      thumbnail = sourceNode.data.thumbnail || videoUrl;
+      jobId = sourceNode.data.jobId;
+    } else if (
+      sourceNode.data.kind === "videoEdit" ||
+      sourceNode.data.kind === "motionControl" ||
+      sourceNode.data.kind === "cameraControl"
+    ) {
+      if (sourceNode.data.status !== "completed" || !sourceNode.data.result) continue;
+      videoUrl = sourceNode.data.result.videoUrl;
+      thumbnail = sourceNode.data.result.thumbnail || videoUrl;
+      jobId = sourceNode.data.result.jobId;
+    } else {
+      continue;
+    }
+    if (!videoUrl.trim()) continue;
+    const binding = bindVideoResultToOutputNodes({
+      nodes: nextNodes,
+      edges,
+      sourceNodeId: sourceNode.id,
+      status: "completed",
+      videoUrl,
+      thumbnail,
+      jobId,
+    });
+    if (binding.changed) {
+      nextNodes = binding.nodes;
+      changed = true;
+    }
+  }
+  return { nodes: nextNodes, changed };
 }
 
 function applyVideoRuntimeToTimeline(
@@ -2609,6 +2653,10 @@ export const useStudioStore = create<StudioState>()(
               },
               nodes: bindingState.nodes,
               timeline: timeline.timeline,
+              runtimeError: outputBindingRuntimeError(
+                current.runtimeError,
+                downstream,
+              ),
               dirty: changed ? true : current.dirty,
               updatedAt: changed ? nowIso() : current.updatedAt,
             };
@@ -3444,13 +3492,23 @@ export const useStudioStore = create<StudioState>()(
             },
             state.edges,
           );
+          const characterBoundNodes = applyCharacterBindings(state.nodes, edges);
+          const outputBinding = bindPersistedCompletedVideoOutputs(
+            characterBoundNodes,
+            edges,
+          );
           return {
-            nodes: applyCharacterBindings(state.nodes, edges),
+            nodes: outputBinding.nodes,
             edges,
             past: appendHistory(state.past, snapshot),
             future: [],
             updatedAt: nowIso(),
             dirty: true,
+            runtimeError:
+              outputBinding.changed &&
+              state.runtimeError === OUTPUT_NODE_CONNECTION_MESSAGE
+                ? ""
+                : state.runtimeError,
           };
         }),
 
@@ -3476,44 +3534,56 @@ export const useStudioStore = create<StudioState>()(
 
       clearRuntimeError: () => set({ runtimeError: "" }),
 
-      loadProject: (project) =>
+      loadProject: (project) => {
+        const edges = project.canvasJson.edges;
+        const outputBinding = bindPersistedCompletedVideoOutputs(
+          normalizeStudioNodes(project.canvasJson.nodes),
+          edges,
+        );
         set({
           projectId: project.id,
           projectName: project.name,
-          nodes: normalizeStudioNodes(project.canvasJson.nodes),
-          edges: project.canvasJson.edges,
+          nodes: outputBinding.nodes,
+          edges,
           viewport: project.canvasJson.viewport,
           timeline: normalizeStudioTimeline(project.canvasJson.timeline),
           updatedAt: project.updatedAt,
           selectedNodeId: null,
           past: [],
           future: [],
-          dirty: false,
+          dirty: outputBinding.changed,
           projectError: "",
           runtimeState: {},
           runtimeRunning: false,
           runLockState: "idle",
           runtimeError: "",
           selectedTimelineClipId: null,
-        }),
+        });
+      },
 
       loadTemplateCanvas: (canvas) =>
-        set((state) => ({
-          nodes: normalizeStudioNodes(canvas.nodes),
-          edges: canvas.edges,
-          viewport: canvas.viewport || defaultViewport,
-          timeline: normalizeStudioTimeline(canvas.timeline),
-          selectedNodeId: null,
-          past: appendHistory(state.past, takeSnapshot(state)),
-          future: [],
-          dirty: true,
-          updatedAt: nowIso(),
-          runtimeState: {},
-          runtimeRunning: false,
-          runLockState: "idle",
-          runtimeError: "",
-          selectedTimelineClipId: null,
-        })),
+        set((state) => {
+          const outputBinding = bindPersistedCompletedVideoOutputs(
+            normalizeStudioNodes(canvas.nodes),
+            canvas.edges,
+          );
+          return {
+            nodes: outputBinding.nodes,
+            edges: canvas.edges,
+            viewport: canvas.viewport || defaultViewport,
+            timeline: normalizeStudioTimeline(canvas.timeline),
+            selectedNodeId: null,
+            past: appendHistory(state.past, takeSnapshot(state)),
+            future: [],
+            dirty: true,
+            updatedAt: nowIso(),
+            runtimeState: {},
+            runtimeRunning: false,
+            runLockState: "idle",
+            runtimeError: "",
+            selectedTimelineClipId: null,
+          };
+        }),
 
       markProjectSaved: (project) =>
         set({
@@ -3786,14 +3856,24 @@ export const useStudioStore = create<StudioState>()(
               publishRunRecord(updateRunRecordNode(runRecord, nodeRuntime));
               set((current) => {
                 const canvas = applyRuntimeOutputToCanvas(current.nodes, nodeRuntime);
+                const downstream = applyVideoRuntimeToDownstreamOutputs(
+                  canvas.nodes,
+                  current.edges,
+                  nodeRuntime,
+                );
+                const changed = canvas.changed || downstream.changed;
                 return {
                   runtimeState: {
                     ...current.runtimeState,
                     [nodeRuntime.nodeId]: nodeRuntime,
                   },
-                  nodes: canvas.nodes,
-                  dirty: canvas.changed ? true : current.dirty,
-                  updatedAt: canvas.changed ? nowIso() : current.updatedAt,
+                  nodes: downstream.nodes,
+                  runtimeError: outputBindingRuntimeError(
+                    current.runtimeError,
+                    downstream,
+                  ),
+                  dirty: changed ? true : current.dirty,
+                  updatedAt: changed ? nowIso() : current.updatedAt,
                 };
               });
             },
@@ -3849,6 +3929,10 @@ export const useStudioStore = create<StudioState>()(
                   nodes: bindingState.nodes,
                   edges: pipelinePlan.edges,
                   timeline: timeline.timeline,
+                  runtimeError: outputBindingRuntimeError(
+                    current.runtimeError,
+                    downstream,
+                  ),
                   dirty: changed ? true : current.dirty,
                   updatedAt: changed ? nowIso() : current.updatedAt,
                 };
@@ -4007,14 +4091,24 @@ export const useStudioStore = create<StudioState>()(
               publishRunRecord(updateRunRecordNode(runRecord, nodeRuntime));
               set((current) => {
                 const canvas = applyRuntimeOutputToCanvas(current.nodes, nodeRuntime);
+                const downstream = applyVideoRuntimeToDownstreamOutputs(
+                  canvas.nodes,
+                  current.edges,
+                  nodeRuntime,
+                );
+                const changed = canvas.changed || downstream.changed;
                 return {
                   runtimeState: {
                     ...current.runtimeState,
                     [nodeId]: nodeRuntime,
                   },
-                  nodes: canvas.nodes,
-                  dirty: canvas.changed ? true : current.dirty,
-                  updatedAt: canvas.changed ? nowIso() : current.updatedAt,
+                  nodes: downstream.nodes,
+                  runtimeError: outputBindingRuntimeError(
+                    current.runtimeError,
+                    downstream,
+                  ),
+                  dirty: changed ? true : current.dirty,
+                  updatedAt: changed ? nowIso() : current.updatedAt,
                 };
               });
             },
@@ -4040,16 +4134,28 @@ export const useStudioStore = create<StudioState>()(
                         edges: materialized.edges,
                         timeline: current.timeline,
                       };
+                const downstream = applyVideoRuntimeToDownstreamOutputs(
+                  pipelinePlan.nodes,
+                  pipelinePlan.edges,
+                  nodeRuntime,
+                );
                 const changed =
-                  canvas.changed || materialized.changed || pipelinePlan.changed;
+                  canvas.changed ||
+                  materialized.changed ||
+                  pipelinePlan.changed ||
+                  downstream.changed;
                 return {
                   runtimeState: {
                     ...current.runtimeState,
                     [nodeId]: nodeRuntime,
                   },
-                  nodes: pipelinePlan.nodes,
+                  nodes: downstream.nodes,
                   edges: pipelinePlan.edges,
                   timeline: pipelinePlan.timeline,
+                  runtimeError: outputBindingRuntimeError(
+                    current.runtimeError,
+                    downstream,
+                  ),
                   dirty: changed ? true : current.dirty,
                   updatedAt: changed ? nowIso() : current.updatedAt,
                 };
@@ -4089,11 +4195,18 @@ export const useStudioStore = create<StudioState>()(
       }),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<StudioState>;
+        const edges = persisted.edges || currentState.edges;
+        const outputBinding = bindPersistedCompletedVideoOutputs(
+          normalizeStudioNodes(persisted.nodes || currentState.nodes),
+          edges,
+        );
         return {
           ...currentState,
           ...persisted,
-          nodes: normalizeStudioNodes(persisted.nodes || currentState.nodes),
+          nodes: outputBinding.nodes,
+          edges,
           timeline: normalizeStudioTimeline(persisted.timeline),
+          dirty: outputBinding.changed || currentState.dirty,
         };
       },
       onRehydrateStorage: () => (state) => {

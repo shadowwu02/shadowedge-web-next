@@ -52,7 +52,7 @@ export function OutputNode({ data, id, selected }: NodeProps<StudioNode>) {
         </div>
         <div>
           <dt>Created</dt>
-          <dd>{data.createdAt || "Not created"}</dd>
+          <dd>{data.completedAt || data.createdAt || "Not created"}</dd>
         </div>
         <div>
           <dt>Status</dt>
@@ -65,17 +65,28 @@ export function OutputNode({ data, id, selected }: NodeProps<StudioNode>) {
       {data.status === "completed" &&
       (data.outputType === "image" || data.outputType === "video") &&
       isRenderableOutputUrl(data.resultPreview) ? (
-        <button
-          className="studio-node-action nodrag nopan"
-          onClick={(event) => {
-            event.stopPropagation();
-            createAssetFromResultNode(id);
-          }}
-          onMouseDown={(event) => event.stopPropagation()}
-          type="button"
-        >
-          Create Asset
-        </button>
+        <div className="studio-output-actions">
+          <button
+            className="studio-node-action nodrag nopan"
+            onClick={(event) => {
+              event.stopPropagation();
+              createAssetFromResultNode(id);
+            }}
+            onMouseDown={(event) => event.stopPropagation()}
+            type="button"
+          >
+            Create Asset
+          </button>
+          <a
+            className="studio-node-action nodrag nopan"
+            download={data.outputType === "video" ? "studio-output.mp4" : "studio-output.png"}
+            href={data.resultPreview}
+            onClick={(event) => event.stopPropagation()}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            Download
+          </a>
+        </div>
       ) : null}
     </StudioNodeFrame>
   );

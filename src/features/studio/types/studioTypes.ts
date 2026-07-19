@@ -33,6 +33,7 @@ export type StudioGenerationQueueItemStatus =
   | "completed"
   | "failed";
 export type OutputType = "image" | "video" | "audio";
+export type OutputNodeStatus = "idle" | "processing" | "completed" | "failed";
 
 type StudioNodeBase = {
   title: string;
@@ -327,10 +328,13 @@ export type CameraControlNodeData = StudioNodeBase &
 
 export type OutputNodeData = StudioNodeBase & {
   kind: "output";
+  sourceNodeId: string;
   resultPreview: string;
+  videoUrl: string;
   outputType: OutputType;
   createdAt: string;
-  status: GenerationNodeStatus;
+  completedAt: string;
+  status: OutputNodeStatus;
   jobId: string;
   thumbnail: string;
   errorMessage: string;

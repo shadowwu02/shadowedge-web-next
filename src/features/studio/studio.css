@@ -1969,6 +1969,18 @@
   opacity: 0.35;
 }
 
+.studio-output-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.studio-output-actions .studio-node-action {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+}
+
 .studio-node-handle {
   width: 11px !important;
   height: 11px !important;
