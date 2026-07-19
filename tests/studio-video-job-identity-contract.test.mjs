@@ -21,6 +21,8 @@ async function testCreatePollCompleteContract() {
     jobId: PROVIDER_JOB_ID,
     databaseJobId: DB_JOB_ID,
     providerJobId: PROVIDER_JOB_ID,
+    shadowedgeJobId: PROVIDER_JOB_ID,
+    providerTrackingId: PROVIDER_JOB_ID,
     statusJobId: DB_JOB_ID,
   });
 
@@ -94,11 +96,33 @@ async function testConfirmedNotFoundRemainsDistinct() {
 function testLegacyIdentityFallback() {
   assert.deepEqual(normalizeVideoJobIdentity({ jobId: "legacy-job-id" }), {
     jobId: "legacy-job-id",
+    shadowedgeJobId: "legacy-job-id",
     statusJobId: "legacy-job-id",
   });
+}
+
+function testTrackingAndNativeIdentityRemainDistinct() {
+  assert.deepEqual(
+    normalizeVideoJobIdentity({
+      databaseJobId: DB_JOB_ID,
+      shadowedgeJobId: "hfv_shadowedge",
+      providerTrackingId: "hfv_tracking",
+      providerNativeId: "20b44bf3-5f93-49b8-9006-80377821ea24",
+    }),
+    {
+      jobId: "hfv_shadowedge",
+      databaseJobId: DB_JOB_ID,
+      providerJobId: "20b44bf3-5f93-49b8-9006-80377821ea24",
+      shadowedgeJobId: "hfv_shadowedge",
+      providerTrackingId: "hfv_tracking",
+      providerNativeId: "20b44bf3-5f93-49b8-9006-80377821ea24",
+      statusJobId: DB_JOB_ID,
+    },
+  );
 }
 
 await testCreatePollCompleteContract();
 await testConfirmedNotFoundRemainsDistinct();
 testLegacyIdentityFallback();
+testTrackingAndNativeIdentityRemainDistinct();
 console.log("studio video job identity contract tests passed");

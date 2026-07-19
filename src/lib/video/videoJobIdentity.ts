@@ -3,6 +3,9 @@ export type VideoJobIdentity = {
   databaseJobId?: string;
   providerJobId?: string;
   statusJobId: string;
+  shadowedgeJobId?: string;
+  providerTrackingId?: string;
+  providerNativeId?: string;
 };
 
 export type VideoJobVisibilityProgress = {
@@ -18,7 +21,13 @@ type VideoJobIdentitySource = {
   dbJobId?: unknown;
   databaseJobId?: unknown;
   generationId?: unknown;
+  clientJobId?: unknown;
+  shadowedgeJobId?: unknown;
   providerJobId?: unknown;
+  providerTrackingId?: unknown;
+  trackingProviderJobId?: unknown;
+  providerNativeId?: unknown;
+  upstreamProviderJobId?: unknown;
   statusJobId?: unknown;
 };
 
@@ -39,17 +48,38 @@ export function normalizeVideoJobIdentity(
 ): VideoJobIdentity {
   const value = source || {};
   const databaseJobId = firstString(value.databaseJobId, value.dbJobId);
-  const providerJobId = firstString(value.providerJobId);
-  const jobId =
-    firstString(value.jobId, value.generationId, value.id, providerJobId, databaseJobId) ||
-    "";
+  const shadowedgeJobId = firstString(
+    value.shadowedgeJobId,
+    value.clientJobId,
+    value.jobId,
+    value.generationId,
+    value.id,
+  );
+  const providerTrackingId = firstString(
+    value.providerTrackingId,
+    value.trackingProviderJobId,
+    value.providerJobId,
+  );
+  const providerNativeId = firstString(
+    value.providerNativeId,
+    value.upstreamProviderJobId,
+  );
+  const providerJobId = firstString(
+    value.providerJobId,
+    providerNativeId,
+    providerTrackingId,
+  );
+  const jobId = firstString(shadowedgeJobId, providerTrackingId, providerJobId, databaseJobId) || "";
   const statusJobId =
-    firstString(value.statusJobId, databaseJobId, jobId, providerJobId) || "";
+    firstString(value.statusJobId, databaseJobId, providerTrackingId, jobId, providerJobId) || "";
 
   return {
     jobId,
     ...(databaseJobId ? { databaseJobId } : {}),
     ...(providerJobId ? { providerJobId } : {}),
+    ...(shadowedgeJobId ? { shadowedgeJobId } : {}),
+    ...(providerTrackingId ? { providerTrackingId } : {}),
+    ...(providerNativeId ? { providerNativeId } : {}),
     statusJobId,
   };
 }

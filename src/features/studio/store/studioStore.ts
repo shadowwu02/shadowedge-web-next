@@ -1331,6 +1331,7 @@ function applyVideoRuntimeToDownstreamOutputs(
     return {
       changed: false,
       nodes,
+      edges,
       bound: false,
       targetNodeIds: [],
       errorCode: "" as const,
@@ -1367,6 +1368,7 @@ function bindPersistedCompletedVideoOutputs(
   edges: StudioEdge[],
 ) {
   let nextNodes = nodes;
+  let nextEdges = edges;
   let changed = false;
   for (const sourceNode of nodes) {
     let videoUrl = "";
@@ -1392,7 +1394,7 @@ function bindPersistedCompletedVideoOutputs(
     if (!videoUrl.trim()) continue;
     const binding = bindVideoResultToOutputNodes({
       nodes: nextNodes,
-      edges,
+      edges: nextEdges,
       sourceNodeId: sourceNode.id,
       status: "completed",
       videoUrl,
@@ -1401,10 +1403,11 @@ function bindPersistedCompletedVideoOutputs(
     });
     if (binding.changed) {
       nextNodes = binding.nodes;
+      nextEdges = binding.edges;
       changed = true;
     }
   }
-  return { nodes: nextNodes, changed };
+  return { nodes: nextNodes, edges: nextEdges, changed };
 }
 
 function applyVideoRuntimeToTimeline(
@@ -2654,6 +2657,7 @@ export const useStudioStore = create<StudioState>()(
                 [runtime.nodeId]: runtime,
               },
               nodes: bindingState.nodes,
+              edges: downstream.edges,
               timeline: timeline.timeline,
               runtimeError: outputBindingRuntimeError(
                 current.runtimeError,
@@ -3501,7 +3505,7 @@ export const useStudioStore = create<StudioState>()(
           );
           return {
             nodes: outputBinding.nodes,
-            edges,
+            edges: outputBinding.edges,
             past: appendHistory(state.past, snapshot),
             future: [],
             updatedAt: nowIso(),
@@ -3546,7 +3550,7 @@ export const useStudioStore = create<StudioState>()(
           projectId: project.id,
           projectName: project.name,
           nodes: outputBinding.nodes,
-          edges,
+          edges: outputBinding.edges,
           viewport: project.canvasJson.viewport,
           timeline: normalizeStudioTimeline(project.canvasJson.timeline),
           updatedAt: project.updatedAt,
@@ -3571,7 +3575,7 @@ export const useStudioStore = create<StudioState>()(
           );
           return {
             nodes: outputBinding.nodes,
-            edges: canvas.edges,
+            edges: outputBinding.edges,
             viewport: canvas.viewport || defaultViewport,
             timeline: normalizeStudioTimeline(canvas.timeline),
             selectedNodeId: null,
@@ -3870,6 +3874,7 @@ export const useStudioStore = create<StudioState>()(
                     [nodeRuntime.nodeId]: nodeRuntime,
                   },
                   nodes: downstream.nodes,
+                  edges: downstream.edges,
                   runtimeError: outputBindingRuntimeError(
                     current.runtimeError,
                     downstream,
@@ -3929,7 +3934,7 @@ export const useStudioStore = create<StudioState>()(
                     [nodeRuntime.nodeId]: nodeRuntime,
                   },
                   nodes: bindingState.nodes,
-                  edges: pipelinePlan.edges,
+                  edges: downstream.edges,
                   timeline: timeline.timeline,
                   runtimeError: outputBindingRuntimeError(
                     current.runtimeError,
@@ -4105,6 +4110,7 @@ export const useStudioStore = create<StudioState>()(
                     [nodeId]: nodeRuntime,
                   },
                   nodes: downstream.nodes,
+                  edges: downstream.edges,
                   runtimeError: outputBindingRuntimeError(
                     current.runtimeError,
                     downstream,
@@ -4152,7 +4158,7 @@ export const useStudioStore = create<StudioState>()(
                     [nodeId]: nodeRuntime,
                   },
                   nodes: downstream.nodes,
-                  edges: pipelinePlan.edges,
+                  edges: downstream.edges,
                   timeline: pipelinePlan.timeline,
                   runtimeError: outputBindingRuntimeError(
                     current.runtimeError,
@@ -4206,7 +4212,7 @@ export const useStudioStore = create<StudioState>()(
           ...currentState,
           ...persisted,
           nodes: outputBinding.nodes,
-          edges,
+          edges: outputBinding.edges,
           timeline: normalizeStudioTimeline(persisted.timeline),
           dirty: outputBinding.changed || currentState.dirty,
         };

@@ -254,6 +254,9 @@ function jobIdentityOutputs(identity: VideoJobIdentity) {
     databaseJobId: identity.databaseJobId,
     dbJobId: identity.databaseJobId,
     providerJobId: identity.providerJobId,
+    shadowedgeJobId: identity.shadowedgeJobId,
+    providerTrackingId: identity.providerTrackingId,
+    providerNativeId: identity.providerNativeId,
     statusJobId: identity.statusJobId,
     jobIdentity: identity,
   };
@@ -565,6 +568,10 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
       }
 
       const status = await pollVideoJob(identity, context);
+      identity = normalizeVideoJobIdentity({
+        ...identity,
+        ...status,
+      });
       const providerStatus = normalizeVideoPollingStatus(
         status.status,
         getSafeHistoryOutputUrl(status),

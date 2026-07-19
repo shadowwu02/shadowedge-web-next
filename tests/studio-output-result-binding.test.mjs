@@ -77,7 +77,7 @@ test("repeated completed event is idempotent", () => {
   assert.equal(repeated.nodes, first.nodes);
 });
 
-test("missing Output connection does not create or mutate Canvas nodes", () => {
+test("completed Video reuses an idle Output and creates the default edge", () => {
   const nodes = [outputNode()];
   const result = bindVideoResultToOutputNodes({
     nodes,
@@ -85,9 +85,68 @@ test("missing Output connection does not create or mutate Canvas nodes", () => {
     ...completed,
   });
 
+  assert.equal(result.bound, true);
+  assert.equal(result.changed, true);
+  assert.equal(result.nodes.length, 1);
+  assert.equal(result.nodes[0].data.status, "completed");
+  assert.equal(result.edges.length, 1);
+  assert.equal(result.edges[0].source, "video-1");
+  assert.equal(result.edges[0].target, "output-1");
+  assert.equal(result.createdOutputNodeId, "");
+  assert.equal(result.errorCode, "");
+});
+
+test("repeated auto-attach does not create another Output edge", () => {
+  const first = bindVideoResultToOutputNodes({
+    nodes: [outputNode()],
+    edges: [],
+    ...completed,
+  });
+  const repeated = bindVideoResultToOutputNodes({
+    nodes: first.nodes,
+    edges: first.edges,
+    ...completed,
+  });
+
+  assert.equal(repeated.bound, true);
+  assert.equal(repeated.changed, false);
+  assert.equal(repeated.nodes.length, 1);
+  assert.equal(repeated.edges.length, 1);
+});
+
+test("completed Video creates a default Output when the Canvas has none", () => {
+  const source = {
+    id: "video-1",
+    type: "videoGenerate",
+    position: { x: 120, y: 80 },
+    data: { kind: "videoGenerate" },
+  };
+  const result = bindVideoResultToOutputNodes({
+    nodes: [source],
+    edges: [],
+    ...completed,
+  });
+
+  assert.equal(result.bound, true);
+  assert.equal(result.nodes.length, 2);
+  assert.equal(result.edges.length, 1);
+  assert.equal(result.createdOutputNodeId, "output-video-1");
+  const output = result.nodes.find((node) => node.id === result.createdOutputNodeId);
+  assert.equal(output.data.status, "completed");
+  assert.equal(output.data.videoUrl, completed.videoUrl);
+  assert.deepEqual(output.position, { x: 480, y: 80 });
+});
+
+test("failed Video without an Output remains explicit and does not auto-create", () => {
+  const result = bindVideoResultToOutputNodes({
+    nodes: [],
+    edges: [],
+    sourceNodeId: "video-1",
+    status: "failed",
+  });
+
   assert.equal(result.bound, false);
   assert.equal(result.changed, false);
-  assert.equal(result.nodes, nodes);
   assert.equal(result.errorCode, OUTPUT_NODE_CONNECTION_REQUIRED);
 });
 
