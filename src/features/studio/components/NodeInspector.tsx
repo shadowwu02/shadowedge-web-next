@@ -731,7 +731,10 @@ export function NodeInspector() {
                 onChange={(event) => {
                   const model = videoModels.find((item) => item.id === event.target.value);
                   if (!model) return;
-                  const params = normalizeStudioVideoModelParams(model, {});
+                  const params = normalizeStudioVideoModelParams(model, {
+                    mode: model.metadata.defaultMode,
+                    audio: false,
+                  });
                   update({
                     providerId: model.providerId,
                     modelId: model.id,
@@ -740,6 +743,8 @@ export function NodeInspector() {
                     ratio: params.ratio,
                     quality: params.quality,
                     resolution: params.resolution,
+                    mode: params.mode,
+                    generateAudio: params.audio,
                   });
                 }}
               >
@@ -792,6 +797,40 @@ export function NodeInspector() {
                   {videoRatios.map((ratio) => (
                     <option key={ratio} value={ratio}>{ratio}</option>
                   ))}
+                </select>
+              </InspectorField>
+            </div>
+            <div className="studio-inspector-grid">
+              <InspectorField label="Mode">
+                <select
+                  value={data.mode || selectedVideoModel?.metadata.defaultMode || "std"}
+                  onChange={updateText("mode")}
+                >
+                  {(selectedVideoModel?.metadata.modes || ["std"]).map((mode) => (
+                    <option key={mode} value={mode}>{mode}</option>
+                  ))}
+                </select>
+              </InspectorField>
+              <InspectorField label="Generate audio">
+                <select
+                  value={
+                    typeof data.generateAudio === "boolean"
+                      ? String(data.generateAudio)
+                      : ""
+                  }
+                  disabled={!selectedVideoModel?.metadata.supportsAudio}
+                  onChange={(event) =>
+                    update({
+                      generateAudio:
+                        event.target.value === ""
+                          ? undefined
+                          : event.target.value === "true",
+                    })
+                  }
+                >
+                  <option value="">Select</option>
+                  <option value="false">Off</option>
+                  <option value="true">On</option>
                 </select>
               </InspectorField>
             </div>

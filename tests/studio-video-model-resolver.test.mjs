@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   estimateStudioVideoModelCredits,
   normalizeStudioVideoModelParams,
+  resolveStudioVideoProviderCostRule,
   resolveStudioVideoGenerationModel,
   resolveStudioVideoGenerationProvider,
   validateStudioVideoModelReferences,
@@ -59,6 +60,28 @@ function inventory() {
           creditTable: { "4": { "480p": 12, "720p": 18 } },
           supportsAudio: true,
           hot: true,
+          providerCost: {
+            ready: true,
+            source: "provider_quote_and_account_transactions",
+            verifiedScopes: ["4s_480p_16_9_audio_false"],
+            rules: [
+              {
+                providerId: "higgsfield",
+                modelId: "seedance_2_0",
+                scope: "EXACT",
+                scopeKey: "4s_480p_16_9_audio_false",
+                duration: 4,
+                resolution: "480p",
+                ratio: "16:9",
+                audio: false,
+                mode: "std",
+                providerCost: 12,
+                currency: "higgsfield_credits",
+                verified: true,
+                source: "provider_quote_and_account_transactions",
+              },
+            ],
+          },
         },
         limits: {
           durations: [4, 5],
@@ -81,6 +104,8 @@ test("runtime model resolver selects an enabled Higgsfield model and limits", ()
     duration: 4,
     ratio: "16:9",
     resolution: "480p",
+    mode: "std",
+    audio: false,
   });
   assert.equal(model.id, "seedance_2_0");
   assert.deepEqual(params, {
@@ -88,8 +113,75 @@ test("runtime model resolver selects an enabled Higgsfield model and limits", ()
     ratio: "16:9",
     quality: "480p",
     resolution: "480p",
+    mode: "std",
+    audio: false,
   });
+  assert.equal(resolveStudioVideoProviderCostRule(model, params)?.providerCost, 12);
   assert.equal(estimateStudioVideoModelCredits(model, params), 12);
+});
+
+test("Seedance readiness is limited to the exact verified parameter scope", () => {
+  const model = resolveStudioVideoGenerationModel(inventory(), {
+    providerId: "higgsfield",
+    modelId: "seedance_2_0",
+  });
+  assert.throws(
+    () =>
+      resolveStudioVideoProviderCostRule(model, {
+        duration: 8,
+        ratio: "16:9",
+        quality: "720p",
+        resolution: "720p",
+        mode: "std",
+        audio: false,
+      }),
+    (error) => error.code === "PROVIDER_COST_NOT_CONFIGURED",
+  );
+  assert.throws(
+    () =>
+      resolveStudioVideoProviderCostRule(model, {
+        duration: 4,
+        ratio: "16:9",
+        quality: "480p",
+        resolution: "480p",
+        mode: "std",
+        audio: true,
+      }),
+    (error) => error.code === "PROVIDER_COST_NOT_CONFIGURED",
+  );
+  assert.throws(
+    () =>
+      normalizeStudioVideoModelParams(model, {
+        duration: 4,
+        ratio: "16:9",
+        resolution: "480p",
+        mode: "std",
+      }),
+    (error) => error.code === "PROVIDER_COST_NOT_CONFIGURED",
+  );
+});
+
+test("admitted legacy Kling inventory remains ready without a scoped Provider rule", () => {
+  const model = {
+    ...inventory().models[0],
+    id: "kling3_0",
+    metadata: {
+      ...inventory().models[0].metadata,
+      providerModel: "kling3_0",
+      providerCost: null,
+    },
+  };
+  assert.equal(
+    resolveStudioVideoProviderCostRule(model, {
+      duration: 4,
+      ratio: "16:9",
+      quality: "480p",
+      resolution: "480p",
+      mode: "std",
+      audio: false,
+    }),
+    null,
+  );
 });
 
 test("empty or mismatched inventory fails closed without a static model fallback", () => {

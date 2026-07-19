@@ -7,6 +7,8 @@ import { buildMotionControlGenerationPlanItem } from "@/features/studio/runtime/
 import { buildCameraControlGenerationPlanItem } from "@/features/studio/runtime/cameraControlPlan";
 import {
   estimateStudioVideoModelCredits,
+  normalizeStudioVideoModelParams,
+  resolveStudioVideoProviderCostRule,
   resolveStudioVideoGenerationModel,
 } from "@/features/studio/capabilities/studioVideoModelResolver";
 import { getCachedStudioProviderModelInventory } from "@/lib/studio-provider-models-api";
@@ -80,11 +82,16 @@ export function estimateStudioVideoNodeCredits(node: StudioNode) {
     providerId,
     modelId: node.data.modelId || node.data.model,
   });
-  return estimateStudioVideoModelCredits(model, {
+  const params = normalizeStudioVideoModelParams(model, {
     duration: node.data.duration,
+    ratio: node.data.ratio,
     quality: node.data.quality,
     resolution: node.data.resolution,
+    mode: node.data.mode,
+    audio: node.data.generateAudio,
   });
+  resolveStudioVideoProviderCostRule(model, params);
+  return estimateStudioVideoModelCredits(model, params);
 }
 
 export function getStudioVideoGenerationReadinessBlocker(

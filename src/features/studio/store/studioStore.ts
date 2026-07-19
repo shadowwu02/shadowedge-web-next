@@ -511,6 +511,8 @@ function createNodeData(type: StudioNodeType): StudioNodeData {
       ratio: "16:9",
       quality: "480p",
       resolution: "480p",
+      mode: "std",
+      generateAudio: false,
       references: [],
       characterRefs: [],
       promptInput: "prompt-1",

@@ -5,6 +5,7 @@ import {
 import {
   estimateStudioVideoModelCredits,
   normalizeStudioVideoModelParams,
+  resolveStudioVideoProviderCostRule,
   resolveStudioVideoGenerationModel,
   resolveStudioVideoGenerationProvider,
   StudioVideoModelResolutionError,
@@ -461,6 +462,11 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
           resolution:
             configString(context, "resolution") ||
             configString(context, "quality"),
+          mode: configString(context, "mode"),
+          audio:
+            typeof context.config.generateAudio === "boolean"
+              ? context.config.generateAudio
+              : undefined,
         });
         const media = collectReferenceMedia(context);
         const mediaIssue = validateStudioVideoModelReferences(
@@ -469,6 +475,7 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
         );
         if (mediaIssue) return failure("PARAMETER_ISSUE", mediaIssue);
 
+        resolveStudioVideoProviderCostRule(inventoryModel, params);
         const estimatedCredits = estimateStudioVideoModelCredits(
           inventoryModel,
           params,
@@ -501,7 +508,7 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
           duration: params.duration,
           ratio: params.ratio,
           quality: params.quality,
-          generateAudio: inventoryModel.metadata.supportsAudio,
+          generateAudio: params.audio,
           media,
           estimatedCredits,
           meta: {

@@ -177,6 +177,10 @@ export type VideoGenerateNodeData = StudioNodeBase & {
   ratio: string;
   quality: string;
   resolution: string;
+  /** Optional for older Canvas snapshots; runtime resolves the model default. */
+  mode?: string;
+  /** Provider cost rules treat audio generation as an explicit parameter. */
+  generateAudio?: boolean;
   references: string[];
   characterRefs: string[];
   promptInput: string;
