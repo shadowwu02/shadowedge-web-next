@@ -29,6 +29,9 @@ const configuredVideoEditExecution = parseBooleanFlag(
 const configuredMotionControlExecution = parseBooleanFlag(
   process.env.NEXT_PUBLIC_STUDIO_MOTION_CONTROL_EXECUTION_ENABLED,
 );
+const configuredMotionProvider = parseBooleanFlag(
+  process.env.NEXT_PUBLIC_STUDIO_MOTION_PROVIDER_ENABLED,
+);
 const configuredProviderExecution = parseBooleanFlag(
   process.env.NEXT_PUBLIC_STUDIO_PROVIDER_EXECUTION_ENABLED,
 );
@@ -68,6 +71,10 @@ export const STUDIO_VIDEO_EDIT_EXECUTION_ENABLED =
 // unavailable even if this future rollout gate is explicitly enabled.
 export const STUDIO_MOTION_CONTROL_EXECUTION_ENABLED =
   configuredMotionControlExecution ?? false;
+// Provider-backed Motion Control is a separate rollout boundary from the
+// local mock node. It remains off in every environment unless explicitly set.
+export const STUDIO_MOTION_PROVIDER_ENABLED =
+  configuredMotionProvider ?? false;
 // Provider-neutral Studio adapters fail closed. Local mocks remain available
 // for contract validation because they have no network or billing path.
 export const STUDIO_PROVIDER_EXECUTION_ENABLED =
@@ -90,6 +97,7 @@ export const studioFeatures = Object.freeze({
   videoEditEnabled: STUDIO_VIDEO_EDIT_ENABLED,
   videoEditExecutionEnabled: STUDIO_VIDEO_EDIT_EXECUTION_ENABLED,
   motionControlExecutionEnabled: STUDIO_MOTION_CONTROL_EXECUTION_ENABLED,
+  motionProviderEnabled: STUDIO_MOTION_PROVIDER_ENABLED,
   providerExecutionEnabled: STUDIO_PROVIDER_EXECUTION_ENABLED,
   higgsfieldVideoEditEnabled: HIGGSFIELD_VIDEO_EDIT_ENABLED,
   higgsfieldVideoGenerationEnabled:

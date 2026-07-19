@@ -141,6 +141,11 @@ export const MotionControlExecutor: StudioNodeExecutor = {
       nodeId: context.nodeId,
       mode,
       payload: {
+        providerId: resolution.provider.providerId,
+        modelId:
+          stringValue(context.config.modelId) ||
+          `motion_control:${mode}`,
+        duration: Number(context.config.duration) || 3,
         sourceImage,
         motionReferenceVideo,
         prompt: stringValue(context.config.prompt),
@@ -168,8 +173,8 @@ export const MotionControlExecutor: StudioNodeExecutor = {
         status: "queued",
         jobIdentity: submitted.identity,
         ...submitted.identity,
-        mock: true,
-        providerCalled: false,
+        mock: resolution.adapter.kind === "mock",
+        providerCalled: resolution.adapter.kind === "real",
       },
     });
     await new Promise<void>((resolve) => setTimeout(resolve, 120));
@@ -180,8 +185,8 @@ export const MotionControlExecutor: StudioNodeExecutor = {
         status: "processing",
         jobIdentity: submitted.identity,
         ...submitted.identity,
-        mock: true,
-        providerCalled: false,
+        mock: resolution.adapter.kind === "mock",
+        providerCalled: resolution.adapter.kind === "real",
       },
     });
     const statusResult = await getProviderJobStatus(

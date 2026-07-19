@@ -137,6 +137,13 @@ export const STUDIO_CAPABILITIES = [
         supportedParameters: ["mode", "prompt"],
       },
       {
+        providerId: "future",
+        adapterKey: "motion_control_bridge",
+        availability: "available",
+        supportedModes: ["character_motion", "motion_transfer", "camera_motion"],
+        supportedParameters: ["mode", "prompt", "duration", "modelId"],
+      },
+      {
         providerId: "higgsfield",
         adapterKey: "unavailable",
         availability: "metadata_only",
@@ -194,6 +201,7 @@ export const STUDIO_CAPABILITY_COST_RULES = [
   { capability: "video_generate", providerId: "higgsfield", creditsRule: "existing_video_rules" },
   { capability: "video_edit", providerId: "mock", creditsRule: "free_mock" },
   { capability: "motion_control", providerId: "mock", creditsRule: "free_mock" },
+  { capability: "motion_control", providerId: "future", creditsRule: "future" },
   { capability: "camera_control", providerId: "mock", creditsRule: "free_mock" },
   {
     capability: "video_edit",

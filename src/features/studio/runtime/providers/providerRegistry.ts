@@ -9,6 +9,7 @@ import type {
 } from "@/features/studio/runtime/providers/providerAdapter";
 import { mockProviderAdapter } from "./mockProviderAdapter.ts";
 import { higgsfieldVideoEditAdapter } from "./higgsfieldVideoEditAdapter.ts";
+import { motionControlBridgeAdapter } from "./motionControlProviderAdapter.ts";
 
 export type StudioProviderStatus =
   | "existing"
@@ -48,6 +49,13 @@ export const STUDIO_PROVIDER_REGISTRY: readonly StudioProviderDefinition[] = [
     status: "available",
   },
   {
+    providerId: "future",
+    name: "Provider-neutral Motion Runtime",
+    capabilities: ["motion_control"],
+    adapterKey: "motion_control_bridge",
+    status: "available",
+  },
+  {
     providerId: "kling",
     name: "Kling",
     capabilities: ["video_edit", "motion_control", "camera_control"],
@@ -59,6 +67,7 @@ export const STUDIO_PROVIDER_REGISTRY: readonly StudioProviderDefinition[] = [
 const adapters = new Map<string, ProviderAdapter>([
   [mockProviderAdapter.key, mockProviderAdapter],
   [higgsfieldVideoEditAdapter.key, higgsfieldVideoEditAdapter],
+  [motionControlBridgeAdapter.key, motionControlBridgeAdapter],
 ]);
 
 function unavailable(message: string): ProviderResolutionFailure {

@@ -20,7 +20,10 @@ export type ProviderErrorCode =
 export type ProviderRuntimeErrorCode =
   | ProviderErrorCode
   | "CAPABILITY_PROVIDER_UNAVAILABLE"
-  | "PROVIDER_EXECUTION_DISABLED";
+  | "PROVIDER_EXECUTION_DISABLED"
+  | "PROVIDER_COST_NOT_CONFIGURED"
+  | "PROVIDER_JOB_ID_MISSING_AFTER_SUBMIT"
+  | "SUBMISSION_PERSISTENCE_FAILED";
 
 export type ProviderJobIdentity = VideoJobIdentity & {
   clientJobId: string;
@@ -95,7 +98,10 @@ export function normalizeProviderError(
   let code: ProviderRuntimeErrorCode = "PROVIDER_JOB_FAILED";
   if (
     rawCode === "CAPABILITY_PROVIDER_UNAVAILABLE" ||
-    rawCode === "PROVIDER_EXECUTION_DISABLED"
+    rawCode === "PROVIDER_EXECUTION_DISABLED" ||
+    rawCode === "PROVIDER_COST_NOT_CONFIGURED" ||
+    rawCode === "PROVIDER_JOB_ID_MISSING_AFTER_SUBMIT" ||
+    rawCode === "SUBMISSION_PERSISTENCE_FAILED"
   ) {
     code = rawCode;
   } else if (status === 401 || status === 403 || rawCode.includes("AUTH")) {
