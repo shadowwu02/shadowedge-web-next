@@ -95,6 +95,63 @@ function inventory() {
   };
 }
 
+function kling26Inventory({ providerCostReady = false } = {}) {
+  const base = inventory();
+  return {
+    ...base,
+    models: [
+      {
+        ...base.models[0],
+        id: "kling2_6",
+        label: "Kling 2.6",
+        metadata: {
+          ...base.models[0].metadata,
+          providerModel: "kling2_6",
+          defaultMode: "default",
+          modes: ["default"],
+          credits: 18,
+          creditBase: 18,
+          creditTable: { "5": { "720p": 18 }, "10": { "720p": 36 } },
+          supportsAudio: false,
+          providerCost: {
+            ready: providerCostReady,
+            source: providerCostReady ? "contract_test" : "unknown",
+            verifiedScopes: providerCostReady
+              ? ["5s_720p_16_9_audio_false"]
+              : [],
+            rules: providerCostReady
+              ? [
+                  {
+                    providerId: "higgsfield",
+                    modelId: "kling2_6",
+                    scope: "EXACT",
+                    scopeKey: "5s_720p_16_9_audio_false",
+                    duration: 5,
+                    resolution: "720p",
+                    ratio: "16:9",
+                    audio: false,
+                    mode: "default",
+                    providerCost: 999,
+                    currency: "test_credits",
+                    verified: true,
+                    source: "contract_test",
+                  },
+                ]
+              : [],
+          },
+        },
+        limits: {
+          durations: [5, 10],
+          ratios: ["16:9", "9:16", "1:1"],
+          resolutions: ["720p"],
+          uploadSlots: ["image"],
+          acceptedMediaTypes: ["image"],
+        },
+      },
+    ],
+  };
+}
+
 test("runtime model resolver selects an enabled Higgsfield model and limits", () => {
   const model = resolveStudioVideoGenerationModel(inventory(), {
     providerId: "higgsfield",
@@ -182,6 +239,46 @@ test("admitted legacy Kling inventory remains ready without a scoped Provider ru
     }),
     null,
   );
+});
+
+test("Kling 2.6 remains blocked when Provider cost is unknown", () => {
+  const model = resolveStudioVideoGenerationModel(kling26Inventory(), {
+    providerId: "higgsfield",
+    modelId: "kling2_6",
+  });
+  const params = normalizeStudioVideoModelParams(model, {
+    duration: 5,
+    ratio: "16:9",
+    resolution: "720p",
+    mode: "default",
+    audio: false,
+  });
+
+  assert.throws(
+    () => resolveStudioVideoProviderCostRule(model, params),
+    (error) => error.code === "PROVIDER_COST_NOT_CONFIGURED",
+  );
+});
+
+test("a mock verified Kling 2.6 variant uses the existing resolver and executor mapping", () => {
+  const model = resolveStudioVideoGenerationModel(
+    kling26Inventory({ providerCostReady: true }),
+    { providerId: "higgsfield", modelId: "kling2_6" },
+  );
+  const params = normalizeStudioVideoModelParams(model, {
+    duration: 5,
+    ratio: "16:9",
+    resolution: "720p",
+    mode: "default",
+    audio: false,
+  });
+
+  assert.equal(resolveStudioVideoProviderCostRule(model, params)?.providerCost, 999);
+  assert.equal(estimateStudioVideoModelCredits(model, params), 18);
+  assert.deepEqual(resolveStudioVideoGenerationProvider("higgsfield"), {
+    providerId: "higgsfield",
+    executor: "existing_video_api",
+  });
 });
 
 test("empty or mismatched inventory fails closed without a static model fallback", () => {
