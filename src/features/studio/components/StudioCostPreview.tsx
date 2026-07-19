@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { StudioNodeData } from "@/features/studio/types/studioTypes";
 import {
   estimateStudioVideoModelCredits,
+  normalizeStudioVideoModelParams,
+  resolveStudioVideoProviderCostRule,
   resolveStudioVideoGenerationModel,
 } from "@/features/studio/capabilities/studioVideoModelResolver";
 import { getImageModels } from "@/lib/image-api";
@@ -15,6 +17,12 @@ import {
 import type { ImageModel } from "@/types/image";
 
 let imageModelsPromise: Promise<ImageModel[]> | null = null;
+
+type VideoCostPreviewState = {
+  credits: number | null;
+  scope: string;
+  available: boolean;
+};
 
 function loadImageModelsForPreview() {
   imageModelsPromise ||= getImageModels().catch(() => []);
@@ -32,7 +40,11 @@ export function StudioCostPreview({ data }: { data: StudioNodeData }) {
     });
   }, [data]);
   const [imageCost, setImageCost] = useState<number | null>(fallbackImageCost);
-  const [videoCost, setVideoCost] = useState<number | null>(null);
+  const [videoCost, setVideoCost] = useState<VideoCostPreviewState>({
+    credits: null,
+    scope: "Inventory loading",
+    available: false,
+  });
 
   useEffect(() => {
     if (data.kind !== "imageGenerate") return;
@@ -64,16 +76,30 @@ export function StudioCostPreview({ data }: { data: StudioNodeData }) {
           providerId,
           modelId: data.modelId || data.model,
         });
-        setVideoCost(
-          estimateStudioVideoModelCredits(model, {
-            duration: data.duration,
-            quality: data.quality,
-            resolution: data.resolution,
-          }),
-        );
+        const params = normalizeStudioVideoModelParams(model, {
+          duration: data.duration,
+          ratio: data.ratio,
+          quality: data.quality,
+          resolution: data.resolution,
+          mode: data.mode,
+          audio: data.generateAudio,
+        });
+        const rule = resolveStudioVideoProviderCostRule(model, params);
+        const credits = estimateStudioVideoModelCredits(model, params);
+        setVideoCost({
+          credits,
+          scope: rule?.scopeKey || "Runtime verified",
+          available: credits !== null,
+        });
       })
       .catch(() => {
-        if (!cancelled) setVideoCost(null);
+        if (!cancelled) {
+          setVideoCost({
+            credits: null,
+            scope: "Not verified — execution blocked",
+            available: false,
+          });
+        }
       });
     return () => {
       cancelled = true;
@@ -82,7 +108,7 @@ export function StudioCostPreview({ data }: { data: StudioNodeData }) {
 
   const estimatedCredits =
     data.kind === "videoGenerate"
-      ? videoCost
+      ? videoCost.credits
       : data.kind === "imageGenerate"
         ? imageCost
         : data.kind === "videoEdit"
@@ -93,6 +119,19 @@ export function StudioCostPreview({ data }: { data: StudioNodeData }) {
               ? 0
             : null;
 
+  if (data.kind === "videoGenerate") {
+    return (
+      <p className="studio-node-cost">
+        Estimated Cost:{" "}
+        <strong>
+          {videoCost.available && videoCost.credits !== null
+            ? `${videoCost.credits} credits`
+            : "Cost unavailable"}
+        </strong>
+        <span>Scope: {videoCost.scope}</span>
+      </p>
+    );
+  }
   if (estimatedCredits === null) return null;
   return (
     <p className="studio-node-cost">

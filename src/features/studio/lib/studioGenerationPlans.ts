@@ -47,6 +47,7 @@ function normalizeGenerationPlanSource(
       providerId:
         item.providerId || (item.type === "video_generate" ? "higgsfield" : undefined),
       modelId: item.modelId || item.model,
+      verifiedScope: item.verifiedScope,
     })),
   };
 }

@@ -41,6 +41,7 @@ export type StudioGenerationPlanItem = {
   status: StudioGenerationQueueItemStatus;
   providerId?: string;
   modelId?: string;
+  verifiedScope?: string;
   model: string;
   estimatedCredits: number;
   startedAt: string | null;
@@ -186,13 +187,35 @@ export function buildStudioGenerationPlanFromNode({
           "MODEL_INVENTORY_NOT_READY: Wait for the runtime model inventory and cost metadata before creating a Generation Plan.",
         );
       }
+      const providerId = node.data.providerId || "higgsfield";
+      const inventory = getCachedStudioProviderModelInventory(
+        providerId,
+        "video_generate",
+      );
+      if (!inventory) {
+        throw new Error("MODEL_INVENTORY_NOT_READY");
+      }
+      const model = resolveStudioVideoGenerationModel(inventory, {
+        providerId,
+        modelId: node.data.modelId || node.data.model,
+      });
+      const params = normalizeStudioVideoModelParams(model, {
+        duration: node.data.duration,
+        ratio: node.data.ratio,
+        quality: node.data.quality,
+        resolution: node.data.resolution,
+        mode: node.data.mode,
+        audio: node.data.generateAudio,
+      });
+      const costRule = resolveStudioVideoProviderCostRule(model, params);
       return [
         {
           nodeId: node.id,
           type: "video_generate",
           status: "draft",
-          providerId: node.data.providerId || "higgsfield",
+          providerId,
           modelId: node.data.modelId || node.data.model,
+          verifiedScope: costRule?.scopeKey || "runtime_catalog",
           model: node.data.model,
           estimatedCredits,
           startedAt: null,

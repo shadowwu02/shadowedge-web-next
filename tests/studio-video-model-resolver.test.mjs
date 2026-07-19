@@ -2,7 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   estimateStudioVideoModelCredits,
+  getStudioVideoModelParameterOptions,
+  getStudioVideoModelReadinessPresentation,
   normalizeStudioVideoModelParams,
+  normalizeStudioVideoModelParamsForChange,
   resolveStudioVideoProviderCostRule,
   resolveStudioVideoGenerationModel,
   resolveStudioVideoGenerationProvider,
@@ -90,6 +93,22 @@ function inventory() {
           uploadSlots: ["media"],
           acceptedMediaTypes: ["image", "video", "audio"],
         },
+        readiness: {
+          status: "LIMITED",
+          executable: true,
+          verifiedScopes: ["4s_480p_16_9_audio_false"],
+          verifiedParameters: [
+            {
+              duration: 4,
+              resolution: "480p",
+              ratio: "16:9",
+              audio: false,
+              mode: "std",
+              scopeKey: "4s_480p_16_9_audio_false",
+            },
+          ],
+          blockers: ["PROVIDER_COST_SCOPE_INCOMPLETE"],
+        },
       },
     ],
   };
@@ -146,6 +165,26 @@ function kling26Inventory({ providerCostReady = false } = {}) {
           resolutions: ["720p"],
           uploadSlots: ["image"],
           acceptedMediaTypes: ["image"],
+        },
+        readiness: {
+          status: providerCostReady ? "LIMITED" : "COMING_SOON",
+          executable: providerCostReady,
+          verifiedScopes: providerCostReady
+            ? ["5s_720p_16_9_audio_false"]
+            : [],
+          verifiedParameters: providerCostReady
+            ? [
+                {
+                  duration: 5,
+                  resolution: "720p",
+                  ratio: "16:9",
+                  audio: false,
+                  mode: "default",
+                  scopeKey: "5s_720p_16_9_audio_false",
+                },
+              ]
+            : [],
+          blockers: providerCostReady ? [] : ["PROVIDER_COST_NOT_CONFIGURED"],
         },
       },
     ],
@@ -213,8 +252,37 @@ test("Seedance readiness is limited to the exact verified parameter scope", () =
         ratio: "16:9",
         resolution: "480p",
         mode: "std",
-      }),
+    }),
     (error) => error.code === "PROVIDER_COST_NOT_CONFIGURED",
+  );
+  assert.deepEqual(getStudioVideoModelParameterOptions(model), {
+    durations: [4],
+    ratios: ["16:9"],
+    resolutions: ["480p"],
+    modes: ["std"],
+    audio: [false],
+    acceptedMediaTypes: ["image", "video", "audio"],
+  });
+  assert.deepEqual(
+    normalizeStudioVideoModelParamsForChange(
+      model,
+      {
+        duration: 4,
+        ratio: "16:9",
+        resolution: "480p",
+        mode: "std",
+        audio: false,
+      },
+      { resolution: "480p" },
+    ),
+    {
+      duration: 4,
+      ratio: "16:9",
+      quality: "480p",
+      resolution: "480p",
+      mode: "std",
+      audio: false,
+    },
   );
 });
 
@@ -242,21 +310,71 @@ test("admitted legacy Kling inventory remains ready without a scoped Provider ru
 });
 
 test("Kling 2.6 remains blocked when Provider cost is unknown", () => {
-  const model = resolveStudioVideoGenerationModel(kling26Inventory(), {
-    providerId: "higgsfield",
-    modelId: "kling2_6",
-  });
-  const params = normalizeStudioVideoModelParams(model, {
-    duration: 5,
-    ratio: "16:9",
-    resolution: "720p",
-    mode: "default",
-    audio: false,
+  assert.throws(
+    () =>
+      resolveStudioVideoGenerationModel(kling26Inventory(), {
+        providerId: "higgsfield",
+        modelId: "kling2_6",
+      }),
+    (error) => error.code === "STUDIO_VIDEO_MODEL_UNAVAILABLE",
+  );
+});
+
+test("readiness presentation distinguishes Ready, Limited, and Coming Soon", () => {
+  const limited = inventory().models[0];
+  assert.deepEqual(getStudioVideoModelReadinessPresentation(limited), {
+    status: "LIMITED",
+    selectable: true,
+    indicator: "◐",
+    label: "Limited",
+    reason: "4s / 480p only",
   });
 
+  const comingSoon = kling26Inventory().models[0];
+  assert.equal(getStudioVideoModelReadinessPresentation(comingSoon).selectable, false);
+  assert.equal(
+    getStudioVideoModelReadinessPresentation(comingSoon).reason,
+    "Cost verification pending.",
+  );
   assert.throws(
-    () => resolveStudioVideoProviderCostRule(model, params),
-    (error) => error.code === "PROVIDER_COST_NOT_CONFIGURED",
+    () =>
+      resolveStudioVideoGenerationModel(kling26Inventory(), {
+        providerId: "higgsfield",
+        modelId: "kling2_6",
+      }),
+    (error) => error.code === "STUDIO_VIDEO_MODEL_UNAVAILABLE",
+  );
+
+  const ready = {
+    ...limited,
+    id: "kling3_0",
+    enabled: true,
+    readiness: {
+      status: "READY",
+      executable: true,
+      verifiedScopes: [],
+      verifiedParameters: [],
+      blockers: [],
+    },
+  };
+  assert.equal(getStudioVideoModelReadinessPresentation(ready).label, "Ready");
+  assert.equal(getStudioVideoModelReadinessPresentation(ready).selectable, true);
+
+  const blocked = {
+    ...comingSoon,
+    readiness: {
+      status: "BLOCKED",
+      executable: false,
+      verifiedScopes: [],
+      verifiedParameters: [],
+      blockers: ["LIMITS_NOT_CONFIGURED"],
+    },
+  };
+  assert.equal(getStudioVideoModelReadinessPresentation(blocked).label, "Blocked");
+  assert.equal(getStudioVideoModelReadinessPresentation(blocked).selectable, false);
+  assert.equal(
+    getStudioVideoModelReadinessPresentation(blocked).reason,
+    "Parameter limits are not verified.",
   );
 });
 

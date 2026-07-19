@@ -1751,6 +1751,38 @@
   letter-spacing: 0.04em;
 }
 
+.studio-model-readiness {
+  display: grid;
+  gap: 3px;
+  border: 1px solid rgba(244, 244, 244, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 9px 10px;
+  color: rgba(244, 244, 244, 0.68);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.studio-model-readiness strong {
+  color: rgba(244, 244, 244, 0.9);
+  font-size: 10px;
+}
+
+.studio-model-readiness-ready {
+  border-color: rgba(91, 181, 132, 0.35);
+  background: rgba(91, 181, 132, 0.08);
+}
+
+.studio-model-readiness-limited {
+  border-color: color-mix(in srgb, var(--studio-accent) 34%, transparent);
+  background: color-mix(in srgb, var(--studio-accent) 7%, transparent);
+}
+
+.studio-model-readiness-coming_soon,
+.studio-model-readiness-blocked {
+  color: rgba(214, 214, 214, 0.52);
+}
+
 .studio-node-body {
   padding: 11px 12px 12px;
 }

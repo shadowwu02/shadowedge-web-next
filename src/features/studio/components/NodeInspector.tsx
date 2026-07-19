@@ -11,7 +11,11 @@ import { MAX_STUDIO_VIDEO_TASKS_PER_RUN } from "@/features/studio/runtime/genera
 import { CAMERA_CONTROL_PRESETS } from "@/features/studio/capabilities/studioCapabilities";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import {
+  getStudioVideoModelParameterOptions,
+  getStudioVideoModelReadinessPresentation,
   normalizeStudioVideoModelParams,
+  normalizeStudioVideoModelParamsForChange,
+  resolveStudioVideoProviderCostRule,
   resolveStudioVideoGenerationModel,
   type StudioProviderModelInventory,
 } from "@/features/studio/capabilities/studioVideoModelResolver";
@@ -133,7 +137,7 @@ export function NodeInspector() {
   const [imageModelsError, setImageModelsError] = useState("");
   const [videoInventory, setVideoInventory] =
     useState<StudioProviderModelInventory | null>(null);
-  const videoModels = videoInventory?.models.filter((model) => model.enabled) || [];
+  const videoModels = videoInventory?.models || [];
   const [videoModelsError, setVideoModelsError] = useState("");
   const loadingImageModels =
     selectedNode?.type === "imageGenerate" &&
@@ -141,7 +145,7 @@ export function NodeInspector() {
     !imageModelsError;
   const loadingVideoModels =
     selectedNode?.type === "videoGenerate" &&
-    !videoModels.length &&
+    !videoInventory &&
     !videoModelsError;
 
   useEffect(() => {
@@ -172,7 +176,7 @@ export function NodeInspector() {
       .then((inventory) => {
         if (cancelled) return;
         setVideoInventory(inventory);
-        if (inventory.enabled && inventory.models.length) {
+        if (inventory.models.length) {
           setVideoModelsError("");
         } else {
           setVideoModelsError("No Higgsfield runtime video models are currently available.");
@@ -231,12 +235,78 @@ export function NodeInspector() {
           }
         })()
       : null;
-  const videoDurations = selectedVideoModel?.limits.durations || [];
-  const videoRatios = selectedVideoModel?.limits.ratios || [];
-  const videoQualities = selectedVideoModel?.limits.resolutions || [];
+  const selectedInventoryVideoModel =
+    data.kind === "videoGenerate"
+      ? videoModels.find(
+          (model) => model.id === (data.modelId || data.model),
+        ) || null
+      : null;
+  const selectedVideoReadiness = selectedInventoryVideoModel
+    ? getStudioVideoModelReadinessPresentation(selectedInventoryVideoModel)
+    : null;
+  const videoParameterOptions = selectedVideoModel
+    ? getStudioVideoModelParameterOptions(selectedVideoModel)
+    : null;
+  const videoDurations = videoParameterOptions?.durations || [];
+  const videoRatios = videoParameterOptions?.ratios || [];
+  const videoQualities = videoParameterOptions?.resolutions || [];
+  const videoModes = videoParameterOptions?.modes || [];
+  const videoAudioOptions = videoParameterOptions?.audio || [];
+  const videoAcceptedMediaTypes = new Set(
+    videoParameterOptions?.acceptedMediaTypes || [],
+  );
   const videoReadinessBlocker = getStudioProviderReadinessBlocker(
     videoInventory?.readiness,
   );
+  const videoParameterBlocker = (() => {
+    if (data.kind !== "videoGenerate" || !selectedVideoModel) return "";
+    try {
+      const params = normalizeStudioVideoModelParams(selectedVideoModel, {
+        duration: data.duration,
+        ratio: data.ratio,
+        quality: data.quality,
+        resolution: data.resolution,
+        mode: data.mode,
+        audio: data.generateAudio,
+      });
+      resolveStudioVideoProviderCostRule(selectedVideoModel, params);
+      return "";
+    } catch {
+      return "Selected parameters are outside the verified cost scope.";
+    }
+  })();
+  const updateVideoParameters = (
+    patch: Partial<{
+      duration: number;
+      ratio: string;
+      quality: string;
+      resolution: string;
+      mode: string;
+      audio: boolean;
+    }>,
+  ) => {
+    if (data.kind !== "videoGenerate" || !selectedVideoModel) return;
+    const params = normalizeStudioVideoModelParamsForChange(
+      selectedVideoModel,
+      {
+        duration: data.duration,
+        ratio: data.ratio,
+        quality: data.quality,
+        resolution: data.resolution,
+        mode: data.mode,
+        audio: data.generateAudio,
+      },
+      patch,
+    );
+    update({
+      duration: params.duration,
+      ratio: params.ratio,
+      quality: params.quality,
+      resolution: params.resolution,
+      mode: params.mode,
+      generateAudio: params.audio,
+    });
+  };
 
   return (
     <aside className="studio-side-panel studio-inspector" aria-label="Node inspector">
@@ -759,16 +829,40 @@ export function NodeInspector() {
                   </option>
                 ) : null}
                 {videoModels.map((model) => (
-                  <option key={model.id} value={model.id}>{model.label}</option>
+                  <option
+                    disabled={!getStudioVideoModelReadinessPresentation(model).selectable}
+                    key={model.id}
+                    value={model.id}
+                  >
+                    {model.label} — {getStudioVideoModelReadinessPresentation(model).indicator}{" "}
+                    {getStudioVideoModelReadinessPresentation(model).label}
+                    {getStudioVideoModelReadinessPresentation(model).reason
+                      ? ` — ${getStudioVideoModelReadinessPresentation(model).reason}`
+                      : ""}
+                  </option>
                 ))}
               </select>
             </InspectorField>
+            {selectedVideoReadiness ? (
+              <div
+                className={`studio-model-readiness studio-model-readiness-${selectedVideoReadiness.status.toLowerCase()}`}
+                role="status"
+              >
+                <strong>
+                  {selectedVideoReadiness.indicator} {selectedVideoReadiness.label}
+                </strong>
+                <span>{selectedVideoReadiness.reason || "All catalog parameters are available."}</span>
+              </div>
+            ) : null}
             {videoModelsError ? <p className="studio-inspector-error">{videoModelsError}</p> : null}
             {videoInventory && videoReadinessBlocker ? (
               <div className="studio-inspector-runtime-error" role="alert">
                 <strong>{videoReadinessBlocker.code}</strong>
                 <span>{videoReadinessBlocker.message}</span>
               </div>
+            ) : null}
+            {videoParameterBlocker ? (
+              <p className="studio-inspector-error">{videoParameterBlocker}</p>
             ) : null}
             {!STUDIO_HIGGSFIELD_VIDEO_GENERATION_ENABLED ? (
               <p className="studio-node-footnote">
@@ -779,10 +873,13 @@ export function NodeInspector() {
               <InspectorField label="Duration">
                 <select
                   value={String(data.duration)}
-                  onChange={(event) => update({ duration: Number(event.target.value) })}
+                  disabled={!selectedVideoModel}
+                  onChange={(event) =>
+                    updateVideoParameters({ duration: Number(event.target.value) })
+                  }
                 >
                   {!videoDurations.includes(data.duration) ? (
-                    <option value={data.duration}>{data.duration}s</option>
+                    <option disabled value={data.duration}>{data.duration}s — unavailable</option>
                   ) : null}
                   {videoDurations.map((duration) => (
                     <option key={duration} value={duration}>{duration}s</option>
@@ -790,9 +887,15 @@ export function NodeInspector() {
                 </select>
               </InspectorField>
               <InspectorField label="Ratio">
-                <select value={data.ratio} onChange={updateText("ratio")}>
+                <select
+                  disabled={!selectedVideoModel}
+                  value={data.ratio}
+                  onChange={(event) =>
+                    updateVideoParameters({ ratio: event.target.value })
+                  }
+                >
                   {!videoRatios.includes(data.ratio) ? (
-                    <option value={data.ratio}>{data.ratio}</option>
+                    <option disabled value={data.ratio}>{data.ratio} — unavailable</option>
                   ) : null}
                   {videoRatios.map((ratio) => (
                     <option key={ratio} value={ratio}>{ratio}</option>
@@ -804,9 +907,12 @@ export function NodeInspector() {
               <InspectorField label="Mode">
                 <select
                   value={data.mode || selectedVideoModel?.metadata.defaultMode || "std"}
-                  onChange={updateText("mode")}
+                  disabled={!selectedVideoModel}
+                  onChange={(event) =>
+                    updateVideoParameters({ mode: event.target.value })
+                  }
                 >
-                  {(selectedVideoModel?.metadata.modes || ["std"]).map((mode) => (
+                  {(videoModes.length ? videoModes : ["std"]).map((mode) => (
                     <option key={mode} value={mode}>{mode}</option>
                   ))}
                 </select>
@@ -816,21 +922,20 @@ export function NodeInspector() {
                   value={
                     typeof data.generateAudio === "boolean"
                       ? String(data.generateAudio)
-                      : ""
+                      : videoAudioOptions.length
+                        ? String(videoAudioOptions[0])
+                        : ""
                   }
-                  disabled={!selectedVideoModel?.metadata.supportsAudio}
+                  disabled={!selectedVideoModel || videoAudioOptions.length <= 1}
                   onChange={(event) =>
-                    update({
-                      generateAudio:
-                        event.target.value === ""
-                          ? undefined
-                          : event.target.value === "true",
-                    })
+                    updateVideoParameters({ audio: event.target.value === "true" })
                   }
                 >
-                  <option value="">Select</option>
-                  <option value="false">Off</option>
-                  <option value="true">On</option>
+                  {videoAudioOptions.map((audio) => (
+                    <option key={String(audio)} value={String(audio)}>
+                      {audio ? "On" : "Off"}
+                    </option>
+                  ))}
                 </select>
               </InspectorField>
             </div>
@@ -838,13 +943,16 @@ export function NodeInspector() {
               <InspectorField label="Quality">
                 <select
                   value={data.quality}
-                  onChange={(event) => update({
-                    quality: event.target.value,
-                    resolution: event.target.value,
-                  })}
+                  disabled={!selectedVideoModel}
+                  onChange={(event) =>
+                    updateVideoParameters({
+                      quality: event.target.value,
+                      resolution: event.target.value,
+                    })
+                  }
                 >
                   {!videoQualities.includes(data.quality) ? (
-                    <option value={data.quality}>{data.quality}</option>
+                    <option disabled value={data.quality}>{data.quality} — unavailable</option>
                   ) : null}
                   {videoQualities.map((quality) => (
                     <option key={quality} value={quality}>{quality}</option>
@@ -859,10 +967,28 @@ export function NodeInspector() {
               <input value={data.promptInput} onChange={updateText("promptInput")} />
             </InspectorField>
             <InspectorField label="Image input">
-              <input value={data.imageInput} onChange={updateText("imageInput")} />
+              <input
+                disabled={Boolean(selectedVideoModel) && !videoAcceptedMediaTypes.has("image")}
+                placeholder={
+                  selectedVideoModel && !videoAcceptedMediaTypes.has("image")
+                    ? "Not supported by this model"
+                    : undefined
+                }
+                value={data.imageInput}
+                onChange={updateText("imageInput")}
+              />
             </InspectorField>
             <InspectorField label="Video input">
-              <input value={data.videoInput} onChange={updateText("videoInput")} />
+              <input
+                disabled={Boolean(selectedVideoModel) && !videoAcceptedMediaTypes.has("video")}
+                placeholder={
+                  selectedVideoModel && !videoAcceptedMediaTypes.has("video")
+                    ? "Not supported by this model"
+                    : undefined
+                }
+                value={data.videoInput}
+                onChange={updateText("videoInput")}
+              />
             </InspectorField>
             <InspectorField label="Status">
               <input disabled value={data.status || "idle"} />
@@ -908,6 +1034,8 @@ export function NodeInspector() {
               disabled={
                 generationQueue.running ||
                 Boolean(videoReadinessBlocker) ||
+                Boolean(videoParameterBlocker) ||
+                !selectedVideoModel ||
                 (data.status === "completed" && Boolean(data.videoUrl || data.result))
               }
               onClick={() =>
@@ -927,6 +1055,8 @@ export function NodeInspector() {
                 !selectedGenerationPlan ||
                 generationQueue.running ||
                 Boolean(videoReadinessBlocker) ||
+                Boolean(videoParameterBlocker) ||
+                !selectedVideoModel ||
                 selectedGenerationPlan.status !== "draft"
               }
               onClick={() => {
