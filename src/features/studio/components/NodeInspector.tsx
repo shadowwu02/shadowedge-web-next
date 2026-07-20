@@ -28,6 +28,7 @@ import {
   getImageModelById,
 } from "@/lib/image/imageModelRules";
 import type { ImageModel } from "@/types/image";
+import { StudioModelRecommendation } from "@/features/studio/components/StudioModelRecommendation";
 
 function InspectorField({
   children,
@@ -245,6 +246,21 @@ export function NodeInspector() {
   const selectedVideoReadiness = selectedInventoryVideoModel
     ? getStudioVideoModelAvailabilityPresentation(selectedInventoryVideoModel)
     : null;
+  const recommendationPromptNode =
+    data.kind === "videoGenerate"
+      ? nodes.find((node) => node.id === data.promptInput)
+      : null;
+  const recommendationPrompt =
+    recommendationPromptNode?.data.kind === "prompt"
+      ? recommendationPromptNode.data.prompt
+      : "";
+  const recommendationReferenceMedia =
+    data.kind === "videoGenerate"
+      ? ([
+          ...(data.imageInput ? [{ type: "image" as const }] : []),
+          ...(data.videoInput ? [{ type: "video" as const }] : []),
+        ])
+      : [];
   const videoParameterOptions = selectedVideoModel
     ? getStudioVideoModelParameterOptions(selectedVideoModel)
     : null;
@@ -851,6 +867,17 @@ export function NodeInspector() {
                 <span>{selectedVideoReadiness.reason}</span>
                 <span>Cost: {selectedVideoReadiness.costLabel}</span>
               </div>
+            ) : null}
+            {videoInventory ? (
+              <StudioModelRecommendation
+                duration={data.duration}
+                inventory={videoInventory}
+                onApply={update}
+                prompt={recommendationPrompt}
+                qualityGoal={data.quality || data.resolution}
+                ratio={data.ratio}
+                referenceMedia={recommendationReferenceMedia}
+              />
             ) : null}
             {videoModelsError ? <p className="studio-inspector-error">{videoModelsError}</p> : null}
             {videoInventory && videoReadinessBlocker ? (
