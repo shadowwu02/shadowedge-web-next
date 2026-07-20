@@ -11,8 +11,9 @@ import { MAX_STUDIO_VIDEO_TASKS_PER_RUN } from "@/features/studio/runtime/genera
 import { CAMERA_CONTROL_PRESETS } from "@/features/studio/capabilities/studioCapabilities";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import {
+  formatStudioVideoModelSelectorLabel,
   getStudioVideoModelParameterOptions,
-  getStudioVideoModelReadinessPresentation,
+  getStudioVideoModelAvailabilityPresentation,
   normalizeStudioVideoModelParams,
   normalizeStudioVideoModelParamsForChange,
   resolveStudioVideoProviderCostRule,
@@ -242,7 +243,7 @@ export function NodeInspector() {
         ) || null
       : null;
   const selectedVideoReadiness = selectedInventoryVideoModel
-    ? getStudioVideoModelReadinessPresentation(selectedInventoryVideoModel)
+    ? getStudioVideoModelAvailabilityPresentation(selectedInventoryVideoModel)
     : null;
   const videoParameterOptions = selectedVideoModel
     ? getStudioVideoModelParameterOptions(selectedVideoModel)
@@ -830,15 +831,11 @@ export function NodeInspector() {
                 ) : null}
                 {videoModels.map((model) => (
                   <option
-                    disabled={!getStudioVideoModelReadinessPresentation(model).selectable}
+                    disabled={!getStudioVideoModelAvailabilityPresentation(model).selectable}
                     key={model.id}
                     value={model.id}
                   >
-                    {model.label} — {getStudioVideoModelReadinessPresentation(model).indicator}{" "}
-                    {getStudioVideoModelReadinessPresentation(model).label}
-                    {getStudioVideoModelReadinessPresentation(model).reason
-                      ? ` — ${getStudioVideoModelReadinessPresentation(model).reason}`
-                      : ""}
+                    {formatStudioVideoModelSelectorLabel(model)}
                   </option>
                 ))}
               </select>
@@ -851,7 +848,8 @@ export function NodeInspector() {
                 <strong>
                   {selectedVideoReadiness.indicator} {selectedVideoReadiness.label}
                 </strong>
-                <span>{selectedVideoReadiness.reason || "All catalog parameters are available."}</span>
+                <span>{selectedVideoReadiness.reason}</span>
+                <span>Cost: {selectedVideoReadiness.costLabel}</span>
               </div>
             ) : null}
             {videoModelsError ? <p className="studio-inspector-error">{videoModelsError}</p> : null}

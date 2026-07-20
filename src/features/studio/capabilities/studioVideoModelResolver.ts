@@ -6,6 +6,17 @@ export type StudioModelReadinessStatus =
   | "LIMITED"
   | "COMING_SOON"
   | "BLOCKED";
+export type StudioModelAvailabilityStatus =
+  | "AVAILABLE"
+  | "BETA"
+  | "LIMITED"
+  | "COMING_SOON"
+  | "BLOCKED";
+export type StudioModelCostStatus =
+  | "VERIFIED"
+  | "QUOTE_ONLY"
+  | "PARTIAL"
+  | "UNKNOWN";
 
 export type StudioVerifiedVideoParameters = {
   duration: number;
@@ -100,6 +111,17 @@ export type StudioProviderModelInventory = {
   enabled: boolean;
 };
 
+export type StudioVideoModelMetadata = {
+  modelId: string;
+  displayName: string;
+  availability: StudioModelAvailabilityStatus;
+  badge: string;
+  description: string;
+  verifiedScopes: string[];
+  costStatus: StudioModelCostStatus;
+  executionAllowed: boolean;
+};
+
 export type StudioVideoModelParams = {
   duration: number;
   ratio: string;
@@ -134,6 +156,55 @@ function includesString(values: string[], value: string) {
   return values.some((item) => item === value);
 }
 
+type StudioVideoModelReleaseRule = {
+  displayName: string;
+  availability: StudioModelAvailabilityStatus;
+  description: string;
+  costStatus: StudioModelCostStatus;
+  quoteExecutionApproved?: boolean;
+};
+
+// Product availability is deliberately separate from runtime readiness. This
+// list is release metadata only: it cannot make a blocked runtime model
+// executable or expand a verified parameter scope.
+const STUDIO_VIDEO_MODEL_RELEASE_POLICY: Readonly<
+  Record<string, StudioVideoModelReleaseRule>
+> = Object.freeze({
+  kling3_0: Object.freeze({
+    displayName: "Kling 3.0",
+    availability: "AVAILABLE",
+    description: "Production-verified video generation.",
+    costStatus: "UNKNOWN",
+  }),
+  seedance_2_0: Object.freeze({
+    displayName: "Seedance 2.0",
+    availability: "BETA",
+    description: "Beta access within the verified 4s / 480p scope.",
+    costStatus: "PARTIAL",
+  }),
+  kling2_6: Object.freeze({
+    displayName: "Kling 2.6",
+    availability: "BETA",
+    description: "Beta access within the verified 5s / 720p scope.",
+    costStatus: "QUOTE_ONLY",
+    quoteExecutionApproved: true,
+  }),
+  wan2_7: Object.freeze({
+    displayName: "Wan 2.7",
+    availability: "BETA",
+    description: "Beta access within the verified 5s / 720p scope.",
+    costStatus: "QUOTE_ONLY",
+    quoteExecutionApproved: true,
+  }),
+  wan2_6: Object.freeze({
+    displayName: "Wan 2.6",
+    availability: "BETA",
+    description: "Beta access within the verified 5s / 720p scope.",
+    costStatus: "QUOTE_ONLY",
+    quoteExecutionApproved: true,
+  }),
+});
+
 export function isStudioVideoModelExecutable(model: StudioProviderVideoModel) {
   return model.readiness?.executable ?? model.enabled;
 }
@@ -165,6 +236,150 @@ export function getStudioVideoModelVerifiedParameters(
             rule.mode === variant.mode,
         )?.scopeKey || "",
     }));
+}
+
+function getStudioVideoModelReleaseRule(model: StudioProviderVideoModel) {
+  return STUDIO_VIDEO_MODEL_RELEASE_POLICY[model.id] || null;
+}
+
+function availabilityBadge(status: StudioModelAvailabilityStatus) {
+  const badges: Record<StudioModelAvailabilityStatus, string> = {
+    AVAILABLE: "Available",
+    BETA: "Beta",
+    LIMITED: "Limited",
+    COMING_SOON: "Coming Soon",
+    BLOCKED: "Blocked",
+  };
+  return badges[status];
+}
+
+export function getStudioVideoModelScopeSummary(
+  model: StudioProviderVideoModel,
+) {
+  const verified = getStudioVideoModelVerifiedParameters(model);
+  if (!verified.length) return "";
+  const durations = uniqueSummary(verified.map((item) => `${item.duration}s`));
+  const resolutions = uniqueSummary(verified.map((item) => item.resolution));
+  const ratios = uniqueSummary(verified.map((item) => item.ratio));
+  const audio = uniqueSummary(
+    verified.map((item) => (item.audio ? "audio on" : "audio off")),
+  );
+  return [durations, resolutions, ratios, audio].filter(Boolean).join(" / ");
+}
+
+export function getStudioVideoModelCostPresentation(
+  model: StudioProviderVideoModel,
+) {
+  const status =
+    getStudioVideoModelReleaseRule(model)?.costStatus || "UNKNOWN";
+  const presentations: Record<
+    StudioModelCostStatus,
+    { label: string; executionAllowed: boolean }
+  > = {
+    VERIFIED: { label: "Confirmed", executionAllowed: true },
+    PARTIAL: { label: "Partially confirmed", executionAllowed: true },
+    QUOTE_ONLY: {
+      label: "Estimated",
+      executionAllowed:
+        getStudioVideoModelReleaseRule(model)?.quoteExecutionApproved === true,
+    },
+    UNKNOWN: { label: "Cost unavailable", executionAllowed: false },
+  };
+  return { status, ...presentations[status] };
+}
+
+export function getStudioVideoModelMetadata(
+  model: StudioProviderVideoModel,
+): StudioVideoModelMetadata {
+  const readiness = getStudioVideoModelReadinessStatus(model);
+  const releaseRule = getStudioVideoModelReleaseRule(model);
+  let availability: StudioModelAvailabilityStatus =
+    readiness === "READY"
+      ? "AVAILABLE"
+      : readiness === "LIMITED"
+        ? "LIMITED"
+        : readiness;
+
+  // A release rule may make an already-executable model user-visible as Beta,
+  // but it can never override a blocked or coming-soon runtime contract.
+  if (
+    releaseRule &&
+    (readiness === "READY" || readiness === "LIMITED")
+  ) {
+    availability = releaseRule.availability;
+  }
+
+  const cost = getStudioVideoModelCostPresentation(model);
+  const availabilityAllowsExecution = ["AVAILABLE", "BETA", "LIMITED"].includes(
+    availability,
+  );
+  const executionAllowed =
+    availabilityAllowsExecution &&
+    isStudioVideoModelExecutable(model) &&
+    cost.executionAllowed;
+
+  return {
+    modelId: model.id,
+    displayName: releaseRule?.displayName || model.label,
+    availability,
+    badge: availabilityBadge(availability),
+    description:
+      releaseRule?.description || model.metadata.description || model.label,
+    verifiedScopes: [...(model.readiness?.verifiedScopes || [])],
+    costStatus: cost.status,
+    executionAllowed,
+  };
+}
+
+export function getStudioVideoModelAvailabilityPresentation(
+  model: StudioProviderVideoModel,
+) {
+  const metadata = getStudioVideoModelMetadata(model);
+  const cost = getStudioVideoModelCostPresentation(model);
+  const scope = getStudioVideoModelScopeSummary(model);
+  const reason =
+    cost.status === "UNKNOWN"
+      ? "Provider cost unavailable; execution is disabled."
+      : scope
+        ? `Supported: ${scope}`
+        : metadata.description;
+  const indicators: Record<StudioModelAvailabilityStatus, string> = {
+    AVAILABLE: "✓",
+    BETA: "β",
+    LIMITED: "◐",
+    COMING_SOON: "○",
+    BLOCKED: "×",
+  };
+  return {
+    status: metadata.availability,
+    selectable: metadata.executionAllowed,
+    indicator: indicators[metadata.availability],
+    label: metadata.badge,
+    reason,
+    scope,
+    costStatus: metadata.costStatus,
+    costLabel: cost.label,
+  };
+}
+
+export function formatStudioVideoModelSelectorLabel(
+  model: StudioProviderVideoModel,
+) {
+  const presentation = getStudioVideoModelAvailabilityPresentation(model);
+  return [
+    getStudioVideoModelMetadata(model).displayName,
+    `${presentation.indicator} ${presentation.label}`,
+    presentation.scope,
+    presentation.costLabel,
+  ]
+    .filter(Boolean)
+    .join(" — ");
+}
+
+export function isStudioVideoModelExecutionAllowed(
+  model: StudioProviderVideoModel,
+) {
+  return getStudioVideoModelMetadata(model).executionAllowed;
 }
 
 export function getStudioVideoModelParameterOptions(
@@ -258,7 +473,9 @@ export function resolveStudioVideoGenerationModel(
   }
 
   const enabledModels = inventory.models.filter(
-    (model) => isStudioVideoModelExecutable(model) && model.providerId === providerId,
+    (model) =>
+      isStudioVideoModelExecutionAllowed(model) &&
+      model.providerId === providerId,
   );
   const requested = normalizeKey(input.modelId);
   const model = requested

@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { StudioNodeData } from "@/features/studio/types/studioTypes";
 import {
   estimateStudioVideoModelCredits,
+  getStudioVideoModelAvailabilityPresentation,
+  getStudioVideoModelCostPresentation,
   normalizeStudioVideoModelParams,
   resolveStudioVideoProviderCostRule,
   resolveStudioVideoGenerationModel,
@@ -22,6 +24,7 @@ type VideoCostPreviewState = {
   credits: number | null;
   scope: string;
   available: boolean;
+  costLabel: string;
 };
 
 function loadImageModelsForPreview() {
@@ -44,6 +47,7 @@ export function StudioCostPreview({ data }: { data: StudioNodeData }) {
     credits: null,
     scope: "Inventory loading",
     available: false,
+    costLabel: "Checking",
   });
 
   useEffect(() => {
@@ -72,9 +76,28 @@ export function StudioCostPreview({ data }: { data: StudioNodeData }) {
     void loadStudioProviderModelInventory(providerId, "video_generate")
       .then((inventory) => {
         if (cancelled) return;
+        const requestedModelId = data.modelId || data.model;
+        const inventoryModel = inventory.models.find(
+          (model) =>
+            model.id === requestedModelId ||
+            model.metadata.providerModel === requestedModelId,
+        );
+        if (inventoryModel) {
+          const availability =
+            getStudioVideoModelAvailabilityPresentation(inventoryModel);
+          if (!availability.selectable) {
+            setVideoCost({
+              credits: null,
+              scope: availability.scope || "Execution blocked",
+              available: false,
+              costLabel: availability.costLabel,
+            });
+            return;
+          }
+        }
         const model = resolveStudioVideoGenerationModel(inventory, {
           providerId,
-          modelId: data.modelId || data.model,
+          modelId: requestedModelId,
         });
         const params = normalizeStudioVideoModelParams(model, {
           duration: data.duration,
@@ -86,10 +109,12 @@ export function StudioCostPreview({ data }: { data: StudioNodeData }) {
         });
         const rule = resolveStudioVideoProviderCostRule(model, params);
         const credits = estimateStudioVideoModelCredits(model, params);
+        const cost = getStudioVideoModelCostPresentation(model);
         setVideoCost({
           credits,
           scope: rule?.scopeKey || "Runtime verified",
           available: credits !== null,
+          costLabel: cost.label,
         });
       })
       .catch(() => {
@@ -98,6 +123,7 @@ export function StudioCostPreview({ data }: { data: StudioNodeData }) {
             credits: null,
             scope: "Not verified — execution blocked",
             available: false,
+            costLabel: "Cost unavailable",
           });
         }
       });
@@ -128,7 +154,7 @@ export function StudioCostPreview({ data }: { data: StudioNodeData }) {
             ? `${videoCost.credits} credits`
             : "Cost unavailable"}
         </strong>
-        <span>Scope: {videoCost.scope}</span>
+        <span>Cost: {videoCost.costLabel} · Scope: {videoCost.scope}</span>
       </p>
     );
   }

@@ -2,6 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   estimateStudioVideoModelCredits,
+  formatStudioVideoModelSelectorLabel,
+  getStudioVideoModelAvailabilityPresentation,
+  getStudioVideoModelCostPresentation,
+  getStudioVideoModelMetadata,
   getStudioVideoModelParameterOptions,
   getStudioVideoModelReadinessPresentation,
   normalizeStudioVideoModelParams,
@@ -479,4 +483,124 @@ test("Higgsfield Studio execution flag defaults to disabled", async () => {
   } else {
     process.env.NEXT_PUBLIC_STUDIO_HIGGSFIELD_VIDEO_GENERATION_ENABLED = original;
   }
+});
+
+test("release policy maps the five production-verified models to user availability", () => {
+  const seedance = inventory().models[0];
+  const limitedModel = (id, label) => ({
+    ...kling26Inventory({ providerCostReady: true }).models[0],
+    id,
+    label,
+    metadata: {
+      ...kling26Inventory({ providerCostReady: true }).models[0].metadata,
+      providerModel: id,
+    },
+  });
+  const kling3 = {
+    ...seedance,
+    id: "kling3_0",
+    label: "Kling 3.0",
+    metadata: {
+      ...seedance.metadata,
+      providerModel: "kling3_0",
+      providerCost: null,
+    },
+    readiness: {
+      status: "READY",
+      executable: true,
+      verifiedScopes: [],
+      verifiedParameters: [],
+      blockers: [],
+    },
+  };
+
+  assert.deepEqual(
+    [
+      kling3,
+      seedance,
+      limitedModel("kling2_6", "Kling 2.6"),
+      limitedModel("wan2_7", "Wan 2.7"),
+      limitedModel("wan2_6", "Wan 2.6"),
+    ].map((model) => [model.id, getStudioVideoModelMetadata(model).availability]),
+    [
+      ["kling3_0", "AVAILABLE"],
+      ["seedance_2_0", "BETA"],
+      ["kling2_6", "BETA"],
+      ["wan2_7", "BETA"],
+      ["wan2_6", "BETA"],
+    ],
+  );
+});
+
+test("selector labels expose only verified scope and trustworthy cost wording", () => {
+  const seedance = inventory().models[0];
+  const label = formatStudioVideoModelSelectorLabel(seedance);
+  assert.match(label, /^Seedance 2\.0 — β Beta/);
+  assert.match(label, /4s \/ 480p \/ 16:9 \/ audio off/);
+  assert.match(label, /Partially confirmed$/);
+  assert.doesNotMatch(label, /720p|audio on/);
+
+  const presentation = getStudioVideoModelAvailabilityPresentation(seedance);
+  assert.equal(presentation.selectable, true);
+  assert.equal(presentation.reason, "Supported: 4s / 480p / 16:9 / audio off");
+});
+
+test("cost evidence labels and execution gate remain independent from availability", () => {
+  const seedance = inventory().models[0];
+  const kling26 = kling26Inventory({ providerCostReady: true }).models[0];
+  const kling3 = {
+    ...seedance,
+    id: "kling3_0",
+    label: "Kling 3.0",
+    metadata: {
+      ...seedance.metadata,
+      providerModel: "kling3_0",
+      providerCost: null,
+    },
+    readiness: {
+      status: "READY",
+      executable: true,
+      verifiedScopes: [],
+      verifiedParameters: [],
+      blockers: [],
+    },
+  };
+
+  assert.deepEqual(getStudioVideoModelCostPresentation(seedance), {
+    status: "PARTIAL",
+    label: "Partially confirmed",
+    executionAllowed: true,
+  });
+  assert.deepEqual(getStudioVideoModelCostPresentation(kling26), {
+    status: "QUOTE_ONLY",
+    label: "Estimated",
+    executionAllowed: true,
+  });
+  assert.equal(getStudioVideoModelMetadata(kling3).availability, "AVAILABLE");
+  assert.equal(getStudioVideoModelMetadata(kling3).executionAllowed, false);
+  assert.equal(getStudioVideoModelCostPresentation(kling3).label, "Cost unavailable");
+  assert.throws(
+    () =>
+      resolveStudioVideoGenerationModel(
+        { ...inventory(), models: [kling3] },
+        { providerId: "higgsfield", modelId: "kling3_0" },
+      ),
+    (error) => error.code === "STUDIO_VIDEO_MODEL_UNAVAILABLE",
+  );
+});
+
+test("release metadata never opens a runtime-blocked model", () => {
+  const blocked = {
+    ...inventory().models[0],
+    readiness: {
+      status: "BLOCKED",
+      executable: false,
+      verifiedScopes: [],
+      verifiedParameters: [],
+      blockers: ["MODEL_NOT_VERIFIED"],
+    },
+  };
+  const metadata = getStudioVideoModelMetadata(blocked);
+  assert.equal(metadata.availability, "BLOCKED");
+  assert.equal(metadata.executionAllowed, false);
 });
