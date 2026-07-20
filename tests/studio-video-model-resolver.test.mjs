@@ -57,6 +57,13 @@ function inventory() {
         capability: "video_generate",
         label: "Seedance 2.0",
         enabled: true,
+        availability: "BETA",
+        release: {
+          version: "beta-v1",
+          status: "RELEASED",
+          beta: true,
+          releasedAt: "2026-07-20T18:00:00.000Z",
+        },
         metadata: {
           providerModel: "seedance_2_0",
           description: "Video generation",
@@ -500,6 +507,7 @@ test("release policy maps the five production-verified models to user availabili
     ...seedance,
     id: "kling3_0",
     label: "Kling 3.0",
+    availability: "AVAILABLE",
     metadata: {
       ...seedance.metadata,
       providerModel: "kling3_0",
@@ -521,7 +529,8 @@ test("release policy maps the five production-verified models to user availabili
       limitedModel("kling2_6", "Kling 2.6"),
       limitedModel("wan2_7", "Wan 2.7"),
       limitedModel("wan2_6", "Wan 2.6"),
-    ].map((model) => [model.id, getStudioVideoModelMetadata(model).availability]),
+    ].map((model) => ({ ...model, availability: model.id === "kling3_0" ? "AVAILABLE" : "BETA" }))
+      .map((model) => [model.id, getStudioVideoModelMetadata(model).availability]),
     [
       ["kling3_0", "AVAILABLE"],
       ["seedance_2_0", "BETA"],
@@ -552,6 +561,7 @@ test("cost evidence labels and execution gate remain independent from availabili
     ...seedance,
     id: "kling3_0",
     label: "Kling 3.0",
+    availability: "AVAILABLE",
     metadata: {
       ...seedance.metadata,
       providerModel: "kling3_0",
@@ -589,7 +599,7 @@ test("cost evidence labels and execution gate remain independent from availabili
   );
 });
 
-test("release metadata never opens a runtime-blocked model", () => {
+test("backend release availability is authoritative and never opens a runtime-blocked model", () => {
   const blocked = {
     ...inventory().models[0],
     readiness: {
@@ -602,5 +612,28 @@ test("release metadata never opens a runtime-blocked model", () => {
   };
   const metadata = getStudioVideoModelMetadata(blocked);
   assert.equal(metadata.availability, "BLOCKED");
+  assert.equal(metadata.executionAllowed, false);
+});
+
+test("backend release workflow can withdraw a beta model from Studio visibility", () => {
+  const model = {
+    ...inventory().models[0],
+    availability: "COMING_SOON",
+    enabled: false,
+    release: {
+      version: "beta-v2",
+      status: "REVIEW",
+      beta: true,
+      releasedAt: null,
+    },
+    readiness: {
+      ...inventory().models[0].readiness,
+      status: "COMING_SOON",
+      executable: false,
+      blockers: ["MODEL_RELEASE_NOT_RELEASED"],
+    },
+  };
+  const metadata = getStudioVideoModelMetadata(model);
+  assert.equal(metadata.availability, "COMING_SOON");
   assert.equal(metadata.executionAllowed, false);
 });

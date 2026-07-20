@@ -52,6 +52,13 @@ export type StudioProviderVideoModel = {
   capability: "video_generate";
   label: string;
   enabled: boolean;
+  availability?: StudioModelAvailabilityStatus;
+  release?: {
+    version: string;
+    status: "DRAFT" | "REVIEW" | "APPROVED" | "RELEASED" | "DISABLED" | "ROLLED_BACK";
+    beta: boolean;
+    releasedAt: string | null;
+  } | null;
   metadata: {
     providerModel: string;
     description: string;
@@ -158,47 +165,40 @@ function includesString(values: string[], value: string) {
 
 type StudioVideoModelReleaseRule = {
   displayName: string;
-  availability: StudioModelAvailabilityStatus;
   description: string;
   costStatus: StudioModelCostStatus;
   quoteExecutionApproved?: boolean;
 };
 
-// Product availability is deliberately separate from runtime readiness. This
-// list is release metadata only: it cannot make a blocked runtime model
-// executable or expand a verified parameter scope.
-const STUDIO_VIDEO_MODEL_RELEASE_POLICY: Readonly<
+// Copy and cost labels remain product metadata. Availability is intentionally
+// absent: only the backend release workflow may publish or disable a model.
+const STUDIO_VIDEO_MODEL_PRODUCT_METADATA: Readonly<
   Record<string, StudioVideoModelReleaseRule>
 > = Object.freeze({
   kling3_0: Object.freeze({
     displayName: "Kling 3.0",
-    availability: "AVAILABLE",
     description: "Production-verified video generation.",
     costStatus: "UNKNOWN",
   }),
   seedance_2_0: Object.freeze({
     displayName: "Seedance 2.0",
-    availability: "BETA",
     description: "Beta access within the verified 4s / 480p scope.",
     costStatus: "PARTIAL",
   }),
   kling2_6: Object.freeze({
     displayName: "Kling 2.6",
-    availability: "BETA",
     description: "Beta access within the verified 5s / 720p scope.",
     costStatus: "QUOTE_ONLY",
     quoteExecutionApproved: true,
   }),
   wan2_7: Object.freeze({
     displayName: "Wan 2.7",
-    availability: "BETA",
     description: "Beta access within the verified 5s / 720p scope.",
     costStatus: "QUOTE_ONLY",
     quoteExecutionApproved: true,
   }),
   wan2_6: Object.freeze({
     displayName: "Wan 2.6",
-    availability: "BETA",
     description: "Beta access within the verified 5s / 720p scope.",
     costStatus: "QUOTE_ONLY",
     quoteExecutionApproved: true,
@@ -239,7 +239,7 @@ export function getStudioVideoModelVerifiedParameters(
 }
 
 function getStudioVideoModelReleaseRule(model: StudioProviderVideoModel) {
-  return STUDIO_VIDEO_MODEL_RELEASE_POLICY[model.id] || null;
+  return STUDIO_VIDEO_MODEL_PRODUCT_METADATA[model.id] || null;
 }
 
 function availabilityBadge(status: StudioModelAvailabilityStatus) {
@@ -293,21 +293,10 @@ export function getStudioVideoModelMetadata(
 ): StudioVideoModelMetadata {
   const readiness = getStudioVideoModelReadinessStatus(model);
   const releaseRule = getStudioVideoModelReleaseRule(model);
-  let availability: StudioModelAvailabilityStatus =
-    readiness === "READY"
-      ? "AVAILABLE"
-      : readiness === "LIMITED"
-        ? "LIMITED"
-        : readiness;
-
-  // A release rule may make an already-executable model user-visible as Beta,
-  // but it can never override a blocked or coming-soon runtime contract.
-  if (
-    releaseRule &&
-    (readiness === "READY" || readiness === "LIMITED")
-  ) {
-    availability = releaseRule.availability;
-  }
+  const availability: StudioModelAvailabilityStatus =
+    readiness === "BLOCKED" || readiness === "COMING_SOON"
+      ? readiness
+      : model.availability || (readiness === "READY" ? "AVAILABLE" : "LIMITED");
 
   const cost = getStudioVideoModelCostPresentation(model);
   const availabilityAllowsExecution = ["AVAILABLE", "BETA", "LIMITED"].includes(
