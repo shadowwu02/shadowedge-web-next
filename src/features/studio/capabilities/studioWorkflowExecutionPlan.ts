@@ -27,6 +27,32 @@ export type StudioOrchestrationNode = {
   startedAt: string | null;
   completedAt: string | null;
   failure: { code: string; retryAllowed: false } | null;
+  runtime: {
+    adapterKey: string;
+    target: string | null;
+    state: "EXECUTING" | "COMPLETED" | "FAILED";
+    runtimeJobId?: string | null;
+    databaseJobId?: string | null;
+    providerTrackingId?: string | null;
+    providerNativeId?: string | null;
+    preparedAt?: string;
+    updatedAt?: string;
+  } | null;
+  result: {
+    status: "EXECUTING" | "COMPLETED" | "FAILED";
+    output: {
+      videoUrl: string | null;
+      thumbnail: string | null;
+      assetId: string | null;
+      timelineClipId: string | null;
+      outputNodeId: string | null;
+    };
+    error: { code: string; message: string } | null;
+  } | null;
+  resultBindings: {
+    timeline: { status: "BOUND" | "PENDING" | "UNCHANGED"; ref: string | null };
+    output: { status: "BOUND" | "PENDING" | "UNCHANGED"; ref: string | null };
+  } | null;
 };
 
 export type StudioExecutionQueueItem = {

@@ -33,6 +33,7 @@ import {
 import {
   confirmStudioWorkflowExecutionPlan,
   createStudioWorkflowExecutionPreview,
+  executeStudioWorkflowNode,
   getStudioWorkflowExecutionStatus,
 } from "@/lib/studio-workflow-execution-api";
 
@@ -71,6 +72,7 @@ export function StudioModelRecommendation({
   const [confirmingPlan, setConfirmingPlan] = useState(false);
   const [buildingExecutionPreview, setBuildingExecutionPreview] = useState(false);
   const [confirmingExecution, setConfirmingExecution] = useState(false);
+  const [executingNodeId, setExecutingNodeId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const referenceSignature = referenceMedia.map((item) => item.type).sort().join(",");
   const recommendationKey = JSON.stringify({
@@ -124,6 +126,7 @@ export function StudioModelRecommendation({
       setPlanState({ key: recommendationKey, value: await createStudioCapabilityExecutionPlan(planningInput) });
       setExecutionPlanState(null);
       setExecutionStatus(null);
+      setExecutingNodeId(null);
     } catch {
       setPlanState(null);
       setError("Creative workflow planning is temporarily unavailable.");
@@ -140,6 +143,7 @@ export function StudioModelRecommendation({
       setPlanState({ key: recommendationKey, value: await confirmStudioCapabilityExecutionPlan(capabilityPlan.planId) });
       setExecutionPlanState(null);
       setExecutionStatus(null);
+      setExecutingNodeId(null);
     } catch {
       setError("This workflow cannot be confirmed until every readiness and cost blocker is cleared.");
     } finally {
@@ -154,6 +158,7 @@ export function StudioModelRecommendation({
     try {
       setExecutionPlanState(await createStudioWorkflowExecutionPreview(capabilityPlan.planId));
       setExecutionStatus(null);
+      setExecutingNodeId(null);
     } catch {
       setExecutionPlanState(null);
       setError("Execution Preview is unavailable. Readiness, scope, or cost may have changed.");
@@ -188,6 +193,19 @@ export function StudioModelRecommendation({
       setExecutionStatus(await getStudioWorkflowExecutionStatus(executionPlan.executionPlanId));
     } catch {
       setError("Execution queue status is temporarily unavailable.");
+    }
+  };
+
+  const executeNode = async (executionNodeId: string) => {
+    if (!executionPlan || executionPlan.status !== "CONFIRMED" || executingNodeId) return;
+    setExecutingNodeId(executionNodeId);
+    setError("");
+    try {
+      setExecutionStatus(await executeStudioWorkflowNode(executionNodeId, { prompt }));
+    } catch {
+      setError("Controlled node execution is unavailable. The Runtime bridge may be disabled or a gate may have changed.");
+    } finally {
+      setExecutingNodeId(null);
     }
   };
 
@@ -337,12 +355,26 @@ export function StudioModelRecommendation({
                               <strong>{node ? formatStudioCapabilityLabel(node.capability) : item.nodeId}</strong>
                               <small>{item.status} · Priority {item.priority}</small>
                               <small>{item.dependenciesResolved ? "Dependencies resolved" : `Waiting for ${node?.dependencies.join(", ") || "dependency"}`}</small>
+                              {node?.runtime ? <small>Runtime: {node.runtime.state} via {node.runtime.adapterKey}</small> : null}
+                              {node?.resultBindings ? (
+                                <small>Timeline {node.resultBindings.timeline.status} · Output {node.resultBindings.output.status}</small>
+                              ) : null}
+                              {node?.status === "READY" && node.capability === "video_generate" ? (
+                                <button
+                                  className="studio-node-action studio-execution-node-run"
+                                  disabled={Boolean(executingNodeId)}
+                                  onClick={() => void executeNode(node.executionNodeId)}
+                                  type="button"
+                                >
+                                  {executingNodeId === node.executionNodeId ? "Rechecking gates..." : "Execute Node"}
+                                </button>
+                              ) : null}
                             </div>
                           </li>
                         );
                       })}
                     </ol>
-                    <span>Read-only orchestration. Nodes never run automatically and failed nodes are never retried.</span>
+                    <span>Nodes never run automatically. They run only after an explicit Execute Node action; no batch execution is allowed, and failed nodes are never retried.</span>
                   </section>
                 ) : null}
                 <span className="studio-creative-plan-boundary">Confirmation creates only the read-only orchestration queue. It does not create a Generation Plan, Job, Generation Queue entry, Usage record, or Credits charge.</span>

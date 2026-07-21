@@ -2051,6 +2051,14 @@
   gap: 2px;
 }
 
+.studio-execution-node-run {
+  width: max-content;
+  min-width: 92px;
+  margin-top: 4px;
+  padding: 5px 9px;
+  font-size: 8px;
+}
+
 .studio-execution-queue small,
 .studio-execution-queue > span {
   color: var(--studio-muted, #8f96a3);

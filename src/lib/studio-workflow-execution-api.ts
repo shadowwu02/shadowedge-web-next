@@ -29,3 +29,21 @@ export async function getStudioWorkflowExecutionStatus(executionPlanId: string) 
   if (!envelope.data?.executionPlanId) throw new Error("Execution status returned no plan.");
   return envelope.data;
 }
+
+export async function executeStudioWorkflowNode(
+  executionNodeId: string,
+  input: { prompt: string },
+) {
+  const envelope = await apiRequest<StudioExecutionStatus>(
+    `/api/execution-nodes/${encodeURIComponent(executionNodeId)}/execute`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        confirmation: "EXECUTE_NODE",
+        input,
+      }),
+    },
+  );
+  if (!envelope.data?.executionPlanId) throw new Error("Execution Runtime returned no plan status.");
+  return envelope.data;
+}
