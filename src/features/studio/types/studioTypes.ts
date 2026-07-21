@@ -344,6 +344,11 @@ export type OutputNodeData = StudioNodeBase & {
   jobId: string;
   thumbnail: string;
   errorMessage: string;
+  /** Generated Asset persisted by the Execution Result Materializer. */
+  assetId?: string;
+  /** Database Generation Job that produced the latest Output. */
+  sourceJobId?: string;
+  databaseJobId?: string;
 };
 
 export type StudioNodeData = (
@@ -382,6 +387,9 @@ export type StudioVideoTimelineClip = {
   start: number;
   duration: number;
   createdAt: string;
+  /** Stable result identity keeps repeated completion callbacks idempotent. */
+  sourceJobId?: string;
+  assetId?: string;
   /** Character node ids carried with the shot for future continuity tooling. */
   characterIds?: string[];
   /** Optional on read so clips created by Timeline schema v2 P1-A1 remain loadable. */

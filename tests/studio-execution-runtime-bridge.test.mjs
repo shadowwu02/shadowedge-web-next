@@ -9,13 +9,15 @@ const schema = fs.readFileSync("src/features/studio/capabilities/studioWorkflowE
 test("Studio exposes one explicit Execute Node action for READY video_generate nodes", () => {
   assert.match(component, /node\?\.status === "READY" && node\.capability === "video_generate"/);
   assert.match(component, /"Execute Node"/);
-  assert.match(component, /executeStudioWorkflowNode\(executionNodeId, \{ prompt \}\)/);
-  assert.match(component, /disabled=\{Boolean\(executingNodeId\)\}/);
+  assert.match(component, /executeStudioWorkflowNode\(executionNodeId, \{/);
+  assert.match(component, /materialization: \{ projectId, sourceNodeId \}/);
+  assert.match(component, /disabled=\{Boolean\(executingNodeId\) \|\| !projectId \|\| !sourceNodeId\}/);
 });
 
 test("Execution Node API always sends explicit confirmation", () => {
   assert.match(api, /\/api\/execution-nodes\/\$\{encodeURIComponent\(executionNodeId\)\}\/execute/);
   assert.match(api, /confirmation: "EXECUTE_NODE"/);
+  assert.match(api, /materialization: input\.materialization/);
   assert.match(api, /method: "POST"/);
 });
 
@@ -26,6 +28,8 @@ test("Studio status contract displays Runtime and Timeline/Output bindings", () 
   assert.match(schema, /output: \{ status: "BOUND" \| "PENDING" \| "UNCHANGED"/);
   assert.match(component, /Timeline \{node\.resultBindings\.timeline\.status\}/);
   assert.match(component, /Output \{node\.resultBindings\.output\.status\}/);
+  assert.match(component, /onExecutionMaterialized/);
+  assert.match(component, /node\.resultBindings\?\.timeline\.status === "BOUND"/);
 });
 
 test("UI bridge does not contain automatic batch, retry, Provider, or direct paid runtime calls", () => {

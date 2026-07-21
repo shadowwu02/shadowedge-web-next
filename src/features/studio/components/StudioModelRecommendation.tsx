@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   STUDIO_CREATIVE_CAPABILITY_CHOICES,
   type StudioCapabilityIntentResolution,
@@ -46,8 +46,11 @@ export function StudioModelRecommendation({
   ratio,
   qualityGoal,
   referenceMedia,
+  projectId,
+  sourceNodeId,
   onApply,
   onObserved,
+  onExecutionMaterialized,
 }: {
   inventory: StudioProviderModelInventory;
   prompt: string;
@@ -55,8 +58,11 @@ export function StudioModelRecommendation({
   ratio: string;
   qualityGoal: string;
   referenceMedia: StudioModelRecommendationInput["referenceMedia"];
+  projectId: string;
+  sourceNodeId: string;
   onApply: (patch: Record<string, unknown>) => void;
   onObserved: (context: StudioModelRecommendationContext) => void;
+  onExecutionMaterialized: () => Promise<void>;
 }) {
   const [preference, setPreference] = useState<Preference>("balanced");
   const [recommendationState, setRecommendationState] = useState<{
@@ -74,6 +80,7 @@ export function StudioModelRecommendation({
   const [confirmingExecution, setConfirmingExecution] = useState(false);
   const [executingNodeId, setExecutingNodeId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const materializedExecutionNodes = useRef(new Set<string>());
   const referenceSignature = referenceMedia.map((item) => item.type).sort().join(",");
   const recommendationKey = JSON.stringify({
     providerId: inventory.providerId,
@@ -92,6 +99,18 @@ export function StudioModelRecommendation({
   const executionPlan = executionPlanState?.sourcePlanId === capabilityPlan?.planId
     ? executionPlanState
     : null;
+
+  const observeExecutionStatus = async (status: StudioExecutionStatus) => {
+    setExecutionStatus(status);
+    const completed = status.nodes.find((node) =>
+      node.status === "COMPLETED" &&
+      node.resultBindings?.timeline.status === "BOUND" &&
+      node.resultBindings?.output.status === "BOUND"
+    );
+    if (!completed || materializedExecutionNodes.current.has(completed.executionNodeId)) return;
+    await onExecutionMaterialized();
+    materializedExecutionNodes.current.add(completed.executionNodeId);
+  };
 
   const planningInput = {
     prompt,
@@ -175,7 +194,7 @@ export function StudioModelRecommendation({
       const confirmed = await confirmStudioWorkflowExecutionPlan(executionPlan.executionPlanId);
       setExecutionPlanState(confirmed);
       try {
-        setExecutionStatus(await getStudioWorkflowExecutionStatus(confirmed.executionPlanId));
+        await observeExecutionStatus(await getStudioWorkflowExecutionStatus(confirmed.executionPlanId));
       } catch {
         setError("Execution Plan is confirmed, but its read-only queue status is temporarily unavailable.");
       }
@@ -190,18 +209,21 @@ export function StudioModelRecommendation({
     if (!executionPlan || executionPlan.status !== "CONFIRMED") return;
     setError("");
     try {
-      setExecutionStatus(await getStudioWorkflowExecutionStatus(executionPlan.executionPlanId));
+      await observeExecutionStatus(await getStudioWorkflowExecutionStatus(executionPlan.executionPlanId));
     } catch {
       setError("Execution queue status is temporarily unavailable.");
     }
   };
 
   const executeNode = async (executionNodeId: string) => {
-    if (!executionPlan || executionPlan.status !== "CONFIRMED" || executingNodeId) return;
+    if (!executionPlan || executionPlan.status !== "CONFIRMED" || executingNodeId || !projectId || !sourceNodeId) return;
     setExecutingNodeId(executionNodeId);
     setError("");
     try {
-      setExecutionStatus(await executeStudioWorkflowNode(executionNodeId, { prompt }));
+      await observeExecutionStatus(await executeStudioWorkflowNode(executionNodeId, {
+        prompt,
+        materialization: { projectId, sourceNodeId },
+      }));
     } catch {
       setError("Controlled node execution is unavailable. The Runtime bridge may be disabled or a gate may have changed.");
     } finally {
@@ -362,7 +384,7 @@ export function StudioModelRecommendation({
                               {node?.status === "READY" && node.capability === "video_generate" ? (
                                 <button
                                   className="studio-node-action studio-execution-node-run"
-                                  disabled={Boolean(executingNodeId)}
+                                  disabled={Boolean(executingNodeId) || !projectId || !sourceNodeId}
                                   onClick={() => void executeNode(node.executionNodeId)}
                                   type="button"
                                 >

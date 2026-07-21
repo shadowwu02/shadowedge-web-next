@@ -30,6 +30,7 @@ import {
 import type { ImageModel } from "@/types/image";
 import { StudioModelRecommendation } from "@/features/studio/components/StudioModelRecommendation";
 import { recordStudioModelRecommendationSelection } from "@/lib/studio-model-recommendation-api";
+import { getStudioProject } from "@/lib/studio-api";
 
 function InspectorField({
   children,
@@ -97,6 +98,7 @@ export function NodeInspector() {
   const generationPlans = useStudioStore((state) => state.generationPlans);
   const generationQueue = useStudioStore((state) => state.generationQueue);
   const projectId = useStudioStore((state) => state.projectId);
+  const loadProject = useStudioStore((state) => state.loadProject);
   const createGenerationPlanFromNode = useStudioStore(
     (state) => state.createGenerationPlanFromNode,
   );
@@ -892,11 +894,17 @@ export function NodeInspector() {
                 duration={data.duration}
                 inventory={videoInventory}
                 onApply={update}
+                onExecutionMaterialized={async () => {
+                  if (!projectId) return;
+                  loadProject(await getStudioProject(projectId));
+                }}
                 onObserved={(modelRecommendation) => update({ modelRecommendation })}
                 prompt={recommendationPrompt}
+                projectId={projectId || ""}
                 qualityGoal={data.quality || data.resolution}
                 ratio={data.ratio}
                 referenceMedia={recommendationReferenceMedia}
+                sourceNodeId={selectedNode.id}
               />
             ) : null}
             {videoModelsError ? <p className="studio-inspector-error">{videoModelsError}</p> : null}

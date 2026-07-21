@@ -35,6 +35,11 @@ export type StudioOrchestrationNode = {
     databaseJobId?: string | null;
     providerTrackingId?: string | null;
     providerNativeId?: string | null;
+    materialization?: {
+      projectId: string;
+      sourceNodeId: string;
+      outputNodeId: string | null;
+    } | null;
     preparedAt?: string;
     updatedAt?: string;
   } | null;

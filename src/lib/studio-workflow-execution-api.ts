@@ -32,7 +32,14 @@ export async function getStudioWorkflowExecutionStatus(executionPlanId: string) 
 
 export async function executeStudioWorkflowNode(
   executionNodeId: string,
-  input: { prompt: string },
+  input: {
+    prompt: string;
+    materialization: {
+      projectId: string;
+      sourceNodeId: string;
+      outputNodeId?: string;
+    };
+  },
 ) {
   const envelope = await apiRequest<StudioExecutionStatus>(
     `/api/execution-nodes/${encodeURIComponent(executionNodeId)}/execute`,
@@ -40,7 +47,8 @@ export async function executeStudioWorkflowNode(
       method: "POST",
       body: JSON.stringify({
         confirmation: "EXECUTE_NODE",
-        input,
+        input: { prompt: input.prompt },
+        materialization: input.materialization,
       }),
     },
   );
