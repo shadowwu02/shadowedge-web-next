@@ -73,6 +73,12 @@ import {
   getStudioCreativeAgentRoles,
   getStudioProjectAgentTasks,
 } from "@/lib/studio-agent-collaboration-api";
+import type { StudioAgentTeamPlanBundle } from "@/features/studio/capabilities/studioDynamicAgentTeamPlan";
+import {
+  approveStudioAgentTeamPlan,
+  createStudioAgentTeamPlan,
+  getStudioProjectAgentTeamPlan,
+} from "@/lib/studio-agent-team-plan-api";
 
 type Preference = StudioModelRecommendationInput["userPreference"]["priority"];
 
@@ -147,6 +153,9 @@ export function StudioModelRecommendation({
   const [agentRoles, setAgentRoles] = useState<StudioCreativeAgentRole[]>([]);
   const [agentTasks, setAgentTasks] = useState<StudioCreativeAgentTaskBundle | null>(null);
   const [agentTeamError, setAgentTeamError] = useState("");
+  const [agentTeamPlan, setAgentTeamPlan] = useState<StudioAgentTeamPlanBundle | null>(null);
+  const [agentTeamPlanBusy, setAgentTeamPlanBusy] = useState(false);
+  const [agentTeamPlanError, setAgentTeamPlanError] = useState("");
   const [error, setError] = useState("");
   const materializedExecutionNodes = useRef(new Set<string>());
   const referenceSignature = referenceMedia.map((item) => item.type).sort().join(",");
@@ -163,6 +172,9 @@ export function StudioModelRecommendation({
     ? recommendationState.value
     : null;
   const intentResolution = intentState?.key === recommendationKey ? intentState.value : null;
+  const currentAgentTeamPlan = agentTeamPlan?.teamPlan?.intent.intentId === intentResolution?.intent.intentId
+    ? agentTeamPlan
+    : null;
   const agentSession = agentState?.key === recommendationKey ? agentState.value : null;
   const capabilityPlan = planState?.key === recommendationKey ? planState.value : null;
   const executionPlan = executionPlanState?.sourcePlanId === capabilityPlan?.planId
@@ -197,6 +209,39 @@ export function StudioModelRecommendation({
     setAgentTeamError("");
   };
 
+  const planAgentTeam = async () => {
+    if (!projectId || !intentResolution || agentTeamPlanBusy) return;
+    setAgentTeamPlanBusy(true);
+    setAgentTeamPlanError("");
+    try {
+      setAgentTeamPlan(await createStudioAgentTeamPlan({
+        projectId,
+        intent: {
+          intentId: intentResolution.intent.intentId,
+          intentType: intentResolution.intent.intentType,
+        },
+        capabilities: intentResolution.intent.capabilities,
+      }));
+    } catch {
+      setAgentTeamPlanError("Agent Team planning is temporarily unavailable.");
+    } finally {
+      setAgentTeamPlanBusy(false);
+    }
+  };
+
+  const approveAgentTeamPlan = async () => {
+    if (!projectId || !currentAgentTeamPlan?.teamPlan || agentTeamPlanBusy) return;
+    setAgentTeamPlanBusy(true);
+    setAgentTeamPlanError("");
+    try {
+      setAgentTeamPlan(await approveStudioAgentTeamPlan(currentAgentTeamPlan.teamPlan.teamPlanId, projectId));
+    } catch {
+      setAgentTeamPlanError("This Agent Team Plan could not be approved.");
+    } finally {
+      setAgentTeamPlanBusy(false);
+    }
+  };
+
   useEffect(() => {
     let active = true;
     if (!projectId) return () => { active = false; };
@@ -208,6 +253,19 @@ export function StudioModelRecommendation({
         setAgentTeamError("");
       })
       .catch(() => { if (active) setAgentTeamError("Agent Team is temporarily unavailable."); });
+    return () => { active = false; };
+  }, [projectId]);
+
+  useEffect(() => {
+    let active = true;
+    if (!projectId) return () => { active = false; };
+    void getStudioProjectAgentTeamPlan(projectId)
+      .then((bundle) => {
+        if (!active) return;
+        setAgentTeamPlan(bundle);
+        setAgentTeamPlanError("");
+      })
+      .catch(() => { if (active) setAgentTeamPlanError("Agent Team Plan is temporarily unavailable."); });
     return () => { active = false; };
   }, [projectId]);
 
@@ -660,6 +718,50 @@ export function StudioModelRecommendation({
                 <small>Selected by you; all model readiness, verified scope, and cost gates still apply.</small>
               </div>
             ) : null}
+            <section className="studio-agent-team-planner" aria-label="Agent Team Planner">
+              <div className="studio-agent-team-planner-heading">
+                <div><span>Agent Team Planner</span><strong>Human controlled</strong></div>
+                <span>{currentAgentTeamPlan?.teamPlan?.status.replaceAll("_", " ") || "NOT PLANNED"}</span>
+              </div>
+              {!currentAgentTeamPlan?.teamPlan ? (
+                <button
+                  className="studio-node-action"
+                  disabled={agentTeamPlanBusy || !intentResolution}
+                  onClick={() => void planAgentTeam()}
+                  type="button"
+                >
+                  {agentTeamPlanBusy ? "Planning Agent Team..." : "Plan Agent Team"}
+                </button>
+              ) : (
+                <>
+                  <div className="studio-agent-team-planner-roles">
+                    {currentAgentTeamPlan.selectedRoles.map((role) => <span key={role.roleId}>{role.name}</span>)}
+                  </div>
+                  <ol className="studio-agent-team-allocations">
+                    {currentAgentTeamPlan.teamPlan.tasks.map((task) => {
+                      const role = currentAgentTeamPlan.selectedRoles.find((candidate) => candidate.roleId === task.roleId);
+                      return (
+                        <li key={task.taskId}>
+                          <span>{task.priority}</span>
+                          <div>
+                            <strong>{role?.name || task.roleId.replaceAll("_", " ")}</strong>
+                            <small>{task.reason}</small>
+                            <small>{task.dependencies.length ? `After ${task.dependencies.join(", ")}` : "Starting task"}</small>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                  {currentAgentTeamPlan.teamPlan.status === "WAITING_HUMAN" ? (
+                    <button className="studio-node-action" disabled={agentTeamPlanBusy} onClick={() => void approveAgentTeamPlan()} type="button">
+                      {agentTeamPlanBusy ? "Saving approval..." : "Approve Team Plan"}
+                    </button>
+                  ) : <span role="status">Team allocation approved. Tasks still require separate Human Review.</span>}
+                </>
+              )}
+              <small>Planning selects roles, task reasons, priority, and dependencies only. It never runs a Task, changes the project, calls a Provider, or charges Credits.</small>
+              {agentTeamPlanError ? <span role="alert">{agentTeamPlanError}</span> : null}
+            </section>
             <section className="studio-agent-team" aria-label="Agent Team">
               <div className="studio-agent-team-heading">
                 <div><span>Agent Team</span><strong>Human Review</strong></div>
