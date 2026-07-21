@@ -3,6 +3,7 @@ import type { StudioAgentTeamPlanBundle } from "@/features/studio/capabilities/s
 
 export type StudioAgentTeamPlanInput = {
   projectId: string;
+  sessionId?: string;
   intent: {
     intentId: string;
     intentType: string;

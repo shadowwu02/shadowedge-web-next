@@ -24,6 +24,7 @@ import {
   STUDIO_CREATIVE_AGENT_PROGRESS,
   STUDIO_CREATIVE_AGENT_FEEDBACK_OPTIONS,
   studioCreativeAgentProgressState,
+  studioCreativeAgentPublicStatus,
   type StudioCreativeAgentFeedback,
   type StudioCreativeAgentFeedbackType,
   type StudioCreativeAgentSession,
@@ -241,6 +242,7 @@ export function StudioModelRecommendation({
     try {
       setAgentTeamPlan(await createStudioAgentTeamPlan({
         projectId,
+        sessionId: agentSession?.sessionId,
         intent: {
           intentId: intentResolution.intent.intentId,
           intentType: intentResolution.intent.intentType,
@@ -831,7 +833,7 @@ export function StudioModelRecommendation({
                 <span>Creative Agent</span>
                 <strong>Beta</strong>
               </div>
-              <span>{agentSession.status.replaceAll("_", " ")}</span>
+              <span aria-label="Creative Agent status" role="status">{studioCreativeAgentPublicStatus(agentSession.status, executionStatus?.planStatus)}</span>
             </div>
             <div className="studio-creative-agent-goal">
               <span>Your goal</span>

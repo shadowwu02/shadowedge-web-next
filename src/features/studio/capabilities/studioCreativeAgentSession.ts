@@ -90,3 +90,16 @@ export function studioCreativeAgentProgressState(
   if ((status === "PLANNING" && step === "planning") || (status === "EXECUTING" && step === "generating")) return "active";
   return "pending";
 }
+
+export function studioCreativeAgentPublicStatus(status: StudioCreativeAgentSessionStatus, executionStatus?: string | null) {
+  if (status === "EXECUTING" && executionStatus === "COMPLETED") return "Finalizing";
+  const labels: Record<StudioCreativeAgentSessionStatus, string> = {
+    DRAFT: "Analyzing",
+    PLANNING: "Analyzing",
+    WAITING_CONFIRM: "Waiting for approval",
+    EXECUTING: "Generating",
+    COMPLETED: "Finalized",
+    FAILED: "Needs attention",
+  };
+  return labels[status];
+}

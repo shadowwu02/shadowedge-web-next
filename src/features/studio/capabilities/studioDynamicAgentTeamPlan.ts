@@ -13,6 +13,7 @@ export type StudioAgentTaskAllocation = {
 export type StudioAgentTeamPlan = {
   teamPlanId: string;
   projectId: string;
+  sessionId?: string | null;
   intent: { intentId: string | null; intentType: string };
   capabilities: string[];
   requiredRoles: StudioCreativeAgentRoleId[];
