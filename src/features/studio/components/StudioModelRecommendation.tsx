@@ -16,6 +16,14 @@ import {
 import type { StudioProviderModelInventory } from "@/features/studio/capabilities/studioVideoModelResolver";
 import { recordStudioModelRecommendationSelection } from "@/lib/studio-model-recommendation-api";
 import { resolveStudioCapabilityIntent } from "@/lib/studio-capability-intent-api";
+import {
+  formatStudioCapabilityLabel,
+  type StudioCapabilityExecutionPlan,
+} from "@/features/studio/capabilities/studioCapabilityExecutionPlan";
+import {
+  confirmStudioCapabilityExecutionPlan,
+  createStudioCapabilityExecutionPlan,
+} from "@/lib/studio-capability-plan-api";
 
 type Preference = StudioModelRecommendationInput["userPreference"]["priority"];
 
@@ -44,7 +52,10 @@ export function StudioModelRecommendation({
     value: StudioModelRecommendation;
   } | null>(null);
   const [intentState, setIntentState] = useState<{ key: string; value: StudioCapabilityIntentResolution } | null>(null);
+  const [planState, setPlanState] = useState<{ key: string; value: StudioCapabilityExecutionPlan } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [planning, setPlanning] = useState(false);
+  const [confirmingPlan, setConfirmingPlan] = useState(false);
   const [error, setError] = useState("");
   const referenceSignature = referenceMedia.map((item) => item.type).sort().join(",");
   const recommendationKey = JSON.stringify({
@@ -60,17 +71,20 @@ export function StudioModelRecommendation({
     ? recommendationState.value
     : null;
   const intentResolution = intentState?.key === recommendationKey ? intentState.value : null;
+  const capabilityPlan = planState?.key === recommendationKey ? planState.value : null;
+
+  const planningInput = {
+    prompt,
+    media: referenceMedia,
+    constraints: { duration, ratio, resolution: qualityGoal, audio: false },
+    userPreferences: { priority: preference },
+  } as const;
 
   const requestRecommendation = async () => {
     setLoading(true);
     setError("");
     try {
-      const resolution = await resolveStudioCapabilityIntent({
-        prompt,
-        media: referenceMedia,
-        constraints: { duration, ratio, resolution: qualityGoal, audio: false },
-        userPreferences: { priority: preference },
-      });
+      const resolution = await resolveStudioCapabilityIntent(planningInput);
       const value = resolution.recommendations;
       setIntentState({ key: recommendationKey, value: resolution });
       setRecommendationState({ key: recommendationKey, value });
@@ -82,6 +96,32 @@ export function StudioModelRecommendation({
       setError("Creative intent routing is temporarily unavailable.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const reviewPlan = async () => {
+    setPlanning(true);
+    setError("");
+    try {
+      setPlanState({ key: recommendationKey, value: await createStudioCapabilityExecutionPlan(planningInput) });
+    } catch {
+      setPlanState(null);
+      setError("Creative workflow planning is temporarily unavailable.");
+    } finally {
+      setPlanning(false);
+    }
+  };
+
+  const confirmPlan = async () => {
+    if (!capabilityPlan) return;
+    setConfirmingPlan(true);
+    setError("");
+    try {
+      setPlanState({ key: recommendationKey, value: await confirmStudioCapabilityExecutionPlan(capabilityPlan.planId) });
+    } catch {
+      setError("This workflow cannot be confirmed until every readiness and cost blocker is cleared.");
+    } finally {
+      setConfirmingPlan(false);
     }
   };
 
@@ -125,6 +165,50 @@ export function StudioModelRecommendation({
             <span>{Math.round(intentResolution.intent.confidence * 100)}% confidence</span>
             {intentResolution.blockers.length ? <span>Blocked: {intentResolution.blockers.join(", ")}</span> : null}
           </div>
+        ) : null}
+        {intentResolution ? (
+          <button
+            className="studio-node-action studio-creative-plan-review"
+            disabled={planning}
+            onClick={() => void reviewPlan()}
+            type="button"
+          >
+            {planning ? "Building safe workflow draft..." : capabilityPlan ? "Review Plan" : "Create Creative Plan"}
+          </button>
+        ) : null}
+        {capabilityPlan ? (
+          <section className="studio-creative-plan" aria-label="Creative Plan">
+            <div className="studio-creative-plan-heading">
+              <div><span>Creative Plan</span><strong>{capabilityPlan.status.replaceAll("_", " ")}</strong></div>
+              <span>{capabilityPlan.estimatedCost.estimatedCredits === null ? "Cost unavailable" : `${capabilityPlan.estimatedCost.estimatedCredits} estimated credits`} · {capabilityPlan.estimatedCost.confidence} confidence</span>
+            </div>
+            <ol className="studio-creative-plan-graph">
+              {capabilityPlan.nodes.map((node) => (
+                <li className={node.status === "BLOCKED" ? "is-blocked" : ""} key={node.nodeId}>
+                  <span>{node.nodeId.replace("node-", "")}</span>
+                  <div>
+                    <strong>{formatStudioCapabilityLabel(node.capability)}</strong>
+                    <small>{node.dependencies.length ? `After ${node.dependencies.join(", ")}` : "Starting step"}</small>
+                    {node.recommendation?.modelId ? <small>{node.recommendation.providerId} · {node.recommendation.modelId}</small> : null}
+                    {node.blockers.length ? <small>Blocked: {node.blockers.join(", ")}</small> : null}
+                  </div>
+                </li>
+              ))}
+            </ol>
+            {capabilityPlan.status === "CONFIRMED" ? (
+              <p className="studio-creative-plan-confirmed" role="status">Confirmed. Use the existing Generation Plan controls to continue.</p>
+            ) : (
+              <button
+                className="studio-node-action"
+                disabled={!capabilityPlan.confirmationAllowed || confirmingPlan}
+                onClick={() => void confirmPlan()}
+                type="button"
+              >
+                {confirmingPlan ? "Confirming workflow..." : "Confirm Workflow"}
+              </button>
+            )}
+            <span className="studio-creative-plan-boundary">Plan confirmation never creates a Job, enters Queue, calls a Provider, or deducts Credits.</span>
+          </section>
         ) : null}
       </div>
       <div className="studio-model-recommendation-heading">
