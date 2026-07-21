@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import {
+  STUDIO_CREATIVE_CAPABILITY_CHOICES,
+  type StudioCapabilityIntentResolution,
+} from "@/features/studio/capabilities/studioCreativeIntent";
+import {
   createStudioModelRecommendationContext,
   createStudioModelRecommendationPatch,
   type StudioModelRecommendation,
@@ -10,10 +14,8 @@ import {
   type StudioModelRecommendationInput,
 } from "@/features/studio/capabilities/studioModelRecommendation";
 import type { StudioProviderModelInventory } from "@/features/studio/capabilities/studioVideoModelResolver";
-import {
-  getStudioModelRecommendation,
-  recordStudioModelRecommendationSelection,
-} from "@/lib/studio-model-recommendation-api";
+import { recordStudioModelRecommendationSelection } from "@/lib/studio-model-recommendation-api";
+import { resolveStudioCapabilityIntent } from "@/lib/studio-capability-intent-api";
 
 type Preference = StudioModelRecommendationInput["userPreference"]["priority"];
 
@@ -41,6 +43,7 @@ export function StudioModelRecommendation({
     key: string;
     value: StudioModelRecommendation;
   } | null>(null);
+  const [intentState, setIntentState] = useState<{ key: string; value: StudioCapabilityIntentResolution } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const referenceSignature = referenceMedia.map((item) => item.type).sort().join(",");
@@ -56,26 +59,27 @@ export function StudioModelRecommendation({
   const recommendation = recommendationState?.key === recommendationKey
     ? recommendationState.value
     : null;
+  const intentResolution = intentState?.key === recommendationKey ? intentState.value : null;
 
   const requestRecommendation = async () => {
     setLoading(true);
     setError("");
     try {
-      const value = await getStudioModelRecommendation({
-        providerId: inventory.providerId,
+      const resolution = await resolveStudioCapabilityIntent({
         prompt,
-        duration,
-        ratio,
-        qualityGoal,
-        referenceMedia,
-        userPreference: { priority: preference },
+        media: referenceMedia,
+        constraints: { duration, ratio, resolution: qualityGoal, audio: false },
+        userPreferences: { priority: preference },
       });
+      const value = resolution.recommendations;
+      setIntentState({ key: recommendationKey, value: resolution });
       setRecommendationState({ key: recommendationKey, value });
       const context = createStudioModelRecommendationContext(value);
       if (context) onObserved(context);
     } catch {
       setRecommendationState(null);
-      setError("Smart model recommendation is temporarily unavailable.");
+      setIntentState(null);
+      setError("Creative intent routing is temporarily unavailable.");
     } finally {
       setLoading(false);
     }
@@ -103,9 +107,29 @@ export function StudioModelRecommendation({
 
   return (
     <section className="studio-model-recommendation" aria-label="Smart model recommendation">
+      <div className="studio-intent-routing">
+        <strong>What do you want to create?</strong>
+        <span>Describe the result in your Prompt. Studio recommends a Capability first, then a safe model.</span>
+        <div className="studio-intent-capability-grid" aria-label="Creative capability examples">
+          {STUDIO_CREATIVE_CAPABILITY_CHOICES.map((choice) => (
+            <div className={intentResolution?.capability?.capabilityId === choice.capabilityId ? "is-recommended" : ""} key={choice.capabilityId}>
+              <strong>{choice.label}</strong>
+              <span>{choice.example}</span>
+            </div>
+          ))}
+        </div>
+        {intentResolution ? (
+          <div className="studio-intent-result" role="status">
+            <span>Detected intent: {intentResolution.intent.intentType.replaceAll("_", " ")}</span>
+            <strong>{intentResolution.capability?.name || "No supported Capability detected"}</strong>
+            <span>{Math.round(intentResolution.intent.confidence * 100)}% confidence</span>
+            {intentResolution.blockers.length ? <span>Blocked: {intentResolution.blockers.join(", ")}</span> : null}
+          </div>
+        ) : null}
+      </div>
       <div className="studio-model-recommendation-heading">
         <div>
-          <strong>Smart model selection</strong>
+          <strong>Capability-driven model recommendation</strong>
           <span>Recommendations never change your model until you confirm.</span>
         </div>
         <select
@@ -128,7 +152,7 @@ export function StudioModelRecommendation({
         onClick={() => void requestRecommendation()}
         type="button"
       >
-        {loading ? "Checking verified models..." : "Recommend a model"}
+        {loading ? "Resolving intent and verified models..." : "Find capability and model"}
       </button>
       {recommendation?.status === "INSUFFICIENT_DATA" ? (
         <div className="studio-model-recommendation-empty" role="status">

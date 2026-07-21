@@ -711,7 +711,7 @@ export function NodeInspector() {
 
         {data.kind === "imageGenerate" ? (
           <>
-            <InspectorField label="Model">
+            <InspectorField label="Advanced model selector">
               <select
                 disabled={loadingImageModels || !imageModels.length}
                 value={selectedImageModel?.id || data.model}

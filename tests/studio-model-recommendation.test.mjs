@@ -113,14 +113,32 @@ test("blocked model and stale verified scope fail closed on the client", () => {
 test("Studio UX requires an explicit recommendation request and apply action", () => {
   const component = fs.readFileSync("src/features/studio/components/StudioModelRecommendation.tsx", "utf8");
   const inspector = fs.readFileSync("src/features/studio/components/NodeInspector.tsx", "utf8");
-  assert.match(component, /Recommend a model/);
+  const intentSchema = fs.readFileSync("src/features/studio/capabilities/studioCreativeIntent.ts", "utf8");
+  assert.match(component, /What do you want to create\?/);
+  assert.match(component, /Find capability and model/);
+  assert.match(component, /resolveStudioCapabilityIntent/);
+  assert.match(intentSchema, /Video Generation/);
+  assert.match(intentSchema, /Character Motion/);
   assert.match(component, /Use \{recommendation\.recommended\.displayName\}/);
   assert.match(component, /Recommendations never change your model until you confirm/);
   assert.match(component, /Personalized/);
   assert.match(component, /generation signals/);
   assert.match(component, /onApply\(createStudioModelRecommendationPatch/);
   assert.doesNotMatch(component, /startGenerationPlan|createGenerationPlan|videoGenerateExecutor|\/api\/video\/generate/i);
+  assert.match(inspector, /Advanced model selector/);
   assert.match(inspector, /<select[\s\S]*formatStudioVideoModelSelectorLabel/);
+});
+
+test("Capability Intent API is authenticated recommendation-only plumbing", () => {
+  const api = fs.readFileSync("src/lib/studio-capability-intent-api.ts", "utf8");
+  const schema = fs.readFileSync("src/features/studio/capabilities/studioCreativeIntent.ts", "utf8");
+  assert.match(api, /\/api\/capabilities\/resolve-intent/);
+  assert.match(api, /method:\s*["']POST["']/);
+  assert.match(schema, /CREATE_VIDEO/);
+  assert.match(schema, /TRANSFER_MOTION/);
+  assert.match(schema, /CAMERA_EFFECT/);
+  assert.match(schema, /USER_CONFIRMATION_REQUIRED/);
+  assert.doesNotMatch(`${api}${schema}`, /\/api\/video\/generate|createGenerationPlan|startGenerationPlan/i);
 });
 
 test("preference profile API remains user-scoped and read-only", () => {

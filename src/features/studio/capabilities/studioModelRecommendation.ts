@@ -79,7 +79,7 @@ export type StudioModelRecommendation = {
   recommendationId?: string | null;
   analyticsTracking?: "RECORDED" | "UNAVAILABLE";
   status: "RECOMMENDED" | "INSUFFICIENT_DATA";
-  providerId: string;
+  providerId: string | null;
   recommendedModelId: string | null;
   recommended: StudioModelRecommendationCandidate | null;
   alternatives: StudioModelRecommendationCandidate[];
