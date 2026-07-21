@@ -119,6 +119,18 @@ export function StudioModelRecommendation({
           <p>Recommended for your prompt</p>
           <strong>✨ {recommendation.recommended.displayName}</strong>
           <span>{recommendation.recommended.reason}</span>
+          {recommendation.personalization?.applied ? (
+            <span className="studio-model-recommendation-personalization">
+              Personalized · {recommendation.personalization.preferenceType.replaceAll("_", " ")} · {recommendation.personalization.sampleSize} generation signals
+            </span>
+          ) : (
+            <span className="studio-model-recommendation-personalization">
+              No personal history applied yet. Global model intelligence was used.
+            </span>
+          )}
+          {recommendation.recommended.preferenceMatch?.reasons?.length ? (
+            <span>{recommendation.recommended.preferenceMatch.reasons.join(" · ")}</span>
+          ) : null}
           <div className="studio-model-recommendation-facts">
             <span>{recommendation.recommended.scope.duration}s</span>
             <span>{recommendation.recommended.scope.resolution}</span>

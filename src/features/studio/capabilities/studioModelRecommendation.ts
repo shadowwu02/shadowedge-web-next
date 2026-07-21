@@ -12,6 +12,39 @@ export type StudioModelRecommendationStatus =
   | "ALTERNATIVE"
   | "INSUFFICIENT_DATA";
 export type StudioModelRecommendationConfidence = "HIGH" | "MEDIUM" | "LOW" | "NONE";
+export type StudioUserModelPreferenceType =
+  | "QUALITY_FIRST"
+  | "BALANCED"
+  | "COST_SENSITIVE"
+  | "SPEED_FIRST"
+  | "UNKNOWN";
+
+export type StudioUserModelPreferenceProfile = {
+  userId: string;
+  preferredModels: Array<{
+    modelId: string;
+    score: number;
+    selectionCount: number;
+    completedCount: number;
+    failedCount: number;
+    averageRating: number | null;
+  }>;
+  preferredStyles: Array<{ style: string; count: number }>;
+  qualityPreference: "HIGH" | "BALANCED" | "LOW" | "UNKNOWN";
+  costSensitivity: "HIGH" | "MEDIUM" | "LOW" | "UNKNOWN";
+  speedPreference: "HIGH" | "BALANCED" | "UNKNOWN";
+  preferenceType: StudioUserModelPreferenceType;
+  signals: {
+    generationCount: number;
+    feedbackCount: number;
+    averageRating: number | null;
+    averageShadowCredits: number | null;
+  };
+  createdAt: string;
+  updatedAt: string;
+  generatedAt: string;
+  learningMode: "USER_ISOLATED_READ_ONLY";
+};
 
 export type StudioModelRecommendationCandidate = {
   modelId: string;
@@ -31,6 +64,13 @@ export type StudioModelRecommendationCandidate = {
     mode: string;
     scopeKey: string;
   };
+  preferenceMatch?: {
+    score: number;
+    type: StudioUserModelPreferenceType;
+    applied: boolean;
+    reasons: string[];
+    sampleSize: number;
+  };
   basedOn: string[];
 };
 
@@ -43,6 +83,11 @@ export type StudioModelRecommendation = {
   confidence: StudioModelRecommendationConfidence;
   basedOn: string[];
   generatedAt: string;
+  personalization?: {
+    applied: boolean;
+    preferenceType: StudioUserModelPreferenceType;
+    sampleSize: number;
+  };
   selectionMode: "USER_CONFIRMATION_REQUIRED";
 };
 

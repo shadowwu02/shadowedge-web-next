@@ -76,6 +76,7 @@ function candidate(scope = "5s_720p_16_9_audio_false") {
     estimatedCredits: 12,
     verifiedScope: scope,
     scope: { duration: 5, resolution: "720p", ratio: "16:9", audio: false, mode: "default", scopeKey: scope },
+    preferenceMatch: { score: 82, type: "QUALITY_FIRST", applied: true, reasons: ["Frequently selected model"], sampleSize: 4 },
     basedOn: ["VERIFIED_SCOPE"],
   };
 }
@@ -114,7 +115,16 @@ test("Studio UX requires an explicit recommendation request and apply action", (
   assert.match(component, /Recommend a model/);
   assert.match(component, /Use \{recommendation\.recommended\.displayName\}/);
   assert.match(component, /Recommendations never change your model until you confirm/);
+  assert.match(component, /Personalized/);
+  assert.match(component, /generation signals/);
   assert.match(component, /onApply\(createStudioModelRecommendationPatch/);
   assert.doesNotMatch(component, /startGenerationPlan|createGenerationPlan|videoGenerateExecutor|\/api\/video\/generate/i);
   assert.match(inspector, /<select[\s\S]*formatStudioVideoModelSelectorLabel/);
+});
+
+test("preference profile API remains user-scoped and read-only", () => {
+  const api = fs.readFileSync("src/lib/studio-model-recommendation-api.ts", "utf8");
+  assert.match(api, /getMyStudioModelPreferences/);
+  assert.match(api, /\/api\/me\/model-preferences/);
+  assert.doesNotMatch(api.slice(api.indexOf("getMyStudioModelPreferences")), /method:\s*["']POST["']/);
 });

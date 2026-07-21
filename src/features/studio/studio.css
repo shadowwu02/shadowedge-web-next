@@ -1860,6 +1860,12 @@
   font-size: 8px;
 }
 
+.studio-model-recommendation-personalization {
+  color: var(--studio-accent, #7c6cff);
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
 .studio-model-recommendation-alternatives {
   display: grid;
   gap: 5px;
