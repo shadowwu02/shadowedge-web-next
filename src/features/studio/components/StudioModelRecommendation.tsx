@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   STUDIO_CREATIVE_CAPABILITY_CHOICES,
   type StudioCapabilityIntentResolution,
@@ -45,6 +45,16 @@ import {
   executeStudioWorkflowNode,
   getStudioWorkflowExecutionStatus,
 } from "@/lib/studio-workflow-execution-api";
+import {
+  deleteStudioProjectAgentMemory,
+  getStudioProjectAgentContext,
+  updateStudioProjectAgentContext,
+  type StudioProjectContextUpdate,
+} from "@/lib/studio-agent-context-api";
+import {
+  formatStudioMemoryContent,
+  type StudioProjectAgentContextBundle,
+} from "@/features/studio/capabilities/studioCreativeAgentMemory";
 
 type Preference = StudioModelRecommendationInput["userPreference"]["priority"];
 
@@ -94,6 +104,17 @@ export function StudioModelRecommendation({
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [feedbackState, setFeedbackState] = useState<{ sessionId: string; value: StudioCreativeAgentFeedback } | null>(null);
   const [feedbackError, setFeedbackError] = useState("");
+  const [projectContext, setProjectContext] = useState<StudioProjectAgentContextBundle | null>(null);
+  const [projectContextDraft, setProjectContextDraft] = useState<StudioProjectContextUpdate>({
+    brandContext: "",
+    visualStyle: "",
+    characters: [],
+    preferredModels: [],
+    creativeGoals: [],
+  });
+  const [projectContextStatus, setProjectContextStatus] = useState<"idle" | "saving">("idle");
+  const [projectContextError, setProjectContextError] = useState("");
+  const [deletingMemoryId, setDeletingMemoryId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const materializedExecutionNodes = useRef(new Set<string>());
   const referenceSignature = referenceMedia.map((item) => item.type).sort().join(",");
@@ -117,6 +138,36 @@ export function StudioModelRecommendation({
     : null;
   const executionFailure = executionStatus?.nodes.find((node) => node.status === "FAILED")?.failure || null;
 
+  const adoptProjectContext = (bundle: StudioProjectAgentContextBundle) => {
+    setProjectContext(bundle);
+    setProjectContextDraft({
+      brandContext: bundle.context.brandContext,
+      visualStyle: bundle.context.visualStyle,
+      characters: bundle.context.characters,
+      preferredModels: bundle.context.preferredModels,
+      creativeGoals: bundle.context.creativeGoals,
+    });
+  };
+
+  useEffect(() => {
+    let active = true;
+    if (!projectId) return () => { active = false; };
+    void getStudioProjectAgentContext(projectId)
+      .then((bundle) => {
+        if (!active) return;
+        setProjectContext(bundle);
+        setProjectContextDraft({
+          brandContext: bundle.context.brandContext,
+          visualStyle: bundle.context.visualStyle,
+          characters: bundle.context.characters,
+          preferredModels: bundle.context.preferredModels,
+          creativeGoals: bundle.context.creativeGoals,
+        });
+      })
+      .catch(() => { if (active) setProjectContextError("Project Context is temporarily unavailable."); });
+    return () => { active = false; };
+  }, [projectId]);
+
   const observeExecutionStatus = async (status: StudioExecutionStatus) => {
     setExecutionStatus(status);
     if (agentSession) {
@@ -137,11 +188,39 @@ export function StudioModelRecommendation({
   };
 
   const planningInput = {
+    projectId,
     prompt,
     media: referenceMedia,
     constraints: { duration, ratio, resolution: qualityGoal, audio: false },
     userPreferences: { priority: preference },
   } as const;
+
+  const saveProjectContext = async () => {
+    if (!projectId || projectContextStatus === "saving") return;
+    setProjectContextStatus("saving");
+    setProjectContextError("");
+    try {
+      adoptProjectContext(await updateStudioProjectAgentContext(projectId, projectContextDraft));
+    } catch {
+      setProjectContextError("Project Context could not be saved.");
+    } finally {
+      setProjectContextStatus("idle");
+    }
+  };
+
+  const deleteProjectMemory = async (memoryId: string) => {
+    if (!projectId || deletingMemoryId) return;
+    setDeletingMemoryId(memoryId);
+    setProjectContextError("");
+    try {
+      await deleteStudioProjectAgentMemory(projectId, memoryId);
+      adoptProjectContext(await getStudioProjectAgentContext(projectId));
+    } catch {
+      setProjectContextError("This Memory could not be deleted.");
+    } finally {
+      setDeletingMemoryId(null);
+    }
+  };
 
   const requestRecommendation = async () => {
     setLoading(true);
@@ -177,6 +256,7 @@ export function StudioModelRecommendation({
       setExecutionPlanState(bundle.executionPlan);
       setExecutionStatus(null);
       setExecutingNodeId(null);
+      if (projectId) void getStudioProjectAgentContext(projectId).then(adoptProjectContext).catch(() => undefined);
       if (bundle.session.status === "FAILED") {
         setError(bundle.session.error?.message || "Creative Agent could not build a safe plan.");
       }
@@ -263,6 +343,7 @@ export function StudioModelRecommendation({
         comment: feedbackComment,
       });
       setFeedbackState({ sessionId: agentSession.sessionId, value });
+      if (projectId) void getStudioProjectAgentContext(projectId).then(adoptProjectContext).catch(() => undefined);
     } catch {
       setFeedbackError("Feedback could not be recorded. Your result and execution state were not changed.");
     } finally {
@@ -303,6 +384,39 @@ export function StudioModelRecommendation({
             </div>
           ))}
         </div>
+        {projectId ? (
+          <details className="studio-agent-context">
+            <summary>
+              <span>Project Context</span>
+              <strong>Agent remembers {projectContext?.memoryCount || 0} preferences</strong>
+            </summary>
+            <div className="studio-agent-context-summary">
+              <div><span>Brand</span><strong>{projectContext?.context.brandContext || "Not set"}</strong></div>
+              <div><span>Style</span><strong>{projectContext?.context.visualStyle || "Not set"}</strong></div>
+              <div><span>Character</span><strong>{projectContext?.context.characters[0] || "Not set"}</strong></div>
+            </div>
+            <div className="studio-agent-context-form">
+              <label><span>Brand context</span><input maxLength={1000} onChange={(event) => setProjectContextDraft((current) => ({ ...current, brandContext: event.target.value }))} placeholder="Luxury, cinematic, playful…" value={projectContextDraft.brandContext} /></label>
+              <label><span>Visual style</span><input maxLength={1000} onChange={(event) => setProjectContextDraft((current) => ({ ...current, visualStyle: event.target.value }))} placeholder="Noir lighting, warm palette…" value={projectContextDraft.visualStyle} /></label>
+              <label><span>Characters</span><input onChange={(event) => setProjectContextDraft((current) => ({ ...current, characters: event.target.value.split(",").map((value) => value.trim()) }))} placeholder="Main Hero, Product Host" value={projectContextDraft.characters.join(", ")} /></label>
+              <label><span>Creative goals</span><input onChange={(event) => setProjectContextDraft((current) => ({ ...current, creativeGoals: event.target.value.split(",").map((value) => value.trim()) }))} placeholder="Launch campaign, product story" value={projectContextDraft.creativeGoals.join(", ")} /></label>
+              <label><span>Preferred models</span><input onChange={(event) => setProjectContextDraft((current) => ({ ...current, preferredModels: event.target.value.split(",").map((value) => value.trim()) }))} placeholder="seedance_2_0" value={projectContextDraft.preferredModels.join(", ")} /></label>
+              <button className="studio-node-action" disabled={projectContextStatus !== "idle"} onClick={() => void saveProjectContext()} type="button">{projectContextStatus === "saving" ? "Saving Context…" : "Save Project Context"}</button>
+              <small>Only explicit input from this project is saved. Context never bypasses model availability, verified scope, readiness, or cost checks.</small>
+            </div>
+            {projectContext?.memories.length ? (
+              <div className="studio-agent-memory-list" aria-label="Agent Memories used by this project">
+                {projectContext.memories.map((memory) => (
+                  <article key={memory.memoryId}>
+                    <div><strong>{memory.type.replaceAll("_", " ")}</strong><span>{formatStudioMemoryContent(memory)}</span><small>{Math.round(memory.confidence * 100)}% confidence · {memory.source.replaceAll("_", " ")}</small></div>
+                    <button disabled={Boolean(deletingMemoryId)} onClick={() => void deleteProjectMemory(memory.memoryId)} type="button">{deletingMemoryId === memory.memoryId ? "Deleting…" : "Delete"}</button>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+            {projectContextError ? <span className="studio-agent-context-error" role="alert">{projectContextError}</span> : null}
+          </details>
+        ) : null}
         {intentResolution ? (
           <div className="studio-intent-result" role="status">
             <span>Detected intent: {intentResolution.intent.intentType.replaceAll("_", " ")}</span>
@@ -313,6 +427,7 @@ export function StudioModelRecommendation({
         ) : null}
         {intentResolution && !agentSession ? (
           <button
+            aria-label="Create Creative Plan — Review Plan"
             className="studio-node-action studio-creative-plan-review"
             disabled={planning}
             onClick={() => void startCreativeAgent()}
@@ -334,6 +449,13 @@ export function StudioModelRecommendation({
               <span>Your goal</span>
               <strong>{prompt || "Describe what you want to create."}</strong>
             </div>
+            {agentSession.planningContext ? (
+              <div className="studio-creative-agent-context-used">
+                <span>Context used</span>
+                <strong>{agentSession.planningContext.memoryCount} project memories</strong>
+                <small>{agentSession.planningContext.projectContext.visualStyle || agentSession.planningContext.projectContext.brandContext || "Project preferences applied"}</small>
+              </div>
+            ) : null}
             <ol className="studio-creative-agent-progress" aria-label="Creative Agent progress">
               {STUDIO_CREATIVE_AGENT_PROGRESS.map((step) => {
                 let state = studioCreativeAgentProgressState(agentSession.status, step.key);
@@ -414,6 +536,7 @@ export function StudioModelRecommendation({
               </div>
             ) : (
               <button
+                aria-label="Confirm Workflow"
                 className="studio-node-action"
                 disabled={!capabilityPlan.confirmationAllowed || confirmingPlan}
                 onClick={() => void confirmPlan()}
@@ -422,7 +545,7 @@ export function StudioModelRecommendation({
                 {confirmingPlan ? "Preparing execution preview..." : "Confirm Plan"}
               </button>
             )}
-            <span className="studio-creative-plan-boundary">Plan confirmation never creates a Job, enters Queue, calls a Provider, or deducts Credits.</span>
+            <span className="studio-creative-plan-boundary">Plan confirmation never creates a Job, enters Queue, calls a Provider, or deducts Credits; existing Generation Plan controls remain authoritative.</span>
             {executionPlan ? (
               <section className="studio-execution-preview" aria-label="Execution Preview">
                 <div className="studio-execution-preview-heading">

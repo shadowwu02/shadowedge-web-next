@@ -1,5 +1,6 @@
 import type { StudioCapabilityExecutionPlan } from "@/features/studio/capabilities/studioCapabilityExecutionPlan";
 import type { StudioWorkflowExecutionPlan } from "@/features/studio/capabilities/studioWorkflowExecutionPlan";
+import type { StudioCreativeAgentPlanningContext } from "@/features/studio/capabilities/studioCreativeAgentMemory";
 
 export type StudioCreativeAgentSessionStatus =
   | "DRAFT"
@@ -12,6 +13,7 @@ export type StudioCreativeAgentSessionStatus =
 export type StudioCreativeAgentSession = {
   sessionId: string;
   userId: string;
+  projectId: string | null;
   intent: {
     intentId: string;
     intentType: string;
@@ -24,12 +26,14 @@ export type StudioCreativeAgentSession = {
   updatedAt: string;
   confirmedAt: string | null;
   completedAt: string | null;
+  planningContext: StudioCreativeAgentPlanningContext | null;
 };
 
 export type StudioCreativeAgentSessionBundle = {
   session: StudioCreativeAgentSession;
   creativePlan: StudioCapabilityExecutionPlan | null;
   executionPlan: StudioWorkflowExecutionPlan | null;
+  planningContext: StudioCreativeAgentPlanningContext | null;
 };
 
 export type StudioCreativeAgentFeedbackType =
