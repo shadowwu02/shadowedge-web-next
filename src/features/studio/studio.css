@@ -2832,6 +2832,28 @@
 .studio-workflow-template-metrics, .studio-workflow-template-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .studio-workflow-template-metrics span { padding: 5px 7px; border-radius: 999px; background: rgba(15, 23, 42, 0.75); color: #a5b4fc; font-size: 10px; }
 .studio-workflow-template-actions > button:not(.studio-node-action) { border: 0; background: transparent; color: #94a3b8; cursor: pointer; font-size: 11px; }
+.studio-workflow-control-center { display: grid; gap: 10px; padding: 13px; border: 1px solid rgba(56, 189, 248, 0.28); border-radius: 14px; background: rgba(8, 47, 73, 0.22); }
+.studio-workflow-control-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.studio-workflow-control-heading div { display: grid; gap: 2px; }
+.studio-workflow-control-heading span { color: #7dd3fc; font-size: 10px; text-transform: uppercase; }
+.studio-workflow-control-heading strong { color: #e0f2fe; font-size: 13px; }
+.studio-workflow-review-nodes { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.studio-workflow-review-nodes li { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 9px; border-radius: 10px; background: rgba(15, 23, 42, 0.7); }
+.studio-workflow-review-nodes li.is-locked { border: 1px solid rgba(251, 191, 36, 0.25); }
+.studio-workflow-review-nodes li > div { display: flex; align-items: center; gap: 7px; }
+.studio-workflow-review-nodes li > div > div { display: grid; gap: 2px; }
+.studio-workflow-review-nodes strong { color: #e2e8f0; font-size: 11px; }
+.studio-workflow-review-nodes small { color: #94a3b8; font-size: 10px; }
+.studio-workflow-review-nodes button, .studio-workflow-review-editor button:not(.studio-node-action) { border: 0; border-radius: 7px; background: rgba(51, 65, 85, 0.8); color: #cbd5e1; cursor: pointer; padding: 5px 7px; font-size: 10px; }
+.studio-workflow-review-nodes button:disabled { opacity: 0.42; cursor: default; }
+.studio-workflow-review-editor { display: grid; gap: 8px; padding: 10px; border-radius: 10px; background: rgba(15, 23, 42, 0.82); }
+.studio-workflow-review-editor > strong { color: #bae6fd; font-size: 11px; }
+.studio-workflow-review-editor label { display: grid; gap: 4px; color: #94a3b8; font-size: 10px; }
+.studio-workflow-review-editor textarea, .studio-workflow-review-editor input { width: 100%; border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 8px; background: #020617; color: #e2e8f0; padding: 8px; font: inherit; }
+.studio-workflow-review-editor textarea { min-height: 70px; resize: vertical; }
+.studio-workflow-review-editor > div, .studio-workflow-review-summary { display: flex; flex-wrap: wrap; gap: 7px; }
+.studio-workflow-review-summary span { padding: 5px 7px; border-radius: 999px; background: rgba(14, 116, 144, 0.2); color: #a5f3fc; font-size: 10px; }
+.studio-workflow-control-center > small, .studio-workflow-control-center > span { color: #94a3b8; font-size: 10px; line-height: 1.45; }
 .studio-creative-agent-context-used { display: grid; gap: 3px; padding: 10px 12px; border-radius: 10px; background: rgba(79, 70, 229, 0.12); }
 .studio-creative-agent-context-used span { color: #a5b4fc; font-size: 10px; text-transform: uppercase; }
 .studio-creative-agent-context-used strong { color: #e0e7ff; font-size: 12px; }

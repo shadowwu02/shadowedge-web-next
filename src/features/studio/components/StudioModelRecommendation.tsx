@@ -59,6 +59,11 @@ import type {
   StudioCreativeWorkflowTemplateBundle,
 } from "@/features/studio/capabilities/studioCreativeWorkflowTemplate";
 import { getStudioProjectWorkflowTemplates } from "@/lib/studio-workflow-template-api";
+import type { StudioCreativeWorkflowReview } from "@/features/studio/capabilities/studioCreativeWorkflowReview";
+import {
+  replanStudioCreativeWorkflowNode,
+  updateStudioCreativeWorkflowReview,
+} from "@/lib/studio-creative-workflow-review-api";
 
 type Preference = StudioModelRecommendationInput["userPreference"]["priority"];
 
@@ -123,6 +128,13 @@ export function StudioModelRecommendation({
   const [selectedWorkflowTemplateId, setSelectedWorkflowTemplateId] = useState<string | null>(null);
   const [workflowTemplateIgnored, setWorkflowTemplateIgnored] = useState(false);
   const [workflowTemplateError, setWorkflowTemplateError] = useState("");
+  const [workflowReview, setWorkflowReview] = useState<StudioCreativeWorkflowReview | null>(null);
+  const [workflowReviewMode, setWorkflowReviewMode] = useState<"EDIT" | "REPLAN" | null>(null);
+  const [workflowReviewNodeId, setWorkflowReviewNodeId] = useState<string | null>(null);
+  const [workflowReviewInstruction, setWorkflowReviewInstruction] = useState("");
+  const [workflowReviewReason, setWorkflowReviewReason] = useState("");
+  const [workflowReviewBusy, setWorkflowReviewBusy] = useState(false);
+  const [workflowReviewError, setWorkflowReviewError] = useState("");
   const [error, setError] = useState("");
   const materializedExecutionNodes = useRef(new Set<string>());
   const referenceSignature = referenceMedia.map((item) => item.type).sort().join(",");
@@ -381,6 +393,81 @@ export function StudioModelRecommendation({
     }
   };
 
+  const adoptWorkflowReview = (bundle: Awaited<ReturnType<typeof updateStudioCreativeWorkflowReview>>) => {
+    setWorkflowReview(bundle.review);
+    setAgentState({ key: recommendationKey, value: bundle.session });
+    setPlanState({ key: recommendationKey, value: bundle.creativePlan });
+  };
+
+  const openWorkflowReview = async () => {
+    if (!agentSession || workflowReviewBusy) return;
+    setWorkflowReviewBusy(true);
+    setWorkflowReviewError("");
+    try {
+      adoptWorkflowReview(await updateStudioCreativeWorkflowReview(agentSession.sessionId, { action: "CREATE" }));
+    } catch {
+      setWorkflowReviewError("Human review is available only before an Execution Plan is prepared.");
+    } finally {
+      setWorkflowReviewBusy(false);
+    }
+  };
+
+  const updateWorkflowNodeLock = async (nodeId: string, locked: boolean) => {
+    if (!agentSession || workflowReviewBusy) return;
+    setWorkflowReviewBusy(true);
+    setWorkflowReviewError("");
+    try {
+      adoptWorkflowReview(await updateStudioCreativeWorkflowReview(agentSession.sessionId, {
+        action: locked ? "UNLOCK_NODE" : "LOCK_NODE",
+        nodeId,
+        reason: locked ? "Unlocked by user" : "Locked by user",
+      }));
+    } catch {
+      setWorkflowReviewError("This node lock could not be updated.");
+    } finally {
+      setWorkflowReviewBusy(false);
+    }
+  };
+
+  const submitWorkflowNodeChange = async () => {
+    if (!agentSession || !workflowReviewNodeId || !workflowReviewMode || !workflowReviewInstruction.trim() || workflowReviewBusy) return;
+    setWorkflowReviewBusy(true);
+    setWorkflowReviewError("");
+    try {
+      const input = { nodeId: workflowReviewNodeId, instruction: workflowReviewInstruction, reason: workflowReviewReason };
+      const bundle = workflowReviewMode === "REPLAN"
+        ? await replanStudioCreativeWorkflowNode(agentSession.sessionId, input)
+        : await updateStudioCreativeWorkflowReview(agentSession.sessionId, { action: "EDIT_NODE", ...input });
+      adoptWorkflowReview(bundle);
+      setWorkflowReviewMode(null);
+      setWorkflowReviewNodeId(null);
+      setWorkflowReviewInstruction("");
+      setWorkflowReviewReason("");
+    } catch {
+      setWorkflowReviewError("Locked nodes cannot be changed. Unlock the node or review your instruction.");
+    } finally {
+      setWorkflowReviewBusy(false);
+    }
+  };
+
+  const confirmWorkflowReview = async () => {
+    if (!agentSession || !workflowReview || workflowReviewBusy) return;
+    setWorkflowReviewBusy(true);
+    setWorkflowReviewError("");
+    try {
+      adoptWorkflowReview(await updateStudioCreativeWorkflowReview(agentSession.sessionId, {
+        action: "CONFIRM_REVIEW",
+        reason: workflowReviewReason || "Human-reviewed workflow approved",
+      }));
+      setExecutionPlanState(null);
+      setExecutionStatus(null);
+    } catch {
+      setWorkflowReviewError("The reviewed draft could not be confirmed. No execution was started.");
+    } finally {
+      setWorkflowReviewBusy(false);
+    }
+  };
+
   const apply = (candidate: StudioModelRecommendationCandidate) => {
     try {
       const selectedAt = new Date().toISOString();
@@ -596,6 +683,52 @@ export function StudioModelRecommendation({
               <div><span>Creative Plan</span><strong>{capabilityPlan.status.replaceAll("_", " ")}</strong></div>
               <span>{capabilityPlan.estimatedCost.estimatedCredits === null ? "Cost unavailable" : `${capabilityPlan.estimatedCost.estimatedCredits} estimated credits`} · {capabilityPlan.estimatedCost.confidence} confidence</span>
             </div>
+            {agentSession && capabilityPlan.status === "PLAN_ONLY" && !executionPlan ? (
+              <section className="studio-workflow-control-center" aria-label="Agent Workflow Human Control Center">
+                <div className="studio-workflow-control-heading">
+                  <div><span>Agent Workflow</span><strong>Human Control Center</strong></div>
+                  <span>{workflowReview?.status || "NOT REVIEWED"}</span>
+                </div>
+                {!workflowReview ? (
+                  <button className="studio-node-action" disabled={workflowReviewBusy} onClick={() => void openWorkflowReview()} type="button">
+                    {workflowReviewBusy ? "Opening review..." : "Review Workflow"}
+                  </button>
+                ) : (
+                  <>
+                    <ol className="studio-workflow-review-nodes">
+                      {workflowReview.nodes.map((node) => (
+                        <li className={node.lockStatus === "LOCKED" ? "is-locked" : ""} key={node.nodeId}>
+                          <div>
+                            <span aria-hidden="true">{node.lockStatus === "LOCKED" ? "🔒" : node.revisionStatus === "REPLANNED" ? "✏" : "✓"}</span>
+                            <div><strong>{formatStudioCapabilityLabel(node.capability)}</strong><small>{node.humanInstructions || node.revisionStatus.replaceAll("_", " ")}</small></div>
+                          </div>
+                          <div>
+                            <button disabled={workflowReviewBusy || workflowReview.status === "CONFIRMED"} onClick={() => void updateWorkflowNodeLock(node.nodeId, node.lockStatus === "LOCKED")} type="button">{node.lockStatus === "LOCKED" ? "Unlock" : "Lock"}</button>
+                            <button disabled={workflowReviewBusy || workflowReview.status === "CONFIRMED" || node.lockStatus === "LOCKED"} onClick={() => { setWorkflowReviewNodeId(node.nodeId); setWorkflowReviewMode("EDIT"); setWorkflowReviewInstruction(node.humanInstructions || ""); }} type="button">Edit</button>
+                            <button disabled={workflowReviewBusy || workflowReview.status === "CONFIRMED" || node.lockStatus === "LOCKED"} onClick={() => { setWorkflowReviewNodeId(node.nodeId); setWorkflowReviewMode("REPLAN"); setWorkflowReviewInstruction(node.humanInstructions || ""); }} type="button">Re-plan</button>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                    {workflowReviewMode && workflowReviewNodeId ? (
+                      <div className="studio-workflow-review-editor">
+                        <strong>{workflowReviewMode === "REPLAN" ? "Selective Re-plan" : "Edit Node"} · {workflowReviewNodeId}</strong>
+                        <label><span>Instruction</span><textarea maxLength={2000} onChange={(event) => setWorkflowReviewInstruction(event.target.value)} placeholder="Describe only what should change in this node." value={workflowReviewInstruction} /></label>
+                        <label><span>Reason</span><input maxLength={1000} onChange={(event) => setWorkflowReviewReason(event.target.value)} placeholder="Why should this node change?" value={workflowReviewReason} /></label>
+                        <div><button className="studio-node-action" disabled={workflowReviewBusy || !workflowReviewInstruction.trim()} onClick={() => void submitWorkflowNodeChange()} type="button">Save {workflowReviewMode === "REPLAN" ? "Re-plan" : "Edit"}</button><button onClick={() => { setWorkflowReviewMode(null); setWorkflowReviewNodeId(null); }} type="button">Cancel</button></div>
+                      </div>
+                    ) : null}
+                    <div className="studio-workflow-review-summary">
+                      <span>{workflowReview.lockedNodes.length} locked</span>
+                      <span>{workflowReview.changes.length} decisions recorded</span>
+                    </div>
+                    {workflowReview.status !== "CONFIRMED" ? <button className="studio-node-action" disabled={workflowReviewBusy} onClick={() => void confirmWorkflowReview()} type="button">Confirm Reviewed Plan</button> : <span role="status">Reviewed draft confirmed. Execution still requires the existing Plan and Execution confirmations.</span>}
+                    <small>Only the selected unlocked node can change. Confirming creates a new PLAN_ONLY draft; it never executes or charges Credits.</small>
+                  </>
+                )}
+                {workflowReviewError ? <span className="studio-agent-context-error" role="alert">{workflowReviewError}</span> : null}
+              </section>
+            ) : null}
             <ol className="studio-creative-plan-graph">
               {capabilityPlan.nodes.map((node) => (
                 <li className={node.status === "BLOCKED" ? "is-blocked" : ""} key={node.nodeId}>
