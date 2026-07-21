@@ -64,6 +64,15 @@ import {
   replanStudioCreativeWorkflowNode,
   updateStudioCreativeWorkflowReview,
 } from "@/lib/studio-creative-workflow-review-api";
+import {
+  studioAgentTaskSymbol,
+  type StudioCreativeAgentRole,
+  type StudioCreativeAgentTaskBundle,
+} from "@/features/studio/capabilities/studioCreativeAgentCollaboration";
+import {
+  getStudioCreativeAgentRoles,
+  getStudioProjectAgentTasks,
+} from "@/lib/studio-agent-collaboration-api";
 
 type Preference = StudioModelRecommendationInput["userPreference"]["priority"];
 
@@ -135,6 +144,9 @@ export function StudioModelRecommendation({
   const [workflowReviewReason, setWorkflowReviewReason] = useState("");
   const [workflowReviewBusy, setWorkflowReviewBusy] = useState(false);
   const [workflowReviewError, setWorkflowReviewError] = useState("");
+  const [agentRoles, setAgentRoles] = useState<StudioCreativeAgentRole[]>([]);
+  const [agentTasks, setAgentTasks] = useState<StudioCreativeAgentTaskBundle | null>(null);
+  const [agentTeamError, setAgentTeamError] = useState("");
   const [error, setError] = useState("");
   const materializedExecutionNodes = useRef(new Set<string>());
   const referenceSignature = referenceMedia.map((item) => item.type).sort().join(",");
@@ -173,6 +185,31 @@ export function StudioModelRecommendation({
       creativeGoals: bundle.context.creativeGoals,
     });
   };
+
+  const refreshAgentTeam = async () => {
+    if (!projectId) return;
+    const [roles, tasks] = await Promise.all([
+      getStudioCreativeAgentRoles(),
+      getStudioProjectAgentTasks(projectId),
+    ]);
+    setAgentRoles(roles.roles);
+    setAgentTasks(tasks);
+    setAgentTeamError("");
+  };
+
+  useEffect(() => {
+    let active = true;
+    if (!projectId) return () => { active = false; };
+    void Promise.all([getStudioCreativeAgentRoles(), getStudioProjectAgentTasks(projectId)])
+      .then(([roles, tasks]) => {
+        if (!active) return;
+        setAgentRoles(roles.roles);
+        setAgentTasks(tasks);
+        setAgentTeamError("");
+      })
+      .catch(() => { if (active) setAgentTeamError("Agent Team is temporarily unavailable."); });
+    return () => { active = false; };
+  }, [projectId]);
 
   useEffect(() => {
     let active = true;
@@ -298,6 +335,7 @@ export function StudioModelRecommendation({
       setExecutionStatus(null);
       setExecutingNodeId(null);
       if (projectId) void getStudioProjectAgentContext(projectId).then(adoptProjectContext).catch(() => undefined);
+      if (projectId) void refreshAgentTeam().catch(() => setAgentTeamError("Agent Team is temporarily unavailable."));
       if (bundle.session.status === "FAILED") {
         setError(bundle.session.error?.message || "Creative Agent could not build a safe plan.");
       }
@@ -622,6 +660,25 @@ export function StudioModelRecommendation({
                 <small>Selected by you; all model readiness, verified scope, and cost gates still apply.</small>
               </div>
             ) : null}
+            <section className="studio-agent-team" aria-label="Agent Team">
+              <div className="studio-agent-team-heading">
+                <div><span>Agent Team</span><strong>Human Review</strong></div>
+                <span>Draft only</span>
+              </div>
+              <ol>
+                {agentRoles.map((role) => {
+                  const task = agentTasks?.tasks.find((candidate) => candidate.sessionId === agentSession.sessionId && candidate.roleId === role.roleId);
+                  return (
+                    <li className={`is-${(task?.status || "PENDING").toLowerCase().replaceAll("_", "-")}`} key={role.roleId}>
+                      <span aria-hidden="true">{studioAgentTaskSymbol(task?.status || "PENDING")}</span>
+                      <div><strong>{role.name}</strong><small>{task ? task.status.replaceAll("_", " ") : "PENDING"}</small></div>
+                    </li>
+                  );
+                })}
+              </ol>
+              <small>Every role output waits for Human Review. No Agent can execute, charge Credits, or change this project.</small>
+              {agentTeamError ? <span role="alert">{agentTeamError}</span> : null}
+            </section>
             <ol className="studio-creative-agent-progress" aria-label="Creative Agent progress">
               {STUDIO_CREATIVE_AGENT_PROGRESS.map((step) => {
                 let state = studioCreativeAgentProgressState(agentSession.status, step.key);
