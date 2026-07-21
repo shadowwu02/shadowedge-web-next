@@ -32,6 +32,17 @@ export type StudioCapabilityExecutionPlan = {
   };
   blockers: string[];
   confirmationAllowed: boolean;
+  workflowTemplateSuggestion: {
+    templateId: string;
+    name: string;
+    qualityScore: number | null;
+    sourceCount: number;
+  } | null;
+  workflowTemplateSelection: {
+    mode: "USER_SELECTED" | "SUGGESTION_ONLY" | "NO_PROJECT_CONTEXT" | "NOT_CONFIGURED";
+    templateId: string | null;
+    automaticPlanChange: false;
+  };
   status: "PLAN_ONLY" | "CONFIRMED";
   executionBoundary: {
     automaticExecution: false;

@@ -55,6 +55,10 @@ import {
   formatStudioMemoryContent,
   type StudioProjectAgentContextBundle,
 } from "@/features/studio/capabilities/studioCreativeAgentMemory";
+import type {
+  StudioCreativeWorkflowTemplateBundle,
+} from "@/features/studio/capabilities/studioCreativeWorkflowTemplate";
+import { getStudioProjectWorkflowTemplates } from "@/lib/studio-workflow-template-api";
 
 type Preference = StudioModelRecommendationInput["userPreference"]["priority"];
 
@@ -115,6 +119,10 @@ export function StudioModelRecommendation({
   const [projectContextStatus, setProjectContextStatus] = useState<"idle" | "saving">("idle");
   const [projectContextError, setProjectContextError] = useState("");
   const [deletingMemoryId, setDeletingMemoryId] = useState<string | null>(null);
+  const [workflowTemplates, setWorkflowTemplates] = useState<StudioCreativeWorkflowTemplateBundle | null>(null);
+  const [selectedWorkflowTemplateId, setSelectedWorkflowTemplateId] = useState<string | null>(null);
+  const [workflowTemplateIgnored, setWorkflowTemplateIgnored] = useState(false);
+  const [workflowTemplateError, setWorkflowTemplateError] = useState("");
   const [error, setError] = useState("");
   const materializedExecutionNodes = useRef(new Set<string>());
   const referenceSignature = referenceMedia.map((item) => item.type).sort().join(",");
@@ -137,6 +145,11 @@ export function StudioModelRecommendation({
     ? executionPlanState
     : null;
   const executionFailure = executionStatus?.nodes.find((node) => node.status === "FAILED")?.failure || null;
+  const currentWorkflowTemplates = workflowTemplates?.projectId === projectId ? workflowTemplates : null;
+  const suggestedWorkflowTemplate = currentWorkflowTemplates?.templates[0] || null;
+  const activeWorkflowTemplateId = currentWorkflowTemplates?.templates.some((template) => template.templateId === selectedWorkflowTemplateId)
+    ? selectedWorkflowTemplateId
+    : null;
 
   const adoptProjectContext = (bundle: StudioProjectAgentContextBundle) => {
     setProjectContext(bundle);
@@ -168,6 +181,21 @@ export function StudioModelRecommendation({
     return () => { active = false; };
   }, [projectId]);
 
+  useEffect(() => {
+    let active = true;
+    if (!projectId) return () => { active = false; };
+    void getStudioProjectWorkflowTemplates(projectId)
+      .then((bundle) => {
+        if (!active) return;
+        setWorkflowTemplates(bundle);
+        setSelectedWorkflowTemplateId(null);
+        setWorkflowTemplateIgnored(false);
+        setWorkflowTemplateError("");
+      })
+      .catch(() => { if (active) setWorkflowTemplateError("Workflow suggestions are temporarily unavailable."); });
+    return () => { active = false; };
+  }, [projectId]);
+
   const observeExecutionStatus = async (status: StudioExecutionStatus) => {
     setExecutionStatus(status);
     if (agentSession) {
@@ -193,6 +221,7 @@ export function StudioModelRecommendation({
     media: referenceMedia,
     constraints: { duration, ratio, resolution: qualityGoal, audio: false },
     userPreferences: { priority: preference },
+    ...(activeWorkflowTemplateId ? { workflowTemplateId: activeWorkflowTemplateId } : {}),
   } as const;
 
   const saveProjectContext = async () => {
@@ -344,6 +373,7 @@ export function StudioModelRecommendation({
       });
       setFeedbackState({ sessionId: agentSession.sessionId, value });
       if (projectId) void getStudioProjectAgentContext(projectId).then(adoptProjectContext).catch(() => undefined);
+      if (projectId) void getStudioProjectWorkflowTemplates(projectId).then(setWorkflowTemplates).catch(() => undefined);
     } catch {
       setFeedbackError("Feedback could not be recorded. Your result and execution state were not changed.");
     } finally {
@@ -417,6 +447,48 @@ export function StudioModelRecommendation({
             {projectContextError ? <span className="studio-agent-context-error" role="alert">{projectContextError}</span> : null}
           </details>
         ) : null}
+        {suggestedWorkflowTemplate ? (
+          <section className={`studio-workflow-template-suggestion${activeWorkflowTemplateId === suggestedWorkflowTemplate.templateId ? " is-selected" : ""}${workflowTemplateIgnored ? " is-ignored" : ""}`} aria-label="Suggested Workflow">
+            <div className="studio-workflow-template-heading">
+              <div><span>Suggested Workflow</span><strong>{suggestedWorkflowTemplate.name}</strong></div>
+              <span>{Math.round(suggestedWorkflowTemplate.successMetrics.qualityScore)} quality score</span>
+            </div>
+            <p>Based on your previous successful projects</p>
+            <ol>
+              {suggestedWorkflowTemplate.nodes.map((node, index) => (
+                <li key={`${node.capability}-${index}`}>
+                  <span>{index + 1}</span>
+                  <strong>{formatStudioCapabilityLabel(node.capability)}</strong>
+                </li>
+              ))}
+            </ol>
+            <div className="studio-workflow-template-metrics">
+              <span>{suggestedWorkflowTemplate.successMetrics.completionRate}% completion</span>
+              <span>{suggestedWorkflowTemplate.successMetrics.userRating === null ? "No rating" : `${suggestedWorkflowTemplate.successMetrics.userRating}/5 rating`}</span>
+              <span>{suggestedWorkflowTemplate.sourceCount} successful source{suggestedWorkflowTemplate.sourceCount === 1 ? "" : "s"}</span>
+            </div>
+            <div className="studio-workflow-template-actions">
+              <button
+                className="studio-node-action"
+                onClick={() => {
+                  setSelectedWorkflowTemplateId(suggestedWorkflowTemplate.templateId);
+                  setWorkflowTemplateIgnored(false);
+                }}
+                type="button"
+              >
+                {activeWorkflowTemplateId === suggestedWorkflowTemplate.templateId ? "Workflow selected" : "Use workflow"}
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedWorkflowTemplateId(null);
+                  setWorkflowTemplateIgnored(true);
+                }}
+                type="button"
+              >Ignore</button>
+            </div>
+            <small>{workflowTemplateIgnored ? "Suggestion ignored. The default Creative Plan remains unchanged." : "A template changes planning only after you choose Use workflow; execution still requires confirmation."}</small>
+          </section>
+        ) : workflowTemplateError ? <span className="studio-agent-context-error" role="alert">{workflowTemplateError}</span> : null}
         {intentResolution ? (
           <div className="studio-intent-result" role="status">
             <span>Detected intent: {intentResolution.intent.intentType.replaceAll("_", " ")}</span>
@@ -454,6 +526,13 @@ export function StudioModelRecommendation({
                 <span>Context used</span>
                 <strong>{agentSession.planningContext.memoryCount} project memories</strong>
                 <small>{agentSession.planningContext.projectContext.visualStyle || agentSession.planningContext.projectContext.brandContext || "Project preferences applied"}</small>
+              </div>
+            ) : null}
+            {capabilityPlan?.workflowTemplateSelection?.mode === "USER_SELECTED" ? (
+              <div className="studio-creative-agent-context-used">
+                <span>Workflow template used</span>
+                <strong>{capabilityPlan.workflowTemplateSuggestion?.name || "Project workflow"}</strong>
+                <small>Selected by you; all model readiness, verified scope, and cost gates still apply.</small>
               </div>
             ) : null}
             <ol className="studio-creative-agent-progress" aria-label="Creative Agent progress">

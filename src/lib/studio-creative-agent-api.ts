@@ -11,7 +11,7 @@ function requireSession(bundle: StudioCreativeAgentSessionBundle | undefined) {
   return bundle;
 }
 
-export async function createStudioCreativeAgentSession(input: StudioCapabilityIntentInput & { projectId: string }) {
+export async function createStudioCreativeAgentSession(input: StudioCapabilityIntentInput & { projectId: string; workflowTemplateId?: string }) {
   const envelope = await apiRequest<StudioCreativeAgentSessionBundle>(
     "/api/agent/sessions",
     { method: "POST", body: JSON.stringify(input) },
