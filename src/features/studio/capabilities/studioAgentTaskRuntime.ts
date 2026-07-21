@@ -26,6 +26,7 @@ export type StudioAgentTaskRuntime = {
   runtimeTaskId: string;
   taskId: string;
   roleId: StudioCreativeAgentRoleId;
+  capabilities: string[];
   status: StudioAgentTaskRuntimeStatus;
   dependencies: string[];
   inputRefs: string[];

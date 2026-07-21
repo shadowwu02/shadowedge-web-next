@@ -2007,6 +2007,8 @@
 .studio-agent-runtime-tasks small,
 .studio-agent-task-control > small { color: #94a3b8; font-size: 7px; line-height: 1.45; }
 .studio-agent-runtime-refresh { justify-self: start; border: 0; background: transparent; color: #fcd34d; font-size: 8px; cursor: pointer; }
+.studio-agent-task-execution-binding { display: grid; gap: 3px; border-top: 1px solid rgba(56, 189, 248, 0.16); margin-top: 3px; padding-top: 6px; }
+.studio-agent-task-execution-binding span { overflow-wrap: anywhere; color: #bae6fd; font-size: 7px; }
 .studio-agent-task-control > span { color: #fde68a; font-size: 8px; }
 .studio-agent-task-control > span[role="alert"] { color: #ff9b9b; }
 

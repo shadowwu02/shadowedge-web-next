@@ -88,6 +88,11 @@ import {
   getStudioProjectAgentTaskRuntime,
   submitStudioAgentTaskCheckpoint,
 } from "@/lib/studio-agent-task-runtime-api";
+import type { StudioAgentTaskExecutionBundle } from "@/features/studio/capabilities/studioAgentTaskExecutionBinding";
+import {
+  createStudioAgentTaskExecutionPreview,
+  getStudioAgentTaskExecutionStatus,
+} from "@/lib/studio-agent-task-execution-api";
 
 type Preference = StudioModelRecommendationInput["userPreference"]["priority"];
 
@@ -168,6 +173,9 @@ export function StudioModelRecommendation({
   const [agentTaskRuntime, setAgentTaskRuntime] = useState<StudioAgentTaskRuntimeBundle | null>(null);
   const [agentTaskRuntimeBusyId, setAgentTaskRuntimeBusyId] = useState<string | null>(null);
   const [agentTaskRuntimeError, setAgentTaskRuntimeError] = useState("");
+  const [agentTaskExecution, setAgentTaskExecution] = useState<Record<string, StudioAgentTaskExecutionBundle>>({});
+  const [agentTaskExecutionBusyId, setAgentTaskExecutionBusyId] = useState<string | null>(null);
+  const [agentTaskExecutionError, setAgentTaskExecutionError] = useState("");
   const [error, setError] = useState("");
   const materializedExecutionNodes = useRef(new Set<string>());
   const referenceSignature = referenceMedia.map((item) => item.type).sort().join(",");
@@ -191,6 +199,7 @@ export function StudioModelRecommendation({
     ? agentTaskRuntime
     : null;
   const currentAgentTaskRuntimeSnapshot = currentAgentTaskRuntime?.runtime || null;
+  const agentTaskExecutionIds = currentAgentTaskRuntimeSnapshot?.tasks.filter((task) => task.capabilities?.length).map((task) => task.runtimeTaskId).join(",") || "";
   const agentSession = agentState?.key === recommendationKey ? agentState.value : null;
   const capabilityPlan = planState?.key === recommendationKey ? planState.value : null;
   const executionPlan = executionPlanState?.sourcePlanId === capabilityPlan?.planId
@@ -239,6 +248,7 @@ export function StudioModelRecommendation({
         capabilities: intentResolution.intent.capabilities,
       }));
       setAgentTaskRuntime(null);
+      setAgentTaskExecution({});
     } catch {
       setAgentTeamPlanError("Agent Team planning is temporarily unavailable.");
     } finally {
@@ -294,6 +304,44 @@ export function StudioModelRecommendation({
     }
   };
 
+  const adoptAgentTaskExecution = (bundle: StudioAgentTaskExecutionBundle) => {
+    setAgentTaskExecution((current) => ({ ...current, [bundle.binding.runtimeTaskId]: bundle }));
+    if (bundle.executionPlan?.sourcePlanId === capabilityPlan?.planId) setExecutionPlanState(bundle.executionPlan);
+  };
+
+  const previewAgentTaskExecution = async (task: StudioAgentTaskRuntime) => {
+    if (!projectId || !capabilityPlan || capabilityPlan.status !== "CONFIRMED" || agentTaskExecutionBusyId) return;
+    setAgentTaskExecutionBusyId(task.runtimeTaskId);
+    setAgentTaskExecutionError("");
+    try {
+      adoptAgentTaskExecution(await createStudioAgentTaskExecutionPreview({
+        runtimeTaskId: task.runtimeTaskId,
+        projectId,
+        sourcePlanId: capabilityPlan.planId,
+        executionPlanId: executionPlan?.executionPlanId,
+        capability: task.capabilities.includes("video_generate") ? "video_generate" : task.capabilities[0],
+      }));
+    } catch {
+      setAgentTaskExecutionError("Execution Preview is blocked until Capability, Availability, Readiness, Scope, and Cost gates pass.");
+    } finally {
+      setAgentTaskExecutionBusyId(null);
+    }
+  };
+
+  const refreshAgentTaskExecution = async (runtimeTaskId: string) => {
+    if (agentTaskExecutionBusyId) return;
+    setAgentTaskExecutionBusyId(runtimeTaskId);
+    setAgentTaskExecutionError("");
+    try {
+      adoptAgentTaskExecution(await getStudioAgentTaskExecutionStatus(runtimeTaskId));
+      if (projectId) setAgentTaskRuntime(await getStudioProjectAgentTaskRuntime(projectId));
+    } catch {
+      setAgentTaskExecutionError("Task Execution status is temporarily unavailable.");
+    } finally {
+      setAgentTaskExecutionBusyId(null);
+    }
+  };
+
   useEffect(() => {
     let active = true;
     if (!projectId) return () => { active = false; };
@@ -307,6 +355,19 @@ export function StudioModelRecommendation({
       .catch(() => { if (active) setAgentTeamError("Agent Team is temporarily unavailable."); });
     return () => { active = false; };
   }, [projectId]);
+
+  useEffect(() => {
+    let active = true;
+    const runtimeTaskIds = agentTaskExecutionIds ? agentTaskExecutionIds.split(",").filter(Boolean) : [];
+    if (!runtimeTaskIds.length) return () => { active = false; };
+    void Promise.allSettled(runtimeTaskIds.map((runtimeTaskId) => getStudioAgentTaskExecutionStatus(runtimeTaskId)))
+      .then((results) => {
+        if (!active) return;
+        const found = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+        if (found.length) setAgentTaskExecution((current) => Object.fromEntries([...Object.entries(current), ...found.map((bundle) => [bundle.binding.runtimeTaskId, bundle])]));
+      });
+    return () => { active = false; };
+  }, [agentTaskExecutionIds]);
 
   useEffect(() => {
     let active = true;
@@ -370,6 +431,13 @@ export function StudioModelRecommendation({
 
   const observeExecutionStatus = async (status: StudioExecutionStatus) => {
     setExecutionStatus(status);
+    const boundTask = Object.values(agentTaskExecution).find((bundle) => bundle.binding.executionPlanId === status.executionPlanId);
+    if (boundTask) {
+      void getStudioAgentTaskExecutionStatus(boundTask.binding.runtimeTaskId).then((bundle) => {
+        adoptAgentTaskExecution(bundle);
+        if (projectId) void getStudioProjectAgentTaskRuntime(projectId).then(setAgentTaskRuntime).catch(() => undefined);
+      }).catch(() => undefined);
+    }
     if (agentSession) {
       void getStudioCreativeAgentSession(agentSession.sessionId).then((bundle) => {
         setAgentState({ key: recommendationKey, value: bundle.session });
@@ -838,6 +906,7 @@ export function StudioModelRecommendation({
                     {currentAgentTaskRuntimeSnapshot.tasks.map((task) => {
                       const role = currentAgentTeamPlan.selectedRoles.find((candidate) => candidate.roleId === task.roleId);
                       const checkpoint = [...currentAgentTaskRuntimeSnapshot.checkpoints].reverse().find((candidate) => candidate.runtimeTaskId === task.runtimeTaskId);
+                      const executionBinding = agentTaskExecution[task.runtimeTaskId] || null;
                       return (
                         <li className={`is-${task.status.toLowerCase().replaceAll("_", "-")}`} key={task.runtimeTaskId}>
                           <div className="studio-agent-runtime-task-title">
@@ -848,6 +917,25 @@ export function StudioModelRecommendation({
                           <small>{task.dependencies.length ? `Waiting on ${task.dependencies.join(", ")}` : "No task dependency"}</small>
                           <small>Checkpoint: {checkpoint ? `${checkpoint.type.replaceAll("_", " ")} / ${checkpoint.decision}` : "Not recorded"}</small>
                           <small>Output: {task.outputRefs.length ? task.outputRefs.join(", ") : "No output yet"}</small>
+                          {executionBinding ? (
+                            <div className="studio-agent-task-execution-binding">
+                              <span>Execution Node: {executionBinding.binding.executionNodeId}</span>
+                              <span>Runtime: {(executionBinding.execution.runtimeStatus || executionBinding.binding.status).replaceAll("_", " ")}</span>
+                              <span>Result: {executionBinding.execution.result?.output?.videoUrl || executionBinding.execution.result?.status || "Pending"}</span>
+                              <button className="studio-agent-runtime-refresh" disabled={agentTaskExecutionBusyId === task.runtimeTaskId} onClick={() => void refreshAgentTaskExecution(task.runtimeTaskId)} type="button">
+                                {agentTaskExecutionBusyId === task.runtimeTaskId ? "Refreshing..." : "Refresh Execution Status"}
+                              </button>
+                            </div>
+                          ) : task.status === "APPROVED" && task.capabilities?.length ? (
+                            <button
+                              className="studio-node-action"
+                              disabled={capabilityPlan?.status !== "CONFIRMED" || Boolean(agentTaskExecutionBusyId)}
+                              onClick={() => void previewAgentTaskExecution(task)}
+                              type="button"
+                            >
+                              {agentTaskExecutionBusyId === task.runtimeTaskId ? "Preparing Preview..." : "Create Execution Preview"}
+                            </button>
+                          ) : null}
                           {task.status === "WAITING_HUMAN" ? (
                             <button className="studio-node-action" disabled={Boolean(agentTaskRuntimeBusyId)} onClick={() => void approveAgentTaskCheckpoint(task)} type="button">
                               {agentTaskRuntimeBusyId === task.runtimeTaskId ? "Saving Checkpoint..." : `Approve ${studioCheckpointTypeForRole(task.roleId).replaceAll("_", " ")}`}
@@ -861,6 +949,7 @@ export function StudioModelRecommendation({
                 <button className="studio-agent-runtime-refresh" onClick={() => void refreshAgentTaskRuntime()} type="button">Refresh Task Status</button>
                 <small>Checkpoints govern approval metadata only. They never execute a Task, call a Provider, generate media, or charge Credits; Execution Confirm remains separate.</small>
                 {agentTaskRuntimeError ? <span role="alert">{agentTaskRuntimeError}</span> : null}
+                {agentTaskExecutionError ? <span role="alert">{agentTaskExecutionError}</span> : null}
               </section>
             ) : null}
             <section className="studio-agent-team" aria-label="Agent Team">
@@ -1014,7 +1103,7 @@ export function StudioModelRecommendation({
                 onClick={() => void confirmPlan()}
                 type="button"
               >
-                {confirmingPlan ? "Preparing execution preview..." : "Confirm Plan"}
+                {confirmingPlan ? "Preparing execution preview..." : "Confirm Plan · Build Execution Preview"}
               </button>
             )}
             <span className="studio-creative-plan-boundary">Plan confirmation never creates a Job, enters Queue, calls a Provider, or deducts Credits; existing Generation Plan controls remain authoritative.</span>
