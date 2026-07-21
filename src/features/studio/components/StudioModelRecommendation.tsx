@@ -21,9 +21,15 @@ import {
   type StudioCapabilityExecutionPlan,
 } from "@/features/studio/capabilities/studioCapabilityExecutionPlan";
 import {
-  confirmStudioCapabilityExecutionPlan,
-  createStudioCapabilityExecutionPlan,
-} from "@/lib/studio-capability-plan-api";
+  STUDIO_CREATIVE_AGENT_PROGRESS,
+  studioCreativeAgentProgressState,
+  type StudioCreativeAgentSession,
+} from "@/features/studio/capabilities/studioCreativeAgentSession";
+import {
+  confirmStudioCreativeAgentSession,
+  createStudioCreativeAgentSession,
+  getStudioCreativeAgentSession,
+} from "@/lib/studio-creative-agent-api";
 import {
   getStudioExecutionNodeSymbol,
   STUDIO_EXECUTION_GATE_LABELS,
@@ -32,7 +38,6 @@ import {
 } from "@/features/studio/capabilities/studioWorkflowExecutionPlan";
 import {
   confirmStudioWorkflowExecutionPlan,
-  createStudioWorkflowExecutionPreview,
   executeStudioWorkflowNode,
   getStudioWorkflowExecutionStatus,
 } from "@/lib/studio-workflow-execution-api";
@@ -70,13 +75,13 @@ export function StudioModelRecommendation({
     value: StudioModelRecommendation;
   } | null>(null);
   const [intentState, setIntentState] = useState<{ key: string; value: StudioCapabilityIntentResolution } | null>(null);
+  const [agentState, setAgentState] = useState<{ key: string; value: StudioCreativeAgentSession } | null>(null);
   const [planState, setPlanState] = useState<{ key: string; value: StudioCapabilityExecutionPlan } | null>(null);
   const [executionPlanState, setExecutionPlanState] = useState<StudioWorkflowExecutionPlan | null>(null);
   const [executionStatus, setExecutionStatus] = useState<StudioExecutionStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [planning, setPlanning] = useState(false);
   const [confirmingPlan, setConfirmingPlan] = useState(false);
-  const [buildingExecutionPreview, setBuildingExecutionPreview] = useState(false);
   const [confirmingExecution, setConfirmingExecution] = useState(false);
   const [executingNodeId, setExecutingNodeId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -95,13 +100,22 @@ export function StudioModelRecommendation({
     ? recommendationState.value
     : null;
   const intentResolution = intentState?.key === recommendationKey ? intentState.value : null;
+  const agentSession = agentState?.key === recommendationKey ? agentState.value : null;
   const capabilityPlan = planState?.key === recommendationKey ? planState.value : null;
   const executionPlan = executionPlanState?.sourcePlanId === capabilityPlan?.planId
     ? executionPlanState
     : null;
+  const executionFailure = executionStatus?.nodes.find((node) => node.status === "FAILED")?.failure || null;
 
   const observeExecutionStatus = async (status: StudioExecutionStatus) => {
     setExecutionStatus(status);
+    if (agentSession) {
+      void getStudioCreativeAgentSession(agentSession.sessionId).then((bundle) => {
+        setAgentState({ key: recommendationKey, value: bundle.session });
+        if (bundle.creativePlan) setPlanState({ key: recommendationKey, value: bundle.creativePlan });
+        if (bundle.executionPlan) setExecutionPlanState(bundle.executionPlan);
+      }).catch(() => undefined);
+    }
     const completed = status.nodes.find((node) =>
       node.status === "COMPLETED" &&
       node.resultBindings?.timeline.status === "BOUND" &&
@@ -138,51 +152,43 @@ export function StudioModelRecommendation({
     }
   };
 
-  const reviewPlan = async () => {
+  const startCreativeAgent = async () => {
     setPlanning(true);
     setError("");
     try {
-      setPlanState({ key: recommendationKey, value: await createStudioCapabilityExecutionPlan(planningInput) });
-      setExecutionPlanState(null);
+      const bundle = await createStudioCreativeAgentSession(planningInput);
+      setAgentState({ key: recommendationKey, value: bundle.session });
+      setPlanState(bundle.creativePlan ? { key: recommendationKey, value: bundle.creativePlan } : null);
+      setExecutionPlanState(bundle.executionPlan);
       setExecutionStatus(null);
       setExecutingNodeId(null);
+      if (bundle.session.status === "FAILED") {
+        setError(bundle.session.error?.message || "Creative Agent could not build a safe plan.");
+      }
     } catch {
+      setAgentState(null);
       setPlanState(null);
-      setError("Creative workflow planning is temporarily unavailable.");
+      setError("Creative Agent planning is temporarily unavailable.");
     } finally {
       setPlanning(false);
     }
   };
 
   const confirmPlan = async () => {
-    if (!capabilityPlan) return;
+    if (!agentSession || !capabilityPlan) return;
     setConfirmingPlan(true);
     setError("");
     try {
-      setPlanState({ key: recommendationKey, value: await confirmStudioCapabilityExecutionPlan(capabilityPlan.planId) });
-      setExecutionPlanState(null);
+      const bundle = await confirmStudioCreativeAgentSession(agentSession.sessionId);
+      setAgentState({ key: recommendationKey, value: bundle.session });
+      setPlanState(bundle.creativePlan ? { key: recommendationKey, value: bundle.creativePlan } : null);
+      setExecutionPlanState(bundle.executionPlan);
       setExecutionStatus(null);
       setExecutingNodeId(null);
     } catch {
       setError("This workflow cannot be confirmed until every readiness and cost blocker is cleared.");
     } finally {
       setConfirmingPlan(false);
-    }
-  };
-
-  const buildExecutionPreview = async () => {
-    if (!capabilityPlan || capabilityPlan.status !== "CONFIRMED") return;
-    setBuildingExecutionPreview(true);
-    setError("");
-    try {
-      setExecutionPlanState(await createStudioWorkflowExecutionPreview(capabilityPlan.planId));
-      setExecutionStatus(null);
-      setExecutingNodeId(null);
-    } catch {
-      setExecutionPlanState(null);
-      setError("Execution Preview is unavailable. Readiness, scope, or cost may have changed.");
-    } finally {
-      setBuildingExecutionPreview(false);
     }
   };
 
@@ -272,15 +278,52 @@ export function StudioModelRecommendation({
             {intentResolution.blockers.length ? <span>Blocked: {intentResolution.blockers.join(", ")}</span> : null}
           </div>
         ) : null}
-        {intentResolution ? (
+        {intentResolution && !agentSession ? (
           <button
             className="studio-node-action studio-creative-plan-review"
             disabled={planning}
-            onClick={() => void reviewPlan()}
+            onClick={() => void startCreativeAgent()}
             type="button"
           >
-            {planning ? "Building safe workflow draft..." : capabilityPlan ? "Review Plan" : "Create Creative Plan"}
+            {planning ? "Creative Agent is planning..." : "Start Creative Agent Beta"}
           </button>
+        ) : null}
+        {agentSession ? (
+          <section className={`studio-creative-agent is-${agentSession.status.toLowerCase()}`} aria-label="Creative Agent">
+            <div className="studio-creative-agent-heading">
+              <div>
+                <span>Creative Agent</span>
+                <strong>Beta</strong>
+              </div>
+              <span>{agentSession.status.replaceAll("_", " ")}</span>
+            </div>
+            <div className="studio-creative-agent-goal">
+              <span>Your goal</span>
+              <strong>{prompt || "Describe what you want to create."}</strong>
+            </div>
+            <ol className="studio-creative-agent-progress" aria-label="Creative Agent progress">
+              {STUDIO_CREATIVE_AGENT_PROGRESS.map((step) => {
+                let state = studioCreativeAgentProgressState(agentSession.status, step.key);
+                if (agentSession.executionPlanId && step.key === "preparing") state = "completed";
+                if (executionStatus?.planStatus === "EXECUTING" && step.key === "generating") state = "active";
+                if (executionStatus?.planStatus === "FAILED" && step.key === "generating") state = "failed";
+                if (executionStatus?.planStatus === "COMPLETED") state = "completed";
+                return (
+                  <li className={`is-${state}`} key={step.key}>
+                    <span aria-hidden="true">{state === "completed" ? "✓" : state === "active" ? "●" : state === "failed" ? "×" : "○"}</span>
+                    <strong>{step.label}</strong>
+                  </li>
+                );
+              })}
+            </ol>
+            {agentSession.status === "FAILED" ? (
+              <div className="studio-creative-agent-failure" role="alert">
+                <strong>{agentSession.executionPlanId ? "Generation failed" : "Planning failed"}</strong>
+                <span>Reason: {agentSession.error?.message || executionFailure?.code || "No safe workflow is currently available."}</span>
+                <span>No retry was started.</span>
+              </div>
+            ) : null}
+          </section>
         ) : null}
         {capabilityPlan ? (
           <section className="studio-creative-plan" aria-label="Creative Plan">
@@ -303,15 +346,7 @@ export function StudioModelRecommendation({
             </ol>
             {capabilityPlan.status === "CONFIRMED" ? (
               <div className="studio-creative-plan-confirmed">
-                <span role="status">Workflow confirmed. Build an Execution Preview before using the existing Generation Plan controls.</span>
-                <button
-                  className="studio-node-action"
-                  disabled={buildingExecutionPreview}
-                  onClick={() => void buildExecutionPreview()}
-                  type="button"
-                >
-                  {buildingExecutionPreview ? "Checking execution gates..." : executionPlan ? "Refresh Execution Preview" : "Build Execution Preview"}
-                </button>
+                <span role="status">Plan confirmed. Creative Agent prepared the Execution Preview without creating a Job.</span>
               </div>
             ) : (
               <button
@@ -320,7 +355,7 @@ export function StudioModelRecommendation({
                 onClick={() => void confirmPlan()}
                 type="button"
               >
-                {confirmingPlan ? "Confirming workflow..." : "Confirm Workflow"}
+                {confirmingPlan ? "Preparing execution preview..." : "Confirm Plan"}
               </button>
             )}
             <span className="studio-creative-plan-boundary">Plan confirmation never creates a Job, enters Queue, calls a Provider, or deducts Credits.</span>
