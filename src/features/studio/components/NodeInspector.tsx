@@ -827,6 +827,7 @@ export function NodeInspector() {
                   const modelRecommendation = data.modelRecommendation
                     ? {
                         ...data.modelRecommendation,
+                        selectedProviderId: model.providerId,
                         selectedModelId: model.id,
                         accepted: model.id === data.modelRecommendation.recommendedModelId,
                         selectedAt,
@@ -848,6 +849,7 @@ export function NodeInspector() {
                     void recordStudioModelRecommendationSelection(
                       modelRecommendation.recommendationId,
                       model.id,
+                      model.providerId,
                     ).catch(() => undefined);
                   }
                 }}

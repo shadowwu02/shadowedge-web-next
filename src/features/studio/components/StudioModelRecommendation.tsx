@@ -45,6 +45,7 @@ export function StudioModelRecommendation({
   const [error, setError] = useState("");
   const referenceSignature = referenceMedia.map((item) => item.type).sort().join(",");
   const recommendationKey = JSON.stringify({
+    providerId: inventory.providerId,
     duration,
     prompt,
     qualityGoal,
@@ -61,6 +62,7 @@ export function StudioModelRecommendation({
     setError("");
     try {
       const value = await getStudioModelRecommendation({
+        providerId: inventory.providerId,
         prompt,
         duration,
         ratio,
@@ -90,6 +92,7 @@ export function StudioModelRecommendation({
         void recordStudioModelRecommendationSelection(
           context.recommendationId,
           candidate.modelId,
+          candidate.providerId,
         ).catch(() => undefined);
       }
       setError("");

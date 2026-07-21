@@ -1,4 +1,5 @@
 import type { StudioProviderReadiness } from "./studioProviderReadiness";
+import { resolveProviderRuntimeDefinition } from "../runtime/providers/providerRegistry.ts";
 
 export type ProviderCostScope = "EXACT" | "PARTIAL" | "UNKNOWN";
 export type StudioModelReadinessStatus =
@@ -50,6 +51,8 @@ export type StudioProviderVideoModel = {
   id: string;
   providerId: string;
   capability: "video_generate";
+  runtimeAdapter?: string;
+  registryKey?: string;
   label: string;
   enabled: boolean;
   availability?: StudioModelAvailabilityStatus;
@@ -102,6 +105,12 @@ export type StudioProviderVideoModel = {
 
 export type StudioProviderModelInventory = {
   providerId: string;
+  provider?: {
+    providerId: string;
+    name: string;
+    runtimeType: "cli" | "http" | "bridge" | "mock";
+    status: string;
+  };
   capability: "video_generate";
   models: StudioProviderVideoModel[];
   metadata: {
@@ -663,15 +672,29 @@ export function validateStudioVideoModelReferences(
     : "";
 }
 
-export function resolveStudioVideoGenerationProvider(providerId: string) {
-  if (providerId !== "higgsfield") {
+export function resolveStudioVideoGenerationProvider(
+  providerId: string,
+  runtimeAdapter?: string,
+) {
+  const resolution = resolveProviderRuntimeDefinition({
+    capability: "video_generate",
+    providerId,
+  });
+  if (!resolution.ok || resolution.runtimeAdapter !== "higgsfield_video_cli") {
     throw new StudioVideoModelResolutionError(
       "STUDIO_VIDEO_PROVIDER_UNAVAILABLE",
       `Studio has no existing video executor mapping for ${providerId}.`,
     );
   }
+  if (runtimeAdapter && runtimeAdapter !== resolution.runtimeAdapter) {
+    throw new StudioVideoModelResolutionError(
+      "STUDIO_VIDEO_PROVIDER_ADAPTER_MISMATCH",
+      `Runtime adapter ${runtimeAdapter} does not match ${providerId}.`,
+    );
+  }
   return {
     providerId: "higgsfield" as const,
     executor: "existing_video_api" as const,
+    runtimeAdapter: resolution.runtimeAdapter,
   };
 }

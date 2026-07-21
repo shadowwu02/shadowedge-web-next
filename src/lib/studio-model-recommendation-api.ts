@@ -36,17 +36,19 @@ export async function getMyStudioModelPreferences() {
 export async function recordStudioModelRecommendationSelection(
   recommendationId: string,
   selectedModelId: string,
+  selectedProviderId = "higgsfield",
 ) {
   const envelope = await apiRequest<{
     selection: {
       recommendationId: string;
+      providerId: string;
       selectedModelId: string;
       accepted: boolean;
       selectedAt: string;
     };
   }>(`/api/models/recommend/events/${encodeURIComponent(recommendationId)}/selection`, {
     method: "POST",
-    body: JSON.stringify({ selectedModelId }),
+    body: JSON.stringify({ selectedModelId, selectedProviderId }),
   });
   return envelope.data?.selection || null;
 }

@@ -424,6 +424,7 @@ test("the quoted Kling 2.6 scope uses the existing resolver and executor mapping
   assert.deepEqual(resolveStudioVideoGenerationProvider("higgsfield"), {
     providerId: "higgsfield",
     executor: "existing_video_api",
+    runtimeAdapter: "higgsfield_video_cli",
   });
 });
 
@@ -451,6 +452,7 @@ test("plan provider mapping resolves only to the existing Video API executor", (
   assert.deepEqual(provider, {
     providerId: "higgsfield",
     executor: "existing_video_api",
+    runtimeAdapter: "higgsfield_video_cli",
   });
   assert.throws(
     () => resolveStudioVideoGenerationProvider("unconfigured"),

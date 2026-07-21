@@ -82,6 +82,17 @@ export function createMockProviderAdapter(): ProviderAdapter {
     kind: "mock",
     capabilities: ["video_edit", "motion_control", "camera_control"],
     normalizeError: (error) => normalizeProviderError(error),
+    estimateCost(request) {
+      return {
+        providerId: "mock",
+        capability: request.capability,
+        modelId: stringValue(request.modelId) || null,
+        amount: 0,
+        currency: "shadowedge_credits",
+        status: "VERIFIED",
+        source: "free_mock",
+      };
+    },
     async submit(request) {
       if (!this.capabilities.includes(request.capability)) {
         const error = normalizeProviderError({

@@ -2,6 +2,8 @@ import type {
   NormalizedProviderError,
   ProviderJobIdentity,
   ProviderJobResult,
+  ProviderCostEstimate,
+  ProviderCostEstimateRequest,
   ProviderSubmitRequest,
 } from "@/features/studio/runtime/providers/providerAdapter";
 import type { ProviderResolution } from "@/features/studio/runtime/providers/providerRegistry";
@@ -40,5 +42,16 @@ export async function cancelProviderJob(
     return { ok: true, result: await resolution.adapter.cancel(identity) };
   } catch (error) {
     return { ok: false, error: resolution.adapter.normalizeError(error) };
+  }
+}
+
+export async function estimateProviderJobCost(
+  resolution: ProviderResolution,
+  request: ProviderCostEstimateRequest,
+): Promise<ProviderCostEstimate | NormalizedProviderError> {
+  try {
+    return await resolution.adapter.estimateCost(request);
+  } catch (error) {
+    return resolution.adapter.normalizeError(error);
   }
 }

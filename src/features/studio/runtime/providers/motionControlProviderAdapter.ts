@@ -233,6 +233,17 @@ export function createMotionControlBridgeAdapter(options: {
     kind: "real",
     capabilities: ["motion_control"],
     normalizeError: normalizeMotionControlProviderError,
+    estimateCost(request) {
+      return {
+        providerId: "future",
+        capability: request.capability,
+        modelId: stringValue(request.modelId) || null,
+        amount: null,
+        currency: "unknown",
+        status: "UNKNOWN",
+        source: "provider_cost_not_configured",
+      };
+    },
     async submit(request) {
       return providerResult(await requireTransport().submit(mapBridgePayload(request)));
     },

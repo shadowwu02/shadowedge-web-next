@@ -47,6 +47,7 @@ export type StudioUserModelPreferenceProfile = {
 };
 
 export type StudioModelRecommendationCandidate = {
+  providerId: string;
   modelId: string;
   displayName: string;
   status: "RECOMMENDED" | "ALTERNATIVE";
@@ -78,6 +79,7 @@ export type StudioModelRecommendation = {
   recommendationId?: string | null;
   analyticsTracking?: "RECORDED" | "UNAVAILABLE";
   status: "RECOMMENDED" | "INSUFFICIENT_DATA";
+  providerId: string;
   recommendedModelId: string | null;
   recommended: StudioModelRecommendationCandidate | null;
   alternatives: StudioModelRecommendationCandidate[];
@@ -95,7 +97,9 @@ export type StudioModelRecommendation = {
 
 export type StudioModelRecommendationContext = {
   recommendationId: string;
+  recommendedProviderId: string;
   recommendedModelId: string;
+  selectedProviderId: string | null;
   selectedModelId: string | null;
   accepted: boolean | null;
   confidence: StudioModelRecommendationConfidence;
@@ -104,6 +108,7 @@ export type StudioModelRecommendationContext = {
 };
 
 export type StudioModelRecommendationInput = {
+  providerId: string;
   prompt: string;
   duration: number;
   ratio: string;
@@ -130,7 +135,12 @@ export function resolveStudioModelRecommendationCandidate(
   candidate: StudioModelRecommendationCandidate,
 ): { model: StudioProviderVideoModel; params: StudioVideoModelParams } {
   const model = inventory.models.find((item) => item.id === candidate.modelId);
-  if (!model || !isStudioVideoModelExecutionAllowed(model)) {
+  const candidateProviderId = candidate.providerId || inventory.providerId;
+  if (
+    !model ||
+    model.providerId !== candidateProviderId ||
+    !isStudioVideoModelExecutionAllowed(model)
+  ) {
     throw new StudioModelRecommendationError(
       "RECOMMENDED_MODEL_UNAVAILABLE",
       "The recommended model is no longer available.",
@@ -197,7 +207,11 @@ export function createStudioModelRecommendationContext(
   if (!recommendation.recommendationId || !recommendation.recommendedModelId) return null;
   return {
     recommendationId: recommendation.recommendationId,
+    recommendedProviderId: recommendation.providerId || "higgsfield",
     recommendedModelId: recommendation.recommendedModelId,
+    selectedProviderId: selectedModelId
+      ? recommendation.providerId || "higgsfield"
+      : null,
     selectedModelId,
     accepted: selectedModelId ? selectedModelId === recommendation.recommendedModelId : null,
     confidence: recommendation.confidence,

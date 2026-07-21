@@ -2,6 +2,7 @@ export type StudioCapabilityId =
   | "video_generate"
   | "video_edit"
   | "motion_control"
+  | "character"
   | "camera_control";
 
 export type StudioCapabilityCategory = "generation" | "edit" | "control";
@@ -158,6 +159,17 @@ export const STUDIO_CAPABILITIES = [
         supportedParameters: ["mode", "prompt", "sceneSource", "orientationSource"],
       },
     ],
+  },
+  {
+    id: "character",
+    category: "control",
+    inputs: ["image", "character"],
+    outputs: ["character"],
+    modes: ["reference"],
+    parameters: [
+      { key: "referenceImages", type: "string", required: true },
+    ],
+    providers: [],
   },
   {
     id: "camera_control",

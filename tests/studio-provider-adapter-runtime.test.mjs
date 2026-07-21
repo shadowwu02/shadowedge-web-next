@@ -5,6 +5,7 @@ import {
   normalizeProviderError,
 } from "../src/features/studio/runtime/providers/providerAdapter.ts";
 import {
+  resolveProviderRuntimeDefinition,
   getStudioProvider,
   resolveProviderForCapability,
 } from "../src/features/studio/runtime/providers/providerRegistry.ts";
@@ -67,6 +68,17 @@ test("video_edit resolves to the unified local Mock Provider", async () => {
   );
 });
 
+test("video_generate resolves provider and runtime adapter without invoking Provider", () => {
+  const resolution = resolveProviderRuntimeDefinition({
+    capability: "video_generate",
+    providerId: "higgsfield",
+  });
+  assert.equal(resolution.ok, true);
+  if (!resolution.ok) return;
+  assert.equal(resolution.provider.runtimeType, "cli");
+  assert.equal(resolution.runtimeAdapter, "higgsfield_video_cli");
+});
+
 test("motion_control resolves through the same adapter and supports cancel", async () => {
   const resolution = requireResolution(
     resolveProviderForCapability({
@@ -101,8 +113,11 @@ test("motion_control resolves through the same adapter and supports cancel", asy
 });
 
 test("metadata-only or unknown providers fail closed", () => {
-  assert.equal(getStudioProvider("higgsfield")?.status, "available");
-  assert.deepEqual(getStudioProvider("higgsfield")?.capabilities, ["video_edit"]);
+  assert.equal(getStudioProvider("higgsfield")?.status, "ACTIVE");
+  assert.deepEqual(getStudioProvider("higgsfield")?.capabilities, [
+    "video_generate",
+    "video_edit",
+  ]);
   for (const providerId of ["higgsfield", "missing-provider"]) {
     const resolution = resolveProviderForCapability({
       capability: "camera_control",

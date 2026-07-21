@@ -12,18 +12,21 @@ import { higgsfieldVideoEditAdapter } from "./higgsfieldVideoEditAdapter.ts";
 import { motionControlBridgeAdapter } from "./motionControlProviderAdapter.ts";
 
 export type StudioProviderStatus =
-  | "existing"
-  | "mock"
-  | "available"
-  | "metadata_only"
-  | "disabled";
+  | "ACTIVE"
+  | "MOCK"
+  | "METADATA_ONLY"
+  | "DISABLED";
+
+export type StudioProviderRuntimeType = "cli" | "http" | "bridge" | "mock";
 
 export type StudioProviderDefinition = {
   providerId: string;
   name: string;
   capabilities: readonly StudioCapabilityId[];
-  adapterKey: string;
+  runtimeType: StudioProviderRuntimeType;
+  runtimeAdapters: Readonly<Partial<Record<StudioCapabilityId, string>>>;
   status: StudioProviderStatus;
+  createdAt: string;
 };
 
 export const STUDIO_PROVIDER_REGISTRY: readonly StudioProviderDefinition[] = [
@@ -31,36 +34,44 @@ export const STUDIO_PROVIDER_REGISTRY: readonly StudioProviderDefinition[] = [
     providerId: "mock",
     name: "Local Mock Provider",
     capabilities: ["video_edit", "motion_control", "camera_control"],
-    adapterKey: "mock_provider",
-    status: "mock",
-  },
-  {
-    providerId: "shadowedge_video_api",
-    name: "Existing Video Generation API",
-    capabilities: ["video_generate"],
-    adapterKey: "existing_video_executor",
-    status: "existing",
+    runtimeType: "mock",
+    runtimeAdapters: {
+      video_edit: "mock_provider",
+      motion_control: "mock_provider",
+      camera_control: "mock_provider",
+    },
+    status: "MOCK",
+    createdAt: "2026-07-15T00:00:00.000Z",
   },
   {
     providerId: "higgsfield",
     name: "Higgsfield",
-    capabilities: ["video_edit"],
-    adapterKey: "higgsfield_video_edit",
-    status: "available",
+    capabilities: ["video_generate", "video_edit"],
+    runtimeType: "cli",
+    runtimeAdapters: {
+      video_generate: "higgsfield_video_cli",
+      video_edit: "higgsfield_video_edit",
+    },
+    status: "ACTIVE",
+    createdAt: "2026-07-18T00:00:00.000Z",
   },
   {
     providerId: "future",
     name: "Provider-neutral Motion Runtime",
     capabilities: ["motion_control"],
-    adapterKey: "motion_control_bridge",
-    status: "available",
+    runtimeType: "bridge",
+    runtimeAdapters: { motion_control: "motion_control_bridge" },
+    status: "ACTIVE",
+    createdAt: "2026-07-19T00:00:00.000Z",
   },
   {
     providerId: "kling",
     name: "Kling",
     capabilities: ["video_edit", "motion_control", "camera_control"],
-    adapterKey: "unavailable",
-    status: "metadata_only",
+    runtimeType: "http",
+    runtimeAdapters: {},
+    status: "METADATA_ONLY",
+    createdAt: "2026-07-15T00:00:00.000Z",
   },
 ];
 
@@ -93,6 +104,13 @@ export type ProviderResolutionFailure = {
   error: NormalizedProviderError;
 };
 
+export type ProviderRuntimeDefinition = {
+  ok: true;
+  capability: StudioCapabilityId;
+  provider: StudioProviderDefinition;
+  runtimeAdapter: string;
+};
+
 export function getStudioProvider(providerId: string) {
   return STUDIO_PROVIDER_REGISTRY.find(
     (provider) => provider.providerId === providerId,
@@ -106,6 +124,28 @@ export function getProviderAdapter(adapterKey: string) {
 export function registerProviderAdapter(adapter: ProviderAdapter) {
   adapters.set(adapter.key, adapter);
   return () => adapters.delete(adapter.key);
+}
+
+export function resolveProviderRuntimeDefinition({
+  capability: capabilityId,
+  providerId,
+}: {
+  capability: StudioCapabilityId;
+  providerId: string;
+}): ProviderRuntimeDefinition | ProviderResolutionFailure {
+  const capability = getStudioCapability(capabilityId);
+  const provider = getStudioProvider(providerId);
+  if (!capability || !provider || !provider.capabilities.includes(capabilityId)) {
+    return unavailable(`Provider ${providerId} does not support ${capabilityId}.`);
+  }
+  if (provider.status === "METADATA_ONLY" || provider.status === "DISABLED") {
+    return unavailable(`Provider ${providerId} is metadata-only or unavailable.`);
+  }
+  const runtimeAdapter = provider.runtimeAdapters[capabilityId];
+  if (!runtimeAdapter) {
+    return unavailable(`Provider ${providerId} has no runtime adapter for ${capabilityId}.`);
+  }
+  return { ok: true, capability: capabilityId, provider, runtimeAdapter };
 }
 
 export function resolveProviderForCapability({
@@ -141,27 +181,22 @@ export function resolveProviderForCapability({
     );
   }
 
-  const provider = getStudioProvider(capabilityProvider.providerId);
-  if (
-    !provider ||
-    !provider.capabilities.includes(capabilityId) ||
-    provider.status === "metadata_only" ||
-    provider.status === "disabled"
-  ) {
-    return unavailable(
-      `Provider ${capabilityProvider.providerId} is metadata-only or unavailable.`,
-    );
-  }
-  if (provider.adapterKey !== capabilityProvider.adapterKey) {
+  const runtime = resolveProviderRuntimeDefinition({
+    capability: capabilityId,
+    providerId: capabilityProvider.providerId,
+  });
+  if (!runtime.ok) return runtime;
+  const { provider, runtimeAdapter } = runtime;
+  if (runtimeAdapter !== capabilityProvider.adapterKey) {
     return unavailable(
       `Provider ${provider.providerId} has no matching adapter for ${capabilityId}.`,
     );
   }
 
-  const adapter = getProviderAdapter(provider.adapterKey);
+  const adapter = getProviderAdapter(runtimeAdapter);
   if (!adapter || !adapter.capabilities.includes(capabilityId)) {
     return unavailable(
-      `Adapter ${provider.adapterKey} is not registered for ${capabilityId}.`,
+      `Adapter ${runtimeAdapter} is not registered for ${capabilityId}.`,
     );
   }
   if (adapter.kind === "real" && !STUDIO_PROVIDER_EXECUTION_ENABLED) {

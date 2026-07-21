@@ -40,6 +40,28 @@ export type ProviderSubmitRequest = {
   payload: Record<string, unknown>;
 };
 
+export type ProviderCostEstimateStatus =
+  | "VERIFIED"
+  | "PARTIAL"
+  | "QUOTE_ONLY"
+  | "UNKNOWN";
+
+export type ProviderCostEstimateRequest = {
+  capability: StudioCapabilityId;
+  modelId?: string;
+  parameters: Record<string, unknown>;
+};
+
+export type ProviderCostEstimate = {
+  providerId: string;
+  capability: StudioCapabilityId;
+  modelId: string | null;
+  amount: number | null;
+  currency: string;
+  status: ProviderCostEstimateStatus;
+  source: string;
+};
+
 export type ProviderJobResult = {
   identity: ProviderJobIdentity;
   status: ProviderJobStatus;
@@ -67,6 +89,9 @@ export interface ProviderAdapter {
   status(identity: ProviderJobIdentity): Promise<ProviderJobResult>;
   cancel(identity: ProviderJobIdentity): Promise<ProviderJobResult>;
   normalizeError(error: unknown): NormalizedProviderError;
+  estimateCost(
+    request: ProviderCostEstimateRequest,
+  ): ProviderCostEstimate | Promise<ProviderCostEstimate>;
 }
 
 type ErrorCandidate = {

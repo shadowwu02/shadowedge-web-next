@@ -260,6 +260,17 @@ export function createHiggsfieldVideoEditAdapter({
     kind: "real",
     capabilities: ["video_edit"],
     normalizeError: normalizeHiggsfieldVideoEditError,
+    estimateCost(request) {
+      return {
+        providerId: "higgsfield",
+        capability: request.capability,
+        modelId: typeof request.modelId === "string" ? request.modelId : null,
+        amount: null,
+        currency: "higgsfield_credits",
+        status: "UNKNOWN",
+        source: "provider_cost_not_configured",
+      };
+    },
     async submit(request) {
       if (!isHiggsfieldVideoEditConfigReady(config)) {
         throw disabledError(
