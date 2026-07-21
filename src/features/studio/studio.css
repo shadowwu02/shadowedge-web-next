@@ -1982,6 +1982,34 @@
 .studio-agent-team-planner > span { color: #99f6e4; font-size: 8px; }
 .studio-agent-team-planner > span[role="alert"] { color: #ff9b9b; }
 
+.studio-agent-task-control {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(251, 191, 36, 0.22);
+  border-radius: 10px;
+  background: linear-gradient(145deg, rgba(120, 53, 15, 0.1), rgba(15, 23, 42, 0.55));
+  padding: 10px;
+}
+
+.studio-agent-task-control-heading,
+.studio-agent-task-control-heading > div { display: flex; align-items: center; gap: 6px; }
+.studio-agent-task-control-heading { justify-content: space-between; color: #94a3b8; font-size: 8px; text-transform: uppercase; }
+.studio-agent-task-control-heading strong { border-radius: 999px; background: rgba(251, 191, 36, 0.12); padding: 2px 5px; color: #fde68a; font-size: 7px; }
+.studio-agent-runtime-tasks { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.studio-agent-runtime-tasks li { display: grid; gap: 3px; border-left: 2px solid #64748b; border-radius: 8px; background: rgba(255, 255, 255, 0.035); padding: 8px; }
+.studio-agent-runtime-tasks li.is-waiting-human { border-left-color: #fbbf24; }
+.studio-agent-runtime-tasks li.is-approved { border-left-color: #38bdf8; }
+.studio-agent-runtime-tasks li.is-completed { border-left-color: #34d399; }
+.studio-agent-runtime-tasks li.is-failed { border-left-color: #fb7185; }
+.studio-agent-runtime-task-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.studio-agent-runtime-task-title strong { color: rgba(255, 255, 255, 0.88); font-size: 9px; }
+.studio-agent-runtime-task-title span { color: #fde68a; font-size: 7px; text-transform: uppercase; }
+.studio-agent-runtime-tasks small,
+.studio-agent-task-control > small { color: #94a3b8; font-size: 7px; line-height: 1.45; }
+.studio-agent-runtime-refresh { justify-self: start; border: 0; background: transparent; color: #fcd34d; font-size: 8px; cursor: pointer; }
+.studio-agent-task-control > span { color: #fde68a; font-size: 8px; }
+.studio-agent-task-control > span[role="alert"] { color: #ff9b9b; }
+
 .studio-creative-agent-progress {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

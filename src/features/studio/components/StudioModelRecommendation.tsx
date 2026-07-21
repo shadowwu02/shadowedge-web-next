@@ -79,6 +79,15 @@ import {
   createStudioAgentTeamPlan,
   getStudioProjectAgentTeamPlan,
 } from "@/lib/studio-agent-team-plan-api";
+import {
+  studioCheckpointTypeForRole,
+  type StudioAgentTaskRuntime,
+  type StudioAgentTaskRuntimeBundle,
+} from "@/features/studio/capabilities/studioAgentTaskRuntime";
+import {
+  getStudioProjectAgentTaskRuntime,
+  submitStudioAgentTaskCheckpoint,
+} from "@/lib/studio-agent-task-runtime-api";
 
 type Preference = StudioModelRecommendationInput["userPreference"]["priority"];
 
@@ -156,6 +165,9 @@ export function StudioModelRecommendation({
   const [agentTeamPlan, setAgentTeamPlan] = useState<StudioAgentTeamPlanBundle | null>(null);
   const [agentTeamPlanBusy, setAgentTeamPlanBusy] = useState(false);
   const [agentTeamPlanError, setAgentTeamPlanError] = useState("");
+  const [agentTaskRuntime, setAgentTaskRuntime] = useState<StudioAgentTaskRuntimeBundle | null>(null);
+  const [agentTaskRuntimeBusyId, setAgentTaskRuntimeBusyId] = useState<string | null>(null);
+  const [agentTaskRuntimeError, setAgentTaskRuntimeError] = useState("");
   const [error, setError] = useState("");
   const materializedExecutionNodes = useRef(new Set<string>());
   const referenceSignature = referenceMedia.map((item) => item.type).sort().join(",");
@@ -175,6 +187,10 @@ export function StudioModelRecommendation({
   const currentAgentTeamPlan = agentTeamPlan?.teamPlan?.intent.intentId === intentResolution?.intent.intentId
     ? agentTeamPlan
     : null;
+  const currentAgentTaskRuntime = agentTaskRuntime?.runtime?.teamPlanId === currentAgentTeamPlan?.teamPlan?.teamPlanId
+    ? agentTaskRuntime
+    : null;
+  const currentAgentTaskRuntimeSnapshot = currentAgentTaskRuntime?.runtime || null;
   const agentSession = agentState?.key === recommendationKey ? agentState.value : null;
   const capabilityPlan = planState?.key === recommendationKey ? planState.value : null;
   const executionPlan = executionPlanState?.sourcePlanId === capabilityPlan?.planId
@@ -222,6 +238,7 @@ export function StudioModelRecommendation({
         },
         capabilities: intentResolution.intent.capabilities,
       }));
+      setAgentTaskRuntime(null);
     } catch {
       setAgentTeamPlanError("Agent Team planning is temporarily unavailable.");
     } finally {
@@ -234,11 +251,46 @@ export function StudioModelRecommendation({
     setAgentTeamPlanBusy(true);
     setAgentTeamPlanError("");
     try {
-      setAgentTeamPlan(await approveStudioAgentTeamPlan(currentAgentTeamPlan.teamPlan.teamPlanId, projectId));
+      const approved = await approveStudioAgentTeamPlan(currentAgentTeamPlan.teamPlan.teamPlanId, projectId);
+      setAgentTeamPlan(approved);
+      try {
+        setAgentTaskRuntime(await getStudioProjectAgentTaskRuntime(projectId));
+        setAgentTaskRuntimeError("");
+      } catch {
+        setAgentTaskRuntimeError("The approved Team Plan is waiting for Runtime status refresh.");
+      }
     } catch {
       setAgentTeamPlanError("This Agent Team Plan could not be approved.");
     } finally {
       setAgentTeamPlanBusy(false);
+    }
+  };
+
+  const refreshAgentTaskRuntime = async () => {
+    if (!projectId) return;
+    setAgentTaskRuntimeError("");
+    try {
+      setAgentTaskRuntime(await getStudioProjectAgentTaskRuntime(projectId));
+    } catch {
+      setAgentTaskRuntimeError("Agent Task Runtime is temporarily unavailable.");
+    }
+  };
+
+  const approveAgentTaskCheckpoint = async (task: StudioAgentTaskRuntime) => {
+    if (!projectId || agentTaskRuntimeBusyId) return;
+    setAgentTaskRuntimeBusyId(task.runtimeTaskId);
+    setAgentTaskRuntimeError("");
+    try {
+      setAgentTaskRuntime(await submitStudioAgentTaskCheckpoint({
+        runtimeTaskId: task.runtimeTaskId,
+        projectId,
+        type: studioCheckpointTypeForRole(task.roleId),
+        decision: "APPROVE",
+      }));
+    } catch {
+      setAgentTaskRuntimeError("This Human Checkpoint could not be recorded.");
+    } finally {
+      setAgentTaskRuntimeBusyId(null);
     }
   };
 
@@ -253,6 +305,19 @@ export function StudioModelRecommendation({
         setAgentTeamError("");
       })
       .catch(() => { if (active) setAgentTeamError("Agent Team is temporarily unavailable."); });
+    return () => { active = false; };
+  }, [projectId]);
+
+  useEffect(() => {
+    let active = true;
+    if (!projectId) return () => { active = false; };
+    void getStudioProjectAgentTaskRuntime(projectId)
+      .then((bundle) => {
+        if (!active) return;
+        setAgentTaskRuntime(bundle);
+        setAgentTaskRuntimeError("");
+      })
+      .catch(() => { if (active) setAgentTaskRuntimeError("Agent Task Runtime is temporarily unavailable."); });
     return () => { active = false; };
   }, [projectId]);
 
@@ -762,6 +827,42 @@ export function StudioModelRecommendation({
               <small>Planning selects roles, task reasons, priority, and dependencies only. It never runs a Task, changes the project, calls a Provider, or charges Credits.</small>
               {agentTeamPlanError ? <span role="alert">{agentTeamPlanError}</span> : null}
             </section>
+            {currentAgentTeamPlan?.teamPlan?.status === "APPROVED" ? (
+              <section className="studio-agent-task-control" aria-label="Agent Task Control Center">
+                <div className="studio-agent-task-control-heading">
+                  <div><span>Agent Task Control Center</span><strong>Governed Runtime</strong></div>
+                  <span>{currentAgentTaskRuntimeSnapshot?.status.replaceAll("_", " ") || "SYNC PENDING"}</span>
+                </div>
+                {currentAgentTaskRuntimeSnapshot ? (
+                  <ol className="studio-agent-runtime-tasks">
+                    {currentAgentTaskRuntimeSnapshot.tasks.map((task) => {
+                      const role = currentAgentTeamPlan.selectedRoles.find((candidate) => candidate.roleId === task.roleId);
+                      const checkpoint = [...currentAgentTaskRuntimeSnapshot.checkpoints].reverse().find((candidate) => candidate.runtimeTaskId === task.runtimeTaskId);
+                      return (
+                        <li className={`is-${task.status.toLowerCase().replaceAll("_", "-")}`} key={task.runtimeTaskId}>
+                          <div className="studio-agent-runtime-task-title">
+                            <strong>{role?.name || task.roleId.replaceAll("_", " ")}</strong>
+                            <span>{task.status.replaceAll("_", " ")}</span>
+                          </div>
+                          <small>Approval: {task.approvalState.replaceAll("_", " ")}</small>
+                          <small>{task.dependencies.length ? `Waiting on ${task.dependencies.join(", ")}` : "No task dependency"}</small>
+                          <small>Checkpoint: {checkpoint ? `${checkpoint.type.replaceAll("_", " ")} / ${checkpoint.decision}` : "Not recorded"}</small>
+                          <small>Output: {task.outputRefs.length ? task.outputRefs.join(", ") : "No output yet"}</small>
+                          {task.status === "WAITING_HUMAN" ? (
+                            <button className="studio-node-action" disabled={Boolean(agentTaskRuntimeBusyId)} onClick={() => void approveAgentTaskCheckpoint(task)} type="button">
+                              {agentTaskRuntimeBusyId === task.runtimeTaskId ? "Saving Checkpoint..." : `Approve ${studioCheckpointTypeForRole(task.roleId).replaceAll("_", " ")}`}
+                            </button>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </ol>
+                ) : <span role="status">The approved Team Plan has no Runtime snapshot yet.</span>}
+                <button className="studio-agent-runtime-refresh" onClick={() => void refreshAgentTaskRuntime()} type="button">Refresh Task Status</button>
+                <small>Checkpoints govern approval metadata only. They never execute a Task, call a Provider, generate media, or charge Credits; Execution Confirm remains separate.</small>
+                {agentTaskRuntimeError ? <span role="alert">{agentTaskRuntimeError}</span> : null}
+              </section>
+            ) : null}
             <section className="studio-agent-team" aria-label="Agent Team">
               <div className="studio-agent-team-heading">
                 <div><span>Agent Team</span><strong>Human Review</strong></div>
