@@ -75,6 +75,8 @@ export type StudioModelRecommendationCandidate = {
 };
 
 export type StudioModelRecommendation = {
+  recommendationId?: string | null;
+  analyticsTracking?: "RECORDED" | "UNAVAILABLE";
   status: "RECOMMENDED" | "INSUFFICIENT_DATA";
   recommendedModelId: string | null;
   recommended: StudioModelRecommendationCandidate | null;
@@ -89,6 +91,16 @@ export type StudioModelRecommendation = {
     sampleSize: number;
   };
   selectionMode: "USER_CONFIRMATION_REQUIRED";
+};
+
+export type StudioModelRecommendationContext = {
+  recommendationId: string;
+  recommendedModelId: string;
+  selectedModelId: string | null;
+  accepted: boolean | null;
+  confidence: StudioModelRecommendationConfidence;
+  observedAt: string;
+  selectedAt: string | null;
 };
 
 export type StudioModelRecommendationInput = {
@@ -160,6 +172,7 @@ export function resolveStudioModelRecommendationCandidate(
 export function createStudioModelRecommendationPatch(
   inventory: StudioProviderModelInventory,
   candidate: StudioModelRecommendationCandidate,
+  modelRecommendation?: StudioModelRecommendationContext | null,
 ) {
   const { model, params } = resolveStudioModelRecommendationCandidate(inventory, candidate);
   return {
@@ -172,5 +185,23 @@ export function createStudioModelRecommendationPatch(
     resolution: params.resolution,
     mode: params.mode,
     generateAudio: params.audio,
+    ...(modelRecommendation ? { modelRecommendation } : {}),
+  };
+}
+
+export function createStudioModelRecommendationContext(
+  recommendation: StudioModelRecommendation,
+  selectedModelId: string | null = null,
+  selectedAt: string | null = null,
+): StudioModelRecommendationContext | null {
+  if (!recommendation.recommendationId || !recommendation.recommendedModelId) return null;
+  return {
+    recommendationId: recommendation.recommendationId,
+    recommendedModelId: recommendation.recommendedModelId,
+    selectedModelId,
+    accepted: selectedModelId ? selectedModelId === recommendation.recommendedModelId : null,
+    confidence: recommendation.confidence,
+    observedAt: recommendation.generatedAt,
+    selectedAt,
   };
 }

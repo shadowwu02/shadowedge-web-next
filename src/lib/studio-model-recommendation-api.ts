@@ -32,3 +32,21 @@ export async function getMyStudioModelPreferences() {
   }
   return profile;
 }
+
+export async function recordStudioModelRecommendationSelection(
+  recommendationId: string,
+  selectedModelId: string,
+) {
+  const envelope = await apiRequest<{
+    selection: {
+      recommendationId: string;
+      selectedModelId: string;
+      accepted: boolean;
+      selectedAt: string;
+    };
+  }>(`/api/models/recommend/events/${encodeURIComponent(recommendationId)}/selection`, {
+    method: "POST",
+    body: JSON.stringify({ selectedModelId }),
+  });
+  return envelope.data?.selection || null;
+}

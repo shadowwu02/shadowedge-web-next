@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 import {
+  createStudioModelRecommendationContext,
   createStudioModelRecommendationPatch,
   resolveStudioModelRecommendationCandidate,
 } from "../src/features/studio/capabilities/studioModelRecommendation.ts";
@@ -124,7 +125,47 @@ test("Studio UX requires an explicit recommendation request and apply action", (
 
 test("preference profile API remains user-scoped and read-only", () => {
   const api = fs.readFileSync("src/lib/studio-model-recommendation-api.ts", "utf8");
+  const profileFunction = api.slice(
+    api.indexOf("export async function getMyStudioModelPreferences"),
+    api.indexOf("export async function recordStudioModelRecommendationSelection"),
+  );
   assert.match(api, /getMyStudioModelPreferences/);
   assert.match(api, /\/api\/me\/model-preferences/);
-  assert.doesNotMatch(api.slice(api.indexOf("getMyStudioModelPreferences")), /method:\s*["']POST["']/);
+  assert.doesNotMatch(profileFunction, /method:\s*["']POST["']/);
+});
+
+test("recommendation context links explicit choice to the existing generation metadata", () => {
+  const recommendation = {
+    status: "RECOMMENDED",
+    recommendationId: "rec-1",
+    recommendedModelId: "wan2_7",
+    recommended: candidate(),
+    alternatives: [],
+    reason: "Verified",
+    confidence: "HIGH",
+    basedOn: [],
+    generatedAt: "2026-07-21T12:00:00.000Z",
+    selectionMode: "USER_CONFIRMATION_REQUIRED",
+  };
+  const context = createStudioModelRecommendationContext(
+    recommendation,
+    "wan2_7",
+    "2026-07-21T12:01:00.000Z",
+  );
+  const patch = createStudioModelRecommendationPatch(inventory(), candidate(), context);
+  assert.equal(patch.modelRecommendation.recommendationId, "rec-1");
+  assert.equal(patch.modelRecommendation.accepted, true);
+  assert.equal("prompt" in patch.modelRecommendation, false);
+});
+
+test("selection tracking is explicit and generation executor forwards only recommendation metadata", () => {
+  const api = fs.readFileSync("src/lib/studio-model-recommendation-api.ts", "utf8");
+  const component = fs.readFileSync("src/features/studio/components/StudioModelRecommendation.tsx", "utf8");
+  const executor = fs.readFileSync("src/features/studio/runtime/executors/videoGenerateExecutor.ts", "utf8");
+  assert.match(api, /recordStudioModelRecommendationSelection/);
+  assert.match(api, /\/api\/models\/recommend\/events\/\$\{encodeURIComponent\(recommendationId\)\}\/selection/);
+  assert.match(component, /onObserved\(context\)/);
+  assert.match(component, /recordStudioModelRecommendationSelection/);
+  assert.match(executor, /modelRecommendation/);
+  assert.doesNotMatch(executor, /recommendation.*prompt|prompt.*recommendation/i);
 });

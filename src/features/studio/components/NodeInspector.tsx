@@ -29,6 +29,7 @@ import {
 } from "@/lib/image/imageModelRules";
 import type { ImageModel } from "@/types/image";
 import { StudioModelRecommendation } from "@/features/studio/components/StudioModelRecommendation";
+import { recordStudioModelRecommendationSelection } from "@/lib/studio-model-recommendation-api";
 
 function InspectorField({
   children,
@@ -822,6 +823,15 @@ export function NodeInspector() {
                     mode: model.metadata.defaultMode,
                     audio: false,
                   });
+                  const selectedAt = new Date().toISOString();
+                  const modelRecommendation = data.modelRecommendation
+                    ? {
+                        ...data.modelRecommendation,
+                        selectedModelId: model.id,
+                        accepted: model.id === data.modelRecommendation.recommendedModelId,
+                        selectedAt,
+                      }
+                    : undefined;
                   update({
                     providerId: model.providerId,
                     modelId: model.id,
@@ -832,7 +842,14 @@ export function NodeInspector() {
                     resolution: params.resolution,
                     mode: params.mode,
                     generateAudio: params.audio,
+                    ...(modelRecommendation ? { modelRecommendation } : {}),
                   });
+                  if (modelRecommendation) {
+                    void recordStudioModelRecommendationSelection(
+                      modelRecommendation.recommendationId,
+                      model.id,
+                    ).catch(() => undefined);
+                  }
                 }}
               >
                 {!videoModels.length ? (
@@ -873,6 +890,7 @@ export function NodeInspector() {
                 duration={data.duration}
                 inventory={videoInventory}
                 onApply={update}
+                onObserved={(modelRecommendation) => update({ modelRecommendation })}
                 prompt={recommendationPrompt}
                 qualityGoal={data.quality || data.resolution}
                 ratio={data.ratio}

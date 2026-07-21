@@ -2,13 +2,18 @@
 
 import { useState } from "react";
 import {
+  createStudioModelRecommendationContext,
   createStudioModelRecommendationPatch,
   type StudioModelRecommendation,
   type StudioModelRecommendationCandidate,
+  type StudioModelRecommendationContext,
   type StudioModelRecommendationInput,
 } from "@/features/studio/capabilities/studioModelRecommendation";
 import type { StudioProviderModelInventory } from "@/features/studio/capabilities/studioVideoModelResolver";
-import { getStudioModelRecommendation } from "@/lib/studio-model-recommendation-api";
+import {
+  getStudioModelRecommendation,
+  recordStudioModelRecommendationSelection,
+} from "@/lib/studio-model-recommendation-api";
 
 type Preference = StudioModelRecommendationInput["userPreference"]["priority"];
 
@@ -20,6 +25,7 @@ export function StudioModelRecommendation({
   qualityGoal,
   referenceMedia,
   onApply,
+  onObserved,
 }: {
   inventory: StudioProviderModelInventory;
   prompt: string;
@@ -28,6 +34,7 @@ export function StudioModelRecommendation({
   qualityGoal: string;
   referenceMedia: StudioModelRecommendationInput["referenceMedia"];
   onApply: (patch: Record<string, unknown>) => void;
+  onObserved: (context: StudioModelRecommendationContext) => void;
 }) {
   const [preference, setPreference] = useState<Preference>("balanced");
   const [recommendationState, setRecommendationState] = useState<{
@@ -62,6 +69,8 @@ export function StudioModelRecommendation({
         userPreference: { priority: preference },
       });
       setRecommendationState({ key: recommendationKey, value });
+      const context = createStudioModelRecommendationContext(value);
+      if (context) onObserved(context);
     } catch {
       setRecommendationState(null);
       setError("Smart model recommendation is temporarily unavailable.");
@@ -72,7 +81,17 @@ export function StudioModelRecommendation({
 
   const apply = (candidate: StudioModelRecommendationCandidate) => {
     try {
-      onApply(createStudioModelRecommendationPatch(inventory, candidate));
+      const selectedAt = new Date().toISOString();
+      const context = recommendation
+        ? createStudioModelRecommendationContext(recommendation, candidate.modelId, selectedAt)
+        : null;
+      onApply(createStudioModelRecommendationPatch(inventory, candidate, context));
+      if (context) {
+        void recordStudioModelRecommendationSelection(
+          context.recommendationId,
+          candidate.modelId,
+        ).catch(() => undefined);
+      }
       setError("");
     } catch {
       setError("This recommendation is stale. Refresh the model inventory and try again.");

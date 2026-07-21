@@ -181,6 +181,8 @@ export type VideoGenerateNodeData = StudioNodeBase & {
   mode?: string;
   /** Provider cost rules treat audio generation as an explicit parameter. */
   generateAudio?: boolean;
+  /** Advisory recommendation analytics metadata; never authorizes execution. */
+  modelRecommendation?: import("@/features/studio/capabilities/studioModelRecommendation").StudioModelRecommendationContext;
   references: string[];
   characterRefs: string[];
   promptInput: string;

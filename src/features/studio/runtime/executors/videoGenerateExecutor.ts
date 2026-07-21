@@ -520,6 +520,9 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
             studioNodeId: context.nodeId,
             studioProviderId: provider.providerId,
             studioModelId: inventoryModel.id,
+            ...(asRecord(context.config.modelRecommendation).recommendationId
+              ? { modelRecommendation: asRecord(context.config.modelRecommendation) }
+              : {}),
           },
         });
         const submitted = await createVideoTask(request);
