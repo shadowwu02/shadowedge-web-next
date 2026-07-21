@@ -6,6 +6,68 @@ export type StudioExecutionPlanStatus =
   | "COMPLETED"
   | "FAILED";
 
+export type StudioOrchestrationNodeStatus =
+  | "PENDING"
+  | "READY"
+  | "RUNNING"
+  | "COMPLETED"
+  | "FAILED"
+  | "BLOCKED";
+
+export type StudioOrchestrationNode = {
+  executionNodeId: string;
+  executionPlanId: string;
+  capability: string;
+  status: StudioOrchestrationNodeStatus;
+  dependencies: string[];
+  inputRefs: string[];
+  outputRefs: string[];
+  blockedBy: string[];
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  failure: { code: string; retryAllowed: false } | null;
+};
+
+export type StudioExecutionQueueItem = {
+  nodeId: string;
+  priority: number;
+  dependenciesResolved: boolean;
+  status: StudioOrchestrationNodeStatus;
+};
+
+export type StudioExecutionOrchestration = {
+  status: "CONFIRMED" | "EXECUTING" | "COMPLETED" | "FAILED";
+  nodes: StudioOrchestrationNode[];
+  queue: StudioExecutionQueueItem[];
+  nodeOrder: string[];
+  automaticExecution: false;
+  autoRetry: false;
+  providerCalled: false;
+  creditsDeducted: false;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  updatedAt: string;
+};
+
+export type StudioExecutionStatus = {
+  executionPlanId: string;
+  sourcePlanId: string;
+  planStatus: StudioExecutionPlanStatus;
+  orchestrationStatus: StudioExecutionOrchestration["status"];
+  nodes: StudioOrchestrationNode[];
+  queue: StudioExecutionQueueItem[];
+  automaticExecution: false;
+  autoRetry: false;
+  providerCalled: false;
+  creditsDeducted: false;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  updatedAt: string;
+};
+
 export type StudioExecutionGate = {
   passed: boolean;
   blocker: string | null;
@@ -64,8 +126,10 @@ export type StudioWorkflowExecutionPlan = {
     mode: "EXPLICIT_USER_ACTION_REQUIRED";
     candidates: StudioExecutionNode["generationPlanCandidate"][];
   };
+  orchestration?: StudioExecutionOrchestration;
   executionBoundary: {
     automaticGeneration: false;
+    orchestrationQueueCreated?: boolean;
     generationPlanCreated: false;
     queueEntered: false;
     providerCalled: false;
@@ -87,3 +151,11 @@ export const STUDIO_EXECUTION_GATE_LABELS = {
   verifiedScope: "Verified scope",
   cost: "Cost gate",
 } as const;
+
+export function getStudioExecutionNodeSymbol(status: StudioOrchestrationNodeStatus) {
+  if (status === "COMPLETED") return "✓";
+  if (status === "RUNNING") return "●";
+  if (status === "FAILED") return "×";
+  if (status === "BLOCKED") return "!";
+  return "○";
+}

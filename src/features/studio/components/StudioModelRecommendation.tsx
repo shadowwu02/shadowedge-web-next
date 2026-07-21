@@ -25,12 +25,15 @@ import {
   createStudioCapabilityExecutionPlan,
 } from "@/lib/studio-capability-plan-api";
 import {
+  getStudioExecutionNodeSymbol,
   STUDIO_EXECUTION_GATE_LABELS,
+  type StudioExecutionStatus,
   type StudioWorkflowExecutionPlan,
 } from "@/features/studio/capabilities/studioWorkflowExecutionPlan";
 import {
   confirmStudioWorkflowExecutionPlan,
   createStudioWorkflowExecutionPreview,
+  getStudioWorkflowExecutionStatus,
 } from "@/lib/studio-workflow-execution-api";
 
 type Preference = StudioModelRecommendationInput["userPreference"]["priority"];
@@ -62,6 +65,7 @@ export function StudioModelRecommendation({
   const [intentState, setIntentState] = useState<{ key: string; value: StudioCapabilityIntentResolution } | null>(null);
   const [planState, setPlanState] = useState<{ key: string; value: StudioCapabilityExecutionPlan } | null>(null);
   const [executionPlanState, setExecutionPlanState] = useState<StudioWorkflowExecutionPlan | null>(null);
+  const [executionStatus, setExecutionStatus] = useState<StudioExecutionStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [planning, setPlanning] = useState(false);
   const [confirmingPlan, setConfirmingPlan] = useState(false);
@@ -119,6 +123,7 @@ export function StudioModelRecommendation({
     try {
       setPlanState({ key: recommendationKey, value: await createStudioCapabilityExecutionPlan(planningInput) });
       setExecutionPlanState(null);
+      setExecutionStatus(null);
     } catch {
       setPlanState(null);
       setError("Creative workflow planning is temporarily unavailable.");
@@ -134,6 +139,7 @@ export function StudioModelRecommendation({
     try {
       setPlanState({ key: recommendationKey, value: await confirmStudioCapabilityExecutionPlan(capabilityPlan.planId) });
       setExecutionPlanState(null);
+      setExecutionStatus(null);
     } catch {
       setError("This workflow cannot be confirmed until every readiness and cost blocker is cleared.");
     } finally {
@@ -147,6 +153,7 @@ export function StudioModelRecommendation({
     setError("");
     try {
       setExecutionPlanState(await createStudioWorkflowExecutionPreview(capabilityPlan.planId));
+      setExecutionStatus(null);
     } catch {
       setExecutionPlanState(null);
       setError("Execution Preview is unavailable. Readiness, scope, or cost may have changed.");
@@ -160,11 +167,27 @@ export function StudioModelRecommendation({
     setConfirmingExecution(true);
     setError("");
     try {
-      setExecutionPlanState(await confirmStudioWorkflowExecutionPlan(executionPlan.executionPlanId));
+      const confirmed = await confirmStudioWorkflowExecutionPlan(executionPlan.executionPlanId);
+      setExecutionPlanState(confirmed);
+      try {
+        setExecutionStatus(await getStudioWorkflowExecutionStatus(confirmed.executionPlanId));
+      } catch {
+        setError("Execution Plan is confirmed, but its read-only queue status is temporarily unavailable.");
+      }
     } catch {
       setError("Execution confirmation is blocked by the current readiness, verified scope, or cost gate.");
     } finally {
       setConfirmingExecution(false);
+    }
+  };
+
+  const refreshExecutionStatus = async () => {
+    if (!executionPlan || executionPlan.status !== "CONFIRMED") return;
+    setError("");
+    try {
+      setExecutionStatus(await getStudioWorkflowExecutionStatus(executionPlan.executionPlanId));
+    } catch {
+      setError("Execution queue status is temporarily unavailable.");
     }
   };
 
@@ -287,7 +310,10 @@ export function StudioModelRecommendation({
                 {executionPlan.risks.length ? <p className="studio-execution-risks">Risks: {executionPlan.risks.join(", ")}</p> : null}
                 {executionPlan.blockers.length ? <p className="studio-execution-blockers">Blocked: {executionPlan.blockers.join(", ")}</p> : null}
                 {executionPlan.status === "CONFIRMED" ? (
-                  <p className="studio-execution-confirmed" role="status">Execution handoff confirmed. Creating the existing Generation Plan remains a separate explicit user action.</p>
+                  <div className="studio-execution-confirmed">
+                    <span role="status">Execution handoff confirmed. Creating the existing Generation Plan remains a separate explicit user action.</span>
+                    <button className="studio-node-action" onClick={() => void refreshExecutionStatus()} type="button">Refresh Status</button>
+                  </div>
                 ) : (
                   <button
                     className="studio-node-action"
@@ -298,7 +324,28 @@ export function StudioModelRecommendation({
                     {confirmingExecution ? "Rechecking gates..." : "Confirm Execution Plan"}
                   </button>
                 )}
-                <span className="studio-creative-plan-boundary">Confirmation only prepares a handoff candidate. It does not create a Generation Plan, Job, Queue entry, Usage record, or Credits charge.</span>
+                {executionStatus ? (
+                  <section className="studio-execution-queue" aria-label="Execution Queue">
+                    <div><strong>Execution Queue</strong><span>{executionStatus.planStatus}</span></div>
+                    <ol>
+                      {executionStatus.queue.map((item) => {
+                        const node = executionStatus.nodes.find((candidate) => candidate.executionNodeId === item.nodeId);
+                        return (
+                          <li className={`is-${item.status.toLowerCase()}`} key={item.nodeId}>
+                            <span aria-hidden="true">{getStudioExecutionNodeSymbol(item.status)}</span>
+                            <div>
+                              <strong>{node ? formatStudioCapabilityLabel(node.capability) : item.nodeId}</strong>
+                              <small>{item.status} · Priority {item.priority}</small>
+                              <small>{item.dependenciesResolved ? "Dependencies resolved" : `Waiting for ${node?.dependencies.join(", ") || "dependency"}`}</small>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                    <span>Read-only orchestration. Nodes never run automatically and failed nodes are never retried.</span>
+                  </section>
+                ) : null}
+                <span className="studio-creative-plan-boundary">Confirmation creates only the read-only orchestration queue. It does not create a Generation Plan, Job, Generation Queue entry, Usage record, or Credits charge.</span>
               </section>
             ) : null}
           </section>
