@@ -24,6 +24,14 @@ import {
   confirmStudioCapabilityExecutionPlan,
   createStudioCapabilityExecutionPlan,
 } from "@/lib/studio-capability-plan-api";
+import {
+  STUDIO_EXECUTION_GATE_LABELS,
+  type StudioWorkflowExecutionPlan,
+} from "@/features/studio/capabilities/studioWorkflowExecutionPlan";
+import {
+  confirmStudioWorkflowExecutionPlan,
+  createStudioWorkflowExecutionPreview,
+} from "@/lib/studio-workflow-execution-api";
 
 type Preference = StudioModelRecommendationInput["userPreference"]["priority"];
 
@@ -53,9 +61,12 @@ export function StudioModelRecommendation({
   } | null>(null);
   const [intentState, setIntentState] = useState<{ key: string; value: StudioCapabilityIntentResolution } | null>(null);
   const [planState, setPlanState] = useState<{ key: string; value: StudioCapabilityExecutionPlan } | null>(null);
+  const [executionPlanState, setExecutionPlanState] = useState<StudioWorkflowExecutionPlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [planning, setPlanning] = useState(false);
   const [confirmingPlan, setConfirmingPlan] = useState(false);
+  const [buildingExecutionPreview, setBuildingExecutionPreview] = useState(false);
+  const [confirmingExecution, setConfirmingExecution] = useState(false);
   const [error, setError] = useState("");
   const referenceSignature = referenceMedia.map((item) => item.type).sort().join(",");
   const recommendationKey = JSON.stringify({
@@ -72,6 +83,9 @@ export function StudioModelRecommendation({
     : null;
   const intentResolution = intentState?.key === recommendationKey ? intentState.value : null;
   const capabilityPlan = planState?.key === recommendationKey ? planState.value : null;
+  const executionPlan = executionPlanState?.sourcePlanId === capabilityPlan?.planId
+    ? executionPlanState
+    : null;
 
   const planningInput = {
     prompt,
@@ -104,6 +118,7 @@ export function StudioModelRecommendation({
     setError("");
     try {
       setPlanState({ key: recommendationKey, value: await createStudioCapabilityExecutionPlan(planningInput) });
+      setExecutionPlanState(null);
     } catch {
       setPlanState(null);
       setError("Creative workflow planning is temporarily unavailable.");
@@ -118,10 +133,38 @@ export function StudioModelRecommendation({
     setError("");
     try {
       setPlanState({ key: recommendationKey, value: await confirmStudioCapabilityExecutionPlan(capabilityPlan.planId) });
+      setExecutionPlanState(null);
     } catch {
       setError("This workflow cannot be confirmed until every readiness and cost blocker is cleared.");
     } finally {
       setConfirmingPlan(false);
+    }
+  };
+
+  const buildExecutionPreview = async () => {
+    if (!capabilityPlan || capabilityPlan.status !== "CONFIRMED") return;
+    setBuildingExecutionPreview(true);
+    setError("");
+    try {
+      setExecutionPlanState(await createStudioWorkflowExecutionPreview(capabilityPlan.planId));
+    } catch {
+      setExecutionPlanState(null);
+      setError("Execution Preview is unavailable. Readiness, scope, or cost may have changed.");
+    } finally {
+      setBuildingExecutionPreview(false);
+    }
+  };
+
+  const confirmExecution = async () => {
+    if (!executionPlan || executionPlan.status !== "READY") return;
+    setConfirmingExecution(true);
+    setError("");
+    try {
+      setExecutionPlanState(await confirmStudioWorkflowExecutionPlan(executionPlan.executionPlanId));
+    } catch {
+      setError("Execution confirmation is blocked by the current readiness, verified scope, or cost gate.");
+    } finally {
+      setConfirmingExecution(false);
     }
   };
 
@@ -196,7 +239,17 @@ export function StudioModelRecommendation({
               ))}
             </ol>
             {capabilityPlan.status === "CONFIRMED" ? (
-              <p className="studio-creative-plan-confirmed" role="status">Confirmed. Use the existing Generation Plan controls to continue.</p>
+              <div className="studio-creative-plan-confirmed">
+                <span role="status">Workflow confirmed. Build an Execution Preview before using the existing Generation Plan controls.</span>
+                <button
+                  className="studio-node-action"
+                  disabled={buildingExecutionPreview}
+                  onClick={() => void buildExecutionPreview()}
+                  type="button"
+                >
+                  {buildingExecutionPreview ? "Checking execution gates..." : executionPlan ? "Refresh Execution Preview" : "Build Execution Preview"}
+                </button>
+              </div>
             ) : (
               <button
                 className="studio-node-action"
@@ -208,6 +261,46 @@ export function StudioModelRecommendation({
               </button>
             )}
             <span className="studio-creative-plan-boundary">Plan confirmation never creates a Job, enters Queue, calls a Provider, or deducts Credits.</span>
+            {executionPlan ? (
+              <section className="studio-execution-preview" aria-label="Execution Preview">
+                <div className="studio-execution-preview-heading">
+                  <div><span>Execution Preview</span><strong>{executionPlan.status}</strong></div>
+                  <span>{executionPlan.nodes.length} node{executionPlan.nodes.length === 1 ? "" : "s"} · {executionPlan.estimatedCredits === null ? "Cost unavailable" : `${executionPlan.estimatedCredits} estimated credits`}</span>
+                </div>
+                <div className="studio-execution-preview-models">
+                  {executionPlan.models.map((model) => (
+                    <span key={`${model.providerId}:${model.modelId}`}>{model.providerId} / {model.modelId} / {model.verifiedScope || "No verified scope"}</span>
+                  ))}
+                </div>
+                {executionPlan.nodes.map((node) => (
+                  <div className={node.status === "BLOCKED" ? "studio-execution-node is-blocked" : "studio-execution-node"} key={node.executionNodeId}>
+                    <div><strong>{formatStudioCapabilityLabel(node.capability)}</strong><span>{node.candidateType.replaceAll("_", " ")}</span></div>
+                    <div className="studio-execution-gates">
+                      {Object.entries(node.gates).map(([name, value]) => (
+                        <span className={value.passed ? "is-passed" : "is-blocked"} key={name}>
+                          {STUDIO_EXECUTION_GATE_LABELS[name as keyof typeof STUDIO_EXECUTION_GATE_LABELS]}: {value.passed ? "Pass" : value.blocker}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {executionPlan.risks.length ? <p className="studio-execution-risks">Risks: {executionPlan.risks.join(", ")}</p> : null}
+                {executionPlan.blockers.length ? <p className="studio-execution-blockers">Blocked: {executionPlan.blockers.join(", ")}</p> : null}
+                {executionPlan.status === "CONFIRMED" ? (
+                  <p className="studio-execution-confirmed" role="status">Execution handoff confirmed. Creating the existing Generation Plan remains a separate explicit user action.</p>
+                ) : (
+                  <button
+                    className="studio-node-action"
+                    disabled={executionPlan.status !== "READY" || confirmingExecution}
+                    onClick={() => void confirmExecution()}
+                    type="button"
+                  >
+                    {confirmingExecution ? "Rechecking gates..." : "Confirm Execution Plan"}
+                  </button>
+                )}
+                <span className="studio-creative-plan-boundary">Confirmation only prepares a handoff candidate. It does not create a Generation Plan, Job, Queue entry, Usage record, or Credits charge.</span>
+              </section>
+            ) : null}
           </section>
         ) : null}
       </div>
