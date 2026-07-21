@@ -1928,6 +1928,98 @@
   color: #ff9b9b;
 }
 
+.studio-creative-agent-feedback {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 9px;
+}
+
+.studio-creative-agent-feedback > div,
+.studio-creative-agent-feedback label,
+.studio-creative-agent-feedback-thanks {
+  display: grid;
+  gap: 4px;
+}
+
+.studio-creative-agent-feedback > div > span,
+.studio-creative-agent-feedback label > span,
+.studio-creative-agent-feedback small,
+.studio-creative-agent-feedback legend {
+  color: var(--studio-muted, #8f96a3);
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.studio-creative-agent-feedback fieldset {
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.studio-creative-agent-rating {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.studio-creative-agent-rating label {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.studio-creative-agent-rating input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.studio-creative-agent-rating span {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px;
+  padding: 5px 0;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+  cursor: pointer;
+}
+
+.studio-creative-agent-rating input:checked + span {
+  border-color: color-mix(in srgb, var(--studio-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--studio-accent) 12%, transparent);
+  color: var(--studio-accent);
+}
+
+.studio-creative-agent-feedback select,
+.studio-creative-agent-feedback textarea {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px;
+  background: rgba(3, 6, 11, 0.72);
+  padding: 7px;
+  color: rgba(255, 255, 255, 0.86);
+  font: inherit;
+}
+
+.studio-creative-agent-feedback textarea {
+  min-height: 58px;
+  resize: vertical;
+}
+
+.studio-creative-agent-feedback-thanks {
+  border-radius: 8px;
+  background: rgba(126, 231, 184, 0.08);
+  padding: 8px;
+  color: var(--studio-accent);
+}
+
+.studio-creative-agent-feedback-error {
+  color: #ff9b9b;
+  font-size: 8px;
+}
+
 .studio-creative-agent-failure {
   display: grid;
   gap: 3px;

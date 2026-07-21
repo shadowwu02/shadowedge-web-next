@@ -32,6 +32,35 @@ export type StudioCreativeAgentSessionBundle = {
   executionPlan: StudioWorkflowExecutionPlan | null;
 };
 
+export type StudioCreativeAgentFeedbackType =
+  | "PLAN_GOOD"
+  | "PLAN_TOO_COMPLEX"
+  | "WRONG_MODEL"
+  | "WRONG_STYLE"
+  | "NEEDS_EDIT"
+  | "FAILED_EXPECTATION";
+
+export type StudioCreativeAgentFeedback = {
+  sessionId: string;
+  planId: string;
+  feedbackType: StudioCreativeAgentFeedbackType;
+  rating: number;
+  comment: string;
+  createdAt: string;
+};
+
+export const STUDIO_CREATIVE_AGENT_FEEDBACK_OPTIONS: ReadonlyArray<{
+  value: StudioCreativeAgentFeedbackType;
+  label: string;
+}> = [
+  { value: "PLAN_GOOD", label: "The plan was helpful" },
+  { value: "PLAN_TOO_COMPLEX", label: "The plan was too complex" },
+  { value: "WRONG_MODEL", label: "The model choice was wrong" },
+  { value: "WRONG_STYLE", label: "The style did not match" },
+  { value: "NEEDS_EDIT", label: "The result needs editing" },
+  { value: "FAILED_EXPECTATION", label: "The result missed expectations" },
+];
+
 export const STUDIO_CREATIVE_AGENT_PROGRESS = [
   { key: "planning", label: "Planning" },
   { key: "preparing", label: "Preparing" },

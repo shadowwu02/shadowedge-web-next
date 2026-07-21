@@ -22,13 +22,17 @@ import {
 } from "@/features/studio/capabilities/studioCapabilityExecutionPlan";
 import {
   STUDIO_CREATIVE_AGENT_PROGRESS,
+  STUDIO_CREATIVE_AGENT_FEEDBACK_OPTIONS,
   studioCreativeAgentProgressState,
+  type StudioCreativeAgentFeedback,
+  type StudioCreativeAgentFeedbackType,
   type StudioCreativeAgentSession,
 } from "@/features/studio/capabilities/studioCreativeAgentSession";
 import {
   confirmStudioCreativeAgentSession,
   createStudioCreativeAgentSession,
   getStudioCreativeAgentSession,
+  submitStudioCreativeAgentFeedback,
 } from "@/lib/studio-creative-agent-api";
 import {
   getStudioExecutionNodeSymbol,
@@ -84,6 +88,12 @@ export function StudioModelRecommendation({
   const [confirmingPlan, setConfirmingPlan] = useState(false);
   const [confirmingExecution, setConfirmingExecution] = useState(false);
   const [executingNodeId, setExecutingNodeId] = useState<string | null>(null);
+  const [feedbackType, setFeedbackType] = useState<StudioCreativeAgentFeedbackType>("PLAN_GOOD");
+  const [feedbackRating, setFeedbackRating] = useState(5);
+  const [feedbackComment, setFeedbackComment] = useState("");
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [feedbackState, setFeedbackState] = useState<{ sessionId: string; value: StudioCreativeAgentFeedback } | null>(null);
+  const [feedbackError, setFeedbackError] = useState("");
   const [error, setError] = useState("");
   const materializedExecutionNodes = useRef(new Set<string>());
   const referenceSignature = referenceMedia.map((item) => item.type).sort().join(",");
@@ -155,6 +165,11 @@ export function StudioModelRecommendation({
   const startCreativeAgent = async () => {
     setPlanning(true);
     setError("");
+    setFeedbackState(null);
+    setFeedbackType("PLAN_GOOD");
+    setFeedbackRating(5);
+    setFeedbackComment("");
+    setFeedbackError("");
     try {
       const bundle = await createStudioCreativeAgentSession(planningInput);
       setAgentState({ key: recommendationKey, value: bundle.session });
@@ -234,6 +249,24 @@ export function StudioModelRecommendation({
       setError("Controlled node execution is unavailable. The Runtime bridge may be disabled or a gate may have changed.");
     } finally {
       setExecutingNodeId(null);
+    }
+  };
+
+  const submitAgentFeedback = async () => {
+    if (!agentSession || !["COMPLETED", "FAILED"].includes(agentSession.status) || submittingFeedback) return;
+    setSubmittingFeedback(true);
+    setFeedbackError("");
+    try {
+      const value = await submitStudioCreativeAgentFeedback(agentSession.sessionId, {
+        feedbackType,
+        rating: feedbackRating,
+        comment: feedbackComment,
+      });
+      setFeedbackState({ sessionId: agentSession.sessionId, value });
+    } catch {
+      setFeedbackError("Feedback could not be recorded. Your result and execution state were not changed.");
+    } finally {
+      setSubmittingFeedback(false);
     }
   };
 
@@ -322,6 +355,37 @@ export function StudioModelRecommendation({
                 <span>Reason: {agentSession.error?.message || executionFailure?.code || "No safe workflow is currently available."}</span>
                 <span>No retry was started.</span>
               </div>
+            ) : null}
+            {agentSession.creativePlanId && ["COMPLETED", "FAILED"].includes(agentSession.status) ? (
+              <section className="studio-creative-agent-feedback" aria-label="Creative Agent feedback">
+                {feedbackState?.sessionId === agentSession.sessionId ? (
+                  <div className="studio-creative-agent-feedback-thanks" role="status">
+                    <strong>Thanks for your feedback.</strong>
+                    <span>{feedbackState.value.rating}/5 · {feedbackState.value.feedbackType.replaceAll("_", " ")}</span>
+                    <span>This is an optimization signal only. Nothing was regenerated or changed.</span>
+                  </div>
+                ) : (
+                  <>
+                    <div><strong>Was this plan helpful?</strong><span>Your feedback improves future planning signals.</span></div>
+                    <fieldset>
+                      <legend>Plan rating</legend>
+                      <div className="studio-creative-agent-rating">
+                        {[1, 2, 3, 4, 5].map((rating) => (
+                          <label key={rating}>
+                            <input checked={feedbackRating === rating} name={`agent-rating-${agentSession.sessionId}`} onChange={() => setFeedbackRating(rating)} type="radio" value={rating} />
+                            <span>{rating}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                    <label><span>What should improve?</span><select aria-label="Creative Agent feedback type" onChange={(event) => setFeedbackType(event.target.value as StudioCreativeAgentFeedbackType)} value={feedbackType}>{STUDIO_CREATIVE_AGENT_FEEDBACK_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+                    <label><span>Comment (optional)</span><textarea maxLength={1000} onChange={(event) => setFeedbackComment(event.target.value)} placeholder="Tell us what worked or what should change." value={feedbackComment} /></label>
+                    <button className="studio-node-action" disabled={submittingFeedback} onClick={() => void submitAgentFeedback()} type="button">{submittingFeedback ? "Saving feedback..." : "Submit feedback"}</button>
+                    {feedbackError ? <span className="studio-creative-agent-feedback-error" role="alert">{feedbackError}</span> : null}
+                    <small>Feedback never retries, regenerates, switches models, or charges Credits.</small>
+                  </>
+                )}
+              </section>
             ) : null}
           </section>
         ) : null}
