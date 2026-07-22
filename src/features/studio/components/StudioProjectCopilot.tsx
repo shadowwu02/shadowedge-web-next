@@ -19,6 +19,7 @@ import { StudioProjectInsights } from "@/features/studio/components/StudioProjec
 import { StudioProjectStrategyPanel } from "@/features/studio/components/StudioProjectStrategyPanel";
 import { StudioProjectStrategyHistory } from "@/features/studio/components/StudioProjectStrategyHistory";
 import { StudioProjectEvolutionTimeline } from "@/features/studio/components/StudioProjectEvolutionTimeline";
+import { StudioFuturePlanningPanel } from "@/features/studio/components/StudioFuturePlanningPanel";
 
 export function StudioProjectCopilot({ projectId }: { projectId: string }) {
   const [state, setState] = useState<StudioProjectCopilotState | null>(null);
@@ -105,6 +106,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
             <span>{currentState.context.workflowTemplateCount} workflows</span>
             <span>{currentState.context.insightCount} insights</span>
             <span>{currentState.context.strategyCount} strategies</span>
+            <span>{currentState.context.futurePlanCount} future plans</span>
             <span>{currentState.taskStatus.waitingHuman} waiting review</span>
             <span>{currentState.taskStatus.completed}/{currentState.taskStatus.total} tasks done</span>
           </div>
@@ -113,6 +115,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
           <StudioProjectStrategyPanel projectId={projectId} />
           <StudioProjectStrategyHistory projectId={projectId} />
           <StudioProjectEvolutionTimeline projectId={projectId} />
+          <StudioFuturePlanningPanel projectId={projectId} />
           <StudioCopilotChat projectId={projectId} />
           {currentState.suggestions.length ? (
             <div className="studio-project-copilot-suggestions" aria-label="Creative Copilot guided actions">

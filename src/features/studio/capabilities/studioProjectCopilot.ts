@@ -5,6 +5,7 @@ export const STUDIO_COPILOT_SUGGESTION_TYPES = [
   "COST_WARNING",
   "QUALITY_WARNING",
   "STRATEGY_PROPOSAL",
+  "FUTURE_PLAN_PROPOSAL",
 ] as const;
 
 export type StudioCopilotSuggestionType = typeof STUDIO_COPILOT_SUGGESTION_TYPES[number];
@@ -17,6 +18,7 @@ export const STUDIO_COPILOT_ACTION_TYPES = [
   "CHECK_COST",
   "CHECK_QUALITY",
   "REVIEW_STRATEGY",
+  "REVIEW_FUTURE_PLAN",
 ] as const;
 
 export const STUDIO_COPILOT_DRAFT_TYPES = [
@@ -25,6 +27,7 @@ export const STUDIO_COPILOT_DRAFT_TYPES = [
   "WORKFLOW_DRAFT",
   "PROMPT_DRAFT",
   "STRATEGY_DRAFT",
+  "FUTURE_PLAN_DRAFT",
 ] as const;
 
 export type StudioCopilotActionType = typeof STUDIO_COPILOT_ACTION_TYPES[number];
@@ -86,7 +89,7 @@ export type StudioProjectCopilotState = Readonly<{
     completed: number;
     failed: number;
   }>;
-  context: Readonly<{ memoryCount: number; workflowTemplateCount: number; insightCount: number; strategyCount: number }>;
+  context: Readonly<{ memoryCount: number; workflowTemplateCount: number; insightCount: number; strategyCount: number; futurePlanCount: number }>;
   updatedAt: string;
   privacy: "CURRENT_USER_CURRENT_PROJECT_ONLY";
   actionBoundary: "PREVIEW_CONFIRM_CREATES_DRAFT_ONLY_NO_EXECUTION";
@@ -129,6 +132,7 @@ export function studioCopilotSuggestionLabel(type: StudioCopilotSuggestionType) 
     COST_WARNING: "Cost warning",
     QUALITY_WARNING: "Quality warning",
     STRATEGY_PROPOSAL: "Strategy proposal",
+    FUTURE_PLAN_PROPOSAL: "Future plan proposal",
   } as const)[type];
 }
 
@@ -140,6 +144,7 @@ export function studioCopilotActionLabel(type: StudioCopilotActionType) {
     CHECK_COST: "Check cost",
     CHECK_QUALITY: "Check quality",
     REVIEW_STRATEGY: "Review strategy",
+    REVIEW_FUTURE_PLAN: "Review future plan",
   } as const)[type];
 }
 
@@ -151,5 +156,6 @@ export function studioCopilotDraftLabel(type: StudioCopilotDraftType | undefined
     WORKFLOW_DRAFT: "Workflow Draft",
     PROMPT_DRAFT: "Prompt Draft",
     STRATEGY_DRAFT: "Strategy Draft",
+    FUTURE_PLAN_DRAFT: "Future Plan Draft",
   } as const)[type];
 }
