@@ -89,6 +89,7 @@ import {
   getStudioProjectAgentTaskRuntime,
   submitStudioAgentTaskCheckpoint,
 } from "@/lib/studio-agent-task-runtime-api";
+import { StudioProjectCopilot } from "@/features/studio/components/StudioProjectCopilot";
 import type { StudioAgentTaskExecutionBundle } from "@/features/studio/capabilities/studioAgentTaskExecutionBinding";
 import {
   createStudioAgentTaskExecutionPreview,
@@ -732,6 +733,7 @@ export function StudioModelRecommendation({
             </div>
           ))}
         </div>
+        {projectId ? <StudioProjectCopilot projectId={projectId} /> : null}
         {projectId ? (
           <details className="studio-agent-context">
             <summary>
