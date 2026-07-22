@@ -14,6 +14,7 @@ test("Conversation schema exposes bounded roles, response types, and context lab
   assert.equal(studioCopilotResponseLabel("DRAFT_PROPOSAL"), "Draft proposal");
   assert.equal(studioCopilotContextLabel("AGENT_HISTORY"), "Agent History");
   assert.equal(studioCopilotContextLabel("KNOWLEDGE_NODE"), "Knowledge Graph");
+  assert.equal(studioCopilotContextLabel("PROJECT_INSIGHT"), "Project Insight");
 });
 
 test("Creative Copilot Chat renders conversation, Context, and Draft Proposal", () => {

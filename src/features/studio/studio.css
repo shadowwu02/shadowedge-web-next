@@ -2975,6 +2975,24 @@
 .studio-project-intelligence-groups p { overflow: hidden; margin: 0; color: #a7f3d0; font-size: 8px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
 .studio-project-intelligence-relations { display: flex; flex-wrap: wrap; gap: 5px; }
 .studio-project-intelligence-relations span { border-radius: 999px; background: rgba(13, 148, 136, 0.13); padding: 3px 6px; color: #5eead4; font-size: 8px; text-transform: lowercase; }
+.studio-project-insights { display: grid; gap: 8px; padding: 11px; border: 1px solid rgba(251, 191, 36, 0.25); border-radius: 12px; background: rgba(69, 26, 3, 0.2); }
+.studio-project-insights-heading, .studio-project-insights-heading > div { display: flex; align-items: center; gap: 6px; }
+.studio-project-insights-heading { justify-content: space-between; }
+.studio-project-insights-heading > div { align-items: flex-start; flex-direction: column; gap: 2px; }
+.studio-project-insights-heading span { color: #fbbf24; font-size: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+.studio-project-insights-heading strong { color: #fef3c7; font-size: 11px; }
+.studio-project-insights-heading small, .studio-project-insights > small { color: #fcd34d; font-size: 8px; line-height: 1.45; }
+.studio-project-insights-list { display: grid; gap: 6px; }
+.studio-project-insights-list article { display: grid; gap: 5px; padding: 8px; border-left: 3px solid #fbbf24; border-radius: 9px; background: rgba(41, 37, 36, 0.52); }
+.studio-project-insights-list article.is-critical { border-left-color: #fb7185; }
+.studio-project-insights-list article.is-info { border-left-color: #38bdf8; }
+.studio-project-insights-list article > div, .studio-project-insights-list footer { display: flex; align-items: center; justify-content: space-between; gap: 7px; }
+.studio-project-insights-list article strong { color: #fef3c7; font-size: 9px; }
+.studio-project-insights-list article > div span { color: #fbbf24; font-size: 7px; letter-spacing: 0.04em; }
+.studio-project-insights-list article.is-critical > div span { color: #fda4af; }
+.studio-project-insights-list p { margin: 0; color: #e7e5e4; font-size: 9px; line-height: 1.45; }
+.studio-project-insights-list footer span, .studio-project-insights-list footer small { color: #a8a29e; font-size: 8px; }
+.studio-project-insights-list footer small { color: #fde68a; text-align: right; }
 
 .studio-agent-context > summary {
   display: flex;
