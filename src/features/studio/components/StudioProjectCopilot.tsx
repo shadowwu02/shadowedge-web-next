@@ -13,6 +13,7 @@ import {
   getStudioProjectCopilot,
   previewStudioCopilotAction,
 } from "@/lib/studio-project-copilot-api";
+import { StudioCopilotChat } from "@/features/studio/components/StudioCopilotChat";
 
 export function StudioProjectCopilot({ projectId }: { projectId: string }) {
   const [state, setState] = useState<StudioProjectCopilotState | null>(null);
@@ -100,6 +101,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
             <span>{currentState.taskStatus.waitingHuman} waiting review</span>
             <span>{currentState.taskStatus.completed}/{currentState.taskStatus.total} tasks done</span>
           </div>
+          <StudioCopilotChat projectId={projectId} />
           {currentState.suggestions.length ? (
             <div className="studio-project-copilot-suggestions" aria-label="Creative Copilot guided actions">
               {currentState.suggestions.map((suggestion) => {
