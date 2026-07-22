@@ -3007,6 +3007,25 @@
 .studio-project-strategies-list article header strong { color: #ede9fe; font-size: 9px; }
 .studio-project-strategies-list article header span, .studio-project-strategies-list article footer { color: #a78bfa; font-size: 8px; }
 .studio-project-strategies-list ul { display: grid; gap: 4px; margin: 0; padding-left: 16px; color: #ddd6fe; font-size: 9px; line-height: 1.45; }
+.studio-strategy-history { display: grid; gap: 8px; padding: 11px; border: 1px solid rgba(45, 212, 191, 0.25); border-radius: 12px; background: rgba(4, 47, 46, 0.25); }
+.studio-strategy-history-heading, .studio-strategy-history-heading > div, .studio-strategy-history-list article header { display: flex; align-items: center; gap: 6px; }
+.studio-strategy-history-heading, .studio-strategy-history-list article header { justify-content: space-between; }
+.studio-strategy-history-heading > div { align-items: flex-start; flex-direction: column; gap: 2px; }
+.studio-strategy-history-heading span, .studio-strategy-history-metrics span { color: #5eead4; font-size: 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+.studio-strategy-history-heading strong { color: #ccfbf1; font-size: 11px; }
+.studio-strategy-history-heading small, .studio-strategy-history > small { color: #99f6e4; font-size: 8px; line-height: 1.45; }
+.studio-strategy-history-metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+.studio-strategy-history-metrics > div { display: grid; gap: 3px; padding: 7px; border-radius: 8px; background: rgba(6, 78, 59, 0.35); }
+.studio-strategy-history-metrics strong { color: #f0fdfa; font-size: 9px; }
+.studio-strategy-history-list { display: grid; gap: 6px; }
+.studio-strategy-history-list article { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; padding: 8px; border-radius: 9px; background: rgba(15, 118, 110, 0.12); }
+.studio-strategy-history-list article header, .studio-strategy-history-list article p { grid-column: 1 / -1; }
+.studio-strategy-history-list article header strong { color: #ccfbf1; font-size: 9px; }
+.studio-strategy-history-list article header span { color: #5eead4; font-size: 8px; }
+.studio-strategy-history-list article > div { display: grid; gap: 2px; }
+.studio-strategy-history-list article > div span, .studio-strategy-history-list article p { color: #94a3b8; font-size: 8px; }
+.studio-strategy-history-list article > div strong { color: #d1fae5; font-size: 8px; text-transform: capitalize; }
+.studio-strategy-history-list article p { margin: 0; line-height: 1.4; }
 
 .studio-agent-context > summary {
   display: flex;
