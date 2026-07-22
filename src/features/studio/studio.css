@@ -2926,6 +2926,11 @@
 .studio-project-copilot-suggestions article > div:first-child { display: grid; gap: 4px; }
 .studio-project-copilot-suggestions strong { color: #e2e8f0; font-size: 11px; line-height: 1.45; }
 .studio-project-copilot-suggestions small, .studio-project-copilot > small, .studio-project-copilot-empty { color: #94a3b8; font-size: 9px; line-height: 1.45; }
+.studio-project-copilot-preview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 8px; border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 9px; background: rgba(2, 6, 23, 0.55); }
+.studio-project-copilot-preview > div { display: grid; gap: 3px; min-width: 0; }
+.studio-project-copilot-preview > div span { color: #7dd3fc; font-size: 8px; text-transform: uppercase; }
+.studio-project-copilot-preview > div strong { overflow: hidden; color: #dbeafe; font-size: 9px; line-height: 1.4; text-overflow: ellipsis; }
+.studio-project-copilot-preview > small { grid-column: 1 / -1; color: #fef3c7; font-size: 9px; }
 .studio-project-copilot-actions { display: flex; align-items: center; gap: 7px; }
 .studio-project-copilot-actions > button:not(.studio-node-action) { border: 0; background: transparent; color: #94a3b8; cursor: pointer; font-size: 10px; }
 .studio-project-copilot-actions button:disabled { cursor: not-allowed; opacity: 0.55; }
