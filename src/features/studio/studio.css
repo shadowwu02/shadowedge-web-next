@@ -2961,6 +2961,20 @@
 .studio-copilot-chat-composer textarea::placeholder { color: #64748b; }
 .studio-copilot-chat-actions { align-items: flex-start; }
 .studio-copilot-chat-actions small { max-width: 70%; color: #94a3b8; font-size: 8px; line-height: 1.4; }
+.studio-project-intelligence { display: grid; gap: 8px; padding: 11px; border: 1px solid rgba(45, 212, 191, 0.25); border-radius: 12px; background: rgba(6, 78, 59, 0.18); }
+.studio-project-intelligence-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.studio-project-intelligence-heading > div { display: grid; gap: 2px; }
+.studio-project-intelligence-heading span { color: #5eead4; font-size: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+.studio-project-intelligence-heading strong { color: #ccfbf1; font-size: 11px; }
+.studio-project-intelligence-heading small, .studio-project-intelligence > small { color: #99f6e4; font-size: 8px; line-height: 1.45; }
+.studio-project-intelligence-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.studio-project-intelligence-groups article { display: grid; gap: 4px; min-width: 0; padding: 8px; border-radius: 9px; background: rgba(2, 44, 34, 0.42); }
+.studio-project-intelligence-groups article > div { display: flex; align-items: center; justify-content: space-between; gap: 5px; }
+.studio-project-intelligence-groups strong { color: #d1fae5; font-size: 9px; }
+.studio-project-intelligence-groups span { min-width: 18px; border-radius: 999px; background: rgba(20, 184, 166, 0.16); padding: 2px 5px; color: #99f6e4; font-size: 8px; text-align: center; }
+.studio-project-intelligence-groups p { overflow: hidden; margin: 0; color: #a7f3d0; font-size: 8px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.studio-project-intelligence-relations { display: flex; flex-wrap: wrap; gap: 5px; }
+.studio-project-intelligence-relations span { border-radius: 999px; background: rgba(13, 148, 136, 0.13); padding: 3px 6px; color: #5eead4; font-size: 8px; text-transform: lowercase; }
 
 .studio-agent-context > summary {
   display: flex;

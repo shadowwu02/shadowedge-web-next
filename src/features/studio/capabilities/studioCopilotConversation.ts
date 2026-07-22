@@ -5,9 +5,10 @@ export type StudioCopilotMessageRole = typeof STUDIO_COPILOT_MESSAGE_ROLES[numbe
 export type StudioCopilotResponseType = typeof STUDIO_COPILOT_RESPONSE_TYPES[number];
 
 export type StudioCopilotContextReference = Readonly<{
-  type: "PROJECT_CONTEXT" | "MEMORY" | "WORKFLOW" | "AGENT_HISTORY";
+  type: "PROJECT_CONTEXT" | "MEMORY" | "WORKFLOW" | "AGENT_HISTORY" | "KNOWLEDGE_NODE";
   sourceId?: string;
   fields?: readonly string[];
+  nodeType?: string;
 }>;
 
 export type StudioCopilotDraftProposal = Readonly<{
@@ -45,6 +46,7 @@ export type StudioCopilotChatResult = Readonly<{
   conversation: StudioCopilotConversation;
   reply: StudioCopilotMessage;
   draftProposal: StudioCopilotDraftProposal | null;
+  knowledge?: Readonly<{ projectId: string; nodes: readonly Readonly<{ nodeId: string; type: string }>[]; relationships: readonly unknown[] }>;
   safety: "CONVERSATION_AND_PROPOSAL_ONLY_NO_PROJECT_MUTATION_OR_EXECUTION";
 }>;
 
@@ -54,5 +56,5 @@ export function studioCopilotResponseLabel(type: StudioCopilotResponseType | nul
 }
 
 export function studioCopilotContextLabel(type: StudioCopilotContextReference["type"]) {
-  return ({ PROJECT_CONTEXT: "Project Context", MEMORY: "Memory", WORKFLOW: "Workflow", AGENT_HISTORY: "Agent History" } as const)[type];
+  return ({ PROJECT_CONTEXT: "Project Context", MEMORY: "Memory", WORKFLOW: "Workflow", AGENT_HISTORY: "Agent History", KNOWLEDGE_NODE: "Knowledge Graph" } as const)[type];
 }
