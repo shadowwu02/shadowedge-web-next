@@ -2993,6 +2993,20 @@
 .studio-project-insights-list p { margin: 0; color: #e7e5e4; font-size: 9px; line-height: 1.45; }
 .studio-project-insights-list footer span, .studio-project-insights-list footer small { color: #a8a29e; font-size: 8px; }
 .studio-project-insights-list footer small { color: #fde68a; text-align: right; }
+.studio-project-strategies { display: grid; gap: 8px; padding: 11px; border: 1px solid rgba(167, 139, 250, 0.28); border-radius: 12px; background: rgba(46, 16, 101, 0.2); }
+.studio-project-strategies-heading, .studio-project-strategies-heading > div, .studio-project-strategies-list article header { display: flex; align-items: center; gap: 6px; }
+.studio-project-strategies-heading, .studio-project-strategies-list article header { justify-content: space-between; }
+.studio-project-strategies-heading > div { align-items: flex-start; flex-direction: column; gap: 2px; }
+.studio-project-strategies-heading span, .studio-project-strategies-goal span { color: #c4b5fd; font-size: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+.studio-project-strategies-heading strong { color: #ede9fe; font-size: 11px; }
+.studio-project-strategies-heading small, .studio-project-strategies > small { color: #c4b5fd; font-size: 8px; line-height: 1.45; }
+.studio-project-strategies-goal { display: grid; gap: 3px; padding: 8px; border-radius: 9px; background: rgba(30, 27, 75, 0.55); }
+.studio-project-strategies-goal strong { color: #f5f3ff; font-size: 10px; line-height: 1.4; }
+.studio-project-strategies-list { display: grid; gap: 6px; }
+.studio-project-strategies-list article { display: grid; gap: 6px; padding: 8px; border-left: 3px solid #8b5cf6; border-radius: 9px; background: rgba(30, 27, 75, 0.48); }
+.studio-project-strategies-list article header strong { color: #ede9fe; font-size: 9px; }
+.studio-project-strategies-list article header span, .studio-project-strategies-list article footer { color: #a78bfa; font-size: 8px; }
+.studio-project-strategies-list ul { display: grid; gap: 4px; margin: 0; padding-left: 16px; color: #ddd6fe; font-size: 9px; line-height: 1.45; }
 
 .studio-agent-context > summary {
   display: flex;

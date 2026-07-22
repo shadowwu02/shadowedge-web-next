@@ -4,6 +4,7 @@ export const STUDIO_COPILOT_SUGGESTION_TYPES = [
   "WORKFLOW_SUGGESTION",
   "COST_WARNING",
   "QUALITY_WARNING",
+  "STRATEGY_PROPOSAL",
 ] as const;
 
 export type StudioCopilotSuggestionType = typeof STUDIO_COPILOT_SUGGESTION_TYPES[number];
@@ -15,6 +16,7 @@ export const STUDIO_COPILOT_ACTION_TYPES = [
   "REVIEW_WORKFLOW",
   "CHECK_COST",
   "CHECK_QUALITY",
+  "REVIEW_STRATEGY",
 ] as const;
 
 export const STUDIO_COPILOT_DRAFT_TYPES = [
@@ -22,6 +24,7 @@ export const STUDIO_COPILOT_DRAFT_TYPES = [
   "STORYBOARD_DRAFT",
   "WORKFLOW_DRAFT",
   "PROMPT_DRAFT",
+  "STRATEGY_DRAFT",
 ] as const;
 
 export type StudioCopilotActionType = typeof STUDIO_COPILOT_ACTION_TYPES[number];
@@ -33,6 +36,7 @@ export type StudioCopilotSuggestion = Readonly<{
   type: StudioCopilotSuggestionType;
   message: string;
   source: string;
+  sourceId: string | null;
   createdAt: string;
 }>;
 
@@ -42,6 +46,7 @@ export type StudioCopilotDraft = Readonly<{
   type: StudioCopilotSuggestionType;
   message: string;
   source: string;
+  sourceId?: string | null;
   actionId?: string;
   actionType?: StudioCopilotActionType;
   draftType?: StudioCopilotDraftType;
@@ -81,7 +86,7 @@ export type StudioProjectCopilotState = Readonly<{
     completed: number;
     failed: number;
   }>;
-  context: Readonly<{ memoryCount: number; workflowTemplateCount: number; insightCount: number }>;
+  context: Readonly<{ memoryCount: number; workflowTemplateCount: number; insightCount: number; strategyCount: number }>;
   updatedAt: string;
   privacy: "CURRENT_USER_CURRENT_PROJECT_ONLY";
   actionBoundary: "PREVIEW_CONFIRM_CREATES_DRAFT_ONLY_NO_EXECUTION";
@@ -123,6 +128,7 @@ export function studioCopilotSuggestionLabel(type: StudioCopilotSuggestionType) 
     WORKFLOW_SUGGESTION: "Workflow suggestion",
     COST_WARNING: "Cost warning",
     QUALITY_WARNING: "Quality warning",
+    STRATEGY_PROPOSAL: "Strategy proposal",
   } as const)[type];
 }
 
@@ -133,6 +139,7 @@ export function studioCopilotActionLabel(type: StudioCopilotActionType) {
     REVIEW_WORKFLOW: "Review workflow",
     CHECK_COST: "Check cost",
     CHECK_QUALITY: "Check quality",
+    REVIEW_STRATEGY: "Review strategy",
   } as const)[type];
 }
 
@@ -143,5 +150,6 @@ export function studioCopilotDraftLabel(type: StudioCopilotDraftType | undefined
     STORYBOARD_DRAFT: "Storyboard Draft",
     WORKFLOW_DRAFT: "Workflow Draft",
     PROMPT_DRAFT: "Prompt Draft",
+    STRATEGY_DRAFT: "Strategy Draft",
   } as const)[type];
 }
