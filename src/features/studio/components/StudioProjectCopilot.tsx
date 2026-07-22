@@ -18,6 +18,7 @@ import { StudioProjectIntelligence } from "@/features/studio/components/StudioPr
 import { StudioProjectInsights } from "@/features/studio/components/StudioProjectInsights";
 import { StudioProjectStrategyPanel } from "@/features/studio/components/StudioProjectStrategyPanel";
 import { StudioProjectStrategyHistory } from "@/features/studio/components/StudioProjectStrategyHistory";
+import { StudioProjectEvolutionTimeline } from "@/features/studio/components/StudioProjectEvolutionTimeline";
 
 export function StudioProjectCopilot({ projectId }: { projectId: string }) {
   const [state, setState] = useState<StudioProjectCopilotState | null>(null);
@@ -111,6 +112,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
           <StudioProjectInsights projectId={projectId} />
           <StudioProjectStrategyPanel projectId={projectId} />
           <StudioProjectStrategyHistory projectId={projectId} />
+          <StudioProjectEvolutionTimeline projectId={projectId} />
           <StudioCopilotChat projectId={projectId} />
           {currentState.suggestions.length ? (
             <div className="studio-project-copilot-suggestions" aria-label="Creative Copilot guided actions">

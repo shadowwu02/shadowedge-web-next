@@ -37,6 +37,7 @@ export type StudioStrategyHistoryBundle = Readonly<{
   history: readonly Readonly<{
     strategy: StudioProjectStrategyProposal;
     decision: StudioStrategyDecisionRecord | null;
+    decisions: readonly StudioStrategyDecisionRecord[];
     outcomes: readonly StudioStrategyOutcomeRecord[];
     effect: "POSITIVE" | "MIXED" | "NEGATIVE" | "PENDING";
   }>[];

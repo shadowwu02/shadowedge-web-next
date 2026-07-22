@@ -3026,6 +3026,25 @@
 .studio-strategy-history-list article > div span, .studio-strategy-history-list article p { color: #94a3b8; font-size: 8px; }
 .studio-strategy-history-list article > div strong { color: #d1fae5; font-size: 8px; text-transform: capitalize; }
 .studio-strategy-history-list article p { margin: 0; line-height: 1.4; }
+.studio-project-evolution { display: grid; gap: 9px; padding: 11px; border: 1px solid rgba(168, 85, 247, 0.26); border-radius: 12px; background: rgba(46, 16, 101, 0.2); }
+.studio-project-evolution-heading, .studio-project-evolution-heading > div { display: flex; align-items: center; gap: 6px; }
+.studio-project-evolution-heading { justify-content: space-between; }
+.studio-project-evolution-heading > div { align-items: flex-start; flex-direction: column; gap: 2px; }
+.studio-project-evolution-heading span, .studio-project-evolution-trends span, .studio-project-evolution-timeline span { color: #d8b4fe; font-size: 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+.studio-project-evolution-heading strong { color: #f3e8ff; font-size: 11px; }
+.studio-project-evolution-heading small, .studio-project-evolution > small { color: #c4b5fd; font-size: 8px; line-height: 1.45; }
+.studio-project-evolution-trends { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.studio-project-evolution-trends article { display: grid; gap: 3px; padding: 8px; border-radius: 9px; background: rgba(88, 28, 135, 0.25); }
+.studio-project-evolution-trends strong { color: #faf5ff; font-size: 9px; text-transform: capitalize; }
+.studio-project-evolution-trends p { margin: 0; color: #cbd5e1; font-size: 8px; line-height: 1.4; }
+.studio-project-evolution-timeline { display: grid; gap: 0; }
+.studio-project-evolution-timeline article { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 7px; min-height: 48px; }
+.studio-project-evolution-timeline article > i { position: relative; width: 7px; height: 7px; margin-top: 5px; border: 2px solid #c084fc; border-radius: 50%; background: #2e1065; }
+.studio-project-evolution-timeline article:not(:last-child) > i::after { position: absolute; top: 7px; left: 2px; width: 1px; height: calc(100% + 34px); background: rgba(192, 132, 252, 0.35); content: ""; }
+.studio-project-evolution-timeline article > div { display: grid; gap: 3px; padding-bottom: 8px; }
+.studio-project-evolution-timeline strong { color: #f3e8ff; font-size: 10px; }
+.studio-project-evolution-timeline p { margin: 0; color: #d8b4fe; font-size: 8px; text-transform: capitalize; }
+.studio-project-evolution-timeline small { color: #94a3b8; font-size: 8px; }
 
 .studio-agent-context > summary {
   display: flex;
