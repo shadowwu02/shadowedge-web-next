@@ -17,6 +17,7 @@ export const STUDIO_COPILOT_SUGGESTION_TYPES = [
   "ADAPTIVE_PLAN_SUGGESTION",
   "DECISION_SUPPORT_OPTION",
   "SCENARIO_SIMULATION",
+  "DECISION_PATTERN_SUGGESTION",
 ] as const;
 
 export type StudioCopilotSuggestionType = typeof STUDIO_COPILOT_SUGGESTION_TYPES[number];
@@ -41,6 +42,7 @@ export const STUDIO_COPILOT_ACTION_TYPES = [
   "REVIEW_ADAPTIVE_PLAN",
   "REVIEW_DECISION_SUPPORT",
   "REVIEW_SCENARIO",
+  "REVIEW_DECISION_PATTERN",
 ] as const;
 
 export const STUDIO_COPILOT_DRAFT_TYPES = [
@@ -61,6 +63,7 @@ export const STUDIO_COPILOT_DRAFT_TYPES = [
   "ADAPTIVE_PLAN_DRAFT",
   "DECISION_SELECTION_DRAFT",
   "SCENARIO_DECISION_DRAFT",
+  "DECISION_PATTERN_REVIEW_DRAFT",
 ] as const;
 
 export type StudioCopilotActionType = typeof STUDIO_COPILOT_ACTION_TYPES[number];
@@ -140,6 +143,13 @@ export type StudioCopilotSuggestion = Readonly<{
     highConfidenceCount: number;
     costStatus: string;
   }>;
+  decisionPatternContext: Readonly<{
+    patternIds: readonly string[];
+    decisionTypes: readonly string[];
+    patternCount: number;
+    strongPatternCount: number;
+    explicitCount: number;
+  }>;
   createdAt: string;
 }>;
 
@@ -189,7 +199,7 @@ export type StudioProjectCopilotState = Readonly<{
     completed: number;
     failed: number;
   }>;
-  context: Readonly<{ memoryCount: number; workflowTemplateCount: number; insightCount: number; strategyCount: number; futurePlanCount: number; goalCount: number; resourceInsightCount: number; efficiencyInsightCount: number; qualityIssueCount: number; optimizationProposalCount: number; userExperienceCount: number; creativePreferenceCount: number }>;
+  context: Readonly<{ memoryCount: number; workflowTemplateCount: number; insightCount: number; strategyCount: number; futurePlanCount: number; goalCount: number; resourceInsightCount: number; efficiencyInsightCount: number; qualityIssueCount: number; optimizationProposalCount: number; userExperienceCount: number; creativePreferenceCount: number; decisionPatternCount: number }>;
   mission: Readonly<{ missionId: string; projectId: string; mission: string; vision: string; createdAt: string; updatedAt: string }>;
   portfolio: Readonly<{
     portfolioId: string;
@@ -276,6 +286,15 @@ export type StudioProjectCopilotState = Readonly<{
     privacy: "CURRENT_USER_CURRENT_PROJECT_WITH_USER_SCOPED_EXPERIENCE_ONLY";
     actionBoundary: "SCENARIO_COMPARE_PREVIEW_USER_CONFIRM_CREATES_SCENARIO_DECISION_DRAFT_ONLY";
   }>;
+  decisionPatterns: Readonly<{
+    total: number;
+    explicit: number;
+    strongPatterns: number;
+    earlySignals: number;
+    types: readonly string[];
+    privacy: "CURRENT_USER_ONLY_NO_CROSS_USER_LEARNING";
+    personalizationBoundary: "READ_ONLY_SIGNAL_NO_AUTOMATIC_DECISION_NO_PREFERENCE_MUTATION_NO_EXECUTION";
+  }>;
   updatedAt: string;
   privacy: "CURRENT_USER_CURRENT_PROJECT_ONLY";
   actionBoundary: "PREVIEW_CONFIRM_CREATES_DRAFT_ONLY_NO_EXECUTION";
@@ -330,6 +349,7 @@ export function studioCopilotSuggestionLabel(type: StudioCopilotSuggestionType) 
     ADAPTIVE_PLAN_SUGGESTION: "Adaptive planning suggestion",
     DECISION_SUPPORT_OPTION: "Decision support option",
     SCENARIO_SIMULATION: "Scenario simulation",
+    DECISION_PATTERN_SUGGESTION: "Decision pattern suggestion",
   } as const)[type];
 }
 
@@ -353,6 +373,7 @@ export function studioCopilotActionLabel(type: StudioCopilotActionType) {
     REVIEW_ADAPTIVE_PLAN: "Review adaptive plan",
     REVIEW_DECISION_SUPPORT: "Review decision option",
     REVIEW_SCENARIO: "Review scenario",
+    REVIEW_DECISION_PATTERN: "Review decision pattern",
   } as const)[type];
 }
 
@@ -376,5 +397,6 @@ export function studioCopilotDraftLabel(type: StudioCopilotDraftType | undefined
     ADAPTIVE_PLAN_DRAFT: "Adaptive Plan Draft",
     DECISION_SELECTION_DRAFT: "Decision Selection Draft",
     SCENARIO_DECISION_DRAFT: "Scenario Decision Draft",
+    DECISION_PATTERN_REVIEW_DRAFT: "Decision Pattern Review Draft",
   } as const)[type];
 }

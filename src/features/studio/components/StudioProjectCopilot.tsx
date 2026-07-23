@@ -32,6 +32,7 @@ import { StudioCreativePreferencesPanel } from "@/features/studio/components/Stu
 import { StudioAdaptiveSuggestionsPanel } from "@/features/studio/components/StudioAdaptiveSuggestionsPanel";
 import { StudioDecisionSupportPanel } from "@/features/studio/components/StudioDecisionSupportPanel";
 import { StudioScenarioSimulatorPanel } from "@/features/studio/components/StudioScenarioSimulatorPanel";
+import { StudioDecisionPatternsPanel } from "@/features/studio/components/StudioDecisionPatternsPanel";
 
 export function StudioProjectCopilot({ projectId }: { projectId: string }) {
   const [state, setState] = useState<StudioProjectCopilotState | null>(null);
@@ -134,6 +135,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
             <span>{currentState.adaptivePlanning.total} personalized suggestions</span>
             <span>{currentState.decisionSupport.optionCount} decision options</span>
             <span>{currentState.scenarios.total} simulated scenarios</span>
+            <span>{currentState.decisionPatterns.total} decision patterns</span>
             <span>{currentState.taskStatus.waitingHuman} waiting review</span>
             <span>{currentState.taskStatus.completed}/{currentState.taskStatus.total} tasks done</span>
           </div>
@@ -143,6 +145,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
           <StudioAdaptiveSuggestionsPanel projectId={projectId} />
           <StudioDecisionSupportPanel projectId={projectId} />
           <StudioScenarioSimulatorPanel projectId={projectId} />
+          <StudioDecisionPatternsPanel />
           <StudioResourceIntelligencePanel currentProjectId={projectId} />
           <StudioProductionEfficiencyPanel currentProjectId={projectId} />
           <StudioCreativeQualityPanel projectId={projectId} />
@@ -179,6 +182,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
                       <small>Adaptive planning: {suggestion.adaptiveContext.suggestionIds.length} suggestions · {suggestion.adaptiveContext.conflictCount} conflicts</small>
                       <small>Decision support: {suggestion.decisionSupportContext.optionCount} options · {suggestion.decisionSupportContext.conflictCount} tradeoff conflicts</small>
                       <small>Scenario simulation: {suggestion.scenarioContext.scenarioCount} forecasts · {suggestion.scenarioContext.highConfidenceCount} high confidence · Cost {suggestion.scenarioContext.costStatus}</small>
+                      <small>Decision memory: {suggestion.decisionPatternContext.patternCount} patterns · {suggestion.decisionPatternContext.strongPatternCount} strong · {suggestion.decisionPatternContext.explicitCount} explicit</small>
                     </div>
                     {action.status === "PREVIEWED" ? (
                       <div className="studio-project-copilot-preview" aria-label={`${studioCopilotActionLabel(action.type)} preview`}>
