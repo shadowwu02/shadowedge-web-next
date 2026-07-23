@@ -3105,6 +3105,23 @@
 .studio-resource-assets strong, .studio-resource-insights strong { color: #2dd4bf; font-size: 8px; }
 .studio-resource-assets p, .studio-resource-insights p { margin: 0; color: #ccfbf1; font-size: 9px; line-height: 1.4; }
 .studio-resource-assets small, .studio-resource-insights small { color: #94a3b8; font-size: 8px; }
+.studio-production-efficiency { display: grid; gap: 9px; padding: 11px; border: 1px solid rgba(251, 191, 36, 0.24); border-radius: 12px; background: rgba(120, 53, 15, 0.14); }
+.studio-production-efficiency > header, .studio-production-efficiency > header > div, .studio-efficiency-insights article > div, .studio-efficiency-summary { display: flex; align-items: center; gap: 6px; }
+.studio-production-efficiency > header, .studio-efficiency-insights article > div { justify-content: space-between; }
+.studio-production-efficiency > header > div { align-items: flex-start; flex-direction: column; gap: 2px; }
+.studio-production-efficiency span, .studio-production-efficiency > header small { color: #fbbf24; font-size: 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+.studio-production-efficiency > header strong { color: #fef3c7; font-size: 11px; }
+.studio-production-efficiency > small { color: #fde68a; font-size: 8px; line-height: 1.45; }
+.studio-efficiency-summary { flex-wrap: wrap; }
+.studio-efficiency-summary span { padding: 4px 6px; border-radius: 999px; background: rgba(245, 158, 11, 0.13); }
+.studio-efficiency-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.studio-efficiency-metrics article, .studio-efficiency-insights article { display: grid; gap: 4px; padding: 8px; border-radius: 9px; background: rgba(146, 64, 14, 0.13); }
+.studio-efficiency-metrics article span { color: #f59e0b; }
+.studio-efficiency-metrics article strong { color: #fef3c7; font-size: 12px; }
+.studio-efficiency-metrics article small, .studio-efficiency-insights article small { color: #94a3b8; font-size: 8px; line-height: 1.4; }
+.studio-efficiency-insights { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.studio-efficiency-insights article strong { color: #fb923c; font-size: 8px; }
+.studio-efficiency-insights article p { margin: 0; color: #fffbeb; font-size: 9px; line-height: 1.4; }
 
 .studio-agent-context > summary {
   display: flex;

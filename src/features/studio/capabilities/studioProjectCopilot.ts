@@ -9,6 +9,7 @@ export const STUDIO_COPILOT_SUGGESTION_TYPES = [
   "GOAL_ALIGNMENT_REVIEW",
   "PORTFOLIO_PRIORITY_SUGGESTION",
   "RESOURCE_REUSE_SUGGESTION",
+  "PRODUCTION_EFFICIENCY_SUGGESTION",
 ] as const;
 
 export type StudioCopilotSuggestionType = typeof STUDIO_COPILOT_SUGGESTION_TYPES[number];
@@ -25,6 +26,7 @@ export const STUDIO_COPILOT_ACTION_TYPES = [
   "REVIEW_GOALS",
   "REVIEW_PORTFOLIO",
   "REVIEW_ASSET_REUSE",
+  "REVIEW_EFFICIENCY",
 ] as const;
 
 export const STUDIO_COPILOT_DRAFT_TYPES = [
@@ -37,6 +39,7 @@ export const STUDIO_COPILOT_DRAFT_TYPES = [
   "GOAL_REVIEW_DRAFT",
   "PORTFOLIO_STRATEGY_DRAFT",
   "ASSET_REUSE_DRAFT",
+  "EFFICIENCY_OPTIMIZATION_DRAFT",
 ] as const;
 
 export type StudioCopilotActionType = typeof STUDIO_COPILOT_ACTION_TYPES[number];
@@ -66,6 +69,11 @@ export type StudioCopilotSuggestion = Readonly<{
     assetIds: readonly string[];
     relatedInsightIds: readonly string[];
     highestReuseScore: number;
+  }>;
+  efficiencyContext: Readonly<{
+    workflowIds: readonly string[];
+    relatedInsightIds: readonly string[];
+    bottleneckCount: number;
   }>;
   createdAt: string;
 }>;
@@ -116,7 +124,7 @@ export type StudioProjectCopilotState = Readonly<{
     completed: number;
     failed: number;
   }>;
-  context: Readonly<{ memoryCount: number; workflowTemplateCount: number; insightCount: number; strategyCount: number; futurePlanCount: number; goalCount: number; resourceInsightCount: number }>;
+  context: Readonly<{ memoryCount: number; workflowTemplateCount: number; insightCount: number; strategyCount: number; futurePlanCount: number; goalCount: number; resourceInsightCount: number; efficiencyInsightCount: number }>;
   mission: Readonly<{ missionId: string; projectId: string; mission: string; vision: string; createdAt: string; updatedAt: string }>;
   portfolio: Readonly<{
     portfolioId: string;
@@ -129,6 +137,14 @@ export type StudioProjectCopilotState = Readonly<{
     highValueAssetCount: number;
     insightCount: number;
     actionBoundary: "PREVIEW_CONFIRM_CREATES_ASSET_REUSE_DRAFT_ONLY";
+  }>;
+  efficiency: Readonly<{
+    workflowCount: number;
+    insightCount: number;
+    bottleneckCount: number;
+    totalShadowCredits: number;
+    overallSuccessRate: number;
+    actionBoundary: "PREVIEW_CONFIRM_CREATES_EFFICIENCY_OPTIMIZATION_DRAFT_ONLY";
   }>;
   updatedAt: string;
   privacy: "CURRENT_USER_CURRENT_PROJECT_ONLY";
@@ -176,6 +192,7 @@ export function studioCopilotSuggestionLabel(type: StudioCopilotSuggestionType) 
     GOAL_ALIGNMENT_REVIEW: "Goal alignment review",
     PORTFOLIO_PRIORITY_SUGGESTION: "Portfolio priority suggestion",
     RESOURCE_REUSE_SUGGESTION: "Resource reuse suggestion",
+    PRODUCTION_EFFICIENCY_SUGGESTION: "Production efficiency suggestion",
   } as const)[type];
 }
 
@@ -191,6 +208,7 @@ export function studioCopilotActionLabel(type: StudioCopilotActionType) {
     REVIEW_GOALS: "Review goals",
     REVIEW_PORTFOLIO: "Review portfolio",
     REVIEW_ASSET_REUSE: "Review asset reuse",
+    REVIEW_EFFICIENCY: "Review efficiency",
   } as const)[type];
 }
 
@@ -206,5 +224,6 @@ export function studioCopilotDraftLabel(type: StudioCopilotDraftType | undefined
     GOAL_REVIEW_DRAFT: "Goal Review Draft",
     PORTFOLIO_STRATEGY_DRAFT: "Portfolio Strategy Draft",
     ASSET_REUSE_DRAFT: "Asset Reuse Draft",
+    EFFICIENCY_OPTIMIZATION_DRAFT: "Efficiency Optimization Draft",
   } as const)[type];
 }
