@@ -13,6 +13,7 @@ export const STUDIO_COPILOT_SUGGESTION_TYPES = [
   "CREATIVE_QUALITY_SUGGESTION",
   "CREATIVE_OPTIMIZATION_SUGGESTION",
   "USER_EXPERIENCE_SUGGESTION",
+  "USER_PREFERENCE_SUGGESTION",
 ] as const;
 
 export type StudioCopilotSuggestionType = typeof STUDIO_COPILOT_SUGGESTION_TYPES[number];
@@ -33,6 +34,7 @@ export const STUDIO_COPILOT_ACTION_TYPES = [
   "REVIEW_CREATIVE_QUALITY",
   "REVIEW_OPTIMIZATION",
   "REVIEW_EXPERIENCE",
+  "REVIEW_PREFERENCES",
 ] as const;
 
 export const STUDIO_COPILOT_DRAFT_TYPES = [
@@ -49,6 +51,7 @@ export const STUDIO_COPILOT_DRAFT_TYPES = [
   "QUALITY_IMPROVEMENT_DRAFT",
   "OPTIMIZATION_DRAFT",
   "USE_EXPERIENCE_DRAFT",
+  "PREFERENCE_REVIEW_DRAFT",
 ] as const;
 
 export type StudioCopilotActionType = typeof STUDIO_COPILOT_ACTION_TYPES[number];
@@ -102,6 +105,12 @@ export type StudioCopilotSuggestion = Readonly<{
     sourceProjectIds: readonly string[];
     highConfidenceCount: number;
   }>;
+  preferenceContext: Readonly<{
+    profileId: string;
+    preferenceIds: readonly string[];
+    types: readonly string[];
+    explicitCount: number;
+  }>;
   createdAt: string;
 }>;
 
@@ -151,7 +160,7 @@ export type StudioProjectCopilotState = Readonly<{
     completed: number;
     failed: number;
   }>;
-  context: Readonly<{ memoryCount: number; workflowTemplateCount: number; insightCount: number; strategyCount: number; futurePlanCount: number; goalCount: number; resourceInsightCount: number; efficiencyInsightCount: number; qualityIssueCount: number; optimizationProposalCount: number; userExperienceCount: number }>;
+  context: Readonly<{ memoryCount: number; workflowTemplateCount: number; insightCount: number; strategyCount: number; futurePlanCount: number; goalCount: number; resourceInsightCount: number; efficiencyInsightCount: number; qualityIssueCount: number; optimizationProposalCount: number; userExperienceCount: number; creativePreferenceCount: number }>;
   mission: Readonly<{ missionId: string; projectId: string; mission: string; vision: string; createdAt: string; updatedAt: string }>;
   portfolio: Readonly<{
     portfolioId: string;
@@ -199,6 +208,19 @@ export type StudioProjectCopilotState = Readonly<{
     byType: Readonly<Record<string, number>>;
     privacy: "CURRENT_USER_PROJECTS_ONLY_NO_CROSS_USER_OR_ACCOUNT_LEARNING";
     recommendationBoundary: "SUGGESTION_ONLY_PREVIEW_CONFIRM_CREATES_DRAFT_NO_PROJECT_COPY_NO_EXECUTION";
+  }>;
+  creativePreferences: Readonly<{
+    profileId: string;
+    total: number;
+    confidence: "EXPLICIT" | "STRONG_SIGNAL" | "WEAK_SIGNAL";
+    types: readonly string[];
+    separation: Readonly<{
+      userPreference: "REUSABLE_USER_LEVEL_ONLY";
+      projectExperience: "EVIDENCE_SOURCE_NOT_COPIED";
+      singleStrategy: "PROJECT_SCOPED_NOT_PROMOTED_AUTOMATICALLY";
+    }>;
+    privacy: "CURRENT_USER_ONLY_NO_SENSITIVE_INFERENCE_NO_CROSS_USER_LEARNING";
+    actionBoundary: "VIEW_OR_DELETE_ONLY_NO_AUTOMATIC_PROFILE_MUTATION_NO_EXECUTION";
   }>;
   updatedAt: string;
   privacy: "CURRENT_USER_CURRENT_PROJECT_ONLY";
@@ -250,6 +272,7 @@ export function studioCopilotSuggestionLabel(type: StudioCopilotSuggestionType) 
     CREATIVE_QUALITY_SUGGESTION: "Creative quality suggestion",
     CREATIVE_OPTIMIZATION_SUGGESTION: "Creative optimization suggestion",
     USER_EXPERIENCE_SUGGESTION: "Creative pattern suggestion",
+    USER_PREFERENCE_SUGGESTION: "Personal preference suggestion",
   } as const)[type];
 }
 
@@ -269,6 +292,7 @@ export function studioCopilotActionLabel(type: StudioCopilotActionType) {
     REVIEW_CREATIVE_QUALITY: "Review creative quality",
     REVIEW_OPTIMIZATION: "Review optimization",
     REVIEW_EXPERIENCE: "Review creative pattern",
+    REVIEW_PREFERENCES: "Review preferences",
   } as const)[type];
 }
 
@@ -288,5 +312,6 @@ export function studioCopilotDraftLabel(type: StudioCopilotDraftType | undefined
     QUALITY_IMPROVEMENT_DRAFT: "Quality Improvement Draft",
     OPTIMIZATION_DRAFT: "Optimization Draft",
     USE_EXPERIENCE_DRAFT: "Use Experience Draft",
+    PREFERENCE_REVIEW_DRAFT: "Preference Review Draft",
   } as const)[type];
 }

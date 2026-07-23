@@ -28,6 +28,7 @@ import { StudioCreativeQualityPanel } from "@/features/studio/components/StudioC
 import { StudioOptimizationCenter } from "@/features/studio/components/StudioOptimizationCenter";
 import { StudioOptimizationHistoryPanel } from "@/features/studio/components/StudioOptimizationHistoryPanel";
 import { StudioUserCreativePatternsPanel } from "@/features/studio/components/StudioUserCreativePatternsPanel";
+import { StudioCreativePreferencesPanel } from "@/features/studio/components/StudioCreativePreferencesPanel";
 
 export function StudioProjectCopilot({ projectId }: { projectId: string }) {
   const [state, setState] = useState<StudioProjectCopilotState | null>(null);
@@ -126,10 +127,12 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
             <span>{currentState.optimizations.proposalCount} optimization proposals</span>
             <span>{currentState.optimizations.outcomeCount} optimization outcomes</span>
             <span>{currentState.creativePatterns.total} creative patterns</span>
+            <span>{currentState.creativePreferences.total} creative preferences</span>
             <span>{currentState.taskStatus.waitingHuman} waiting review</span>
             <span>{currentState.taskStatus.completed}/{currentState.taskStatus.total} tasks done</span>
           </div>
           <StudioPortfolioIntelligencePanel currentProjectId={projectId} />
+          <StudioCreativePreferencesPanel />
           <StudioUserCreativePatternsPanel projectId={projectId} />
           <StudioResourceIntelligencePanel currentProjectId={projectId} />
           <StudioProductionEfficiencyPanel currentProjectId={projectId} />
@@ -163,6 +166,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
                       <small>Quality: {suggestion.qualityContext.relatedIssueIds.length} issues · {suggestion.qualityContext.averageOutputQuality === null ? "score unknown" : `${Math.round(suggestion.qualityContext.averageOutputQuality)}/100`}</small>
                       <small>Optimization: {suggestion.optimizationContext.proposalIds.length} proposals · {suggestion.optimizationContext.effectiveCount} effective · {suggestion.optimizationContext.ineffectiveCount} ineffective</small>
                       <small>Experience: {suggestion.experienceContext.experienceIds.length} verified patterns · {suggestion.experienceContext.highConfidenceCount} high confidence</small>
+                      <small>Preferences: {suggestion.preferenceContext.preferenceIds.length} reusable signals · {suggestion.preferenceContext.explicitCount} set by you</small>
                     </div>
                     {action.status === "PREVIEWED" ? (
                       <div className="studio-project-copilot-preview" aria-label={`${studioCopilotActionLabel(action.type)} preview`}>
