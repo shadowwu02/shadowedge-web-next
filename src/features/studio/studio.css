@@ -3172,6 +3172,15 @@
 .studio-optimization-history-list article p { margin: 0; color: #bae6fd; font-size: 8px; line-height: 1.4; }
 .studio-optimization-history-deltas { flex-wrap: wrap; }
 .studio-optimization-history-deltas small { color: #94a3b8; font-size: 8px; }
+.studio-user-creative-patterns { display: grid; gap: 9px; padding: 11px; border: 1px solid rgba(167, 139, 250, 0.26); border-radius: 12px; background: rgba(91, 33, 182, 0.1); }
+.studio-user-creative-patterns > header, .studio-user-creative-patterns-list article > header { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.studio-user-creative-patterns > header > div { display: grid; gap: 2px; }
+.studio-user-creative-patterns span, .studio-user-creative-patterns > header small { color: #c4b5fd; font-size: 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+.studio-user-creative-patterns > header strong, .studio-user-creative-patterns-list article strong { color: #ede9fe; font-size: 11px; }
+.studio-user-creative-patterns-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.studio-user-creative-patterns-list article { display: grid; gap: 5px; padding: 9px; border-radius: 9px; background: rgba(124, 58, 237, 0.11); }
+.studio-user-creative-patterns-list article p { margin: 0; color: #ddd6fe; font-size: 9px; line-height: 1.45; }
+.studio-user-creative-patterns-list article small, .studio-user-creative-patterns > small { color: #a78bfa; font-size: 8px; line-height: 1.4; }
 
 .studio-agent-context > summary {
   display: flex;

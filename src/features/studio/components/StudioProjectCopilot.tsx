@@ -27,6 +27,7 @@ import { StudioProductionEfficiencyPanel } from "@/features/studio/components/St
 import { StudioCreativeQualityPanel } from "@/features/studio/components/StudioCreativeQualityPanel";
 import { StudioOptimizationCenter } from "@/features/studio/components/StudioOptimizationCenter";
 import { StudioOptimizationHistoryPanel } from "@/features/studio/components/StudioOptimizationHistoryPanel";
+import { StudioUserCreativePatternsPanel } from "@/features/studio/components/StudioUserCreativePatternsPanel";
 
 export function StudioProjectCopilot({ projectId }: { projectId: string }) {
   const [state, setState] = useState<StudioProjectCopilotState | null>(null);
@@ -124,10 +125,12 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
             <span>{currentState.quality.issueCount} quality issues</span>
             <span>{currentState.optimizations.proposalCount} optimization proposals</span>
             <span>{currentState.optimizations.outcomeCount} optimization outcomes</span>
+            <span>{currentState.creativePatterns.total} creative patterns</span>
             <span>{currentState.taskStatus.waitingHuman} waiting review</span>
             <span>{currentState.taskStatus.completed}/{currentState.taskStatus.total} tasks done</span>
           </div>
           <StudioPortfolioIntelligencePanel currentProjectId={projectId} />
+          <StudioUserCreativePatternsPanel projectId={projectId} />
           <StudioResourceIntelligencePanel currentProjectId={projectId} />
           <StudioProductionEfficiencyPanel currentProjectId={projectId} />
           <StudioCreativeQualityPanel projectId={projectId} />
@@ -159,6 +162,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
                       <small>Efficiency: {suggestion.efficiencyContext.bottleneckCount} bottlenecks · {suggestion.efficiencyContext.workflowIds.length} workflows</small>
                       <small>Quality: {suggestion.qualityContext.relatedIssueIds.length} issues · {suggestion.qualityContext.averageOutputQuality === null ? "score unknown" : `${Math.round(suggestion.qualityContext.averageOutputQuality)}/100`}</small>
                       <small>Optimization: {suggestion.optimizationContext.proposalIds.length} proposals · {suggestion.optimizationContext.effectiveCount} effective · {suggestion.optimizationContext.ineffectiveCount} ineffective</small>
+                      <small>Experience: {suggestion.experienceContext.experienceIds.length} verified patterns · {suggestion.experienceContext.highConfidenceCount} high confidence</small>
                     </div>
                     {action.status === "PREVIEWED" ? (
                       <div className="studio-project-copilot-preview" aria-label={`${studioCopilotActionLabel(action.type)} preview`}>
