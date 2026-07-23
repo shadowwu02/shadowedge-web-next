@@ -16,6 +16,7 @@ export const STUDIO_COPILOT_SUGGESTION_TYPES = [
   "USER_PREFERENCE_SUGGESTION",
   "ADAPTIVE_PLAN_SUGGESTION",
   "DECISION_SUPPORT_OPTION",
+  "SCENARIO_SIMULATION",
 ] as const;
 
 export type StudioCopilotSuggestionType = typeof STUDIO_COPILOT_SUGGESTION_TYPES[number];
@@ -39,6 +40,7 @@ export const STUDIO_COPILOT_ACTION_TYPES = [
   "REVIEW_PREFERENCES",
   "REVIEW_ADAPTIVE_PLAN",
   "REVIEW_DECISION_SUPPORT",
+  "REVIEW_SCENARIO",
 ] as const;
 
 export const STUDIO_COPILOT_DRAFT_TYPES = [
@@ -58,6 +60,7 @@ export const STUDIO_COPILOT_DRAFT_TYPES = [
   "PREFERENCE_REVIEW_DRAFT",
   "ADAPTIVE_PLAN_DRAFT",
   "DECISION_SELECTION_DRAFT",
+  "SCENARIO_DECISION_DRAFT",
 ] as const;
 
 export type StudioCopilotActionType = typeof STUDIO_COPILOT_ACTION_TYPES[number];
@@ -129,6 +132,13 @@ export type StudioCopilotSuggestion = Readonly<{
     optionCount: number;
     conflictCount: number;
     confidence: "HIGH" | "MEDIUM" | "LOW";
+  }>;
+  scenarioContext: Readonly<{
+    scenarioIds: readonly string[];
+    scenarioTypes: readonly string[];
+    scenarioCount: number;
+    highConfidenceCount: number;
+    costStatus: string;
   }>;
   createdAt: string;
 }>;
@@ -257,6 +267,15 @@ export type StudioProjectCopilotState = Readonly<{
     privacy: "CURRENT_USER_CURRENT_PROJECT_ONLY";
     actionBoundary: "OPTION_COMPARISON_PREVIEW_USER_CHOICE_CONFIRM_CREATES_DECISION_SELECTION_DRAFT_ONLY";
   }>;
+  scenarios: Readonly<{
+    total: number;
+    highConfidence: number;
+    mediumConfidence: number;
+    costStatus: string;
+    types: readonly string[];
+    privacy: "CURRENT_USER_CURRENT_PROJECT_WITH_USER_SCOPED_EXPERIENCE_ONLY";
+    actionBoundary: "SCENARIO_COMPARE_PREVIEW_USER_CONFIRM_CREATES_SCENARIO_DECISION_DRAFT_ONLY";
+  }>;
   updatedAt: string;
   privacy: "CURRENT_USER_CURRENT_PROJECT_ONLY";
   actionBoundary: "PREVIEW_CONFIRM_CREATES_DRAFT_ONLY_NO_EXECUTION";
@@ -310,6 +329,7 @@ export function studioCopilotSuggestionLabel(type: StudioCopilotSuggestionType) 
     USER_PREFERENCE_SUGGESTION: "Personal preference suggestion",
     ADAPTIVE_PLAN_SUGGESTION: "Adaptive planning suggestion",
     DECISION_SUPPORT_OPTION: "Decision support option",
+    SCENARIO_SIMULATION: "Scenario simulation",
   } as const)[type];
 }
 
@@ -332,6 +352,7 @@ export function studioCopilotActionLabel(type: StudioCopilotActionType) {
     REVIEW_PREFERENCES: "Review preferences",
     REVIEW_ADAPTIVE_PLAN: "Review adaptive plan",
     REVIEW_DECISION_SUPPORT: "Review decision option",
+    REVIEW_SCENARIO: "Review scenario",
   } as const)[type];
 }
 
@@ -354,5 +375,6 @@ export function studioCopilotDraftLabel(type: StudioCopilotDraftType | undefined
     PREFERENCE_REVIEW_DRAFT: "Preference Review Draft",
     ADAPTIVE_PLAN_DRAFT: "Adaptive Plan Draft",
     DECISION_SELECTION_DRAFT: "Decision Selection Draft",
+    SCENARIO_DECISION_DRAFT: "Scenario Decision Draft",
   } as const)[type];
 }
