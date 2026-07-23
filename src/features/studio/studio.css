@@ -3157,6 +3157,21 @@
 .studio-optimization-proposal-heading strong { color: #2dd4bf; font-size: 8px; }
 .studio-optimization-proposals article footer { align-items: flex-start; flex-direction: column; padding-top: 5px; border-top: 1px solid rgba(45, 212, 191, 0.16); }
 .studio-optimization-proposals article footer span { color: #94a3b8; text-transform: none; letter-spacing: normal; line-height: 1.35; }
+.studio-optimization-history { display: grid; gap: 9px; padding: 11px; border: 1px solid rgba(56, 189, 248, 0.26); border-radius: 12px; background: rgba(3, 105, 161, 0.1); }
+.studio-optimization-history > header, .studio-optimization-history > header > div, .studio-optimization-history-list article > header, .studio-optimization-history-deltas { display: flex; align-items: center; gap: 6px; }
+.studio-optimization-history > header, .studio-optimization-history-list article > header { justify-content: space-between; }
+.studio-optimization-history > header > div { align-items: flex-start; flex-direction: column; gap: 2px; }
+.studio-optimization-history span, .studio-optimization-history > header small { color: #7dd3fc; font-size: 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+.studio-optimization-history > header strong { color: #e0f2fe; font-size: 11px; }
+.studio-optimization-history > small { color: #bae6fd; font-size: 8px; line-height: 1.45; }
+.studio-optimization-history-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.studio-optimization-history-metrics > div, .studio-optimization-history-list article { display: grid; gap: 4px; padding: 8px; border-radius: 9px; background: rgba(2, 132, 199, 0.11); }
+.studio-optimization-history-metrics strong, .studio-optimization-history-list article strong { color: #e0f2fe; font-size: 10px; }
+.studio-optimization-history-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.studio-optimization-history-list article > div:not(.studio-optimization-history-deltas) { display: flex; justify-content: space-between; gap: 8px; }
+.studio-optimization-history-list article p { margin: 0; color: #bae6fd; font-size: 8px; line-height: 1.4; }
+.studio-optimization-history-deltas { flex-wrap: wrap; }
+.studio-optimization-history-deltas small { color: #94a3b8; font-size: 8px; }
 
 .studio-agent-context > summary {
   display: flex;

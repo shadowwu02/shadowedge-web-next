@@ -91,6 +91,8 @@ export type StudioCopilotSuggestion = Readonly<{
     types: readonly string[];
     expectedImpacts: readonly string[];
     highConfidenceCount: number;
+    effectiveCount: number;
+    ineffectiveCount: number;
   }>;
   createdAt: string;
 }>;
@@ -177,6 +179,10 @@ export type StudioProjectCopilotState = Readonly<{
     highConfidenceCount: number;
     evidenceCount: number;
     types: readonly string[];
+    decisionCount: number;
+    outcomeCount: number;
+    adoptionRate: number;
+    effectiveRate: number;
     actionBoundary: "PREVIEW_CONFIRM_CREATES_OPTIMIZATION_DRAFT_ONLY";
   }>;
   updatedAt: string;

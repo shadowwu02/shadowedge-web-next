@@ -47,7 +47,9 @@ test("Creative Copilot Panel displays Context, Workflow, suggestions, and Task s
   assert.match(component, /quality\.issueCount/);
   assert.match(component, /qualityContext\.relatedIssueIds/);
   assert.match(component, /optimizations\.proposalCount/);
+  assert.match(component, /optimizations\.outcomeCount/);
   assert.match(component, /optimizationContext\.proposalIds/);
+  assert.match(component, /optimizationContext\.effectiveCount/);
   assert.match(component, /taskStatus\.waitingHuman/);
   assert.match(component, /pendingActions/);
   assert.match(component, /Action Center/);

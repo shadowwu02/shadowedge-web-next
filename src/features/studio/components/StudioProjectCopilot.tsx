@@ -26,6 +26,7 @@ import { StudioResourceIntelligencePanel } from "@/features/studio/components/St
 import { StudioProductionEfficiencyPanel } from "@/features/studio/components/StudioProductionEfficiencyPanel";
 import { StudioCreativeQualityPanel } from "@/features/studio/components/StudioCreativeQualityPanel";
 import { StudioOptimizationCenter } from "@/features/studio/components/StudioOptimizationCenter";
+import { StudioOptimizationHistoryPanel } from "@/features/studio/components/StudioOptimizationHistoryPanel";
 
 export function StudioProjectCopilot({ projectId }: { projectId: string }) {
   const [state, setState] = useState<StudioProjectCopilotState | null>(null);
@@ -72,6 +73,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
       const result = await confirmStudioCopilotAction(projectId, actionId);
       setState(result.state);
       setMessage(`${studioCopilotDraftLabel(result.draft.draftType)} created. Review it in the existing workflow before any execution.`);
+      if (result.draft.draftType === "OPTIMIZATION_DRAFT") window.dispatchEvent(new CustomEvent("studio:optimization-history-updated", { detail: { projectId } }));
     } catch {
       setErrorState({ projectId, message: "This Draft could not be created. No project changes were made." });
     } finally {
@@ -85,9 +87,11 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
     setErrorState(null);
     setMessage("");
     try {
+      const optimizationSuggestion = currentState?.suggestions.find((candidate) => candidate.suggestionId === suggestionId)?.source === "CREATIVE_OPTIMIZATION";
       const result = await actOnStudioCopilotSuggestion(projectId, suggestionId, "DISMISS");
       setState(result.state);
       setMessage("Suggestion dismissed for this project.");
+      if (optimizationSuggestion) window.dispatchEvent(new CustomEvent("studio:optimization-history-updated", { detail: { projectId } }));
     } catch {
       setErrorState({ projectId, message: "This suggestion could not be dismissed. No project changes were made." });
     } finally {
@@ -119,6 +123,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
             <span>{currentState.efficiency.bottleneckCount} bottlenecks</span>
             <span>{currentState.quality.issueCount} quality issues</span>
             <span>{currentState.optimizations.proposalCount} optimization proposals</span>
+            <span>{currentState.optimizations.outcomeCount} optimization outcomes</span>
             <span>{currentState.taskStatus.waitingHuman} waiting review</span>
             <span>{currentState.taskStatus.completed}/{currentState.taskStatus.total} tasks done</span>
           </div>
@@ -127,6 +132,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
           <StudioProductionEfficiencyPanel currentProjectId={projectId} />
           <StudioCreativeQualityPanel projectId={projectId} />
           <StudioOptimizationCenter projectId={projectId} />
+          <StudioOptimizationHistoryPanel projectId={projectId} />
           <StudioProjectIntelligence projectId={projectId} />
           <StudioProjectInsights projectId={projectId} />
           <StudioProjectStrategyPanel projectId={projectId} />
@@ -152,7 +158,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
                       <small>Resources: {suggestion.resourceContext.assetIds.length} linked assets · Reuse score {suggestion.resourceContext.highestReuseScore}</small>
                       <small>Efficiency: {suggestion.efficiencyContext.bottleneckCount} bottlenecks · {suggestion.efficiencyContext.workflowIds.length} workflows</small>
                       <small>Quality: {suggestion.qualityContext.relatedIssueIds.length} issues · {suggestion.qualityContext.averageOutputQuality === null ? "score unknown" : `${Math.round(suggestion.qualityContext.averageOutputQuality)}/100`}</small>
-                      <small>Optimization: {suggestion.optimizationContext.proposalIds.length} proposals · {suggestion.optimizationContext.highConfidenceCount} high confidence</small>
+                      <small>Optimization: {suggestion.optimizationContext.proposalIds.length} proposals · {suggestion.optimizationContext.effectiveCount} effective · {suggestion.optimizationContext.ineffectiveCount} ineffective</small>
                     </div>
                     {action.status === "PREVIEWED" ? (
                       <div className="studio-project-copilot-preview" aria-label={`${studioCopilotActionLabel(action.type)} preview`}>
