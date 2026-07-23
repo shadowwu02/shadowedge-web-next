@@ -22,6 +22,7 @@ import { StudioProjectEvolutionTimeline } from "@/features/studio/components/Stu
 import { StudioFuturePlanningPanel } from "@/features/studio/components/StudioFuturePlanningPanel";
 import { StudioProjectGoalsPanel } from "@/features/studio/components/StudioProjectGoalsPanel";
 import { StudioPortfolioIntelligencePanel } from "@/features/studio/components/StudioPortfolioIntelligencePanel";
+import { StudioResourceIntelligencePanel } from "@/features/studio/components/StudioResourceIntelligencePanel";
 
 export function StudioProjectCopilot({ projectId }: { projectId: string }) {
   const [state, setState] = useState<StudioProjectCopilotState | null>(null);
@@ -111,10 +112,12 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
             <span>{currentState.context.futurePlanCount} future plans</span>
             <span>{currentState.context.goalCount} goals</span>
             <span>{currentState.portfolio.projectCount} portfolio projects</span>
+            <span>{currentState.resources.highValueAssetCount} reusable assets</span>
             <span>{currentState.taskStatus.waitingHuman} waiting review</span>
             <span>{currentState.taskStatus.completed}/{currentState.taskStatus.total} tasks done</span>
           </div>
           <StudioPortfolioIntelligencePanel currentProjectId={projectId} />
+          <StudioResourceIntelligencePanel currentProjectId={projectId} />
           <StudioProjectIntelligence projectId={projectId} />
           <StudioProjectInsights projectId={projectId} />
           <StudioProjectStrategyPanel projectId={projectId} />
@@ -137,6 +140,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
                       <small>Suggested action: {studioCopilotActionLabel(action.type)} · Source: {suggestion.source.replaceAll("_", " ")}</small>
                       <small>Goal alignment: {suggestion.goalAlignment.status} · {suggestion.goalAlignment.goalIds.length} linked goal{suggestion.goalAlignment.goalIds.length === 1 ? "" : "s"}</small>
                       <small>Portfolio: {suggestion.portfolioContext.projectPriority} · {suggestion.portfolioContext.projectRole.replaceAll("_", " ")}</small>
+                      <small>Resources: {suggestion.resourceContext.assetIds.length} linked assets · Reuse score {suggestion.resourceContext.highestReuseScore}</small>
                     </div>
                     {action.status === "PREVIEWED" ? (
                       <div className="studio-project-copilot-preview" aria-label={`${studioCopilotActionLabel(action.type)} preview`}>
