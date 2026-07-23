@@ -33,6 +33,7 @@ import { StudioAdaptiveSuggestionsPanel } from "@/features/studio/components/Stu
 import { StudioDecisionSupportPanel } from "@/features/studio/components/StudioDecisionSupportPanel";
 import { StudioScenarioSimulatorPanel } from "@/features/studio/components/StudioScenarioSimulatorPanel";
 import { StudioDecisionPatternsPanel } from "@/features/studio/components/StudioDecisionPatternsPanel";
+import { StudioCopilotTrustCenter } from "@/features/studio/components/StudioCopilotTrustCenter";
 
 export function StudioProjectCopilot({ projectId }: { projectId: string }) {
   const [state, setState] = useState<StudioProjectCopilotState | null>(null);
@@ -136,6 +137,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
             <span>{currentState.decisionSupport.optionCount} decision options</span>
             <span>{currentState.scenarios.total} simulated scenarios</span>
             <span>{currentState.decisionPatterns.total} decision patterns</span>
+            <span>{currentState.explanations.total} explained recommendations</span>
             <span>{currentState.taskStatus.waitingHuman} waiting review</span>
             <span>{currentState.taskStatus.completed}/{currentState.taskStatus.total} tasks done</span>
           </div>
@@ -146,6 +148,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
           <StudioDecisionSupportPanel projectId={projectId} />
           <StudioScenarioSimulatorPanel projectId={projectId} />
           <StudioDecisionPatternsPanel />
+          <StudioCopilotTrustCenter projectId={projectId} recommendations={currentState.suggestions} />
           <StudioResourceIntelligencePanel currentProjectId={projectId} />
           <StudioProductionEfficiencyPanel currentProjectId={projectId} />
           <StudioCreativeQualityPanel projectId={projectId} />
@@ -183,12 +186,14 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
                       <small>Decision support: {suggestion.decisionSupportContext.optionCount} options · {suggestion.decisionSupportContext.conflictCount} tradeoff conflicts</small>
                       <small>Scenario simulation: {suggestion.scenarioContext.scenarioCount} forecasts · {suggestion.scenarioContext.highConfidenceCount} high confidence · Cost {suggestion.scenarioContext.costStatus}</small>
                       <small>Decision memory: {suggestion.decisionPatternContext.patternCount} patterns · {suggestion.decisionPatternContext.strongPatternCount} strong · {suggestion.decisionPatternContext.explicitCount} explicit</small>
+                      <small>Why Copilot: {suggestion.explanationReference?.confidence || "LOW"} confidence · Explanation linked</small>
                     </div>
                     {action.status === "PREVIEWED" ? (
                       <div className="studio-project-copilot-preview" aria-label={`${studioCopilotActionLabel(action.type)} preview`}>
                         <div><span>Reason</span><strong>{action.payload.reason}</strong></div>
                         <div><span>Impact</span><strong>{action.payload.impactScope.replaceAll("_", " ")}</strong></div>
                         <div><span>Draft</span><strong>{studioCopilotDraftLabel(action.payload.draftType)}</strong></div>
+                        <div><span>Explanation</span><strong>{action.payload.explanationReference?.confidence || "LOW"} confidence</strong></div>
                         <small>User confirmation required. This creates Draft metadata only.</small>
                       </div>
                     ) : null}
@@ -208,7 +213,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
           {currentState.pendingActions.length ? (
             <div className="studio-project-copilot-drafts" aria-label="Creative Copilot pending Drafts">
               <strong>Pending Drafts</strong>
-              {currentState.pendingActions.map((draft) => <span key={draft.draftId}>{studioCopilotDraftLabel(draft.draftType)} · DRAFT</span>)}
+              {currentState.pendingActions.map((draft) => <span key={draft.draftId}>{studioCopilotDraftLabel(draft.draftType)} · DRAFT · Explanation {draft.explanationReference ? "linked" : "unavailable"}</span>)}
             </div>
           ) : null}
           <small>Preview is read-only. Create Draft requires your confirmation and never changes the project, starts planning, executes a node, calls a Provider, or charges Credits.</small>

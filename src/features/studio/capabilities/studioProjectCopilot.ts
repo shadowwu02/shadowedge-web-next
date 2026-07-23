@@ -69,6 +69,11 @@ export const STUDIO_COPILOT_DRAFT_TYPES = [
 export type StudioCopilotActionType = typeof STUDIO_COPILOT_ACTION_TYPES[number];
 export type StudioCopilotDraftType = typeof STUDIO_COPILOT_DRAFT_TYPES[number];
 export type StudioCopilotActionStatus = "SUGGESTED" | "PREVIEWED" | "CONFIRMED" | "DISMISSED";
+export type StudioCopilotExplanationReference = Readonly<{
+  explanationId: string;
+  href: string;
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+}>;
 
 export type StudioCopilotSuggestion = Readonly<{
   suggestionId: string;
@@ -150,6 +155,7 @@ export type StudioCopilotSuggestion = Readonly<{
     strongPatternCount: number;
     explicitCount: number;
   }>;
+  explanationReference: StudioCopilotExplanationReference | null;
   createdAt: string;
 }>;
 
@@ -164,6 +170,7 @@ export type StudioCopilotDraft = Readonly<{
   actionType?: StudioCopilotActionType;
   draftType?: StudioCopilotDraftType;
   impactScope?: string;
+  explanationReference?: StudioCopilotExplanationReference | null;
   status: "DRAFT";
   createdAt: string;
 }>;
@@ -178,6 +185,7 @@ export type StudioCopilotAction = Readonly<{
     impactScope: string;
     requiresConfirmation: true;
     existingFlowTarget: "PROJECT_COPILOT_DRAFT_REVIEW";
+    explanationReference: StudioCopilotExplanationReference | null;
   }>;
   status: StudioCopilotActionStatus;
   draft: StudioCopilotDraft | null;
@@ -295,6 +303,14 @@ export type StudioProjectCopilotState = Readonly<{
     privacy: "CURRENT_USER_ONLY_NO_CROSS_USER_LEARNING";
     personalizationBoundary: "READ_ONLY_SIGNAL_NO_AUTOMATIC_DECISION_NO_PREFERENCE_MUTATION_NO_EXECUTION";
   }>;
+  explanations: Readonly<{
+    total: number;
+    highConfidence: number;
+    mediumConfidence: number;
+    lowConfidence: number;
+    privacy: "CURRENT_USER_CURRENT_PROJECT_SANITIZED_EVIDENCE_ONLY";
+    actionBoundary: "EXPLANATION_ONLY_NO_RECOMMENDATION_MUTATION_NO_EXECUTION";
+  }>;
   updatedAt: string;
   privacy: "CURRENT_USER_CURRENT_PROJECT_ONLY";
   actionBoundary: "PREVIEW_CONFIRM_CREATES_DRAFT_ONLY_NO_EXECUTION";
@@ -306,6 +322,7 @@ export type StudioCopilotActionPreviewResult = Readonly<{
     reason: string;
     impactScope: string;
     draftType: StudioCopilotDraftType;
+    explanationReference: StudioCopilotExplanationReference | null;
     requiresConfirmation: true;
     safety: "NO_PROJECT_MUTATION_NO_EXECUTION_NO_PROVIDER_NO_CREDITS";
   }>;
