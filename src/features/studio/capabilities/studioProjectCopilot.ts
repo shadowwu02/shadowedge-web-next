@@ -6,6 +6,7 @@ export const STUDIO_COPILOT_SUGGESTION_TYPES = [
   "QUALITY_WARNING",
   "STRATEGY_PROPOSAL",
   "FUTURE_PLAN_PROPOSAL",
+  "GOAL_ALIGNMENT_REVIEW",
 ] as const;
 
 export type StudioCopilotSuggestionType = typeof STUDIO_COPILOT_SUGGESTION_TYPES[number];
@@ -19,6 +20,7 @@ export const STUDIO_COPILOT_ACTION_TYPES = [
   "CHECK_QUALITY",
   "REVIEW_STRATEGY",
   "REVIEW_FUTURE_PLAN",
+  "REVIEW_GOALS",
 ] as const;
 
 export const STUDIO_COPILOT_DRAFT_TYPES = [
@@ -28,6 +30,7 @@ export const STUDIO_COPILOT_DRAFT_TYPES = [
   "PROMPT_DRAFT",
   "STRATEGY_DRAFT",
   "FUTURE_PLAN_DRAFT",
+  "GOAL_REVIEW_DRAFT",
 ] as const;
 
 export type StudioCopilotActionType = typeof STUDIO_COPILOT_ACTION_TYPES[number];
@@ -40,6 +43,12 @@ export type StudioCopilotSuggestion = Readonly<{
   message: string;
   source: string;
   sourceId: string | null;
+  goalAlignment: Readonly<{
+    status: "ALIGNED" | "PARTIAL" | "MISALIGNED";
+    missionId: string;
+    goalIds: readonly string[];
+    alignmentId: string | null;
+  }>;
   createdAt: string;
 }>;
 
@@ -89,7 +98,8 @@ export type StudioProjectCopilotState = Readonly<{
     completed: number;
     failed: number;
   }>;
-  context: Readonly<{ memoryCount: number; workflowTemplateCount: number; insightCount: number; strategyCount: number; futurePlanCount: number }>;
+  context: Readonly<{ memoryCount: number; workflowTemplateCount: number; insightCount: number; strategyCount: number; futurePlanCount: number; goalCount: number }>;
+  mission: Readonly<{ missionId: string; projectId: string; mission: string; vision: string; createdAt: string; updatedAt: string }>;
   updatedAt: string;
   privacy: "CURRENT_USER_CURRENT_PROJECT_ONLY";
   actionBoundary: "PREVIEW_CONFIRM_CREATES_DRAFT_ONLY_NO_EXECUTION";
@@ -133,6 +143,7 @@ export function studioCopilotSuggestionLabel(type: StudioCopilotSuggestionType) 
     QUALITY_WARNING: "Quality warning",
     STRATEGY_PROPOSAL: "Strategy proposal",
     FUTURE_PLAN_PROPOSAL: "Future plan proposal",
+    GOAL_ALIGNMENT_REVIEW: "Goal alignment review",
   } as const)[type];
 }
 
@@ -145,6 +156,7 @@ export function studioCopilotActionLabel(type: StudioCopilotActionType) {
     CHECK_QUALITY: "Check quality",
     REVIEW_STRATEGY: "Review strategy",
     REVIEW_FUTURE_PLAN: "Review future plan",
+    REVIEW_GOALS: "Review goals",
   } as const)[type];
 }
 
@@ -157,5 +169,6 @@ export function studioCopilotDraftLabel(type: StudioCopilotDraftType | undefined
     PROMPT_DRAFT: "Prompt Draft",
     STRATEGY_DRAFT: "Strategy Draft",
     FUTURE_PLAN_DRAFT: "Future Plan Draft",
+    GOAL_REVIEW_DRAFT: "Goal Review Draft",
   } as const)[type];
 }
