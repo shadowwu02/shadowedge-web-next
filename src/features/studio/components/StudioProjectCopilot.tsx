@@ -30,6 +30,7 @@ import { StudioOptimizationHistoryPanel } from "@/features/studio/components/Stu
 import { StudioUserCreativePatternsPanel } from "@/features/studio/components/StudioUserCreativePatternsPanel";
 import { StudioCreativePreferencesPanel } from "@/features/studio/components/StudioCreativePreferencesPanel";
 import { StudioAdaptiveSuggestionsPanel } from "@/features/studio/components/StudioAdaptiveSuggestionsPanel";
+import { StudioDecisionSupportPanel } from "@/features/studio/components/StudioDecisionSupportPanel";
 
 export function StudioProjectCopilot({ projectId }: { projectId: string }) {
   const [state, setState] = useState<StudioProjectCopilotState | null>(null);
@@ -130,6 +131,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
             <span>{currentState.creativePatterns.total} creative patterns</span>
             <span>{currentState.creativePreferences.total} creative preferences</span>
             <span>{currentState.adaptivePlanning.total} personalized suggestions</span>
+            <span>{currentState.decisionSupport.optionCount} decision options</span>
             <span>{currentState.taskStatus.waitingHuman} waiting review</span>
             <span>{currentState.taskStatus.completed}/{currentState.taskStatus.total} tasks done</span>
           </div>
@@ -137,6 +139,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
           <StudioCreativePreferencesPanel />
           <StudioUserCreativePatternsPanel projectId={projectId} />
           <StudioAdaptiveSuggestionsPanel projectId={projectId} />
+          <StudioDecisionSupportPanel projectId={projectId} />
           <StudioResourceIntelligencePanel currentProjectId={projectId} />
           <StudioProductionEfficiencyPanel currentProjectId={projectId} />
           <StudioCreativeQualityPanel projectId={projectId} />
@@ -171,6 +174,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
                       <small>Experience: {suggestion.experienceContext.experienceIds.length} verified patterns · {suggestion.experienceContext.highConfidenceCount} high confidence</small>
                       <small>Preferences: {suggestion.preferenceContext.preferenceIds.length} reusable signals · {suggestion.preferenceContext.explicitCount} set by you</small>
                       <small>Adaptive planning: {suggestion.adaptiveContext.suggestionIds.length} suggestions · {suggestion.adaptiveContext.conflictCount} conflicts</small>
+                      <small>Decision support: {suggestion.decisionSupportContext.optionCount} options · {suggestion.decisionSupportContext.conflictCount} tradeoff conflicts</small>
                     </div>
                     {action.status === "PREVIEWED" ? (
                       <div className="studio-project-copilot-preview" aria-label={`${studioCopilotActionLabel(action.type)} preview`}>
