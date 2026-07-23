@@ -11,15 +11,16 @@ import {
 } from "../src/features/studio/capabilities/studioProjectCopilot.ts";
 
 test("Project Copilot schema exposes the bounded suggestion types", () => {
-  assert.deepEqual(STUDIO_COPILOT_SUGGESTION_TYPES, ["NEXT_STEP", "STYLE_IMPROVEMENT", "WORKFLOW_SUGGESTION", "COST_WARNING", "QUALITY_WARNING", "STRATEGY_PROPOSAL", "FUTURE_PLAN_PROPOSAL", "GOAL_ALIGNMENT_REVIEW"]);
+  assert.deepEqual(STUDIO_COPILOT_SUGGESTION_TYPES, ["NEXT_STEP", "STYLE_IMPROVEMENT", "WORKFLOW_SUGGESTION", "COST_WARNING", "QUALITY_WARNING", "STRATEGY_PROPOSAL", "FUTURE_PLAN_PROPOSAL", "GOAL_ALIGNMENT_REVIEW", "PORTFOLIO_PRIORITY_SUGGESTION"]);
   assert.equal(studioCopilotSuggestionLabel("WORKFLOW_SUGGESTION"), "Workflow suggestion");
-  assert.deepEqual(STUDIO_COPILOT_ACTION_TYPES, ["CREATE_DRAFT", "IMPROVE_PLAN", "REVIEW_WORKFLOW", "CHECK_COST", "CHECK_QUALITY", "REVIEW_STRATEGY", "REVIEW_FUTURE_PLAN", "REVIEW_GOALS"]);
-  assert.deepEqual(STUDIO_COPILOT_DRAFT_TYPES, ["CHARACTER_DRAFT", "STORYBOARD_DRAFT", "WORKFLOW_DRAFT", "PROMPT_DRAFT", "STRATEGY_DRAFT", "FUTURE_PLAN_DRAFT", "GOAL_REVIEW_DRAFT"]);
+  assert.deepEqual(STUDIO_COPILOT_ACTION_TYPES, ["CREATE_DRAFT", "IMPROVE_PLAN", "REVIEW_WORKFLOW", "CHECK_COST", "CHECK_QUALITY", "REVIEW_STRATEGY", "REVIEW_FUTURE_PLAN", "REVIEW_GOALS", "REVIEW_PORTFOLIO"]);
+  assert.deepEqual(STUDIO_COPILOT_DRAFT_TYPES, ["CHARACTER_DRAFT", "STORYBOARD_DRAFT", "WORKFLOW_DRAFT", "PROMPT_DRAFT", "STRATEGY_DRAFT", "FUTURE_PLAN_DRAFT", "GOAL_REVIEW_DRAFT", "PORTFOLIO_STRATEGY_DRAFT"]);
   assert.equal(studioCopilotActionLabel("CHECK_COST"), "Check cost");
   assert.equal(studioCopilotDraftLabel("WORKFLOW_DRAFT"), "Workflow Draft");
   assert.equal(studioCopilotDraftLabel("STRATEGY_DRAFT"), "Strategy Draft");
   assert.equal(studioCopilotDraftLabel("FUTURE_PLAN_DRAFT"), "Future Plan Draft");
   assert.equal(studioCopilotDraftLabel("GOAL_REVIEW_DRAFT"), "Goal Review Draft");
+  assert.equal(studioCopilotDraftLabel("PORTFOLIO_STRATEGY_DRAFT"), "Portfolio Strategy Draft");
 });
 
 test("Creative Copilot Panel displays Context, Workflow, suggestions, and Task status", () => {
@@ -33,6 +34,8 @@ test("Creative Copilot Panel displays Context, Workflow, suggestions, and Task s
   assert.match(component, /futurePlanCount/);
   assert.match(component, /goalCount/);
   assert.match(component, /goalAlignment\.status/);
+  assert.match(component, /portfolio\.projectCount/);
+  assert.match(component, /portfolioContext\.projectPriority/);
   assert.match(component, /taskStatus\.waitingHuman/);
   assert.match(component, /pendingActions/);
   assert.match(component, /Action Center/);

@@ -7,6 +7,7 @@ export const STUDIO_COPILOT_SUGGESTION_TYPES = [
   "STRATEGY_PROPOSAL",
   "FUTURE_PLAN_PROPOSAL",
   "GOAL_ALIGNMENT_REVIEW",
+  "PORTFOLIO_PRIORITY_SUGGESTION",
 ] as const;
 
 export type StudioCopilotSuggestionType = typeof STUDIO_COPILOT_SUGGESTION_TYPES[number];
@@ -21,6 +22,7 @@ export const STUDIO_COPILOT_ACTION_TYPES = [
   "REVIEW_STRATEGY",
   "REVIEW_FUTURE_PLAN",
   "REVIEW_GOALS",
+  "REVIEW_PORTFOLIO",
 ] as const;
 
 export const STUDIO_COPILOT_DRAFT_TYPES = [
@@ -31,6 +33,7 @@ export const STUDIO_COPILOT_DRAFT_TYPES = [
   "STRATEGY_DRAFT",
   "FUTURE_PLAN_DRAFT",
   "GOAL_REVIEW_DRAFT",
+  "PORTFOLIO_STRATEGY_DRAFT",
 ] as const;
 
 export type StudioCopilotActionType = typeof STUDIO_COPILOT_ACTION_TYPES[number];
@@ -48,6 +51,13 @@ export type StudioCopilotSuggestion = Readonly<{
     missionId: string;
     goalIds: readonly string[];
     alignmentId: string | null;
+  }>;
+  portfolioContext: Readonly<{
+    portfolioId: string;
+    goals: readonly ("GROWTH" | "BRAND_BUILDING" | "CONTENT_SCALE" | "EFFICIENCY")[];
+    projectPriority: "HIGH" | "MEDIUM" | "LOW";
+    projectRole: "STRATEGIC_ANCHOR" | "SUPPORTING" | "EXPERIMENTAL";
+    relatedInsightIds: readonly string[];
   }>;
   createdAt: string;
 }>;
@@ -100,6 +110,12 @@ export type StudioProjectCopilotState = Readonly<{
   }>;
   context: Readonly<{ memoryCount: number; workflowTemplateCount: number; insightCount: number; strategyCount: number; futurePlanCount: number; goalCount: number }>;
   mission: Readonly<{ missionId: string; projectId: string; mission: string; vision: string; createdAt: string; updatedAt: string }>;
+  portfolio: Readonly<{
+    portfolioId: string;
+    projectCount: number;
+    goals: readonly ("GROWTH" | "BRAND_BUILDING" | "CONTENT_SCALE" | "EFFICIENCY")[];
+    priorityMode: "SUGGESTED_NOT_APPLIED";
+  }>;
   updatedAt: string;
   privacy: "CURRENT_USER_CURRENT_PROJECT_ONLY";
   actionBoundary: "PREVIEW_CONFIRM_CREATES_DRAFT_ONLY_NO_EXECUTION";
@@ -144,6 +160,7 @@ export function studioCopilotSuggestionLabel(type: StudioCopilotSuggestionType) 
     STRATEGY_PROPOSAL: "Strategy proposal",
     FUTURE_PLAN_PROPOSAL: "Future plan proposal",
     GOAL_ALIGNMENT_REVIEW: "Goal alignment review",
+    PORTFOLIO_PRIORITY_SUGGESTION: "Portfolio priority suggestion",
   } as const)[type];
 }
 
@@ -157,6 +174,7 @@ export function studioCopilotActionLabel(type: StudioCopilotActionType) {
     REVIEW_STRATEGY: "Review strategy",
     REVIEW_FUTURE_PLAN: "Review future plan",
     REVIEW_GOALS: "Review goals",
+    REVIEW_PORTFOLIO: "Review portfolio",
   } as const)[type];
 }
 
@@ -170,5 +188,6 @@ export function studioCopilotDraftLabel(type: StudioCopilotDraftType | undefined
     STRATEGY_DRAFT: "Strategy Draft",
     FUTURE_PLAN_DRAFT: "Future Plan Draft",
     GOAL_REVIEW_DRAFT: "Goal Review Draft",
+    PORTFOLIO_STRATEGY_DRAFT: "Portfolio Strategy Draft",
   } as const)[type];
 }
