@@ -25,6 +25,7 @@ import { StudioPortfolioIntelligencePanel } from "@/features/studio/components/S
 import { StudioResourceIntelligencePanel } from "@/features/studio/components/StudioResourceIntelligencePanel";
 import { StudioProductionEfficiencyPanel } from "@/features/studio/components/StudioProductionEfficiencyPanel";
 import { StudioCreativeQualityPanel } from "@/features/studio/components/StudioCreativeQualityPanel";
+import { StudioOptimizationCenter } from "@/features/studio/components/StudioOptimizationCenter";
 
 export function StudioProjectCopilot({ projectId }: { projectId: string }) {
   const [state, setState] = useState<StudioProjectCopilotState | null>(null);
@@ -117,6 +118,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
             <span>{currentState.resources.highValueAssetCount} reusable assets</span>
             <span>{currentState.efficiency.bottleneckCount} bottlenecks</span>
             <span>{currentState.quality.issueCount} quality issues</span>
+            <span>{currentState.optimizations.proposalCount} optimization proposals</span>
             <span>{currentState.taskStatus.waitingHuman} waiting review</span>
             <span>{currentState.taskStatus.completed}/{currentState.taskStatus.total} tasks done</span>
           </div>
@@ -124,6 +126,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
           <StudioResourceIntelligencePanel currentProjectId={projectId} />
           <StudioProductionEfficiencyPanel currentProjectId={projectId} />
           <StudioCreativeQualityPanel projectId={projectId} />
+          <StudioOptimizationCenter projectId={projectId} />
           <StudioProjectIntelligence projectId={projectId} />
           <StudioProjectInsights projectId={projectId} />
           <StudioProjectStrategyPanel projectId={projectId} />
@@ -149,6 +152,7 @@ export function StudioProjectCopilot({ projectId }: { projectId: string }) {
                       <small>Resources: {suggestion.resourceContext.assetIds.length} linked assets · Reuse score {suggestion.resourceContext.highestReuseScore}</small>
                       <small>Efficiency: {suggestion.efficiencyContext.bottleneckCount} bottlenecks · {suggestion.efficiencyContext.workflowIds.length} workflows</small>
                       <small>Quality: {suggestion.qualityContext.relatedIssueIds.length} issues · {suggestion.qualityContext.averageOutputQuality === null ? "score unknown" : `${Math.round(suggestion.qualityContext.averageOutputQuality)}/100`}</small>
+                      <small>Optimization: {suggestion.optimizationContext.proposalIds.length} proposals · {suggestion.optimizationContext.highConfidenceCount} high confidence</small>
                     </div>
                     {action.status === "PREVIEWED" ? (
                       <div className="studio-project-copilot-preview" aria-label={`${studioCopilotActionLabel(action.type)} preview`}>
