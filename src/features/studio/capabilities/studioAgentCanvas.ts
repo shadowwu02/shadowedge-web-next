@@ -308,6 +308,94 @@ export type StudioCanvasExecutionApproval = Readonly<{
   }>;
 }>;
 
+export const STUDIO_CANVAS_RUNTIME_STATUSES = [
+  "PENDING",
+  "READY",
+  "EXECUTING",
+  "COMPLETED",
+  "FAILED",
+] as const;
+export type StudioCanvasRuntimeStatus = typeof STUDIO_CANVAS_RUNTIME_STATUSES[number];
+
+export type StudioCanvasExecutionStatus = Readonly<{
+  executionId: string;
+  nodeId: string;
+  status: StudioCanvasRuntimeStatus;
+  rawStatus: string;
+  progress: number;
+  progressSource: "RUNTIME_REPORTED" | "STATE_DERIVED";
+  startedAt: string | null;
+  updatedAt: string;
+  completedAt: string | null;
+  capability: string | null;
+  agent: Readonly<{
+    taskId: string;
+    runtimeTaskId: string;
+    roleId: string;
+    taskStatus: string | null;
+  }>;
+  blocker: string | null;
+  result: Readonly<{
+    output: Readonly<{
+      nodeId: string;
+      url: string | null;
+      assetId: string;
+      version: string | null;
+      qualityStatus: string;
+      status: string;
+    }>;
+    asset: Readonly<{
+      assetId: string;
+      status: string;
+      type: string | null;
+      url: string | null;
+      displayName: string | null;
+      version: string | null;
+    }>;
+    timeline: Readonly<{
+      clipId: string;
+      duration: number | null;
+      status: string;
+      assetId: string;
+      start: number | null;
+    }>;
+  }> | null;
+}>;
+
+export type StudioCanvasExecutionStatusProjection = Readonly<{
+  projectId: string;
+  status: StudioCanvasRuntimeStatus;
+  currentStep: StudioCanvasExecutionStatus | null;
+  executions: readonly StudioCanvasExecutionStatus[];
+  timeline: Readonly<{
+    currentNodeIds: readonly string[];
+    completedNodeIds: readonly string[];
+    waitingNodeIds: readonly string[];
+    failedNodeIds: readonly string[];
+  }>;
+  results: ReadonlyArray<Readonly<{
+    executionId: string;
+    nodeId: string;
+    output: NonNullable<StudioCanvasExecutionStatus["result"]>["output"];
+    asset: NonNullable<StudioCanvasExecutionStatus["result"]>["asset"];
+    timeline: NonNullable<StudioCanvasExecutionStatus["result"]>["timeline"];
+  }>>;
+  generatedAt: string;
+  refresh: Readonly<{
+    mode: "POLL";
+    recommendedIntervalMs: number;
+  }>;
+  controlBoundary: Readonly<{
+    readOnly: true;
+    runtimeControl: false;
+    retry: false;
+    cancel: false;
+    automaticExecution: false;
+    providerCalled: false;
+    creditsDeducted: false;
+  }>;
+}>;
+
 export function studioCanvasDraftActionType(nodeType: StudioAgentCanvasNodeType): StudioCanvasDraftActionType {
   return ({
     GOAL: "GOAL_REVIEW",

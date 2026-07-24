@@ -27,6 +27,7 @@ import {
   type StudioCanvasDraftActionPreviewResult,
   type StudioCanvasExecutionApproval,
   type StudioCanvasExecutionPreview,
+  type StudioCanvasExecutionStatusProjection,
   type StudioCanvasWorkflowChange,
   type StudioCanvasWorkflowDraft,
 } from "@/features/studio/capabilities/studioAgentCanvas";
@@ -50,6 +51,7 @@ import {
   createStudioCanvasWorkflowDraft,
   createStudioCanvasExecutionPreview,
   getStudioAgentCanvas,
+  getStudioCanvasExecutionStatus,
   getStudioCanvasWorkflowDraft,
   getStudioCanvasProductionResults,
   previewStudioCanvasDraftAction,
@@ -269,6 +271,11 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
   const [executionApproval, setExecutionApproval] = useState<StudioCanvasExecutionApproval | null>(null);
   const [executionApprovalBusy, setExecutionApprovalBusy] = useState(false);
   const [executionApprovalMessage, setExecutionApprovalMessage] = useState("");
+  const [executionStatusState, setExecutionStatusState] = useState<{
+    projectId: string;
+    value: StudioCanvasExecutionStatusProjection;
+  } | null>(null);
+  const [executionStatusError, setExecutionStatusError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [productionState, setProductionState] = useState<{ projectId: string; results: StudioCanvasProductionResults } | null>(null);
   const [productionError, setProductionError] = useState("");
@@ -284,7 +291,9 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
   const [templateBusyId, setTemplateBusyId] = useState<string | null>(null);
   const [templateMessage, setTemplateMessage] = useState("");
   const [templateName, setTemplateName] = useState("Reusable Agent Workflow");
-  const [agentCanvasMode, setAgentCanvasMode] = useState<"PROJECT" | "AGENT_WORKFLOW">("PROJECT");
+  const [agentCanvasMode, setAgentCanvasMode] = useState<
+    "PROJECT" | "AGENT_WORKFLOW" | "LIVE_EXECUTION"
+  >("PROJECT");
   const [agentWorkflowState, setAgentWorkflowState] = useState<{ projectId: string; graph: StudioAgentWorkflowGraph } | null>(null);
   const [agentWorkflowError, setAgentWorkflowError] = useState("");
   const [agentWorkflowChanges, setAgentWorkflowChanges] = useState<StudioAgentWorkflowDraftChange[]>([]);
@@ -304,6 +313,9 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
   const production = productionState?.projectId === projectId ? productionState.results : null;
   const templateLibrary = templateLibraryState?.projectId === projectId ? templateLibraryState.library : null;
   const agentWorkflowGraph = agentWorkflowState?.projectId === projectId ? agentWorkflowState.graph : null;
+  const executionStatus = executionStatusState?.projectId === projectId
+    ? executionStatusState.value
+    : null;
   const visibleAgentWorkflowGraph = agentWorkflowDraft?.projectId === projectId ? agentWorkflowDraft.previewGraph : agentWorkflowGraph;
   const error = errorState?.projectId === projectId ? errorState.message : "";
 
@@ -333,6 +345,32 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
       .catch(() => { if (active) setAgentWorkflowError("Agent Workflow Graph is temporarily unavailable."); });
     return () => { active = false; };
   }, [projectId]);
+
+  useEffect(() => {
+    let active = true;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    if (!projectId || agentCanvasMode !== "LIVE_EXECUTION") {
+      return () => { active = false; };
+    }
+    const refresh = () => {
+      void getStudioCanvasExecutionStatus(projectId)
+        .then((value) => {
+          if (!active) return;
+          setExecutionStatusState({ projectId, value });
+          setExecutionStatusError("");
+        })
+        .catch(() => {
+          if (!active) return;
+          setExecutionStatusError("Live Execution Status is temporarily unavailable.");
+        });
+    };
+    refresh();
+    intervalId = setInterval(refresh, 5000);
+    return () => {
+      active = false;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [agentCanvasMode, projectId]);
 
   const previewDraft = useCallback(async (node: StudioAgentCanvasNode) => {
     if (!projectId || busyNodeId) return;
@@ -732,32 +770,117 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
         <div className="studio-agent-workflow-mode-switcher" aria-label="Agent Canvas mode">
           <button className={agentCanvasMode === "PROJECT" ? "is-active" : ""} onClick={() => setAgentCanvasMode("PROJECT")} type="button">Project Graph</button>
           <button className={agentCanvasMode === "AGENT_WORKFLOW" ? "is-active" : ""} onClick={() => setAgentCanvasMode("AGENT_WORKFLOW")} type="button">Agent Workflow Mode</button>
+          <button className={agentCanvasMode === "LIVE_EXECUTION" ? "is-active" : ""} onClick={() => setAgentCanvasMode("LIVE_EXECUTION")} type="button">Live Execution Mode</button>
         </div>
         {agentCanvasMode === "AGENT_WORKFLOW" && agentWorkflowError ? (
           <div className="studio-agent-workflow-mode-error" role="status">{agentWorkflowError}</div>
         ) : null}
-        <ReactFlow<StudioFlowNode, Edge>
-          nodes={agentCanvasMode === "AGENT_WORKFLOW" ? agentWorkflowNodes : nodes}
-          edges={agentCanvasMode === "AGENT_WORKFLOW" ? agentWorkflowEdges : edges}
-          nodeTypes={agentNodeTypes}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          elementsSelectable
-          onNodeClick={(_, node) => setSelectedId(node.id)}
-          onPaneClick={() => setSelectedId(null)}
-          fitView
-          fitViewOptions={{ padding: 0.16 }}
-          minZoom={0.35}
-          maxZoom={1.4}
-          panOnDrag
-          selectionOnDrag={false}
-          zoomOnDoubleClick={false}
-          deleteKeyCode={null}
-        >
-          <Background color="var(--studio-grid)" gap={22} size={1} variant={BackgroundVariant.Dots} />
-          <Controls position="bottom-left" showInteractive={false} />
-          <MiniMap maskColor="rgba(5, 7, 11, 0.72)" nodeColor="#818cf8" pannable position="bottom-right" zoomable />
-        </ReactFlow>
+        {agentCanvasMode === "LIVE_EXECUTION" ? (
+          <section className="studio-agent-live-execution" aria-label="Live Execution Monitoring">
+            <header>
+              <div>
+                <span>Runtime Projection</span>
+                <strong>Live Execution</strong>
+              </div>
+              <b className={`is-${(executionStatus?.status || "PENDING").toLowerCase()}`}>
+                {executionStatus?.status || "PENDING"}
+              </b>
+            </header>
+            {executionStatusError ? <p role="status">{executionStatusError}</p> : null}
+            {!executionStatus && !executionStatusError ? <p>Loading current Runtime state…</p> : null}
+            {executionStatus ? (
+              <>
+                <div className="studio-agent-live-current">
+                  <span>Current Step</span>
+                  <strong>
+                    {executionStatus.currentStep
+                      ? executionStatus.currentStep.agent.roleId.replaceAll("_", " ")
+                      : executionStatus.status === "COMPLETED"
+                        ? "All steps completed"
+                        : "Waiting for an active step"}
+                  </strong>
+                  <small>
+                    {executionStatus.currentStep?.capability || "No Runtime control is exposed in Canvas"}
+                  </small>
+                </div>
+                <div className="studio-agent-live-metrics">
+                  <span><b>{executionStatus.timeline.currentNodeIds.length}</b> Running</span>
+                  <span><b>{executionStatus.timeline.completedNodeIds.length}</b> Completed</span>
+                  <span><b>{executionStatus.timeline.waitingNodeIds.length}</b> Waiting</span>
+                  <span><b>{executionStatus.timeline.failedNodeIds.length}</b> Failed</span>
+                </div>
+                <div className="studio-agent-live-timeline" aria-label="Live Timeline">
+                  {executionStatus.executions.map((execution) => (
+                    <article className={`is-${execution.status.toLowerCase()}`} key={`${execution.executionId}:${execution.nodeId}`}>
+                      <header>
+                        <div>
+                          <strong>{execution.agent.roleId.replaceAll("_", " ")}</strong>
+                          <small>{execution.capability || execution.nodeId}</small>
+                        </div>
+                        <b>{execution.status}</b>
+                      </header>
+                      <div
+                        aria-label={`${execution.progress}% complete`}
+                        aria-valuemax={100}
+                        aria-valuemin={0}
+                        aria-valuenow={execution.progress}
+                        className="studio-agent-live-progress"
+                        role="progressbar"
+                      >
+                        <span style={{ width: `${execution.progress}%` }} />
+                      </div>
+                      <footer>
+                        <span>{execution.progress}%</span>
+                        <small>{execution.progressSource === "RUNTIME_REPORTED" ? "Runtime reported" : "Stage estimate"}</small>
+                      </footer>
+                      {execution.blocker ? <p>{execution.blocker.replaceAll("_", " ")}</p> : null}
+                      {execution.result ? (
+                        <div className="studio-agent-live-result">
+                          <strong>Result Preview</strong>
+                          <span>Timeline · {execution.result.timeline.clipId}</span>
+                          <span>Asset · {execution.result.asset.displayName || execution.result.asset.assetId}</span>
+                          <span>Output · {execution.result.output.status}</span>
+                          {execution.result.output.url ? (
+                            <a href={execution.result.output.url} rel="noreferrer" target="_blank">Open Output</a>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </article>
+                  ))}
+                  {!executionStatus.executions.length ? (
+                    <div className="studio-agent-live-empty">No Execution Runtime is associated with this project yet.</div>
+                  ) : null}
+                </div>
+                <small className="studio-agent-live-boundary">
+                  Read-only monitoring · refreshes every 5 seconds · no Execute, Retry, Cancel, Provider, or Credits control
+                </small>
+              </>
+            ) : null}
+          </section>
+        ) : (
+          <ReactFlow<StudioFlowNode, Edge>
+            nodes={agentCanvasMode === "AGENT_WORKFLOW" ? agentWorkflowNodes : nodes}
+            edges={agentCanvasMode === "AGENT_WORKFLOW" ? agentWorkflowEdges : edges}
+            nodeTypes={agentNodeTypes}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            elementsSelectable
+            onNodeClick={(_, node) => setSelectedId(node.id)}
+            onPaneClick={() => setSelectedId(null)}
+            fitView
+            fitViewOptions={{ padding: 0.16 }}
+            minZoom={0.35}
+            maxZoom={1.4}
+            panOnDrag
+            selectionOnDrag={false}
+            zoomOnDoubleClick={false}
+            deleteKeyCode={null}
+          >
+            <Background color="var(--studio-grid)" gap={22} size={1} variant={BackgroundVariant.Dots} />
+            <Controls position="bottom-left" showInteractive={false} />
+            <MiniMap maskColor="rgba(5, 7, 11, 0.72)" nodeColor="#818cf8" pannable position="bottom-right" zoomable />
+          </ReactFlow>
+        )}
         </div>
         <aside className="studio-agent-canvas-details" aria-label="Agent Canvas node details">
         {agentCanvasMode === "AGENT_WORKFLOW" ? (

@@ -5,6 +5,7 @@ import type {
   StudioCanvasWorkflowDraft,
   StudioCanvasExecutionApproval,
   StudioCanvasExecutionPreview,
+  StudioCanvasExecutionStatusProjection,
   StudioCanvasDraftActionConfirmResult,
   StudioCanvasDraftActionPreviewResult,
   StudioCanvasDraftActionType,
@@ -121,5 +122,15 @@ export async function confirmStudioCanvasExecutionApproval(projectId: string, ap
     { method: "POST", body: JSON.stringify({ confirm: true }) },
   );
   if (response.data?.status !== "APPROVED") throw new Error("Canvas Execution Approval was not approved.");
+  return response.data;
+}
+
+export async function getStudioCanvasExecutionStatus(projectId: string) {
+  const response = await apiRequest<StudioCanvasExecutionStatusProjection>(
+    `/api/projects/${encodeURIComponent(projectId)}/agent-canvas/execution-status`,
+  );
+  if (!response.data?.projectId || !Array.isArray(response.data.executions)) {
+    throw new Error("Canvas Execution Status was not returned.");
+  }
   return response.data;
 }
