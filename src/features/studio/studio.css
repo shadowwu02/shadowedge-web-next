@@ -4348,3 +4348,199 @@
   .studio-storyboard-layout > nav { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
   .studio-storyboard-draft { grid-column: auto; }
 }
+.studio-project-intelligence {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  margin: 12px 12px 0;
+  padding: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(103, 232, 249, 0.18);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 88% -20%, rgba(34, 211, 238, 0.15), transparent 42%),
+    linear-gradient(140deg, rgba(8, 17, 29, 0.98), rgba(15, 23, 42, 0.92));
+  box-shadow: 0 18px 45px rgba(2, 6, 23, 0.2);
+}
+
+.studio-project-intelligence::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.025) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.studio-project-intelligence > * { position: relative; }
+.studio-project-intelligence-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.studio-project-intelligence-header > div:first-child { display: grid; gap: 4px; }
+.studio-project-intelligence-header > div:first-child > span {
+  color: #67e8f9;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.studio-project-intelligence h2 { margin: 0; color: #f8fafc; font-size: 20px; letter-spacing: -0.02em; }
+.studio-project-intelligence-header p { max-width: 720px; margin: 0; color: #94a3b8; font-size: 10px; line-height: 1.5; }
+.studio-project-intelligence-progress {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 92px;
+  width: 92px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, #0b1423 58%, transparent 60%),
+    conic-gradient(#22d3ee var(--project-progress), rgba(51, 65, 85, 0.55) 0);
+  box-shadow: inset 0 0 20px rgba(34, 211, 238, 0.06);
+}
+.studio-project-intelligence-progress strong { color: #ecfeff; font-size: 17px; line-height: 1; }
+.studio-project-intelligence-progress span { color: #67e8f9; font-size: 7px; font-weight: 700; letter-spacing: 0.06em; }
+.studio-project-intelligence-progress small {
+  position: absolute;
+  top: calc(100% + 4px);
+  width: 130px;
+  overflow: hidden;
+  color: #64748b;
+  font-size: 7px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.studio-project-intelligence-empty,
+.studio-project-intelligence-error {
+  display: grid;
+  gap: 4px;
+  min-height: 92px;
+  place-content: center;
+  border: 1px dashed rgba(103, 232, 249, 0.18);
+  border-radius: 12px;
+  color: #94a3b8;
+  font-size: 10px;
+  text-align: center;
+}
+.studio-project-intelligence-empty strong { color: #e2e8f0; font-size: 11px; }
+.studio-project-intelligence-error { border-color: rgba(248, 113, 113, 0.22); }
+.studio-project-intelligence-error strong { color: #fca5a5; }
+.studio-project-intelligence-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.studio-project-intelligence-grid > article {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.62);
+}
+.studio-project-intelligence-grid > article > header {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 6px;
+  align-items: center;
+}
+.studio-project-intelligence-grid > article > header > span {
+  grid-row: 1 / 3;
+  color: rgba(103, 232, 249, 0.4);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.studio-project-intelligence-grid > article > header strong { color: #e2e8f0; font-size: 9px; }
+.studio-project-intelligence-grid > article > header small { color: #64748b; font-size: 7px; }
+.studio-project-intelligence-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+.studio-project-intelligence-metric {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  padding: 6px;
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.35);
+}
+.studio-project-intelligence-metric span { color: #64748b; font-size: 7px; }
+.studio-project-intelligence-metric strong { overflow: hidden; color: #cffafe; font-size: 11px; text-overflow: ellipsis; }
+.studio-project-intelligence-metric small { color: #475569; font-size: 6px; }
+.studio-project-intelligence-risks {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(251, 191, 36, 0.18);
+  border-radius: 12px;
+  background: rgba(120, 53, 15, 0.08);
+}
+.studio-project-intelligence-risks.is-critical { border-color: rgba(248, 113, 113, 0.28); background: rgba(127, 29, 29, 0.1); }
+.studio-project-intelligence-risks.is-healthy { border-color: rgba(52, 211, 153, 0.2); background: rgba(6, 78, 59, 0.08); }
+.studio-project-intelligence-risks > header,
+.studio-project-intelligence-risks > header > div,
+.studio-project-intelligence-risk-group > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.studio-project-intelligence-risks > header > div { justify-content: flex-start; }
+.studio-project-intelligence-risks > header span { color: #94a3b8; font-size: 8px; text-transform: uppercase; letter-spacing: 0.06em; }
+.studio-project-intelligence-risks > header strong { color: #fde68a; font-size: 9px; }
+.studio-project-intelligence-risks > header small { color: #64748b; font-size: 7px; }
+.studio-project-intelligence-risks > div { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.studio-project-intelligence-risk-group { display: grid; gap: 5px; padding: 7px; border-radius: 9px; background: rgba(2, 6, 23, 0.34); }
+.studio-project-intelligence-risk-group header span { color: #cbd5e1; font-size: 8px; }
+.studio-project-intelligence-risk-group header strong { color: #fbbf24; font-size: 9px; }
+.studio-project-intelligence-risk-group > div { display: flex; flex-wrap: wrap; gap: 3px; }
+.studio-project-intelligence-risk-group small {
+  padding: 2px 4px;
+  border-radius: 999px;
+  background: rgba(251, 191, 36, 0.08);
+  color: #fcd34d;
+  font-size: 6px;
+}
+.studio-project-intelligence-risk-group small.is-clear { background: transparent; color: #6ee7b7; }
+.studio-project-intelligence-insights {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(167, 139, 250, 0.18);
+  border-radius: 12px;
+  background: rgba(76, 29, 149, 0.07);
+}
+.studio-project-intelligence-insights > header { display: flex; justify-content: space-between; gap: 8px; }
+.studio-project-intelligence-insights > header span { color: #ddd6fe; font-size: 9px; font-weight: 700; }
+.studio-project-intelligence-insights > header small { color: #8b5cf6; font-size: 7px; }
+.studio-project-intelligence-insights > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.studio-project-intelligence-insights article { display: grid; gap: 3px; padding: 8px; border-radius: 9px; background: rgba(2, 6, 23, 0.34); }
+.studio-project-intelligence-insights article span { color: #a78bfa; font-size: 7px; text-transform: uppercase; }
+.studio-project-intelligence-insights article strong { color: #cbd5e1; font-size: 8px; line-height: 1.45; }
+.studio-project-intelligence-insights article small { color: #64748b; font-size: 6px; }
+.studio-project-intelligence-insights p { margin: 0; color: #94a3b8; font-size: 8px; }
+.studio-project-intelligence > footer { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: #64748b; font-size: 7px; }
+.studio-project-intelligence > footer span { padding: 3px 6px; border: 1px solid rgba(148, 163, 184, 0.1); border-radius: 999px; }
+.studio-project-intelligence > footer time { margin-left: auto; }
+
+@media (max-width: 1100px) {
+  .studio-project-intelligence-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .studio-project-intelligence-grid > article:last-child { grid-column: 1 / -1; }
+}
+
+@media (max-width: 720px) {
+  .studio-project-intelligence { margin: 8px 8px 0; padding: 12px; }
+  .studio-project-intelligence-header { align-items: flex-start; }
+  .studio-project-intelligence-progress { flex-basis: 74px; width: 74px; }
+  .studio-project-intelligence-grid,
+  .studio-project-intelligence-risks > div,
+  .studio-project-intelligence-insights > div { grid-template-columns: 1fr; }
+  .studio-project-intelligence-grid > article:last-child { grid-column: auto; }
+  .studio-project-intelligence > footer time { width: 100%; margin-left: 0; }
+}
