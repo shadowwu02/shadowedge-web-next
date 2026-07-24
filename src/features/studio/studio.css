@@ -3947,6 +3947,45 @@
 .studio-production-approval-gates .is-passed { border-color: rgba(52, 211, 153, 0.2); }
 .studio-production-approval-gates .is-passed span { color: #6ee7b7; }
 .studio-production-approval-gates .is-blocked { border-color: rgba(248, 113, 113, 0.22); }
+.studio-production-monitor {
+  padding: 9px;
+  border: 1px solid rgba(167, 139, 250, 0.2);
+  border-radius: 9px;
+  background: rgba(76, 29, 149, 0.08);
+}
+.studio-production-monitor-progress {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.8);
+}
+.studio-production-monitor-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #38bdf8, #a78bfa);
+  transition: width 180ms ease;
+}
+.studio-production-monitor-steps { display: grid; gap: 5px; }
+.studio-production-monitor-steps article {
+  display: grid;
+  gap: 4px;
+  padding: 7px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 7px;
+  background: rgba(2, 6, 23, 0.4);
+}
+.studio-production-monitor-steps article > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.studio-production-monitor-steps strong { color: #e2e8f0; font-size: 8px; overflow-wrap: anywhere; }
+.studio-production-monitor-steps span, .studio-production-monitor-steps small { color: #94a3b8; font-size: 7px; }
+.studio-production-monitor-steps .is-completed { border-color: rgba(52, 211, 153, 0.2); }
+.studio-production-monitor-steps .is-executing { border-color: rgba(56, 189, 248, 0.24); }
+.studio-production-monitor-steps .is-failed { border-color: rgba(248, 113, 113, 0.24); }
 .studio-agent-canvas-node-storyboard { border-color: rgba(167, 139, 250, 0.42); background: linear-gradient(180deg, rgba(76, 29, 149, 0.28), rgba(15, 23, 42, 0.92)); }
 
 @media (max-width: 1080px) {

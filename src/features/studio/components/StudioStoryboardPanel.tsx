@@ -11,6 +11,7 @@ import {
 } from "@/features/studio/capabilities/studioStoryboard";
 import type { StudioProductionRunPlan } from "@/features/studio/capabilities/studioProductionRunPlan";
 import type { StudioProductionExecutionApproval } from "@/features/studio/capabilities/studioProductionExecutionApproval";
+import type { StudioProductionRuntimeProjection } from "@/features/studio/capabilities/studioProductionRuntime";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import {
   confirmStudioShotDraft,
@@ -32,6 +33,7 @@ import {
   confirmStudioProductionExecutionApproval,
   createStudioProductionExecutionApproval,
 } from "@/lib/studio-production-execution-approval-api";
+import { getStudioProductionRunStatus } from "@/lib/studio-production-runtime-api";
 
 export function StudioStoryboardPanel() {
   const projectId = useStudioStore((state) => state.projectId);
@@ -43,6 +45,11 @@ export function StudioStoryboardPanel() {
   const [batchPlan, setBatchPlan] = useState<StudioShotBatchGenerationPlan | null>(null);
   const [productionPlan, setProductionPlan] = useState<StudioProductionRunPlan | null>(null);
   const [productionApproval, setProductionApproval] = useState<StudioProductionExecutionApproval | null>(null);
+  const [productionRuntimeState, setProductionRuntimeState] = useState<{
+    projectId: string;
+    value: StudioProductionRuntimeProjection;
+  } | null>(null);
+  const [productionRuntimeError, setProductionRuntimeError] = useState("");
   const [busyShotId, setBusyShotId] = useState<string | null>(null);
   const [batchBusy, setBatchBusy] = useState(false);
   const [productionBusy, setProductionBusy] = useState(false);
@@ -82,6 +89,36 @@ export function StudioStoryboardPanel() {
 
   useEffect(() => {
     if (!projectId) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const controller = new AbortController();
+    const refresh = async () => {
+      try {
+        const value = await getStudioProductionRunStatus(projectId, controller.signal);
+        if (!active) return;
+        setProductionRuntimeState({ projectId, value });
+        setProductionRuntimeError("");
+      } catch (reason) {
+        if (!active || controller.signal.aborted) return;
+        setProductionRuntimeError(
+          reason instanceof Error
+            ? reason.message
+            : "Production Runtime tracking is unavailable.",
+        );
+      } finally {
+        if (active) timer = setTimeout(() => void refresh(), 5000);
+      }
+    };
+    void refresh();
+    return () => {
+      active = false;
+      controller.abort();
+      if (timer) clearTimeout(timer);
+    };
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
     const controller = new AbortController();
     void getStudioProductionRunPlan(projectId, controller.signal)
       .then((value) => setProductionPlan(value.plan))
@@ -103,6 +140,9 @@ export function StudioStoryboardPanel() {
     : selectedStoryboard?.shots || [];
   const activeProductionPlan = productionPlan?.projectId === projectId ? productionPlan : null;
   const activeProductionApproval = productionApproval?.projectId === projectId ? productionApproval : null;
+  const activeProductionRuntime = productionRuntimeState?.projectId === projectId
+    ? productionRuntimeState.value
+    : null;
 
   const previewShotDraft = async (shot: StudioCreativeShot) => {
     setBusyShotId(shot.shotId);
@@ -574,6 +614,66 @@ export function StudioStoryboardPanel() {
                 </>
               ) : (
                 <p>Confirm the Production Run Draft before preparing its unified Execution Approval Package.</p>
+              )}
+            </section>
+            <section className="studio-storyboard-draft-section studio-production-monitor" aria-label="Production Run Monitor">
+              <span>Production Run Monitor</span>
+              {activeProductionRuntime ? (
+                <>
+                  <strong>
+                    {activeProductionRuntime.tracking.status}
+                    {" · "}
+                    {activeProductionRuntime.tracking.progress}% Progress
+                  </strong>
+                  <dl>
+                    <div><dt>Current Wave</dt><dd>{activeProductionRuntime.tracking.currentWave} / {activeProductionRuntime.tracking.totalWaves}</dd></div>
+                    <div><dt>Shots</dt><dd>{activeProductionRuntime.tracking.steps.length}</dd></div>
+                    <div><dt>Agents</dt><dd>{new Set(activeProductionRuntime.tracking.steps.map((step) => step.agent)).size}</dd></div>
+                    <div><dt>Results</dt><dd>{activeProductionRuntime.tracking.results.length}</dd></div>
+                  </dl>
+                  <div
+                    aria-label="Production Progress"
+                    aria-valuemax={100}
+                    aria-valuemin={0}
+                    aria-valuenow={activeProductionRuntime.tracking.progress}
+                    className="studio-production-monitor-progress"
+                    role="progressbar"
+                  >
+                    <span style={{ width: `${activeProductionRuntime.tracking.progress}%` }} />
+                  </div>
+                  <div className="studio-production-monitor-steps" aria-label="Shot Status and Agent Status">
+                    {activeProductionRuntime.tracking.steps.map((step) => (
+                      <article className={`is-${step.status.toLowerCase()}`} key={step.productionStepId}>
+                        <header>
+                          <strong>{step.shotId}</strong>
+                          <span>{step.status}</span>
+                        </header>
+                        <small>
+                          Wave {step.wave} · {step.agent.replaceAll("_", " ")} · {step.capability}
+                        </small>
+                        {step.result ? (
+                          <dl>
+                            <div><dt>Timeline Clip</dt><dd>{step.result.timelineClipId || "Pending binding"}</dd></div>
+                            <div><dt>Asset</dt><dd>{step.result.assetId || "Pending binding"}</dd></div>
+                            <div><dt>Output</dt><dd>{step.result.outputNodeId || "Pending binding"}</dd></div>
+                          </dl>
+                        ) : null}
+                      </article>
+                    ))}
+                  </div>
+                  <small>
+                    Existing Execution Runtime · read-only tracking · updated {activeProductionRuntime.tracking.updatedAt}
+                  </small>
+                  <small>No Retry, Runtime control, Provider call, or Credits action is available here.</small>
+                </>
+              ) : productionRuntimeError ? (
+                <>
+                  <strong>Tracking not ready</strong>
+                  <p>{productionRuntimeError}</p>
+                  <small>Approve Production and bind a compatible existing Execution Plan to begin read-only tracking.</small>
+                </>
+              ) : (
+                <p>Connecting the approved Production Run to its existing Execution Runtime…</p>
               )}
             </section>
             {message ? <small role="status">{message}</small> : null}
