@@ -13,6 +13,10 @@ import type { StudioProductionRunPlan } from "@/features/studio/capabilities/stu
 import type { StudioProductionExecutionApproval } from "@/features/studio/capabilities/studioProductionExecutionApproval";
 import type { StudioProductionRuntimeProjection } from "@/features/studio/capabilities/studioProductionRuntime";
 import type { StudioProductionReview } from "@/features/studio/capabilities/studioProductionReview";
+import type {
+  StudioProductionDeliveryCollection,
+  StudioProductionDeliveryPackage,
+} from "@/features/studio/capabilities/studioProductionDelivery";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import {
   confirmStudioShotDraft,
@@ -39,6 +43,10 @@ import {
   approveStudioProductionReview,
   getStudioProductionReview,
 } from "@/lib/studio-production-review-api";
+import {
+  createStudioProductionDeliveryPackage,
+  getStudioProductionDeliveryPackages,
+} from "@/lib/studio-production-delivery-api";
 
 export function StudioStoryboardPanel() {
   const projectId = useStudioStore((state) => state.projectId);
@@ -60,11 +68,17 @@ export function StudioStoryboardPanel() {
     value: StudioProductionReview;
   } | null>(null);
   const [productionReviewError, setProductionReviewError] = useState("");
+  const [productionDeliveryState, setProductionDeliveryState] = useState<{
+    projectId: string;
+    value: StudioProductionDeliveryCollection;
+  } | null>(null);
+  const [productionDeliveryError, setProductionDeliveryError] = useState("");
   const [busyShotId, setBusyShotId] = useState<string | null>(null);
   const [batchBusy, setBatchBusy] = useState(false);
   const [productionBusy, setProductionBusy] = useState(false);
   const [productionApprovalBusy, setProductionApprovalBusy] = useState(false);
   const [productionReviewBusy, setProductionReviewBusy] = useState(false);
+  const [productionDeliveryBusy, setProductionDeliveryBusy] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -157,6 +171,10 @@ export function StudioStoryboardPanel() {
   const activeProductionReview = productionReviewState?.projectId === projectId
     ? productionReviewState.value
     : null;
+  const activeProductionDelivery = productionDeliveryState?.projectId === projectId
+    ? productionDeliveryState.value
+    : null;
+  const latestDeliveryPackage = activeProductionDelivery?.packages[0] || null;
 
   useEffect(() => {
     if (!projectId || activeProductionRuntime?.tracking.status !== "COMPLETED") return;
@@ -175,6 +193,24 @@ export function StudioStoryboardPanel() {
       });
     return () => controller.abort();
   }, [activeProductionRuntime?.tracking.status, activeProductionRuntime?.tracking.trackingId, projectId]);
+
+  useEffect(() => {
+    if (!projectId || activeProductionReview?.status !== "APPROVED") return;
+    const controller = new AbortController();
+    void getStudioProductionDeliveryPackages(projectId, controller.signal)
+      .then((value) => {
+        setProductionDeliveryState({ projectId, value });
+        setProductionDeliveryError("");
+      })
+      .catch((reason: unknown) => {
+        if (!controller.signal.aborted) {
+          setProductionDeliveryError(
+            reason instanceof Error ? reason.message : "Production Delivery Workspace is unavailable.",
+          );
+        }
+      });
+    return () => controller.abort();
+  }, [activeProductionReview?.reviewId, activeProductionReview?.status, projectId]);
 
   const previewShotDraft = async (shot: StudioCreativeShot) => {
     setBusyShotId(shot.shotId);
@@ -359,6 +395,49 @@ export function StudioStoryboardPanel() {
       setMessage(reason instanceof Error ? reason.message : "Could not approve Production Review.");
     } finally {
       setProductionReviewBusy(false);
+    }
+  };
+
+  const createDeliveryPackage = async (version: string) => {
+    if (!projectId || activeProductionReview?.status !== "APPROVED") return;
+    setProductionDeliveryBusy(true);
+    setMessage("");
+    try {
+      const deliveryPackage = await createStudioProductionDeliveryPackage(projectId, version);
+      const existing = activeProductionDelivery?.packages || [];
+      const packages = [
+        deliveryPackage,
+        ...existing.filter((item) => item.packageId !== deliveryPackage.packageId),
+      ] as readonly StudioProductionDeliveryPackage[];
+      const [major, revision] = deliveryPackage.version
+        .slice(1)
+        .split(".")
+        .map((value) => Number(value));
+      setProductionDeliveryState({
+        projectId,
+        value: {
+          projectId,
+          productionId: deliveryPackage.productionId,
+          reviewId: deliveryPackage.metadata.reviewId,
+          packages,
+          allowedVersions: [`v${major}.${revision + 1}`, `v${major + 1}.0`],
+          approvalBoundary: {
+            reviewApproved: true,
+            automaticPublish: false,
+            externalUpload: false,
+            automaticShare: false,
+            historyDeletion: false,
+            creditsDeducted: false,
+          },
+        },
+      });
+      setMessage(
+        `${deliveryPackage.version} Delivery Package created as a reference-only Export Preview. Nothing was published, uploaded, shared, or charged.`,
+      );
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Could not create the Delivery Package.");
+    } finally {
+      setProductionDeliveryBusy(false);
     }
   };
 
@@ -803,6 +882,89 @@ export function StudioStoryboardPanel() {
                 )
               ) : (
                 <p>Production Review opens after every Production Shot is completed.</p>
+              )}
+            </section>
+            <section className="studio-storyboard-draft-section studio-production-delivery" aria-label="Delivery Workspace">
+              <span>Delivery Workspace</span>
+              {activeProductionReview?.status !== "APPROVED" ? (
+                <p>Approve Production Review before creating a versioned Delivery Package.</p>
+              ) : activeProductionDelivery ? (
+                <>
+                  <header>
+                    <div>
+                      <strong>{latestDeliveryPackage?.version || "No version"}</strong>
+                      <small>{latestDeliveryPackage?.status || "READY FOR FIRST PACKAGE"}</small>
+                    </div>
+                    <small>{activeProductionDelivery.packages.length} immutable version{activeProductionDelivery.packages.length === 1 ? "" : "s"}</small>
+                  </header>
+                  {latestDeliveryPackage ? (
+                    <>
+                      <div className="studio-production-delivery-summary" aria-label="Delivery Package summary">
+                        <div><strong>{latestDeliveryPackage.outputs.length}</strong><span>Approved Outputs</span></div>
+                        <div><strong>{latestDeliveryPackage.assets.length}</strong><span>Assets</span></div>
+                        <div><strong>{latestDeliveryPackage.timelineReferences.length}</strong><span>Timeline Refs</span></div>
+                        <div><strong>{latestDeliveryPackage.qualitySummary.checks.length}</strong><span>Quality Checks</span></div>
+                      </div>
+                      <div className="studio-production-delivery-export">
+                        <strong>Export Preview · {latestDeliveryPackage.exportPreview.format.replaceAll("_", " ")}</strong>
+                        <small>Reference manifest only · no external upload</small>
+                        <div>
+                          {latestDeliveryPackage.outputs.map((output) => (
+                            <article key={`${latestDeliveryPackage.packageId}:${output.shotId}`}>
+                              <span>{output.shotId}</span>
+                              <strong>{output.quality.score ?? "Review"} Quality</strong>
+                              <small>
+                                {output.outputRef || "Output unbound"} · {output.assetRef || "Asset unbound"}
+                              </small>
+                            </article>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="studio-production-delivery-quality" aria-label="Delivery Quality summary">
+                        {latestDeliveryPackage.qualitySummary.checks.map((check) => (
+                          <span key={check.type}>{check.type.replaceAll("_", " ")} · {check.status}</span>
+                        ))}
+                      </div>
+                      <div className="studio-production-delivery-history" aria-label="Delivery Version history">
+                        {activeProductionDelivery.packages.map((deliveryPackage) => (
+                          <div key={deliveryPackage.packageId}>
+                            <strong>{deliveryPackage.version}</strong>
+                            <span>{deliveryPackage.status}</span>
+                            <small>{deliveryPackage.outputs.length} outputs · {deliveryPackage.createdAt}</small>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <p>Create the first `v1.0` reference manifest from approved Outputs, Timeline references, Assets, and Quality evidence.</p>
+                  )}
+                  <div className="studio-production-delivery-actions">
+                    {activeProductionDelivery.allowedVersions.map((version, index) => (
+                      <button
+                        disabled={productionDeliveryBusy}
+                        key={version}
+                        onClick={() => void createDeliveryPackage(version)}
+                        type="button"
+                      >
+                        {productionDeliveryBusy
+                          ? "Creating…"
+                          : activeProductionDelivery.packages.length
+                            ? index === 0
+                              ? `Create Revision ${version}`
+                              : `Create Major ${version}`
+                            : `Create Package ${version}`}
+                      </button>
+                    ))}
+                  </div>
+                  <small>Append-only versions · no publish, external upload, share, history deletion, or Credits action.</small>
+                </>
+              ) : productionDeliveryError ? (
+                <>
+                  <strong>Delivery unavailable</strong>
+                  <p>{productionDeliveryError}</p>
+                </>
+              ) : (
+                <p>Loading approved Outputs, Timeline references, Assets, and Quality evidence…</p>
               )}
             </section>
             {message ? <small role="status">{message}</small> : null}
