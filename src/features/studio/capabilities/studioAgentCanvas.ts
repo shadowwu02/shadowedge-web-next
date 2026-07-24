@@ -263,6 +263,51 @@ export type StudioCanvasExecutionPreview = Readonly<{
   }>;
 }>;
 
+export const STUDIO_CANVAS_EXECUTION_APPROVAL_STATUSES = [
+  "PENDING",
+  "APPROVED",
+  "REJECTED",
+  "EXPIRED",
+] as const;
+export type StudioCanvasExecutionApprovalStatus =
+  typeof STUDIO_CANVAS_EXECUTION_APPROVAL_STATUSES[number];
+
+export type StudioCanvasExecutionApproval = Readonly<{
+  approvalId: string;
+  runPlanId: string;
+  executionPreviewId: string;
+  summary: Readonly<{
+    agentCount: number;
+    taskCount: number;
+    executionNodeCount: number;
+    estimatedCredits: number | null;
+    costConfidence: "HIGH" | "MEDIUM" | "LOW";
+    policyResult: "PASSED" | "BLOCKED" | "UNKNOWN";
+    costResult: "PASSED" | "BLOCKED" | "UNKNOWN";
+  }>;
+  policyStatus: "PASSED" | "BLOCKED" | "UNKNOWN";
+  costStatus: "PASSED" | "BLOCKED" | "UNKNOWN";
+  riskFlags: readonly string[];
+  status: StudioCanvasExecutionApprovalStatus;
+  createdAt: string;
+  expiresAt: string | null;
+  approvedAt?: string;
+  executionConfirmation?: Readonly<{
+    previewId: string;
+    executionPlanId: string | null;
+    status: "CONFIRMED";
+    confirmedAt: string;
+  }>;
+  approvalBoundary: Readonly<{
+    humanConfirmRequired: true;
+    delegatesToExistingExecutionConfirm: true;
+    canvasOwnsRuntime: false;
+    automaticExecution: false;
+    providerCalled: false;
+    creditsDeducted: false;
+  }>;
+}>;
+
 export function studioCanvasDraftActionType(nodeType: StudioAgentCanvasNodeType): StudioCanvasDraftActionType {
   return ({
     GOAL: "GOAL_REVIEW",

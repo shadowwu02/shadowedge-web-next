@@ -3,6 +3,7 @@ import type {
   StudioCanvasProductionResults,
   StudioCanvasWorkflowChange,
   StudioCanvasWorkflowDraft,
+  StudioCanvasExecutionApproval,
   StudioCanvasExecutionPreview,
   StudioCanvasDraftActionConfirmResult,
   StudioCanvasDraftActionPreviewResult,
@@ -99,5 +100,26 @@ export async function confirmStudioCanvasExecutionPreview(projectId: string, pre
     { method: "POST", body: JSON.stringify({ confirm: true }) },
   );
   if (response.data?.status !== "CONFIRMED") throw new Error("Canvas Execution Preview was not confirmed.");
+  return response.data;
+}
+
+export async function createStudioCanvasExecutionApproval(
+  projectId: string,
+  input: { runPlanId: string; executionPreviewId: string },
+) {
+  const response = await apiRequest<StudioCanvasExecutionApproval>(
+    `/api/projects/${encodeURIComponent(projectId)}/agent-canvas/execution-approval`,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+  if (!response.data?.approvalId) throw new Error("Canvas Execution Approval was not returned.");
+  return response.data;
+}
+
+export async function confirmStudioCanvasExecutionApproval(projectId: string, approvalId: string) {
+  const response = await apiRequest<StudioCanvasExecutionApproval>(
+    `/api/projects/${encodeURIComponent(projectId)}/agent-canvas/execution-approval/${encodeURIComponent(approvalId)}/confirm`,
+    { method: "POST", body: JSON.stringify({ confirm: true }) },
+  );
+  if (response.data?.status !== "APPROVED") throw new Error("Canvas Execution Approval was not approved.");
   return response.data;
 }

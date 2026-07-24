@@ -25,6 +25,7 @@ import {
   type StudioAgentCanvasNodeType,
   type StudioCanvasProductionResults,
   type StudioCanvasDraftActionPreviewResult,
+  type StudioCanvasExecutionApproval,
   type StudioCanvasExecutionPreview,
   type StudioCanvasWorkflowChange,
   type StudioCanvasWorkflowDraft,
@@ -43,8 +44,9 @@ import type {
 } from "@/features/studio/capabilities/studioWorkflowTemplateLibrary";
 import {
   confirmStudioCanvasWorkflowDraft,
-  confirmStudioCanvasExecutionPreview,
   confirmStudioCanvasDraftAction,
+  confirmStudioCanvasExecutionApproval,
+  createStudioCanvasExecutionApproval,
   createStudioCanvasWorkflowDraft,
   createStudioCanvasExecutionPreview,
   getStudioAgentCanvas,
@@ -264,6 +266,9 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
   const [confirmedCanvasActionId, setConfirmedCanvasActionId] = useState<string | null>(null);
   const [executionPreview, setExecutionPreview] = useState<StudioCanvasExecutionPreview | null>(null);
   const [executionBusy, setExecutionBusy] = useState(false);
+  const [executionApproval, setExecutionApproval] = useState<StudioCanvasExecutionApproval | null>(null);
+  const [executionApprovalBusy, setExecutionApprovalBusy] = useState(false);
+  const [executionApprovalMessage, setExecutionApprovalMessage] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [productionState, setProductionState] = useState<{ projectId: string; results: StudioCanvasProductionResults } | null>(null);
   const [productionError, setProductionError] = useState("");
@@ -321,6 +326,8 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
           setAgentWorkflowError("");
           setAgentRunPlan(null);
           setAgentRunPlanMessage("");
+          setExecutionApproval(null);
+          setExecutionApprovalMessage("");
         }
       })
       .catch(() => { if (active) setAgentWorkflowError("Agent Workflow Graph is temporarily unavailable."); });
@@ -371,6 +378,8 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
     try {
       const result = await createStudioCanvasExecutionPreview(projectId, confirmedCanvasActionId);
       setExecutionPreview(result);
+      setExecutionApproval(null);
+      setExecutionApprovalMessage("");
       setActionMessage(result.status === "READY"
         ? "Execution Preview ready. No Job, Queue, Provider call, or Credits deduction occurred."
         : "Execution Preview is blocked. Review the Gate results before continuing.");
@@ -382,20 +391,52 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
     }
   }, [confirmedCanvasActionId, executionBusy, projectId]);
 
-  const confirmExecutionPreview = useCallback(async () => {
-    if (!projectId || !executionPreview || executionPreview.status !== "READY" || executionBusy) return;
-    setExecutionBusy(true);
-    setActionMessage("");
+  const createExecutionApproval = useCallback(async () => {
+    if (!projectId || !agentRunPlan || !executionPreview ||
+        executionPreview.status !== "READY" || executionApprovalBusy) return;
+    setExecutionApprovalBusy(true);
+    setExecutionApprovalMessage("");
     try {
-      const result = await confirmStudioCanvasExecutionPreview(projectId, executionPreview.previewId);
-      setExecutionPreview(result);
-      setActionMessage("Execution Plan confirmed. Canvas still cannot execute; Runtime requires its separate execution confirmation.");
+      const result = await createStudioCanvasExecutionApproval(projectId, {
+        runPlanId: agentRunPlan.runPlanId,
+        executionPreviewId: executionPreview.previewId,
+      });
+      setExecutionApproval(result);
+      setExecutionApprovalMessage(result.status === "PENDING"
+        ? "Approval Summary ready. Review Policy, Cost, and Risks before confirming."
+        : "This Approval is no longer available. Build a current Run Plan and Execution Preview.");
     } catch {
-      setActionMessage("Execution Preview confirmation was blocked. No Runtime, Provider, or Credits action occurred.");
+      setExecutionApproval(null);
+      setExecutionApprovalMessage("Approval Summary could not be prepared. No Runtime, Provider, or Credits action occurred.");
     } finally {
-      setExecutionBusy(false);
+      setExecutionApprovalBusy(false);
     }
-  }, [executionBusy, executionPreview, projectId]);
+  }, [agentRunPlan, executionApprovalBusy, executionPreview, projectId]);
+
+  const confirmExecutionApproval = useCallback(async () => {
+    if (!projectId || !executionApproval || executionApproval.status !== "PENDING" ||
+        executionApprovalBusy) return;
+    setExecutionApprovalBusy(true);
+    setExecutionApprovalMessage("");
+    try {
+      const result = await confirmStudioCanvasExecutionApproval(projectId, executionApproval.approvalId);
+      setExecutionApproval(result);
+      setExecutionPreview((current) => current ? {
+        ...current,
+        status: "CONFIRMED",
+        confirmedAt: result.executionConfirmation?.confirmedAt,
+      } : current);
+      setExecutionApprovalMessage(
+        "Human approval recorded through the existing Execution Confirm. Runtime still requires its separate control.",
+      );
+    } catch {
+      setExecutionApprovalMessage(
+        "Approval was blocked by current Policy, Cost, or Execution gates. Nothing executed and no Credits were deducted.",
+      );
+    } finally {
+      setExecutionApprovalBusy(false);
+    }
+  }, [executionApproval, executionApprovalBusy, projectId]);
 
   const nodes = useMemo(() => graph ? toFlowNodes(graph, busyNodeId, previewDraft) : [], [busyNodeId, graph, previewDraft]);
   const edges = useMemo(() => graph ? toFlowEdges(graph) : [], [graph]);
@@ -664,9 +705,13 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
     try {
       const plan = await createStudioAgentRunPlan(projectId, agentWorkflowGraph.graphId);
       setAgentRunPlan(plan);
+      setExecutionApproval(null);
+      setExecutionApprovalMessage("");
       setAgentRunPlanMessage("Run Plan Preview ready. Queue, Agents, Tasks, Provider, and Credits remain untouched.");
     } catch {
       setAgentRunPlan(null);
+      setExecutionApproval(null);
+      setExecutionApprovalMessage("");
       setAgentRunPlanMessage("Run Plan Preview was blocked. No Queue or execution was started.");
     } finally {
       setAgentRunPlanBusy(false);
@@ -1088,12 +1133,72 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
               {executionPreview.riskFlags.length ? (
                 <div className="studio-agent-canvas-risks"><strong>Risks</strong><span>{executionPreview.riskFlags.join(" · ")}</span></div>
               ) : null}
-              <small>Preview and confirmation only. Canvas has no Runtime Execute control.</small>
+              <small>Preview only. Final confirmation is handled by the Execution Approval Center; Canvas has no Runtime Execute control.</small>
               {executionPreview.status === "READY" ? (
-                <button disabled={executionBusy} onClick={() => void confirmExecutionPreview()} type="button">Confirm Execution Preview</button>
+                <button
+                  disabled={executionApprovalBusy || !agentRunPlan}
+                  onClick={() => void createExecutionApproval()}
+                  type="button"
+                >
+                  {executionApprovalBusy ? "Preparing Approval…" : "Prepare Execution Approval"}
+                </button>
+              ) : null}
+              {executionPreview.status === "READY" && !agentRunPlan ? (
+                <small>Build and review an Agent Run Plan before requesting approval.</small>
               ) : null}
               {executionPreview.status === "CONFIRMED" ? <b>Existing Execution Plan confirmed · separate Runtime confirmation required</b> : null}
             </div>
+          ) : null}
+          {executionApproval ? (
+            <section className="studio-agent-canvas-execution-approval" aria-label="Execution Approval Panel">
+              <header>
+                <span>Execution Approval</span>
+                <b>{executionApproval.status}</b>
+              </header>
+              <dl>
+                <div><dt>Agents</dt><dd>{executionApproval.summary.agentCount}</dd></div>
+                <div><dt>Tasks</dt><dd>{executionApproval.summary.taskCount}</dd></div>
+                <div><dt>Execution nodes</dt><dd>{executionApproval.summary.executionNodeCount}</dd></div>
+                <div><dt>Estimated Credits</dt><dd>{executionApproval.summary.estimatedCredits ?? "Unknown"} · no deduction</dd></div>
+                <div><dt>Cost Confidence</dt><dd>{executionApproval.summary.costConfidence}</dd></div>
+                <div><dt>Policy Result</dt><dd>{executionApproval.policyStatus}</dd></div>
+                <div><dt>Cost Gate</dt><dd>{executionApproval.costStatus}</dd></div>
+              </dl>
+              <div className="studio-agent-canvas-gates">
+                <span className={executionApproval.policyStatus === "PASSED" ? "is-passed" : "is-blocked"}>
+                  {executionApproval.policyStatus === "PASSED" ? "✓" : "!"} Policy
+                </span>
+                <span className={executionApproval.costStatus === "PASSED" ? "is-passed" : "is-blocked"}>
+                  {executionApproval.costStatus === "PASSED" ? "✓" : "!"} Cost
+                </span>
+              </div>
+              {executionApproval.riskFlags.length ? (
+                <div className="studio-agent-canvas-risks">
+                  <strong>Risks</strong>
+                  <span>{executionApproval.riskFlags.join(" · ")}</span>
+                </div>
+              ) : <small>No approval risks were reported.</small>}
+              <small>
+                Human approval delegates to the existing Execution Confirm. It does not start Runtime, call a Provider, or deduct Credits.
+              </small>
+              {executionApproval.status === "PENDING" ? (
+                <button
+                  disabled={executionApprovalBusy ||
+                    executionApproval.policyStatus !== "PASSED" ||
+                    executionApproval.costStatus !== "PASSED"}
+                  onClick={() => void confirmExecutionApproval()}
+                  type="button"
+                >
+                  {executionApprovalBusy ? "Confirming…" : "Confirm through Existing Execution Confirm"}
+                </button>
+              ) : null}
+              {executionApproval.status === "APPROVED" ? (
+                <strong>Approved · Existing Execution Plan confirmed · separate Runtime control still required</strong>
+              ) : null}
+            </section>
+          ) : null}
+          {executionApprovalMessage ? (
+            <small className="studio-agent-canvas-action-message" role="status">{executionApprovalMessage}</small>
           ) : null}
         </section>
         {selected ? (

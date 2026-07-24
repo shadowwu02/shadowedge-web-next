@@ -30,7 +30,8 @@ test("Canvas UI renders an Execution Summary without a direct Execute control", 
   for (const label of ["Agent nodes", "Task nodes", "Execution nodes", "Capability", "Model", "Estimated Credits", "Risks"]) {
     assert.match(component, new RegExp(label));
   }
-  assert.match(component, />Confirm Execution Preview</);
+  assert.match(component, /Prepare Execution Approval/);
+  assert.doesNotMatch(component, />Confirm Execution Preview</);
   assert.match(component, /separate Runtime confirmation required/i);
   assert.doesNotMatch(component, />Execute(?: Node| Plan)?</);
   assert.doesNotMatch(component, /executeStudioWorkflowNode|executeNode|runStudioGraph|generateVideo/);
