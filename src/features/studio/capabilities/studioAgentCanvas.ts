@@ -1,6 +1,6 @@
 import type { StudioWorkflowExecutionPlan } from "@/features/studio/capabilities/studioWorkflowExecutionPlan";
 
-export const STUDIO_AGENT_CANVAS_NODE_TYPES = ["GOAL", "STRATEGY", "AGENT_TEAM", "TASK", "EXECUTION", "ASSET"] as const;
+export const STUDIO_AGENT_CANVAS_NODE_TYPES = ["GOAL", "STRATEGY", "STORYBOARD", "AGENT_TEAM", "TASK", "EXECUTION", "ASSET"] as const;
 
 export type StudioAgentCanvasNodeType = typeof STUDIO_AGENT_CANVAS_NODE_TYPES[number];
 
@@ -420,6 +420,7 @@ export function studioCanvasDraftActionType(nodeType: StudioAgentCanvasNodeType)
   return ({
     GOAL: "GOAL_REVIEW",
     STRATEGY: "STRATEGY_REVIEW",
+    STORYBOARD: "STRATEGY_REVIEW",
     AGENT_TEAM: "AGENT_EXPANSION",
     TASK: "WORKFLOW_IMPROVEMENT",
     EXECUTION: "QUALITY_IMPROVEMENT",
@@ -442,6 +443,7 @@ export function studioAgentCanvasNodeLabel(type: StudioAgentCanvasNodeType) {
   return ({
     GOAL: "Goal",
     STRATEGY: "Strategy",
+    STORYBOARD: "Storyboard",
     AGENT_TEAM: "Agent Team",
     TASK: "Task",
     EXECUTION: "Execution",

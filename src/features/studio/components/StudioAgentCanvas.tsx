@@ -89,10 +89,11 @@ type StudioFlowNode = AgentFlowNode | AgentWorkflowFlowNode;
 const laneX: Record<StudioAgentCanvasNodeType, number> = {
   GOAL: 20,
   STRATEGY: 300,
-  AGENT_TEAM: 580,
-  TASK: 860,
-  EXECUTION: 1140,
-  ASSET: 1420,
+  STORYBOARD: 580,
+  AGENT_TEAM: 860,
+  TASK: 1140,
+  EXECUTION: 1420,
+  ASSET: 1700,
 };
 
 const AgentNode = memo(function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
@@ -113,7 +114,11 @@ const AgentNode = memo(function AgentNode({ data, selected }: NodeProps<AgentFlo
       ) : null}
       <div className="studio-agent-canvas-node-actions">
         {markers[0] ? <a href={markers[0].href} onClick={(event) => event.stopPropagation()}>View Insight</a> : null}
-        <button disabled={data.busy} onClick={(event) => { event.stopPropagation(); data.onPreview(data.source); }} type="button">Create Draft</button>
+        {data.source.nodeType === "STORYBOARD" ? (
+          <a href="#storyboard-workspace" onClick={(event) => event.stopPropagation()}>Open Storyboard</a>
+        ) : (
+          <button disabled={data.busy} onClick={(event) => { event.stopPropagation(); data.onPreview(data.source); }} type="button">Create Draft</button>
+        )}
       </div>
       <Handle type="source" position={Position.Right} isConnectable={false} />
     </article>
@@ -1505,9 +1510,13 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
             {(selected.metadata.insightMarkers || []).map((marker) => (
               <a className="studio-agent-canvas-insight" href={marker.href} key={marker.insightId}>⚠ {marker.label} · View insight</a>
             ))}
-            <button className="studio-agent-canvas-create-draft" disabled={Boolean(busyNodeId)} onClick={() => void previewDraft(selected)} type="button">
+            {selected.nodeType !== "STORYBOARD" ? (
+              <button className="studio-agent-canvas-create-draft" disabled={Boolean(busyNodeId)} onClick={() => void previewDraft(selected)} type="button">
               {busyNodeId === selected.nodeId ? "Preparing…" : "Create Draft"}
-            </button>
+              </button>
+            ) : (
+              <a className="studio-agent-canvas-create-draft" href="#storyboard-workspace">Open Storyboard · SHOT_DRAFT</a>
+            )}
             {draftPreview?.action.nodeId === selected.nodeId ? (
               <section className="studio-agent-canvas-draft-preview" aria-label="Canvas Draft Action preview">
                 <span>{studioCanvasDraftActionLabel(draftPreview.action.actionType)}</span>

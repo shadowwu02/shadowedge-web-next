@@ -11,6 +11,7 @@ import type {
   StudioCanvasDraftActionType,
 } from "@/features/studio/capabilities/studioAgentCanvas";
 import { apiRequest } from "@/lib/api";
+import { getStudioStoryboards } from "@/lib/studio-storyboard-api";
 
 export async function getStudioAgentCanvas(projectId: string, signal?: AbortSignal) {
   const response = await apiRequest<StudioAgentCanvasGraph>(
@@ -18,7 +19,56 @@ export async function getStudioAgentCanvas(projectId: string, signal?: AbortSign
     { signal },
   );
   if (!response.data?.projectId) throw new Error("Agent Canvas response was incomplete.");
-  return response.data;
+  try {
+    const storyboards = await getStudioStoryboards(projectId, signal);
+    const storyboardNodes: StudioAgentCanvasGraph["nodes"] = storyboards.storyboards.map((storyboard) => ({
+      nodeId: `canvas_storyboard_${storyboard.storyboardId}`,
+      projectId,
+      nodeType: "STORYBOARD",
+      referenceId: storyboard.storyboardId,
+      status: storyboard.status,
+      metadata: {
+        title: `${storyboard.sceneName} Storyboard`,
+        source: "Creative Storyboard",
+        sceneId: storyboard.sceneId,
+        shotCount: storyboard.shots.length,
+        shotTypes: storyboard.shots.map((shot) => shot.shotType),
+        agentSource: storyboard.agentSource,
+        evidence: storyboard.shots.flatMap((shot) => shot.references),
+      },
+      createdAt: storyboard.createdAt,
+    }));
+    const strategy = response.data.nodes.find((node) => node.nodeType === "STRATEGY")
+      || response.data.nodes.find((node) => node.nodeType === "GOAL");
+    const team = response.data.nodes.find((node) => node.nodeType === "AGENT_TEAM");
+    const storyboardEdges: StudioAgentCanvasGraph["edges"] = storyboardNodes.flatMap((node) => [
+      ...(strategy ? [{
+        edgeId: `edge_${strategy.nodeId}_${node.nodeId}`,
+        source: strategy.nodeId,
+        target: node.nodeId,
+        relationType: "PLANS_SCENE",
+      }] : []),
+      ...(team ? [{
+        edgeId: `edge_${node.nodeId}_${team.nodeId}`,
+        source: node.nodeId,
+        target: team.nodeId,
+        relationType: "GUIDES_AGENTS",
+      }] : []),
+    ]);
+    return {
+      ...response.data,
+      nodes: [...response.data.nodes, ...storyboardNodes],
+      edges: [...response.data.edges, ...storyboardEdges],
+      revision: `${response.data.revision}:storyboard:${storyboardNodes.map((node) => node.referenceId).join(",") || "empty"}`,
+      performance: {
+        ...response.data.performance,
+        nodeCount: response.data.nodes.length + storyboardNodes.length,
+        edgeCount: response.data.edges.length + storyboardEdges.length,
+      },
+    };
+  } catch {
+    return response.data;
+  }
 }
 
 export async function getStudioCanvasProductionResults(projectId: string, signal?: AbortSignal) {

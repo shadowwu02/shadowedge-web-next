@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-test("Agent Canvas UI renders the six read-only project graph node types", () => {
+test("Agent Canvas UI renders the seven read-only project graph node types", () => {
   const contract = fs.readFileSync("src/features/studio/capabilities/studioAgentCanvas.ts", "utf8");
   const component = fs.readFileSync("src/features/studio/components/StudioAgentCanvas.tsx", "utf8");
-  for (const type of ["GOAL", "STRATEGY", "AGENT_TEAM", "TASK", "EXECUTION", "ASSET"]) {
+  for (const type of ["GOAL", "STRATEGY", "STORYBOARD", "AGENT_TEAM", "TASK", "EXECUTION", "ASSET"]) {
     assert.match(contract, new RegExp(`"${type}"`));
   }
   assert.match(component, /nodesDraggable=\{false\}/);
