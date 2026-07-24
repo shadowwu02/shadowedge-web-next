@@ -26,10 +26,14 @@ import {
   type StudioCanvasProductionResults,
   type StudioCanvasDraftActionPreviewResult,
   type StudioCanvasExecutionPreview,
+  type StudioCanvasWorkflowChange,
+  type StudioCanvasWorkflowDraft,
 } from "@/features/studio/capabilities/studioAgentCanvas";
 import {
+  confirmStudioCanvasWorkflowDraft,
   confirmStudioCanvasExecutionPreview,
   confirmStudioCanvasDraftAction,
+  createStudioCanvasWorkflowDraft,
   createStudioCanvasExecutionPreview,
   getStudioAgentCanvas,
   getStudioCanvasProductionResults,
@@ -127,6 +131,13 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
   const [actionMessage, setActionMessage] = useState("");
   const [productionState, setProductionState] = useState<{ projectId: string; results: StudioCanvasProductionResults } | null>(null);
   const [productionError, setProductionError] = useState("");
+  const [workflowEditing, setWorkflowEditing] = useState(false);
+  const [workflowChanges, setWorkflowChanges] = useState<StudioCanvasWorkflowChange[]>([]);
+  const [workflowDraft, setWorkflowDraft] = useState<StudioCanvasWorkflowDraft | null>(null);
+  const [workflowBusy, setWorkflowBusy] = useState(false);
+  const [workflowMessage, setWorkflowMessage] = useState("");
+  const [connectionSource, setConnectionSource] = useState("");
+  const [connectionTarget, setConnectionTarget] = useState("");
   const graph = graphState?.projectId === projectId ? graphState.graph : null;
   const production = productionState?.projectId === projectId ? productionState.results : null;
   const error = errorState?.projectId === projectId ? errorState.message : "";
@@ -217,6 +228,82 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
   const edges = useMemo(() => graph ? toFlowEdges(graph) : [], [graph]);
   const selected = graph?.nodes.find((node) => node.nodeId === selectedId) || null;
   const selectedResult = production?.bindings.find((binding) => binding.canvasNodeId === selectedId) || null;
+  const draftAgentNodes = workflowChanges
+    .filter((change) => change.type === "ADD_NODE" && change.node?.nodeId)
+    .map((change) => ({
+      nodeId: String(change.node?.nodeId),
+      label: change.role === "QUALITY_AGENT" ? "Quality Agent" : "Storyboard Agent",
+      immutable: false,
+    }));
+  const workflowSelectableNodes = [
+    ...(graph?.nodes || [])
+      .filter((node) => !["EXECUTION", "ASSET"].includes(node.nodeType))
+      .map((node) => ({
+        nodeId: node.nodeId,
+        label: String(node.metadata.title || node.referenceId),
+        immutable: false,
+      })),
+    ...draftAgentNodes,
+  ];
+
+  function addDraftAgent(role: "QUALITY_AGENT" | "STORYBOARD_AGENT") {
+    const nodeId = `draft-agent-${role.toLowerCase().replaceAll("_", "-")}`;
+    if (workflowChanges.some((change) => change.type === "ADD_NODE" && change.node?.nodeId === nodeId)) return;
+    setWorkflowChanges((changes) => [...changes, {
+      changeId: `add-${role.toLowerCase()}`,
+      type: "ADD_NODE",
+      role,
+      node: { nodeId, role },
+    }]);
+    setWorkflowDraft(null);
+    setWorkflowMessage(`${role.replaceAll("_", " ")} added to the local Draft preview.`);
+  }
+
+  function addConnectionChange(type: "CONNECT_NODE" | "DISCONNECT_NODE") {
+    if (!connectionSource || !connectionTarget || connectionSource === connectionTarget) {
+      setWorkflowMessage("Choose two different Draft nodes before changing a connection.");
+      return;
+    }
+    setWorkflowChanges((changes) => [...changes, {
+      changeId: `${type.toLowerCase()}-${connectionSource}-${connectionTarget}`,
+      type,
+      sourceNodeId: connectionSource,
+      targetNodeId: connectionTarget,
+    }]);
+    setWorkflowDraft(null);
+    setWorkflowMessage(type === "CONNECT_NODE" ? "Connection added to the local Draft preview." : "Connection removal added to the local Draft preview.");
+  }
+
+  async function previewWorkflowChanges() {
+    if (!projectId || !workflowChanges.length || workflowBusy) return;
+    setWorkflowBusy(true);
+    setWorkflowMessage("");
+    try {
+      const draft = await createStudioCanvasWorkflowDraft(projectId, workflowChanges);
+      setWorkflowDraft(draft);
+      setWorkflowMessage("Workflow Draft preview saved. The original Canvas and Execution history are unchanged.");
+    } catch {
+      setWorkflowDraft(null);
+      setWorkflowMessage("Workflow Draft preview was rejected. No Canvas or Execution data changed.");
+    } finally {
+      setWorkflowBusy(false);
+    }
+  }
+
+  async function confirmWorkflowChanges() {
+    if (!projectId || !workflowDraft || workflowDraft.status !== "DRAFT" || workflowBusy) return;
+    setWorkflowBusy(true);
+    setWorkflowMessage("");
+    try {
+      const confirmed = await confirmStudioCanvasWorkflowDraft(projectId, workflowDraft.draftId);
+      setWorkflowDraft(confirmed);
+      setWorkflowMessage("Workflow Proposal Draft confirmed. A new Execution Preview is still required before Runtime.");
+    } catch {
+      setWorkflowMessage("Workflow Draft confirmation was blocked. Nothing was executed or written to the original Canvas.");
+    } finally {
+      setWorkflowBusy(false);
+    }
+  }
 
   if (!projectId) {
     return <div className="studio-agent-canvas-empty">Open a cloud project to view its Agent Canvas.</div>;
@@ -253,6 +340,77 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
         </ReactFlow>
         </div>
         <aside className="studio-agent-canvas-details" aria-label="Agent Canvas node details">
+        <section className="studio-agent-canvas-workflow-editor" aria-label="Canvas Workflow Draft editor">
+          <header>
+            <span>Workflow Builder</span>
+            <b>{workflowDraft?.status || (workflowChanges.length ? "UNSAVED" : "READ ONLY")}</b>
+          </header>
+          {!workflowEditing ? (
+            <button onClick={() => { setWorkflowEditing(true); setWorkflowMessage("Draft editing enabled. Original Workflow remains read-only."); }} type="button">
+              Edit Workflow
+            </button>
+          ) : (
+            <div className="studio-agent-canvas-workflow-draft">
+              <div className="studio-agent-canvas-draft-badge">
+                <span>Draft mode</span>
+                <strong>{workflowDraft?.status || "UNSAVED"}</strong>
+              </div>
+              <small>Add supported Agent roles or propose connection changes. Nothing is applied directly.</small>
+              <div className="studio-agent-canvas-agent-buttons">
+                <button disabled={workflowBusy} onClick={() => addDraftAgent("STORYBOARD_AGENT")} type="button">+ Storyboard Agent</button>
+                <button disabled={workflowBusy} onClick={() => addDraftAgent("QUALITY_AGENT")} type="button">+ Quality Agent</button>
+              </div>
+              <label>
+                Connection source
+                <select aria-label="Connection source" onChange={(event) => setConnectionSource(event.target.value)} value={connectionSource}>
+                  <option value="">Select node</option>
+                  {workflowSelectableNodes.map((node) => <option key={`source-${node.nodeId}`} value={node.nodeId}>{node.label}</option>)}
+                </select>
+              </label>
+              <label>
+                Connection target
+                <select aria-label="Connection target" onChange={(event) => setConnectionTarget(event.target.value)} value={connectionTarget}>
+                  <option value="">Select node</option>
+                  {workflowSelectableNodes.map((node) => <option key={`target-${node.nodeId}`} value={node.nodeId}>{node.label}</option>)}
+                </select>
+              </label>
+              <div className="studio-agent-canvas-connection-buttons">
+                <button disabled={workflowBusy} onClick={() => addConnectionChange("CONNECT_NODE")} type="button">Connect in Draft</button>
+                <button disabled={workflowBusy} onClick={() => addConnectionChange("DISCONNECT_NODE")} type="button">Disconnect in Draft</button>
+              </div>
+              <div className="studio-agent-canvas-change-list" aria-label="Workflow Draft changes">
+                <strong>Changes · {workflowChanges.length}</strong>
+                {workflowChanges.map((change, index) => (
+                  <span key={`${change.changeId || change.type}-${index}`}>
+                    {change.type.replaceAll("_", " ")}
+                    {change.role ? ` · ${change.role.replaceAll("_", " ")}` : ""}
+                    {change.sourceNodeId && change.targetNodeId ? ` · ${change.sourceNodeId} → ${change.targetNodeId}` : ""}
+                  </span>
+                ))}
+              </div>
+              <button disabled={!workflowChanges.length || workflowBusy} onClick={() => void previewWorkflowChanges()} type="button">
+                {workflowBusy ? "Building Preview…" : "Preview Changes"}
+              </button>
+              {workflowDraft ? (
+                <section className="studio-agent-canvas-impact" aria-label="Workflow Draft impact">
+                  <span>Impact Analysis</span>
+                  <dl>
+                    <div><dt>Affected nodes</dt><dd>{workflowDraft.impact.affectedNodes.length}</dd></div>
+                    <div><dt>Execution</dt><dd>{workflowDraft.impact.executionImpact.replaceAll("_", " ")}</dd></div>
+                    <div><dt>Cost</dt><dd>{workflowDraft.impact.costImpact.replaceAll("_", " ")}</dd></div>
+                    <div><dt>Node / edge delta</dt><dd>{workflowDraft.impact.nodeDelta} / {workflowDraft.impact.edgeDelta}</dd></div>
+                  </dl>
+                  {workflowDraft.impact.risks.length ? <small>{workflowDraft.impact.risks.join(" · ")}</small> : null}
+                  {workflowDraft.status === "DRAFT" ? (
+                    <button disabled={workflowBusy} onClick={() => void confirmWorkflowChanges()} type="button">Confirm Workflow Draft</button>
+                  ) : null}
+                  {workflowDraft.status === "CONFIRMED" ? <strong>Confirmed Draft only · Execution Preview still required</strong> : null}
+                </section>
+              ) : null}
+              {workflowMessage ? <small className="studio-agent-canvas-action-message" role="status">{workflowMessage}</small> : null}
+            </div>
+          )}
+        </section>
         <section className="studio-agent-canvas-execution-control" aria-label="Canvas Execution Preview controls">
           <header>
             <span>Execution Preview</span>

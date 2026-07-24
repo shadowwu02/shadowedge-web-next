@@ -95,6 +95,71 @@ export type StudioCanvasProductionResults = Readonly<{
   safety: "NO_CANVAS_GENERATION_NO_TIMELINE_MUTATION_NO_RUNTIME_BYPASS_NO_AUTO_PUBLISH";
 }>;
 
+export const STUDIO_CANVAS_WORKFLOW_DRAFT_STATUSES = ["DRAFT", "REVIEW", "CONFIRMED", "REJECTED", "EXPIRED"] as const;
+export type StudioCanvasWorkflowDraftStatus = typeof STUDIO_CANVAS_WORKFLOW_DRAFT_STATUSES[number];
+
+export const STUDIO_CANVAS_WORKFLOW_CHANGE_TYPES = ["ADD_NODE", "REMOVE_NODE", "CONNECT_NODE", "DISCONNECT_NODE", "UPDATE_NODE_CONFIG"] as const;
+export type StudioCanvasWorkflowChangeType = typeof STUDIO_CANVAS_WORKFLOW_CHANGE_TYPES[number];
+
+export type StudioCanvasWorkflowChange = Readonly<{
+  changeId?: string;
+  type: StudioCanvasWorkflowChangeType;
+  role?: "QUALITY_AGENT" | "STORYBOARD_AGENT";
+  node?: Readonly<{
+    nodeId?: string;
+    role?: string;
+    referenceId?: string;
+    config?: Readonly<Record<string, unknown>>;
+  }>;
+  nodeId?: string;
+  sourceNodeId?: string;
+  targetNodeId?: string;
+  config?: Readonly<Record<string, unknown>>;
+}>;
+
+export type StudioCanvasWorkflowDraft = Readonly<{
+  draftId: string;
+  projectId: string;
+  baseCanvasVersion: string;
+  nodes: ReadonlyArray<Readonly<{
+    nodeId: string;
+    nodeType: string;
+    referenceId: string;
+    status: string;
+    metadata: Readonly<Record<string, unknown>>;
+    createdAt?: string;
+  }>>;
+  edges: ReadonlyArray<Readonly<{
+    edgeId: string;
+    source: string;
+    target: string;
+    relationType: string;
+  }>>;
+  changes: readonly StudioCanvasWorkflowChange[];
+  status: StudioCanvasWorkflowDraftStatus;
+  impact: Readonly<{
+    affectedNodes: readonly string[];
+    nodeDelta: number;
+    edgeDelta: number;
+    executionImpact: "DRAFT_ONLY" | "REQUIRES_NEW_EXECUTION_PREVIEW";
+    costImpact: "NO_IMMEDIATE_COST" | "REQUIRES_COST_REESTIMATE";
+    creditsDeducted: false;
+    risks: readonly string[];
+  }>;
+  createdAt: string;
+  confirmedAt?: string;
+  proposal?: Readonly<{
+    proposalId: string;
+    draftType: "WORKFLOW_DRAFT";
+    status: "DRAFT";
+    source: "AGENT_CANVAS";
+    sourceDraftId: string;
+    requiresExecutionPreview: true;
+    executionAllowed: false;
+  }>;
+  boundary: "WORKFLOW_PROPOSAL_ONLY" | "CONFIRMED_PROPOSAL_NO_CANVAS_OR_EXECUTION_MUTATION";
+}>;
+
 export const STUDIO_CANVAS_DRAFT_ACTION_TYPES = ["GOAL_REVIEW", "STRATEGY_REVIEW", "AGENT_EXPANSION", "WORKFLOW_IMPROVEMENT", "QUALITY_IMPROVEMENT", "COST_OPTIMIZATION"] as const;
 export type StudioCanvasDraftActionType = typeof STUDIO_CANVAS_DRAFT_ACTION_TYPES[number];
 

@@ -1,6 +1,8 @@
 import type {
   StudioAgentCanvasGraph,
   StudioCanvasProductionResults,
+  StudioCanvasWorkflowChange,
+  StudioCanvasWorkflowDraft,
   StudioCanvasExecutionPreview,
   StudioCanvasDraftActionConfirmResult,
   StudioCanvasDraftActionPreviewResult,
@@ -23,6 +25,37 @@ export async function getStudioCanvasProductionResults(projectId: string) {
   if (!response.data?.projectId || !Array.isArray(response.data.bindings)) {
     throw new Error("Canvas production results response was incomplete.");
   }
+  return response.data;
+}
+
+export async function createStudioCanvasWorkflowDraft(
+  projectId: string,
+  changes: readonly StudioCanvasWorkflowChange[],
+) {
+  const response = await apiRequest<StudioCanvasWorkflowDraft>(
+    `/api/projects/${encodeURIComponent(projectId)}/agent-canvas/workflow-draft`,
+    { method: "POST", body: JSON.stringify({ changes }) },
+  );
+  if (!response.data?.draftId || response.data.status !== "DRAFT") {
+    throw new Error("Canvas Workflow Draft was not returned.");
+  }
+  return response.data;
+}
+
+export async function getStudioCanvasWorkflowDraft(projectId: string, draftId: string) {
+  const response = await apiRequest<StudioCanvasWorkflowDraft>(
+    `/api/projects/${encodeURIComponent(projectId)}/agent-canvas/workflow-draft/${encodeURIComponent(draftId)}`,
+  );
+  if (!response.data?.draftId) throw new Error("Canvas Workflow Draft was not found.");
+  return response.data;
+}
+
+export async function confirmStudioCanvasWorkflowDraft(projectId: string, draftId: string) {
+  const response = await apiRequest<StudioCanvasWorkflowDraft>(
+    `/api/projects/${encodeURIComponent(projectId)}/agent-canvas/workflow-draft/${encodeURIComponent(draftId)}/confirm`,
+    { method: "POST", body: JSON.stringify({ confirm: true }) },
+  );
+  if (response.data?.status !== "CONFIRMED") throw new Error("Canvas Workflow Draft was not confirmed.");
   return response.data;
 }
 
