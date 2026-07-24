@@ -44,6 +44,71 @@ export type StudioAgentCanvasGraph = Readonly<{
   safety: "NO_CANVAS_WRITE_NO_EXECUTION_NO_PROVIDER_NO_BILLING_NO_CREDITS";
 }>;
 
+export const STUDIO_CANVAS_DRAFT_ACTION_TYPES = ["GOAL_REVIEW", "STRATEGY_REVIEW", "AGENT_EXPANSION", "WORKFLOW_IMPROVEMENT", "QUALITY_IMPROVEMENT", "COST_OPTIMIZATION"] as const;
+export type StudioCanvasDraftActionType = typeof STUDIO_CANVAS_DRAFT_ACTION_TYPES[number];
+
+export type StudioCanvasDraftAction = Readonly<{
+  actionId: string;
+  nodeId: string;
+  actionType: StudioCanvasDraftActionType;
+  reason: string;
+  impact: string;
+  status: "PREVIEWED" | "CONFIRMED";
+  createdAt: string;
+  delegatedActionId: string;
+  binding: Readonly<{
+    nodeId: string;
+    referenceId: string;
+    insightId: string | null;
+    explanationReference: Readonly<Record<string, unknown>>;
+  }>;
+  preview: Readonly<{
+    draftType: string;
+    requiresConfirmation: true;
+    existingFlowTarget: "PROJECT_COPILOT_ACTION_CENTER";
+    safety: string;
+  }>;
+  draft?: Readonly<{
+    draftId: string;
+    draftType: string;
+    status: "DRAFT";
+  }>;
+}>;
+
+export type StudioCanvasDraftActionPreviewResult = Readonly<{
+  action: StudioCanvasDraftAction;
+  preview: StudioCanvasDraftAction["preview"];
+  boundary: "PREVIEW_ONLY_NO_PROJECT_MUTATION";
+}>;
+
+export type StudioCanvasDraftActionConfirmResult = Readonly<{
+  action: StudioCanvasDraftAction;
+  draft: NonNullable<StudioCanvasDraftAction["draft"]>;
+  boundary: "DRAFT_CREATED_EXISTING_ACTION_CENTER";
+}>;
+
+export function studioCanvasDraftActionType(nodeType: StudioAgentCanvasNodeType): StudioCanvasDraftActionType {
+  return ({
+    GOAL: "GOAL_REVIEW",
+    STRATEGY: "STRATEGY_REVIEW",
+    AGENT_TEAM: "AGENT_EXPANSION",
+    TASK: "WORKFLOW_IMPROVEMENT",
+    EXECUTION: "QUALITY_IMPROVEMENT",
+    ASSET: "WORKFLOW_IMPROVEMENT"
+  } as const)[nodeType];
+}
+
+export function studioCanvasDraftActionLabel(type: StudioCanvasDraftActionType) {
+  return ({
+    GOAL_REVIEW: "Goal Review",
+    STRATEGY_REVIEW: "Strategy Review",
+    AGENT_EXPANSION: "Agent Expansion",
+    WORKFLOW_IMPROVEMENT: "Workflow Improvement",
+    QUALITY_IMPROVEMENT: "Quality Improvement",
+    COST_OPTIMIZATION: "Cost Optimization"
+  } as const)[type];
+}
+
 export function studioAgentCanvasNodeLabel(type: StudioAgentCanvasNodeType) {
   return ({
     GOAL: "Goal",

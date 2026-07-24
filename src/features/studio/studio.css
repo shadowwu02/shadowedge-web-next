@@ -3362,6 +3362,10 @@
 .studio-agent-canvas-node strong { color: #f1f5f9; font-size: 12px; line-height: 1.4; }
 .studio-agent-canvas-markers { display: flex; flex-wrap: wrap; gap: 5px; }
 .studio-agent-canvas-markers em { padding: 4px 6px; border-radius: 999px; background: rgba(251, 191, 36, 0.1); color: #fcd34d; font-size: 8px; font-style: normal; }
+.studio-agent-canvas-node-actions { display: flex; align-items: center; gap: 6px; }
+.studio-agent-canvas-node-actions a, .studio-agent-canvas-node-actions button { border: 0; border-radius: 7px; background: rgba(79, 70, 229, 0.2); color: #c7d2fe; padding: 5px 7px; cursor: pointer; font-size: 8px; text-decoration: none; text-transform: none; }
+.studio-agent-canvas-node-actions a { background: rgba(245, 158, 11, 0.12); color: #fcd34d; }
+.studio-agent-canvas-node-actions button:disabled { opacity: 0.5; cursor: default; }
 .studio-agent-canvas-details { overflow: auto; display: grid; align-content: start; gap: 11px; padding: 16px; border-left: 1px solid rgba(148, 163, 184, 0.14); background: rgba(2, 6, 23, 0.58); }
 .studio-agent-canvas-details header { display: flex; justify-content: space-between; gap: 8px; color: #a5b4fc; font-size: 10px; text-transform: uppercase; }
 .studio-agent-canvas-details h3, .studio-agent-canvas-details p { margin: 0; }
@@ -3372,6 +3376,12 @@
 .studio-agent-canvas-details dt { color: #64748b; font-size: 8px; text-transform: capitalize; }
 .studio-agent-canvas-details dd { overflow-wrap: anywhere; margin: 0; color: #cbd5e1; font-size: 10px; }
 .studio-agent-canvas-insight { padding: 8px; border: 1px solid rgba(251, 191, 36, 0.18); border-radius: 9px; background: rgba(120, 53, 15, 0.14); color: #fcd34d; font-size: 10px; text-decoration: none; }
+.studio-agent-canvas-create-draft, .studio-agent-canvas-draft-preview button { border: 1px solid rgba(129, 140, 248, 0.35); border-radius: 9px; background: rgba(79, 70, 229, 0.24); color: #e0e7ff; padding: 8px 10px; cursor: pointer; font-size: 10px; }
+.studio-agent-canvas-create-draft:disabled, .studio-agent-canvas-draft-preview button:disabled { opacity: 0.5; cursor: default; }
+.studio-agent-canvas-draft-preview { display: grid; gap: 8px; padding: 10px; border: 1px solid rgba(52, 211, 153, 0.23); border-radius: 10px; background: rgba(6, 78, 59, 0.12); }
+.studio-agent-canvas-draft-preview > span { color: #6ee7b7; font-size: 9px; text-transform: uppercase; }
+.studio-agent-canvas-draft-preview > strong { color: #d1fae5; font-size: 11px; line-height: 1.45; }
+.studio-agent-canvas-draft-preview > small, .studio-agent-canvas-action-message { color: #94a3b8; font-size: 9px; line-height: 1.5; }
 
 @media (max-width: 920px) {
   .studio-agent-canvas-layout { grid-template-columns: 1fr; }
