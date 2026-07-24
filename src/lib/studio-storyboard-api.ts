@@ -1,5 +1,6 @@
 import type {
   StudioSceneShots,
+  StudioShotGenerationDraft,
   StudioShotDraft,
   StudioStoryboardBundle,
 } from "@/features/studio/capabilities/studioStoryboard";
@@ -45,6 +46,43 @@ export async function confirmStudioShotDraft(sceneId: string, shotId: string, dr
   );
   if (!response.data?.draft?.draftId || response.data.draft.status !== "CONFIRMED") {
     throw new Error("Confirmed Shot Draft was not returned.");
+  }
+  return response.data;
+}
+
+type StudioShotGenerationDraftResponse = Readonly<{
+  draft: StudioShotGenerationDraft;
+  actionType?: "SHOT_GENERATION_DRAFT";
+  boundary: "PREVIEW_ONLY" | "VIDEO_WORKFLOW_DRAFT_ONLY";
+}>;
+
+export async function createStudioShotGenerationDraft(shotId: string) {
+  const response = await apiRequest<StudioShotGenerationDraftResponse>(
+    `/api/shots/${encodeURIComponent(shotId)}/generation-draft`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
+  if (!response.data?.draft?.draftId || !["PREVIEWED", "CONFIRMED"].includes(response.data.draft.status)) {
+    throw new Error("Shot Generation Draft was not returned.");
+  }
+  return response.data;
+}
+
+export async function getStudioShotGenerationDraft(shotId: string, signal?: AbortSignal) {
+  const response = await apiRequest<StudioShotGenerationDraftResponse>(
+    `/api/shots/${encodeURIComponent(shotId)}/generation-draft`,
+    { signal },
+  );
+  if (!response.data?.draft?.draftId) throw new Error("Shot Generation Draft was not returned.");
+  return response.data;
+}
+
+export async function confirmStudioShotGenerationDraft(shotId: string, draftId: string) {
+  const response = await apiRequest<StudioShotGenerationDraftResponse>(
+    `/api/shots/${encodeURIComponent(shotId)}/generation-draft`,
+    { method: "POST", body: JSON.stringify({ draftId, confirm: true }) },
+  );
+  if (!response.data?.draft?.draftId || response.data.draft.status !== "CONFIRMED") {
+    throw new Error("Confirmed Shot Generation Draft was not returned.");
   }
   return response.data;
 }

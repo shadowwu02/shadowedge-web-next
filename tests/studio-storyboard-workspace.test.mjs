@@ -46,7 +46,7 @@ test("Storyboard APIs preserve owned read and explicit SHOT_DRAFT confirmation",
   assert.doesNotMatch(api, /execute|provider|billing|credits|generateVideo/i);
 });
 
-test("Storyboard Panel shows Shot cards, Camera, Duration, Reference, and Preview then Confirm", () => {
+test("Storyboard Panel shows Shot cards, references, and controlled draft actions", () => {
   for (const label of [
     "Storyboard Workspace",
     "AI Scene Planning",
@@ -55,11 +55,11 @@ test("Storyboard Panel shows Shot cards, Camera, Duration, Reference, and Previe
     "Duration",
     "References",
     "Preview SHOT_DRAFT",
-    "Confirm Create Draft",
+    "Confirm Shot Draft",
   ]) {
     assert.match(panel, new RegExp(label));
   }
-  assert.match(panel, /Scene → Storyboard → Shot → Timeline Placeholder/);
+  assert.match(panel, /Scene → Storyboard → Shot → Generation Draft/);
   assert.match(panel, /No Timeline, Agent, or Runtime action was started/);
 });
 

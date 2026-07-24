@@ -6,10 +6,13 @@ import {
   type StudioCreativeShot,
   type StudioCreativeStoryboard,
   type StudioShotDraft,
+  type StudioShotGenerationDraft,
 } from "@/features/studio/capabilities/studioStoryboard";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import {
   confirmStudioShotDraft,
+  confirmStudioShotGenerationDraft,
+  createStudioShotGenerationDraft,
   getStudioSceneShots,
   getStudioStoryboards,
   previewStudioShotDraft,
@@ -20,7 +23,8 @@ export function StudioStoryboardPanel() {
   const [bundle, setBundle] = useState<{ projectId: string; storyboards: readonly StudioCreativeStoryboard[]; error: string } | null>(null);
   const [selectedStoryboardId, setSelectedStoryboardId] = useState<string | null>(null);
   const [sceneShots, setSceneShots] = useState<{ sceneId: string; shots: readonly StudioCreativeShot[] } | null>(null);
-  const [draft, setDraft] = useState<StudioShotDraft | null>(null);
+  const [shotDraft, setShotDraft] = useState<StudioShotDraft | null>(null);
+  const [generationDraft, setGenerationDraft] = useState<StudioShotGenerationDraft | null>(null);
   const [busyShotId, setBusyShotId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
 
@@ -59,12 +63,12 @@ export function StudioStoryboardPanel() {
     ? sceneShots.shots
     : selectedStoryboard?.shots || [];
 
-  const previewDraft = async (shot: StudioCreativeShot) => {
+  const previewShotDraft = async (shot: StudioCreativeShot) => {
     setBusyShotId(shot.shotId);
     setMessage("");
     try {
       const result = await previewStudioShotDraft(shot.sceneId, shot.shotId);
-      setDraft(result.draft);
+      setShotDraft(result.draft);
       setMessage("SHOT_DRAFT preview ready. Timeline remains unchanged.");
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : "Could not preview the Shot Draft.");
@@ -73,16 +77,49 @@ export function StudioStoryboardPanel() {
     }
   };
 
-  const confirmDraft = async () => {
-    if (!draft) return;
-    setBusyShotId(draft.shotId);
+  const confirmShotDraft = async () => {
+    if (!shotDraft) return;
+    setBusyShotId(shotDraft.shotId);
     setMessage("");
     try {
-      const result = await confirmStudioShotDraft(draft.sceneId, draft.shotId, draft.draftId);
-      setDraft(result.draft);
+      const result = await confirmStudioShotDraft(shotDraft.sceneId, shotDraft.shotId, shotDraft.draftId);
+      setShotDraft(result.draft);
       setMessage("SHOT_DRAFT created. No Timeline, Agent, or Runtime action was started.");
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : "Could not confirm the Shot Draft.");
+    } finally {
+      setBusyShotId(null);
+    }
+  };
+
+  const createGenerationDraft = async (shot: StudioCreativeShot) => {
+    setBusyShotId(shot.shotId);
+    setMessage("");
+    try {
+      const result = await createStudioShotGenerationDraft(shot.shotId);
+      setGenerationDraft(result.draft);
+      setMessage(
+        result.draft.status === "CONFIRMED"
+          ? "Existing Video Workflow Draft is ready. Execution still requires a separate confirmation."
+          : "Generation Draft preview ready. No Job, Provider call, or Credits action occurred.",
+      );
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Could not create the Generation Draft preview.");
+    } finally {
+      setBusyShotId(null);
+    }
+  };
+
+  const confirmGenerationDraft = async () => {
+    if (!generationDraft) return;
+    setBusyShotId(generationDraft.shotId);
+    setMessage("");
+    try {
+      const result = await confirmStudioShotGenerationDraft(generationDraft.shotId, generationDraft.draftId);
+      setGenerationDraft(result.draft);
+      setMessage("Existing Video Workflow Draft created. Runtime execution remains unstarted and separately gated.");
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Could not confirm the Generation Draft.");
     } finally {
       setBusyShotId(null);
     }
@@ -94,9 +131,9 @@ export function StudioStoryboardPanel() {
         <div>
           <span>AI Scene Planning</span>
           <h2>Storyboard Workspace</h2>
-          <p>Scene → Storyboard → Shot → Timeline Placeholder</p>
+          <p>Scene → Storyboard → Shot → Generation Draft</p>
         </div>
-        <small>Planning only · no Timeline edits, Agent execution, Provider calls, or Credits</small>
+        <small>Draft only · no Timeline edits, Job creation, Provider calls, or Credits</small>
       </header>
 
       {!projectId ? (
@@ -114,7 +151,12 @@ export function StudioStoryboardPanel() {
               <button
                 className={storyboard.storyboardId === selectedStoryboard?.storyboardId ? "is-active" : ""}
                 key={storyboard.storyboardId}
-                onClick={() => { setSelectedStoryboardId(storyboard.storyboardId); setDraft(null); }}
+                onClick={() => {
+                  setSelectedStoryboardId(storyboard.storyboardId);
+                  setShotDraft(null);
+                  setGenerationDraft(null);
+                  setMessage("");
+                }}
                 type="button"
               >
                 <strong>{storyboard.sceneName}</strong>
@@ -142,32 +184,69 @@ export function StudioStoryboardPanel() {
                   <span>{shot.references.length ? shot.references.join(" · ") : "No bound reference"}</span>
                 </div>
                 <p>{shot.promptDraft.text}</p>
-                <button disabled={Boolean(busyShotId)} onClick={() => void previewDraft(shot)} type="button">
-                  {busyShotId === shot.shotId ? "Preparing…" : "Preview SHOT_DRAFT"}
-                </button>
+                <div className="studio-storyboard-shot-actions">
+                  <button disabled={Boolean(busyShotId)} onClick={() => void previewShotDraft(shot)} type="button">
+                    {busyShotId === shot.shotId ? "Preparing…" : "Preview SHOT_DRAFT"}
+                  </button>
+                  <button disabled={Boolean(busyShotId)} onClick={() => void createGenerationDraft(shot)} type="button">
+                    {busyShotId === shot.shotId ? "Preparing…" : "Create Generation Draft"}
+                  </button>
+                </div>
               </article>
             ))}
           </div>
 
-          <aside className="studio-storyboard-draft" aria-label="Shot Draft Preview">
-            <span>Copilot Shot Planning</span>
-            {draft ? (
-              <>
-                <strong>{draft.status === "CONFIRMED" ? "SHOT_DRAFT confirmed" : "Preview ready"}</strong>
-                <p>{draft.reason}</p>
-                <dl>
-                  <div><dt>Camera</dt><dd>{draft.proposal.camera}</dd></div>
-                  <div><dt>Duration</dt><dd>{draft.proposal.duration}s</dd></div>
-                  <div><dt>Impact</dt><dd>Placeholder reference only</dd></div>
-                </dl>
-                <blockquote>{draft.proposal.prompt}</blockquote>
-                {draft.status === "PREVIEWED" ? (
-                  <button disabled={Boolean(busyShotId)} onClick={() => void confirmDraft()} type="button">Confirm Create Draft</button>
-                ) : <small>Draft created. Existing Timeline remains unchanged.</small>}
-              </>
-            ) : (
-              <p>Select “Preview SHOT_DRAFT” to review a Prompt Draft before confirmation.</p>
-            )}
+          <aside className="studio-storyboard-draft" aria-label="Storyboard Draft Preview">
+            <section className="studio-storyboard-draft-section">
+              <span>Copilot Shot Planning</span>
+              {shotDraft ? (
+                <>
+                  <strong>{shotDraft.status === "CONFIRMED" ? "SHOT_DRAFT confirmed" : "Preview ready"}</strong>
+                  <p>{shotDraft.reason}</p>
+                  <dl>
+                    <div><dt>Camera</dt><dd>{shotDraft.proposal.camera}</dd></div>
+                    <div><dt>Duration</dt><dd>{shotDraft.proposal.duration}s</dd></div>
+                    <div><dt>Impact</dt><dd>Placeholder reference only</dd></div>
+                  </dl>
+                  <blockquote>{shotDraft.proposal.prompt}</blockquote>
+                  {shotDraft.status === "PREVIEWED" ? (
+                    <button disabled={Boolean(busyShotId)} onClick={() => void confirmShotDraft()} type="button">Confirm Shot Draft</button>
+                  ) : <small>Draft created. Existing Timeline remains unchanged.</small>}
+                </>
+              ) : (
+                <p>Preview a Shot Draft to review its prompt and Timeline placeholder.</p>
+              )}
+            </section>
+
+            <section className="studio-storyboard-draft-section" aria-label="Generation Draft Panel">
+              <span>Generation Draft Panel</span>
+              {generationDraft ? (
+                <>
+                  <strong>{generationDraft.modelSuggestion.displayName} · {generationDraft.confidence}</strong>
+                  <p>{generationDraft.modelSuggestion.reason}</p>
+                  <dl>
+                    <div><dt>Scope</dt><dd>{generationDraft.parameters.duration}s · {generationDraft.parameters.resolution} · {generationDraft.parameters.ratio}</dd></div>
+                    <div><dt>Cost</dt><dd>{generationDraft.estimatedCost.kind} · {generationDraft.estimatedCost.shadowCredits} Credits</dd></div>
+                    <div><dt>Gate</dt><dd>{generationDraft.modelSuggestion.availability} · {generationDraft.modelSuggestion.costStatus}</dd></div>
+                  </dl>
+                  <blockquote>{generationDraft.prompt}</blockquote>
+                  <div className="studio-storyboard-generation-references" aria-label="Reference bindings">
+                    {generationDraft.references.map((reference) => (
+                      <span key={reference.referenceId}>{reference.type} · bound</span>
+                    ))}
+                  </div>
+                  {generationDraft.status === "PREVIEWED" ? (
+                    <button disabled={Boolean(busyShotId)} onClick={() => void confirmGenerationDraft()} type="button">
+                      Confirm Generation Draft
+                    </button>
+                  ) : (
+                    <small>Video Workflow Draft ready. A separate Execution Confirm is still required.</small>
+                  )}
+                </>
+              ) : (
+                <p>Create Generation Draft to preview the recommended model, verified scope, references, and estimated cost.</p>
+              )}
+            </section>
             {message ? <small role="status">{message}</small> : null}
           </aside>
         </div>
