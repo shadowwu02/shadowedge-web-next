@@ -29,6 +29,13 @@ import {
   type StudioCanvasWorkflowChange,
   type StudioCanvasWorkflowDraft,
 } from "@/features/studio/capabilities/studioAgentCanvas";
+import {
+  STUDIO_AGENT_WORKFLOW_NODE_TYPES,
+  type StudioAgentWorkflowDraft,
+  type StudioAgentWorkflowDraftChange,
+  type StudioAgentWorkflowGraph,
+  type StudioAgentWorkflowNodeType,
+} from "@/features/studio/capabilities/studioAgentWorkflowGraph";
 import type {
   StudioWorkflowTemplateApplyDraft,
   StudioWorkflowTemplateLibrary,
@@ -50,6 +57,11 @@ import {
   previewStudioWorkflowTemplateApply,
   saveStudioWorkflowTemplate,
 } from "@/lib/studio-workflow-template-api";
+import {
+  confirmStudioAgentWorkflowDraft,
+  createStudioAgentWorkflowDraft,
+  getStudioAgentWorkflowGraph,
+} from "@/lib/studio-agent-workflow-graph-api";
 
 type AgentFlowNodeData = {
   source: StudioAgentCanvasNode;
@@ -58,6 +70,15 @@ type AgentFlowNodeData = {
   onPreview: (node: StudioAgentCanvasNode) => void;
 };
 type AgentFlowNode = Node<AgentFlowNodeData, "agentCanvas">;
+type AgentWorkflowFlowNodeData = {
+  label: string;
+  nodeType: StudioAgentWorkflowNodeType | "TASK";
+  status: string;
+  detail: string;
+  waiting: boolean;
+};
+type AgentWorkflowFlowNode = Node<AgentWorkflowFlowNodeData, "agentWorkflow">;
+type StudioFlowNode = AgentFlowNode | AgentWorkflowFlowNode;
 
 const laneX: Record<StudioAgentCanvasNodeType, number> = {
   GOAL: 20,
@@ -93,7 +114,22 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
   );
 }
 
-const agentNodeTypes = { agentCanvas: AgentNode } satisfies NodeTypes;
+function AgentWorkflowNode({ data, selected }: NodeProps<AgentWorkflowFlowNode>) {
+  return (
+    <article className={`studio-agent-workflow-node studio-agent-workflow-node-${data.nodeType.toLowerCase()}${selected ? " is-selected" : ""}${data.waiting ? " is-waiting" : ""}`}>
+      <Handle type="target" position={Position.Left} isConnectable={false} />
+      <div>
+        <span>{data.nodeType.replaceAll("_", " ")}</span>
+        <b>{data.status}</b>
+      </div>
+      <strong>{data.label}</strong>
+      <small>{data.detail}</small>
+      <Handle type="source" position={Position.Right} isConnectable={false} />
+    </article>
+  );
+}
+
+const agentNodeTypes = { agentCanvas: AgentNode, agentWorkflow: AgentWorkflowNode } satisfies NodeTypes;
 
 function toFlowNodes(graph: StudioAgentCanvasGraph, busyNodeId: string | null, onPreview: (node: StudioAgentCanvasNode) => void): AgentFlowNode[] {
   const counts = new Map<StudioAgentCanvasNodeType, number>();
@@ -122,6 +158,93 @@ function toFlowEdges(graph: StudioAgentCanvasGraph): Edge[] {
     animated: false,
     selectable: false,
   }));
+}
+
+function toAgentWorkflowFlowNodes(graph: StudioAgentWorkflowGraph): AgentWorkflowFlowNode[] {
+  const roleX = new Map(graph.agents.map((agent, index) => [agent.agentId, 30 + index * 285]));
+  const taskCounts = new Map<string, number>();
+  const taskPositions = new Map<string, { x: number; y: number }>();
+  const agents = graph.agents.map((agent) => ({
+    id: agent.agentId,
+    type: "agentWorkflow" as const,
+    position: { x: roleX.get(agent.agentId) || 30, y: 45 },
+    data: {
+      label: agent.label,
+      nodeType: agent.nodeType,
+      status: agent.status,
+      detail: `${agent.taskIds.length} task${agent.taskIds.length === 1 ? "" : "s"} · ${agent.source.replaceAll("_", " ")}`,
+      waiting: agent.status === "WAITING_HUMAN",
+    },
+    draggable: false,
+    connectable: false,
+    selectable: true,
+  }));
+  const tasks = graph.tasks.map((task) => {
+    const index = taskCounts.get(task.agentId) || 0;
+    taskCounts.set(task.agentId, index + 1);
+    const position = { x: roleX.get(task.agentId) || 30, y: 205 + index * 135 };
+    taskPositions.set(task.taskId, position);
+    return {
+      id: task.taskId,
+      type: "agentWorkflow" as const,
+      position,
+      data: {
+        label: task.capabilities[0] || task.sourceTaskId || task.taskId,
+        nodeType: "TASK" as const,
+        status: task.status,
+        detail: `${task.roleId.replaceAll("_", " ")} · priority ${task.priority}`,
+        waiting: task.waiting,
+      },
+      draggable: false,
+      connectable: false,
+      selectable: true,
+    };
+  });
+  const checkpoints = graph.checkpoints.map((checkpoint, index) => {
+    const source = taskPositions.get(checkpoint.taskId) || { x: 30 + index * 285, y: 205 };
+    return {
+      id: checkpoint.checkpointId,
+      type: "agentWorkflow" as const,
+      position: { x: source.x, y: source.y + 125 },
+      data: {
+        label: checkpoint.type.replaceAll("_", " "),
+        nodeType: "HUMAN_CHECKPOINT" as const,
+        status: checkpoint.status,
+        detail: checkpoint.reason || "Human decision required",
+        waiting: checkpoint.status === "WAITING_HUMAN" || checkpoint.status === "DEFERRED",
+      },
+      draggable: false,
+      connectable: false,
+      selectable: true,
+    };
+  });
+  return [...agents, ...tasks, ...checkpoints];
+}
+
+function toAgentWorkflowFlowEdges(graph: StudioAgentWorkflowGraph): Edge[] {
+  const taskOwnership = graph.tasks.map((task) => ({
+    id: `agent-task:${task.agentId}:${task.taskId}`,
+    source: task.agentId,
+    target: task.taskId,
+    type: "smoothstep",
+    label: "owns",
+    selectable: false,
+    style: { stroke: "rgba(148, 163, 184, 0.35)", strokeDasharray: "4 4" },
+  }));
+  const dependencies = graph.dependencies.map((dependency) => ({
+    id: dependency.dependencyId,
+    source: dependency.sourceId,
+    target: dependency.targetId,
+    type: "smoothstep",
+    label: dependency.type.toLowerCase(),
+    animated: dependency.type === "PARALLEL",
+    selectable: false,
+    style: {
+      stroke: dependency.type === "CHECKPOINT" ? "#fbbf24" : dependency.type === "PARALLEL" ? "#a78bfa" : "#38bdf8",
+      strokeWidth: dependency.type === "CHECKPOINT" ? 2 : 1.5,
+    },
+  }));
+  return [...taskOwnership, ...dependencies];
 }
 
 function detailValue(value: unknown) {
@@ -154,9 +277,24 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
   const [templateBusyId, setTemplateBusyId] = useState<string | null>(null);
   const [templateMessage, setTemplateMessage] = useState("");
   const [templateName, setTemplateName] = useState("Reusable Agent Workflow");
+  const [agentCanvasMode, setAgentCanvasMode] = useState<"PROJECT" | "AGENT_WORKFLOW">("PROJECT");
+  const [agentWorkflowState, setAgentWorkflowState] = useState<{ projectId: string; graph: StudioAgentWorkflowGraph } | null>(null);
+  const [agentWorkflowError, setAgentWorkflowError] = useState("");
+  const [agentWorkflowChanges, setAgentWorkflowChanges] = useState<StudioAgentWorkflowDraftChange[]>([]);
+  const [agentWorkflowDraft, setAgentWorkflowDraft] = useState<StudioAgentWorkflowDraft | null>(null);
+  const [agentWorkflowBusy, setAgentWorkflowBusy] = useState(false);
+  const [agentWorkflowMessage, setAgentWorkflowMessage] = useState("");
+  const [agentRoleDraft, setAgentRoleDraft] = useState<Exclude<StudioAgentWorkflowNodeType, "HUMAN_CHECKPOINT">>("CHARACTER_AGENT");
+  const [agentDependencySource, setAgentDependencySource] = useState("");
+  const [agentDependencyTarget, setAgentDependencyTarget] = useState("");
+  const [agentDependencyType, setAgentDependencyType] = useState<"SEQUENTIAL" | "PARALLEL" | "CHECKPOINT">("SEQUENTIAL");
+  const [agentCheckpointNode, setAgentCheckpointNode] = useState("");
+  const [agentCheckpointType, setAgentCheckpointType] = useState<"PLAN_REVIEW" | "OUTPUT_REVIEW" | "EXECUTION_APPROVAL">("PLAN_REVIEW");
   const graph = graphState?.projectId === projectId ? graphState.graph : null;
   const production = productionState?.projectId === projectId ? productionState.results : null;
   const templateLibrary = templateLibraryState?.projectId === projectId ? templateLibraryState.library : null;
+  const agentWorkflowGraph = agentWorkflowState?.projectId === projectId ? agentWorkflowState.graph : null;
+  const visibleAgentWorkflowGraph = agentWorkflowDraft?.projectId === projectId ? agentWorkflowDraft.previewGraph : agentWorkflowGraph;
   const error = errorState?.projectId === projectId ? errorState.message : "";
 
   useEffect(() => {
@@ -171,6 +309,9 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
     void getStudioUserWorkflowTemplates()
       .then((value) => { if (active) { setTemplateLibraryState({ projectId, library: value }); setTemplateMessage(""); } })
       .catch(() => { if (active) setTemplateMessage("Workflow Templates are temporarily unavailable."); });
+    void getStudioAgentWorkflowGraph(projectId)
+      .then((value) => { if (active) { setAgentWorkflowState({ projectId, graph: value }); setAgentWorkflowError(""); } })
+      .catch(() => { if (active) setAgentWorkflowError("Agent Workflow Graph is temporarily unavailable."); });
     return () => { active = false; };
   }, [projectId]);
 
@@ -246,6 +387,14 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
 
   const nodes = useMemo(() => graph ? toFlowNodes(graph, busyNodeId, previewDraft) : [], [busyNodeId, graph, previewDraft]);
   const edges = useMemo(() => graph ? toFlowEdges(graph) : [], [graph]);
+  const agentWorkflowNodes = useMemo(
+    () => visibleAgentWorkflowGraph ? toAgentWorkflowFlowNodes(visibleAgentWorkflowGraph) : [],
+    [visibleAgentWorkflowGraph],
+  );
+  const agentWorkflowEdges = useMemo(
+    () => visibleAgentWorkflowGraph ? toAgentWorkflowFlowEdges(visibleAgentWorkflowGraph) : [],
+    [visibleAgentWorkflowGraph],
+  );
   const selected = graph?.nodes.find((node) => node.nodeId === selectedId) || null;
   const selectedResult = production?.bindings.find((binding) => binding.canvasNodeId === selectedId) || null;
   const completedExecutionPlanId = graph?.nodes.find((node) =>
@@ -270,6 +419,24 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
       })),
     ...draftAgentNodes,
   ];
+  const draftRemovedAgentIds = new Set(agentWorkflowChanges.filter((change) => change.type === "REMOVE_AGENT").map((change) => change.agentId));
+  const draftAgentOptions = agentWorkflowChanges
+    .filter((change) => change.type === "ADD_AGENT" && change.agentId && !draftRemovedAgentIds.has(change.agentId))
+    .map((change) => ({ nodeId: String(change.agentId), label: String(change.roleId).replaceAll("_", " ") }));
+  const agentWorkflowSelectableNodes = visibleAgentWorkflowGraph ? [
+    ...visibleAgentWorkflowGraph.agents.map((agent) => ({ nodeId: agent.agentId, label: agent.label })),
+    ...visibleAgentWorkflowGraph.tasks.map((task) => ({
+      nodeId: task.taskId,
+      label: `${task.roleId.replaceAll("_", " ")} task`,
+    })),
+    ...visibleAgentWorkflowGraph.checkpoints.map((checkpoint) => ({
+      nodeId: checkpoint.checkpointId,
+      label: checkpoint.type.replaceAll("_", " "),
+    })),
+    ...draftAgentOptions.filter((draftAgent) =>
+      !visibleAgentWorkflowGraph.agents.some((agent) => agent.agentId === draftAgent.nodeId)
+    ),
+  ] : [];
 
   function addDraftAgent(role: "QUALITY_AGENT" | "STORYBOARD_AGENT") {
     const nodeId = `draft-agent-${role.toLowerCase().replaceAll("_", "-")}`;
@@ -394,6 +561,88 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
     }
   }
 
+  function addAgentWorkflowChange(change: StudioAgentWorkflowDraftChange, message: string) {
+    setAgentWorkflowChanges((changes) => [...changes, change]);
+    setAgentWorkflowDraft(null);
+    setAgentWorkflowMessage(message);
+  }
+
+  function addAgentRoleToDraft() {
+    const agentId = `draft-agent:${agentRoleDraft}`;
+    if (visibleAgentWorkflowGraph?.agents.some((agent) => agent.roleId === agentRoleDraft) ||
+        agentWorkflowChanges.some((change) => change.type === "ADD_AGENT" && change.roleId === agentRoleDraft)) {
+      setAgentWorkflowMessage("That Agent role is already represented in the Workflow.");
+      return;
+    }
+    addAgentWorkflowChange(
+      { type: "ADD_AGENT", roleId: agentRoleDraft, agentId },
+      `${agentRoleDraft.replaceAll("_", " ")} added to the local orchestration Draft.`,
+    );
+  }
+
+  function removeDraftAgent(agentId: string) {
+    addAgentWorkflowChange(
+      { type: "REMOVE_AGENT", agentId },
+      "Draft-only Agent removal added. Historical Agent Team nodes remain immutable.",
+    );
+  }
+
+  function addAgentDependencyToDraft() {
+    if (!agentDependencySource || !agentDependencyTarget || agentDependencySource === agentDependencyTarget) {
+      setAgentWorkflowMessage("Choose two different Workflow nodes for the dependency.");
+      return;
+    }
+    addAgentWorkflowChange({
+      type: "CHANGE_DEPENDENCY",
+      sourceId: agentDependencySource,
+      targetId: agentDependencyTarget,
+      dependencyType: agentDependencyType,
+    }, `${agentDependencyType} dependency added to the local Draft.`);
+  }
+
+  function addAgentCheckpointToDraft() {
+    if (!agentCheckpointNode) {
+      setAgentWorkflowMessage("Choose a Workflow node for the Human Checkpoint.");
+      return;
+    }
+    addAgentWorkflowChange({
+      type: "ADD_CHECKPOINT",
+      afterNodeId: agentCheckpointNode,
+      checkpointType: agentCheckpointType,
+    }, `${agentCheckpointType.replaceAll("_", " ")} added to the local Draft.`);
+  }
+
+  async function previewAgentWorkflowDraft() {
+    if (!projectId || !agentWorkflowChanges.length || agentWorkflowBusy) return;
+    setAgentWorkflowBusy(true);
+    setAgentWorkflowMessage("");
+    try {
+      const draft = await createStudioAgentWorkflowDraft(projectId, agentWorkflowChanges);
+      setAgentWorkflowDraft(draft);
+      setAgentWorkflowMessage("Multi-Agent Workflow Preview ready. Team Plan and Task Runtime are unchanged.");
+    } catch {
+      setAgentWorkflowDraft(null);
+      setAgentWorkflowMessage("Agent Workflow Preview was rejected. Nothing changed.");
+    } finally {
+      setAgentWorkflowBusy(false);
+    }
+  }
+
+  async function confirmAgentWorkflowDesign() {
+    if (!projectId || !agentWorkflowDraft || agentWorkflowDraft.status !== "DRAFT" || agentWorkflowBusy) return;
+    setAgentWorkflowBusy(true);
+    setAgentWorkflowMessage("");
+    try {
+      const confirmed = await confirmStudioAgentWorkflowDraft(projectId, agentWorkflowDraft.draftId);
+      setAgentWorkflowDraft(confirmed);
+      setAgentWorkflowMessage("Human Review recorded. Separate Execution Preview and confirmation are still required.");
+    } catch {
+      setAgentWorkflowMessage("Human Review confirmation was blocked. No Agent or Task started.");
+    } finally {
+      setAgentWorkflowBusy(false);
+    }
+  }
+
   if (!projectId) {
     return <div className="studio-agent-canvas-empty">Open a cloud project to view its Agent Canvas.</div>;
   }
@@ -405,9 +654,16 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
     <div className="studio-agent-canvas-production">
       <div className="studio-agent-canvas-layout">
         <div className="studio-agent-canvas-flow" aria-label="Agent Canvas graph">
-        <ReactFlow<AgentFlowNode, Edge>
-          nodes={nodes}
-          edges={edges}
+        <div className="studio-agent-workflow-mode-switcher" aria-label="Agent Canvas mode">
+          <button className={agentCanvasMode === "PROJECT" ? "is-active" : ""} onClick={() => setAgentCanvasMode("PROJECT")} type="button">Project Graph</button>
+          <button className={agentCanvasMode === "AGENT_WORKFLOW" ? "is-active" : ""} onClick={() => setAgentCanvasMode("AGENT_WORKFLOW")} type="button">Agent Workflow Mode</button>
+        </div>
+        {agentCanvasMode === "AGENT_WORKFLOW" && agentWorkflowError ? (
+          <div className="studio-agent-workflow-mode-error" role="status">{agentWorkflowError}</div>
+        ) : null}
+        <ReactFlow<StudioFlowNode, Edge>
+          nodes={agentCanvasMode === "AGENT_WORKFLOW" ? agentWorkflowNodes : nodes}
+          edges={agentCanvasMode === "AGENT_WORKFLOW" ? agentWorkflowEdges : edges}
           nodeTypes={agentNodeTypes}
           nodesDraggable={false}
           nodesConnectable={false}
@@ -429,6 +685,120 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
         </ReactFlow>
         </div>
         <aside className="studio-agent-canvas-details" aria-label="Agent Canvas node details">
+        {agentCanvasMode === "AGENT_WORKFLOW" ? (
+          <section className="studio-agent-workflow-control" aria-label="Agent Workflow Preview">
+            <header>
+              <span>Multi-Agent Workflow</span>
+              <b>{agentWorkflowDraft?.status || "READ ONLY"}</b>
+            </header>
+            {visibleAgentWorkflowGraph ? (
+              <>
+                <div className="studio-agent-workflow-summary">
+                  <span>{visibleAgentWorkflowGraph.agents.length} Agents</span>
+                  <span>{visibleAgentWorkflowGraph.tasks.length} Tasks</span>
+                  <span>{visibleAgentWorkflowGraph.preview.parallelGroups.length} Parallel groups</span>
+                  <span>{visibleAgentWorkflowGraph.checkpoints.length} Human nodes</span>
+                </div>
+                <div className="studio-agent-workflow-order" aria-label="Agent order">
+                  <strong>Agent order</strong>
+                  <span>{visibleAgentWorkflowGraph.preview.agentOrder.map((role) => role.replaceAll("_", " ")).join(" → ") || "No Agent Team Plan"}</span>
+                </div>
+                <small>Animated purple edges are parallel. Amber edges lead to Human Checkpoints. Waiting nodes are highlighted.</small>
+              </>
+            ) : <p>No Agent Team Plan or Task Runtime is available yet.</p>}
+            <div className="studio-agent-workflow-draft-editor">
+              <strong>Orchestration Draft</strong>
+              <label>
+                Agent role
+                <select onChange={(event) => setAgentRoleDraft(event.target.value as Exclude<StudioAgentWorkflowNodeType, "HUMAN_CHECKPOINT">)} value={agentRoleDraft}>
+                  {STUDIO_AGENT_WORKFLOW_NODE_TYPES.filter((type) => type !== "HUMAN_CHECKPOINT").map((type) => (
+                    <option key={type} value={type}>{type.replaceAll("_", " ")}</option>
+                  ))}
+                </select>
+              </label>
+              <button disabled={agentWorkflowBusy} onClick={addAgentRoleToDraft} type="button">Add Agent to Draft</button>
+              {draftAgentOptions.length ? (
+                <div className="studio-agent-workflow-draft-agents">
+                  {draftAgentOptions.map((agent) => (
+                    <span key={agent.nodeId}>
+                      {agent.label}
+                      <button disabled={agentWorkflowBusy} onClick={() => removeDraftAgent(agent.nodeId)} type="button">Remove</button>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              <label>
+                Dependency source
+                <select onChange={(event) => setAgentDependencySource(event.target.value)} value={agentDependencySource}>
+                  <option value="">Select node</option>
+                  {agentWorkflowSelectableNodes.map((node) => <option key={`agent-source-${node.nodeId}`} value={node.nodeId}>{node.label}</option>)}
+                </select>
+              </label>
+              <label>
+                Dependency target
+                <select onChange={(event) => setAgentDependencyTarget(event.target.value)} value={agentDependencyTarget}>
+                  <option value="">Select node</option>
+                  {agentWorkflowSelectableNodes.map((node) => <option key={`agent-target-${node.nodeId}`} value={node.nodeId}>{node.label}</option>)}
+                </select>
+              </label>
+              <label>
+                Dependency mode
+                <select onChange={(event) => setAgentDependencyType(event.target.value as "SEQUENTIAL" | "PARALLEL" | "CHECKPOINT")} value={agentDependencyType}>
+                  <option value="SEQUENTIAL">Sequential</option>
+                  <option value="PARALLEL">Parallel</option>
+                  <option value="CHECKPOINT">Checkpoint</option>
+                </select>
+              </label>
+              <button disabled={agentWorkflowBusy} onClick={addAgentDependencyToDraft} type="button">Change Dependency in Draft</button>
+              <label>
+                Human Checkpoint after
+                <select onChange={(event) => setAgentCheckpointNode(event.target.value)} value={agentCheckpointNode}>
+                  <option value="">Select node</option>
+                  {agentWorkflowSelectableNodes.map((node) => <option key={`checkpoint-${node.nodeId}`} value={node.nodeId}>{node.label}</option>)}
+                </select>
+              </label>
+              <label>
+                Checkpoint type
+                <select onChange={(event) => setAgentCheckpointType(event.target.value as "PLAN_REVIEW" | "OUTPUT_REVIEW" | "EXECUTION_APPROVAL")} value={agentCheckpointType}>
+                  <option value="PLAN_REVIEW">Plan Review</option>
+                  <option value="OUTPUT_REVIEW">Output Review</option>
+                  <option value="EXECUTION_APPROVAL">Execution Approval</option>
+                </select>
+              </label>
+              <button disabled={agentWorkflowBusy} onClick={addAgentCheckpointToDraft} type="button">Add Human Checkpoint</button>
+              <div className="studio-agent-workflow-change-list">
+                <strong>Draft changes · {agentWorkflowChanges.length}</strong>
+                {agentWorkflowChanges.map((change, index) => (
+                  <span key={`${change.type}-${change.changeId || index}`}>
+                    {change.type.replaceAll("_", " ")}
+                    {change.roleId ? ` · ${change.roleId.replaceAll("_", " ")}` : ""}
+                    {change.dependencyType ? ` · ${change.dependencyType}` : ""}
+                    {change.checkpointType ? ` · ${change.checkpointType.replaceAll("_", " ")}` : ""}
+                  </span>
+                ))}
+              </div>
+              <button disabled={!agentWorkflowChanges.length || agentWorkflowBusy} onClick={() => void previewAgentWorkflowDraft()} type="button">
+                {agentWorkflowBusy ? "Building Preview…" : "Preview Multi-Agent Workflow"}
+              </button>
+              {agentWorkflowDraft ? (
+                <section className="studio-agent-workflow-impact" aria-label="Agent Workflow Draft impact">
+                  <span>Human Review · {agentWorkflowDraft.status}</span>
+                  <dl>
+                    <div><dt>Affected nodes</dt><dd>{agentWorkflowDraft.impact.affectedNodeIds.length}</dd></div>
+                    <div><dt>Agents added</dt><dd>{agentWorkflowDraft.impact.addedAgents}</dd></div>
+                    <div><dt>Dependencies</dt><dd>{agentWorkflowDraft.impact.dependencyChanges}</dd></div>
+                    <div><dt>Checkpoints</dt><dd>{agentWorkflowDraft.impact.checkpointsAdded}</dd></div>
+                  </dl>
+                  <small>Design only · Runtime mutation: no · Execution allowed: no</small>
+                  {agentWorkflowDraft.status === "DRAFT" ? (
+                    <button disabled={agentWorkflowBusy} onClick={() => void confirmAgentWorkflowDesign()} type="button">Confirm Human Review</button>
+                  ) : <strong>Reviewed design only · Execution confirmation still required</strong>}
+                </section>
+              ) : null}
+              {agentWorkflowMessage ? <small className="studio-agent-canvas-action-message" role="status">{agentWorkflowMessage}</small> : null}
+            </div>
+          </section>
+        ) : null}
         <section className="studio-agent-canvas-template-library" aria-label="Workflow Templates">
           <header>
             <span>Workflow Templates</span>
