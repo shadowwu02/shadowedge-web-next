@@ -31,6 +31,8 @@ export type StudioAgentWorkflowTask = Readonly<{
   capabilities: readonly string[];
   approvalState: string;
   priority: number;
+  estimatedCredits: number | null;
+  costConfidence: string;
   waiting: boolean;
   createdAt: string;
 }>;

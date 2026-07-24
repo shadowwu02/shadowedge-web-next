@@ -3414,6 +3414,41 @@
 .studio-agent-workflow-order { display: grid; gap: 4px; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.6); }
 .studio-agent-workflow-order strong { color: #e2e8f0; font-size: 8px; text-transform: uppercase; }
 .studio-agent-workflow-order span { color: #94a3b8; font-size: 8px; line-height: 1.5; }
+.studio-agent-run-plan { display: grid; gap: 8px; padding: 9px; border: 1px solid rgba(34, 197, 94, 0.18); border-radius: 10px; background: rgba(20, 83, 45, 0.1); }
+.studio-agent-run-plan-heading { display: grid; gap: 7px; }
+.studio-agent-run-plan-heading > div { display: grid; gap: 3px; }
+.studio-agent-run-plan-heading strong { color: #bbf7d0; font-size: 9px; text-transform: uppercase; }
+.studio-agent-run-plan-heading small, .studio-agent-run-plan > small { color: #94a3b8; font-size: 8px; line-height: 1.45; }
+.studio-agent-run-plan-heading button { border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 8px; background: rgba(22, 101, 52, 0.24); color: #dcfce7; padding: 7px 9px; cursor: pointer; font-size: 8px; }
+.studio-agent-run-plan-heading button:disabled { opacity: 0.45; cursor: default; }
+.studio-agent-run-summary { display: grid; gap: 8px; }
+.studio-agent-run-summary > header, .studio-agent-run-queue > section > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.studio-agent-run-summary > header span, .studio-agent-run-queue > section > header strong { color: #e2e8f0; font-size: 8px; text-transform: uppercase; }
+.studio-agent-run-summary > header b, .studio-agent-run-queue > section > header span { padding: 3px 5px; border-radius: 999px; background: rgba(34, 197, 94, 0.12); color: #86efac; font-size: 7px; }
+.studio-agent-run-summary > header b.is-blocked { background: rgba(239, 68, 68, 0.13); color: #fca5a5; }
+.studio-agent-run-summary > header b.is-human_review_required { background: rgba(245, 158, 11, 0.13); color: #fcd34d; }
+.studio-agent-run-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.studio-agent-run-metrics span { padding: 6px; border-radius: 7px; background: rgba(15, 23, 42, 0.58); color: #94a3b8; font-size: 7px; }
+.studio-agent-run-metrics b { color: #f1f5f9; }
+.studio-agent-run-cost { display: grid; grid-template-columns: 1fr auto; gap: 3px 8px; padding: 8px; border-radius: 8px; background: rgba(15, 23, 42, 0.62); }
+.studio-agent-run-cost span, .studio-agent-run-cost small { color: #94a3b8; font-size: 7px; }
+.studio-agent-run-cost strong { color: #f8fafc; font-size: 11px; }
+.studio-agent-run-cost small { grid-column: 1 / -1; }
+.studio-agent-run-queue { display: grid; gap: 8px; max-height: 290px; overflow: auto; }
+.studio-agent-run-queue > section { display: grid; gap: 5px; }
+.studio-agent-run-queue article { display: grid; gap: 4px; padding: 7px; border-left: 2px solid #38bdf8; border-radius: 6px; background: rgba(15, 23, 42, 0.58); }
+.studio-agent-run-queue article.is-waiting { border-left-color: #94a3b8; }
+.studio-agent-run-queue article.is-blocked { border-left-color: #ef4444; }
+.studio-agent-run-queue article.is-human_review_required { border-left-color: #f59e0b; }
+.studio-agent-run-queue article > div { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.studio-agent-run-queue article strong { color: #e2e8f0; font-size: 8px; }
+.studio-agent-run-queue article b { color: #7dd3fc; font-size: 6px; text-transform: uppercase; }
+.studio-agent-run-queue article span, .studio-agent-run-queue article small { color: #94a3b8; font-size: 7px; overflow-wrap: anywhere; }
+.studio-agent-run-queue article .is-blocker { color: #fca5a5; }
+.studio-agent-run-risks { display: flex; flex-wrap: wrap; gap: 4px; }
+.studio-agent-run-risks strong { width: 100%; color: #fbbf24; font-size: 7px; text-transform: uppercase; }
+.studio-agent-run-risks span { padding: 3px 5px; border-radius: 999px; background: rgba(245, 158, 11, 0.11); color: #fcd34d; font-size: 6px; }
+.studio-agent-run-boundary { padding: 7px; border-radius: 7px; background: rgba(2, 6, 23, 0.52); color: #a7f3d0 !important; }
 .studio-agent-workflow-draft-editor { display: grid; gap: 8px; padding: 9px; border: 1px solid rgba(56, 189, 248, 0.16); border-radius: 10px; background: rgba(8, 47, 73, 0.12); }
 .studio-agent-workflow-draft-editor > strong { color: #bae6fd; font-size: 9px; text-transform: uppercase; }
 .studio-agent-workflow-draft-editor label { display: grid; gap: 4px; color: #94a3b8; font-size: 8px; }

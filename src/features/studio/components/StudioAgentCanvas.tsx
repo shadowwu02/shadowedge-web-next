@@ -36,6 +36,7 @@ import {
   type StudioAgentWorkflowGraph,
   type StudioAgentWorkflowNodeType,
 } from "@/features/studio/capabilities/studioAgentWorkflowGraph";
+import type { StudioAgentRunPlan } from "@/features/studio/capabilities/studioAgentRunPlan";
 import type {
   StudioWorkflowTemplateApplyDraft,
   StudioWorkflowTemplateLibrary,
@@ -62,6 +63,7 @@ import {
   createStudioAgentWorkflowDraft,
   getStudioAgentWorkflowGraph,
 } from "@/lib/studio-agent-workflow-graph-api";
+import { createStudioAgentRunPlan } from "@/lib/studio-agent-run-plan-api";
 
 type AgentFlowNodeData = {
   source: StudioAgentCanvasNode;
@@ -290,6 +292,9 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
   const [agentDependencyType, setAgentDependencyType] = useState<"SEQUENTIAL" | "PARALLEL" | "CHECKPOINT">("SEQUENTIAL");
   const [agentCheckpointNode, setAgentCheckpointNode] = useState("");
   const [agentCheckpointType, setAgentCheckpointType] = useState<"PLAN_REVIEW" | "OUTPUT_REVIEW" | "EXECUTION_APPROVAL">("PLAN_REVIEW");
+  const [agentRunPlan, setAgentRunPlan] = useState<StudioAgentRunPlan | null>(null);
+  const [agentRunPlanBusy, setAgentRunPlanBusy] = useState(false);
+  const [agentRunPlanMessage, setAgentRunPlanMessage] = useState("");
   const graph = graphState?.projectId === projectId ? graphState.graph : null;
   const production = productionState?.projectId === projectId ? productionState.results : null;
   const templateLibrary = templateLibraryState?.projectId === projectId ? templateLibraryState.library : null;
@@ -310,7 +315,14 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
       .then((value) => { if (active) { setTemplateLibraryState({ projectId, library: value }); setTemplateMessage(""); } })
       .catch(() => { if (active) setTemplateMessage("Workflow Templates are temporarily unavailable."); });
     void getStudioAgentWorkflowGraph(projectId)
-      .then((value) => { if (active) { setAgentWorkflowState({ projectId, graph: value }); setAgentWorkflowError(""); } })
+      .then((value) => {
+        if (active) {
+          setAgentWorkflowState({ projectId, graph: value });
+          setAgentWorkflowError("");
+          setAgentRunPlan(null);
+          setAgentRunPlanMessage("");
+        }
+      })
       .catch(() => { if (active) setAgentWorkflowError("Agent Workflow Graph is temporarily unavailable."); });
     return () => { active = false; };
   }, [projectId]);
@@ -564,6 +576,8 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
   function addAgentWorkflowChange(change: StudioAgentWorkflowDraftChange, message: string) {
     setAgentWorkflowChanges((changes) => [...changes, change]);
     setAgentWorkflowDraft(null);
+    setAgentRunPlan(null);
+    setAgentRunPlanMessage("Run Plan cleared because the Workflow Draft changed.");
     setAgentWorkflowMessage(message);
   }
 
@@ -643,6 +657,22 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
     }
   }
 
+  async function previewAgentRunPlan() {
+    if (!projectId || !agentWorkflowGraph || agentRunPlanBusy) return;
+    setAgentRunPlanBusy(true);
+    setAgentRunPlanMessage("");
+    try {
+      const plan = await createStudioAgentRunPlan(projectId, agentWorkflowGraph.graphId);
+      setAgentRunPlan(plan);
+      setAgentRunPlanMessage("Run Plan Preview ready. Queue, Agents, Tasks, Provider, and Credits remain untouched.");
+    } catch {
+      setAgentRunPlan(null);
+      setAgentRunPlanMessage("Run Plan Preview was blocked. No Queue or execution was started.");
+    } finally {
+      setAgentRunPlanBusy(false);
+    }
+  }
+
   if (!projectId) {
     return <div className="studio-agent-canvas-empty">Open a cloud project to view its Agent Canvas.</div>;
   }
@@ -706,6 +736,107 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
                 <small>Animated purple edges are parallel. Amber edges lead to Human Checkpoints. Waiting nodes are highlighted.</small>
               </>
             ) : <p>No Agent Team Plan or Task Runtime is available yet.</p>}
+            <section className="studio-agent-run-plan" aria-label="Agent Run Plan Preview">
+              <div className="studio-agent-run-plan-heading">
+                <div>
+                  <strong>Run Plan</strong>
+                  <small>Execution order, waiting relationships, checkpoints, and cost before Runtime.</small>
+                </div>
+                <button
+                  disabled={!agentWorkflowGraph || agentRunPlanBusy}
+                  onClick={() => void previewAgentRunPlan()}
+                  type="button"
+                >
+                  {agentRunPlanBusy ? "Building Preview…" : "Preview Run Plan"}
+                </button>
+              </div>
+              {agentRunPlan ? (
+                <div className="studio-agent-run-summary" aria-label="Run Summary">
+                  <header>
+                    <span>Run Summary</span>
+                    <b className={`is-${agentRunPlan.status.toLowerCase()}`}>{agentRunPlan.status.replaceAll("_", " ")}</b>
+                  </header>
+                  <div className="studio-agent-run-metrics">
+                    <span><b>{agentRunPlan.steps.length}</b> Steps</span>
+                    <span><b>{agentRunPlan.queue.waves.length}</b> Queue waves</span>
+                    <span><b>{agentRunPlan.queue.waitingStepIds.length}</b> Waiting</span>
+                    <span><b>{agentRunPlan.queue.blockedStepIds.length}</b> Blocked</span>
+                  </div>
+                  <div className="studio-agent-run-cost">
+                    <span>Estimated Credits</span>
+                    <strong>{agentRunPlan.estimatedCost.estimatedCredits ?? "Unknown"}</strong>
+                    <small>Cost Confidence · {agentRunPlan.estimatedCost.confidence}</small>
+                  </div>
+                  <div className="studio-agent-run-queue" aria-label="Queue Visualization">
+                    {agentRunPlan.queue.waves.map((wave) => (
+                      <section key={`run-wave-${wave.order}`}>
+                        <header>
+                          <strong>Queue {wave.order}</strong>
+                          <span>{wave.parallel ? "Parallel" : "Sequential"}</span>
+                        </header>
+                        {wave.stepIds.map((stepId) => {
+                          const step = agentRunPlan.steps.find((candidate) => candidate.stepId === stepId);
+                          if (!step) return null;
+                          return (
+                            <article className={`is-${step.status.toLowerCase()}`} key={step.stepId}>
+                              <div>
+                                <strong>{step.agentId.replace("agent:", "").replaceAll("_", " ")}</strong>
+                                <b>{step.status.replaceAll("_", " ")}</b>
+                              </div>
+                              <span>{step.capabilities.join(" · ") || step.taskId}</span>
+                              <small>
+                                {step.dependencies.length
+                                  ? `Waits for ${step.dependencies.join(", ")}`
+                                  : "No dependencies"}
+                              </small>
+                              {step.blockers.map((blocker) => (
+                                <small className="is-blocker" key={`${step.stepId}-${blocker}`}>{blocker.replaceAll("_", " ")}</small>
+                              ))}
+                            </article>
+                          );
+                        })}
+                      </section>
+                    ))}
+                    {agentRunPlan.steps.some((step) =>
+                      !agentRunPlan.queue.waves.some((wave) => wave.stepIds.includes(step.stepId))
+                    ) ? (
+                      <section>
+                        <header>
+                          <strong>Unscheduled</strong>
+                          <span>Blocked</span>
+                        </header>
+                        {agentRunPlan.steps.filter((step) =>
+                          !agentRunPlan.queue.waves.some((wave) => wave.stepIds.includes(step.stepId))
+                        ).map((step) => (
+                          <article className={`is-${step.status.toLowerCase()}`} key={step.stepId}>
+                            <div>
+                              <strong>{step.agentId.replace("agent:", "").replaceAll("_", " ")}</strong>
+                              <b>{step.status.replaceAll("_", " ")}</b>
+                            </div>
+                            <span>{step.capabilities.join(" · ") || step.taskId}</span>
+                            {step.blockers.map((blocker) => (
+                              <small className="is-blocker" key={`${step.stepId}-${blocker}`}>{blocker.replaceAll("_", " ")}</small>
+                            ))}
+                          </article>
+                        ))}
+                      </section>
+                    ) : null}
+                  </div>
+                  {agentRunPlan.riskFlags.length ? (
+                    <div className="studio-agent-run-risks">
+                      <strong>Risk Flags</strong>
+                      {agentRunPlan.riskFlags.map((risk) => <span key={risk}>{risk.replaceAll("_", " ")}</span>)}
+                    </div>
+                  ) : null}
+                  <small className="studio-agent-run-boundary">
+                    Human Review required · Next: Existing Execution Preview · Queue not started · Credits not deducted
+                  </small>
+                </div>
+              ) : (
+                <small>Preview only. This action cannot start Queue, Agent, Task, Provider, or Credits.</small>
+              )}
+              {agentRunPlanMessage ? <small className="studio-agent-canvas-action-message" role="status">{agentRunPlanMessage}</small> : null}
+            </section>
             <div className="studio-agent-workflow-draft-editor">
               <strong>Orchestration Draft</strong>
               <label>
