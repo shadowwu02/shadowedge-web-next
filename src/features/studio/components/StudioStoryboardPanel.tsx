@@ -10,6 +10,7 @@ import {
   type StudioShotGenerationDraft,
 } from "@/features/studio/capabilities/studioStoryboard";
 import type { StudioProductionRunPlan } from "@/features/studio/capabilities/studioProductionRunPlan";
+import type { StudioProductionExecutionApproval } from "@/features/studio/capabilities/studioProductionExecutionApproval";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import {
   confirmStudioShotDraft,
@@ -27,6 +28,10 @@ import {
   createStudioProductionRunPlan,
   getStudioProductionRunPlan,
 } from "@/lib/studio-production-run-plan-api";
+import {
+  confirmStudioProductionExecutionApproval,
+  createStudioProductionExecutionApproval,
+} from "@/lib/studio-production-execution-approval-api";
 
 export function StudioStoryboardPanel() {
   const projectId = useStudioStore((state) => state.projectId);
@@ -37,9 +42,11 @@ export function StudioStoryboardPanel() {
   const [generationDraft, setGenerationDraft] = useState<StudioShotGenerationDraft | null>(null);
   const [batchPlan, setBatchPlan] = useState<StudioShotBatchGenerationPlan | null>(null);
   const [productionPlan, setProductionPlan] = useState<StudioProductionRunPlan | null>(null);
+  const [productionApproval, setProductionApproval] = useState<StudioProductionExecutionApproval | null>(null);
   const [busyShotId, setBusyShotId] = useState<string | null>(null);
   const [batchBusy, setBatchBusy] = useState(false);
   const [productionBusy, setProductionBusy] = useState(false);
+  const [productionApprovalBusy, setProductionApprovalBusy] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -95,6 +102,7 @@ export function StudioStoryboardPanel() {
     ? sceneShots.shots
     : selectedStoryboard?.shots || [];
   const activeProductionPlan = productionPlan?.projectId === projectId ? productionPlan : null;
+  const activeProductionApproval = productionApproval?.projectId === projectId ? productionApproval : null;
 
   const previewShotDraft = async (shot: StudioCreativeShot) => {
     setBusyShotId(shot.shotId);
@@ -223,6 +231,45 @@ export function StudioStoryboardPanel() {
       setMessage(reason instanceof Error ? reason.message : "Could not confirm the Production Run Plan.");
     } finally {
       setProductionBusy(false);
+    }
+  };
+
+  const createProductionApproval = async () => {
+    if (!projectId || !activeProductionPlan || activeProductionPlan.status !== "CONFIRMED") return;
+    setProductionApprovalBusy(true);
+    setMessage("");
+    try {
+      const result = await createStudioProductionExecutionApproval(projectId, activeProductionPlan.runId);
+      setProductionApproval(result);
+      setMessage(
+        result.status === "PENDING"
+          ? "Production Approval Package ready. Human Confirm is still required."
+          : "Production Approval is blocked by current Capability, model, cost, or policy Gates.",
+      );
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Could not create the Production Approval Package.");
+    } finally {
+      setProductionApprovalBusy(false);
+    }
+  };
+
+  const confirmProductionApproval = async () => {
+    if (!projectId || !activeProductionApproval || activeProductionApproval.status !== "PENDING") return;
+    setProductionApprovalBusy(true);
+    setMessage("");
+    try {
+      const result = await confirmStudioProductionExecutionApproval(
+        projectId,
+        activeProductionApproval.approvalId,
+      );
+      setProductionApproval(result);
+      setMessage(
+        "Production Execution Approval confirmed. A separate Runtime start remains required; no Job, Queue, Provider call, Generate, or Credits action occurred.",
+      );
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Could not confirm Production Execution Approval.");
+    } finally {
+      setProductionApprovalBusy(false);
     }
   };
 
@@ -463,6 +510,70 @@ export function StudioStoryboardPanel() {
                 </>
               ) : (
                 <p>Aggregate every Scene Batch Plan, Agent Plan, dependency, checkpoint, and estimated Credit into one production preview.</p>
+              )}
+            </section>
+            <section className="studio-storyboard-draft-section studio-production-approval" aria-label="Production Approval Panel">
+              <span>Production Approval Panel</span>
+              {activeProductionApproval ? (
+                <>
+                  <strong>{activeProductionApproval.status} · {activeProductionApproval.approvalId}</strong>
+                  <dl>
+                    <div><dt>Scenes</dt><dd>{activeProductionApproval.executionSummary.sceneCount}</dd></div>
+                    <div><dt>Shots</dt><dd>{activeProductionApproval.executionSummary.shotCount}</dd></div>
+                    <div><dt>Agents</dt><dd>{activeProductionApproval.executionSummary.agentCount}</dd></div>
+                    <div><dt>Tasks</dt><dd>{activeProductionApproval.executionSummary.taskCount}</dd></div>
+                    <div><dt>Credits</dt><dd>{activeProductionApproval.cost.estimatedCredits}</dd></div>
+                    <div><dt>Cost Confidence</dt><dd>{activeProductionApproval.cost.confidence}</dd></div>
+                    <div><dt>Agent Policy</dt><dd>{activeProductionApproval.policy.status}</dd></div>
+                  </dl>
+                  <div className="studio-production-approval-gates" aria-label="Production Gate summary">
+                    {([
+                      ["Capability", activeProductionApproval.gates.capability],
+                      ["Availability", activeProductionApproval.gates.availability],
+                      ["Readiness", activeProductionApproval.gates.readiness],
+                      ["Verified Scope", activeProductionApproval.gates.verifiedScope],
+                      ["Cost", activeProductionApproval.gates.cost],
+                      ["Agent Policy", activeProductionApproval.gates.agentPolicy],
+                    ] as const).map(([label, gate]) => (
+                      <div className={gate.passed ? "is-passed" : "is-blocked"} key={label}>
+                        <strong>{label}</strong>
+                        <span>{gate.passed ? "PASS" : "BLOCKED"}</span>
+                        {gate.blockers.length ? <small>{gate.blockers.join(", ")}</small> : null}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="studio-storyboard-batch-tags" aria-label="Production Approval risks">
+                    {activeProductionApproval.riskFlags.length
+                      ? activeProductionApproval.riskFlags.map((risk) => <span key={risk}>⚠ {risk}</span>)
+                      : <span>No current risk flags</span>}
+                  </div>
+                  {activeProductionApproval.status === "PENDING" ? (
+                    <button
+                      disabled={productionApprovalBusy}
+                      onClick={() => void confirmProductionApproval()}
+                      type="button"
+                    >
+                      {productionApprovalBusy ? "Confirming…" : "Confirm Production Execution Approval"}
+                    </button>
+                  ) : activeProductionApproval.status === "APPROVED" ? (
+                    <small>A separate Runtime start remains required. This approval did not create a Queue, Job, or charge.</small>
+                  ) : (
+                    <small>Approval is blocked or expired. Resolve the displayed Gate failures before creating a new package.</small>
+                  )}
+                </>
+              ) : activeProductionPlan?.status === "CONFIRMED" ? (
+                <>
+                  <p>Revalidate Capability, Availability, Readiness, Verified Scope, Cost, and Agent Policy.</p>
+                  <button
+                    disabled={productionApprovalBusy}
+                    onClick={() => void createProductionApproval()}
+                    type="button"
+                  >
+                    {productionApprovalBusy ? "Preparing…" : "Prepare Production Approval"}
+                  </button>
+                </>
+              ) : (
+                <p>Confirm the Production Run Draft before preparing its unified Execution Approval Package.</p>
               )}
             </section>
             {message ? <small role="status">{message}</small> : null}
