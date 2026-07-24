@@ -29,6 +29,10 @@ import {
   type StudioCanvasWorkflowChange,
   type StudioCanvasWorkflowDraft,
 } from "@/features/studio/capabilities/studioAgentCanvas";
+import type {
+  StudioWorkflowTemplateApplyDraft,
+  StudioWorkflowTemplateLibrary,
+} from "@/features/studio/capabilities/studioWorkflowTemplateLibrary";
 import {
   confirmStudioCanvasWorkflowDraft,
   confirmStudioCanvasExecutionPreview,
@@ -36,9 +40,16 @@ import {
   createStudioCanvasWorkflowDraft,
   createStudioCanvasExecutionPreview,
   getStudioAgentCanvas,
+  getStudioCanvasWorkflowDraft,
   getStudioCanvasProductionResults,
   previewStudioCanvasDraftAction,
 } from "@/lib/studio-agent-canvas-api";
+import {
+  confirmStudioWorkflowTemplateApply,
+  getStudioUserWorkflowTemplates,
+  previewStudioWorkflowTemplateApply,
+  saveStudioWorkflowTemplate,
+} from "@/lib/studio-workflow-template-api";
 
 type AgentFlowNodeData = {
   source: StudioAgentCanvasNode;
@@ -138,8 +149,14 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
   const [workflowMessage, setWorkflowMessage] = useState("");
   const [connectionSource, setConnectionSource] = useState("");
   const [connectionTarget, setConnectionTarget] = useState("");
+  const [templateLibraryState, setTemplateLibraryState] = useState<{ projectId: string; library: StudioWorkflowTemplateLibrary } | null>(null);
+  const [templateApplyPreview, setTemplateApplyPreview] = useState<StudioWorkflowTemplateApplyDraft | null>(null);
+  const [templateBusyId, setTemplateBusyId] = useState<string | null>(null);
+  const [templateMessage, setTemplateMessage] = useState("");
+  const [templateName, setTemplateName] = useState("Reusable Agent Workflow");
   const graph = graphState?.projectId === projectId ? graphState.graph : null;
   const production = productionState?.projectId === projectId ? productionState.results : null;
+  const templateLibrary = templateLibraryState?.projectId === projectId ? templateLibraryState.library : null;
   const error = errorState?.projectId === projectId ? errorState.message : "";
 
   useEffect(() => {
@@ -151,6 +168,9 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
     void getStudioCanvasProductionResults(projectId)
       .then((value) => { if (active) { setProductionState({ projectId, results: value }); setProductionError(""); } })
       .catch(() => { if (active) setProductionError("Result bindings are temporarily unavailable."); });
+    void getStudioUserWorkflowTemplates()
+      .then((value) => { if (active) { setTemplateLibraryState({ projectId, library: value }); setTemplateMessage(""); } })
+      .catch(() => { if (active) setTemplateMessage("Workflow Templates are temporarily unavailable."); });
     return () => { active = false; };
   }, [projectId]);
 
@@ -228,6 +248,11 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
   const edges = useMemo(() => graph ? toFlowEdges(graph) : [], [graph]);
   const selected = graph?.nodes.find((node) => node.nodeId === selectedId) || null;
   const selectedResult = production?.bindings.find((binding) => binding.canvasNodeId === selectedId) || null;
+  const completedExecutionPlanId = graph?.nodes.find((node) =>
+    node.nodeType === "EXECUTION" &&
+    node.status === "COMPLETED" &&
+    typeof node.metadata.executionId === "string"
+  )?.metadata.executionId as string | undefined;
   const draftAgentNodes = workflowChanges
     .filter((change) => change.type === "ADD_NODE" && change.node?.nodeId)
     .map((change) => ({
@@ -305,6 +330,70 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
     }
   }
 
+  async function refreshTemplateLibrary() {
+    if (!projectId) return;
+    const library = await getStudioUserWorkflowTemplates();
+    setTemplateLibraryState({ projectId, library });
+  }
+
+  async function saveConfirmedWorkflowTemplate() {
+    if (!projectId || !workflowDraft || workflowDraft.status !== "CONFIRMED" || !completedExecutionPlanId || templateBusyId) return;
+    setTemplateBusyId("save");
+    setTemplateMessage("");
+    try {
+      await saveStudioWorkflowTemplate({
+        projectId,
+        draftId: workflowDraft.draftId,
+        executionPlanId: completedExecutionPlanId,
+        name: templateName,
+      });
+      await refreshTemplateLibrary();
+      setTemplateMessage("Workflow Template saved from the confirmed Draft and successful Execution evidence.");
+    } catch {
+      setTemplateMessage("Template qualification failed. The current Workflow and Canvas remain unchanged.");
+    } finally {
+      setTemplateBusyId(null);
+    }
+  }
+
+  async function previewTemplateApply(templateId: string) {
+    if (!projectId || templateBusyId) return;
+    setTemplateBusyId(templateId);
+    setTemplateMessage("");
+    try {
+      const preview = await previewStudioWorkflowTemplateApply(projectId, templateId);
+      setTemplateApplyPreview(preview);
+      setTemplateMessage(preview.status === "DRAFT"
+        ? "Apply Preview ready. Review impact before creating a new Workflow Draft."
+        : "This Template is blocked for the current Canvas. Review the missing anchors.");
+    } catch {
+      setTemplateApplyPreview(null);
+      setTemplateMessage("Template Apply Preview could not be built. Nothing changed.");
+    } finally {
+      setTemplateBusyId(null);
+    }
+  }
+
+  async function confirmTemplateApply() {
+    if (!projectId || !templateApplyPreview || templateApplyPreview.status !== "DRAFT" || templateBusyId) return;
+    setTemplateBusyId(templateApplyPreview.templateId);
+    setTemplateMessage("");
+    try {
+      const applied = await confirmStudioWorkflowTemplateApply(projectId, templateApplyPreview.applyId);
+      const draft = await getStudioCanvasWorkflowDraft(projectId, String(applied.workflowDraft?.draftId));
+      setWorkflowEditing(true);
+      setWorkflowChanges([...draft.changes]);
+      setWorkflowDraft(draft);
+      setTemplateApplyPreview(applied);
+      await refreshTemplateLibrary();
+      setTemplateMessage("Template applied as a new Workflow Draft. Review and confirm that Draft separately.");
+    } catch {
+      setTemplateMessage("Template confirmation was blocked. The current Workflow remains unchanged.");
+    } finally {
+      setTemplateBusyId(null);
+    }
+  }
+
   if (!projectId) {
     return <div className="studio-agent-canvas-empty">Open a cloud project to view its Agent Canvas.</div>;
   }
@@ -340,6 +429,65 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
         </ReactFlow>
         </div>
         <aside className="studio-agent-canvas-details" aria-label="Agent Canvas node details">
+        <section className="studio-agent-canvas-template-library" aria-label="Workflow Templates">
+          <header>
+            <span>Workflow Templates</span>
+            <b>{templateLibrary?.templates.length || 0} saved</b>
+          </header>
+          <small>Private to your account. Templates create Apply Drafts and never replace the current Workflow.</small>
+          {templateLibrary?.templates.length ? (
+            <div className="studio-agent-canvas-template-list">
+              {templateLibrary.templates.map((template) => (
+                <article className={template.templateId === templateLibrary.recommendedTemplateId ? "is-recommended" : ""} key={template.templateId}>
+                  <div>
+                    <strong>{template.name}</strong>
+                    <span>{template.templateId === templateLibrary.recommendedTemplateId ? "Recommended" : template.status}</span>
+                  </div>
+                  <p>{template.capabilities.length ? template.capabilities.join(" · ") : "Agent workflow pattern"}</p>
+                  <dl>
+                    <div><dt>Success</dt><dd>{template.successMetrics.completionRate ?? "Qualified"}{template.successMetrics.completionRate === null ? "" : "%"}</dd></div>
+                    <div><dt>Source</dt><dd>{template.source.type.replaceAll("_", " ")}</dd></div>
+                    <div><dt>Used</dt><dd>{template.usageCount} time{template.usageCount === 1 ? "" : "s"}</dd></div>
+                  </dl>
+                  <button disabled={Boolean(templateBusyId)} onClick={() => void previewTemplateApply(template.templateId)} type="button">
+                    {templateBusyId === template.templateId ? "Building Preview…" : "Preview Apply"}
+                  </button>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p>No reusable Templates yet. Confirm a Workflow Draft and complete it successfully to qualify one.</p>
+          )}
+          {templateApplyPreview ? (
+            <section className="studio-agent-canvas-template-impact" aria-label="Template Apply Impact">
+              <span>Apply Preview · {templateApplyPreview.status}</span>
+              <dl>
+                <div><dt>Affected nodes</dt><dd>{templateApplyPreview.impact.affectedNodes.length}</dd></div>
+                <div><dt>Execution</dt><dd>{templateApplyPreview.impact.executionImpact.replaceAll("_", " ")}</dd></div>
+                <div><dt>Cost</dt><dd>{templateApplyPreview.impact.costImpact.replaceAll("_", " ")}</dd></div>
+                <div><dt>Replacement</dt><dd>{templateApplyPreview.impact.automaticWorkflowReplacement ? "Automatic" : "New Draft only"}</dd></div>
+              </dl>
+              {templateApplyPreview.impact.blockers.length ? <small>{templateApplyPreview.impact.blockers.join(" · ")}</small> : null}
+              {templateApplyPreview.status === "DRAFT" ? (
+                <button disabled={Boolean(templateBusyId)} onClick={() => void confirmTemplateApply()} type="button">Confirm Create Workflow Draft</button>
+              ) : null}
+              {templateApplyPreview.status === "CONFIRMED" ? <strong>New Workflow Draft created · separate review still required</strong> : null}
+            </section>
+          ) : null}
+          {workflowDraft?.status === "CONFIRMED" ? (
+            <div className="studio-agent-canvas-template-save">
+              <label>
+                Template name
+                <input maxLength={200} onChange={(event) => setTemplateName(event.target.value)} value={templateName} />
+              </label>
+              <button disabled={!completedExecutionPlanId || Boolean(templateBusyId)} onClick={() => void saveConfirmedWorkflowTemplate()} type="button">
+                {templateBusyId === "save" ? "Saving…" : "Save as Template"}
+              </button>
+              {!completedExecutionPlanId ? <small>A completed Execution is required as success evidence.</small> : null}
+            </div>
+          ) : null}
+          {templateMessage ? <small className="studio-agent-canvas-action-message" role="status">{templateMessage}</small> : null}
+        </section>
         <section className="studio-agent-canvas-workflow-editor" aria-label="Canvas Workflow Draft editor">
           <header>
             <span>Workflow Builder</span>
