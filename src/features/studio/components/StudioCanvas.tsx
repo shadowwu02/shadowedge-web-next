@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -21,6 +21,7 @@ import { VideoGenerateNode } from "@/features/studio/nodes/VideoGenerateNode";
 import { VideoEditNode } from "@/features/studio/nodes/VideoEditNode";
 import { MotionControlNode } from "@/features/studio/nodes/MotionControlNode";
 import { CameraControlNode } from "@/features/studio/nodes/CameraControlNode";
+import { StudioAgentCanvas } from "@/features/studio/components/StudioAgentCanvas";
 import {
   getCurrentStudioSnapshot,
   useStudioStore,
@@ -47,6 +48,7 @@ const nodeTypes = {
 } satisfies NodeTypes;
 
 export function StudioCanvas() {
+  const [canvasView, setCanvasView] = useState<"workflow" | "agent">("workflow");
   const nodes = useStudioStore((state) => state.nodes);
   const edges = useStudioStore((state) => state.edges);
   const viewport = useStudioStore((state) => state.viewport);
@@ -65,21 +67,27 @@ export function StudioCanvas() {
     <section className="studio-canvas-panel" aria-label="Studio workflow canvas">
       <div className="studio-canvas-heading">
         <div>
-          <p>Workflow Canvas</p>
-          <span>Drag nodes, connect handles, and shape the generation flow.</span>
+          <p>{canvasView === "workflow" ? "Workflow Canvas" : "Agent Canvas"}</p>
+          <span>{canvasView === "workflow" ? "Drag nodes, connect handles, and shape the generation flow." : "Goals, strategy, agents, tasks, execution, and results in one read-only view."}</span>
         </div>
-        <span className="studio-local-badge">
-          {loadingProject
-            ? "Loading cloud project"
-            : projectId
-              ? "Cloud project loaded"
-              : hasHydrated
-                ? "Local fallback restored"
-                : "Restoring local fallback"}
-        </span>
+        <div className="studio-canvas-view-switcher" aria-label="Canvas view">
+          <button className={canvasView === "workflow" ? "is-active" : ""} onClick={() => setCanvasView("workflow")} type="button">Workflow</button>
+          <button className={canvasView === "agent" ? "is-active" : ""} onClick={() => setCanvasView("agent")} type="button">Agent Canvas</button>
+          <span className="studio-local-badge">
+            {canvasView === "agent"
+              ? "Read-only projection"
+              : loadingProject
+                ? "Loading cloud project"
+                : projectId
+                  ? "Cloud project loaded"
+                  : hasHydrated
+                    ? "Local fallback restored"
+                    : "Restoring local fallback"}
+          </span>
+        </div>
       </div>
 
-      <div className="studio-flow-stage">
+      {canvasView === "agent" ? <StudioAgentCanvas projectId={projectId} /> : <div className="studio-flow-stage">
         <ReactFlow<StudioNode, StudioEdge>
           colorMode="dark"
           connectionLineStyle={{ stroke: "var(--studio-accent)", strokeWidth: 2 }}
@@ -128,7 +136,7 @@ export function StudioCanvas() {
             zoomable
           />
         </ReactFlow>
-      </div>
+      </div>}
     </section>
   );
 }
