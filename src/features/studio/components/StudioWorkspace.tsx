@@ -9,6 +9,7 @@ import { StudioCanvas } from "@/features/studio/components/StudioCanvas";
 import { StudioToolbar } from "@/features/studio/components/StudioToolbar";
 import { StudioRunHistoryPanel } from "@/features/studio/components/StudioRunHistoryPanel";
 import { StudioTimelinePanel } from "@/features/studio/components/StudioTimelinePanel";
+import { StudioUnifiedTimeline } from "@/features/studio/components/StudioUnifiedTimeline";
 import {
   STUDIO_CANVAS_STORAGE_KEY,
   useStudioStore,
@@ -48,6 +49,7 @@ export function StudioWorkspace() {
             <StudioRunHistoryPanel />
           </div>
         </div>
+        <StudioUnifiedTimeline />
         <StudioTimelinePanel />
       </div>
     </AppShell>
