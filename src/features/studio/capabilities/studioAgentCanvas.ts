@@ -1,3 +1,5 @@
+import type { StudioWorkflowExecutionPlan } from "@/features/studio/capabilities/studioWorkflowExecutionPlan";
+
 export const STUDIO_AGENT_CANVAS_NODE_TYPES = ["GOAL", "STRATEGY", "AGENT_TEAM", "TASK", "EXECUTION", "ASSET"] as const;
 
 export type StudioAgentCanvasNodeType = typeof STUDIO_AGENT_CANVAS_NODE_TYPES[number];
@@ -85,6 +87,66 @@ export type StudioCanvasDraftActionConfirmResult = Readonly<{
   action: StudioCanvasDraftAction;
   draft: NonNullable<StudioCanvasDraftAction["draft"]>;
   boundary: "DRAFT_CREATED_EXISTING_ACTION_CENTER";
+}>;
+
+export const STUDIO_CANVAS_EXECUTION_PREVIEW_STATUSES = ["DRAFT", "READY", "BLOCKED", "CONFIRMED", "EXPIRED"] as const;
+export type StudioCanvasExecutionPreviewStatus = typeof STUDIO_CANVAS_EXECUTION_PREVIEW_STATUSES[number];
+
+export const STUDIO_CANVAS_EXECUTION_GATE_LABELS = {
+  capability: "Capability",
+  availability: "Availability",
+  readiness: "Readiness",
+  verifiedScope: "Verified scope",
+  cost: "Cost",
+  agentPolicy: "Agent policy",
+} as const;
+
+export type StudioCanvasExecutionPreview = Readonly<{
+  previewId: string;
+  canvasProjectId: string;
+  canvasDraftBinding: Readonly<{
+    actionId: string;
+    nodeId: string;
+    draftId: string | null;
+    explanationReference: Readonly<Record<string, unknown>> | null;
+  }>;
+  nodes: ReadonlyArray<Readonly<{
+    nodeId: string;
+    nodeType: "AGENT_TEAM" | "TASK" | "EXECUTION";
+    referenceId: string;
+    status: string;
+    title: string;
+    capability: string | null;
+    dependencies: readonly string[];
+  }>>;
+  executionPlanCandidate: StudioWorkflowExecutionPlan | null;
+  estimatedCost: Readonly<{
+    credits: number | null;
+    currency: "shadowedge_credits";
+    confidence: "LOW" | "MEDIUM";
+    deduction: "NONE";
+  }>;
+  gates: Readonly<Record<keyof typeof STUDIO_CANVAS_EXECUTION_GATE_LABELS, Readonly<{
+    passed: boolean;
+    blockers: readonly string[];
+  }>>>;
+  policyDecisions: readonly Readonly<Record<string, unknown>>[];
+  riskFlags: readonly string[];
+  status: StudioCanvasExecutionPreviewStatus;
+  createdAt: string;
+  expiresAt: string;
+  confirmedAt?: string;
+  executionBoundary: Readonly<{
+    canvasCanExecute: false;
+    automaticGeneration: false;
+    queueEntered: false;
+    providerCalled: false;
+    creditsDeducted: false;
+    nextAction:
+      | "HUMAN_CONFIRM_EXECUTION_PREVIEW"
+      | "CLEAR_GATE_BLOCKERS"
+      | "USE_EXISTING_RUNTIME_WITH_SEPARATE_EXECUTION_CONFIRM";
+  }>;
 }>;
 
 export function studioCanvasDraftActionType(nodeType: StudioAgentCanvasNodeType): StudioCanvasDraftActionType {

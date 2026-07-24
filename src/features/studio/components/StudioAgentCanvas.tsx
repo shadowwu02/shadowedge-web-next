@@ -16,6 +16,7 @@ import {
 } from "@xyflow/react";
 import {
   STUDIO_AGENT_CANVAS_NODE_TYPES,
+  STUDIO_CANVAS_EXECUTION_GATE_LABELS,
   studioCanvasDraftActionLabel,
   studioCanvasDraftActionType,
   studioAgentCanvasNodeLabel,
@@ -23,9 +24,12 @@ import {
   type StudioAgentCanvasNode,
   type StudioAgentCanvasNodeType,
   type StudioCanvasDraftActionPreviewResult,
+  type StudioCanvasExecutionPreview,
 } from "@/features/studio/capabilities/studioAgentCanvas";
 import {
+  confirmStudioCanvasExecutionPreview,
   confirmStudioCanvasDraftAction,
+  createStudioCanvasExecutionPreview,
   getStudioAgentCanvas,
   previewStudioCanvasDraftAction,
 } from "@/lib/studio-agent-canvas-api";
@@ -115,6 +119,9 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
   const [errorState, setErrorState] = useState<{ projectId: string; message: string } | null>(null);
   const [busyNodeId, setBusyNodeId] = useState<string | null>(null);
   const [draftPreview, setDraftPreview] = useState<StudioCanvasDraftActionPreviewResult | null>(null);
+  const [confirmedCanvasActionId, setConfirmedCanvasActionId] = useState<string | null>(null);
+  const [executionPreview, setExecutionPreview] = useState<StudioCanvasExecutionPreview | null>(null);
+  const [executionBusy, setExecutionBusy] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
   const graph = graphState?.projectId === projectId ? graphState.graph : null;
   const error = errorState?.projectId === projectId ? errorState.message : "";
@@ -155,6 +162,7 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
     setActionMessage("");
     try {
       const result = await confirmStudioCanvasDraftAction(projectId, draftPreview.action.nodeId, draftPreview.action.actionId);
+      setConfirmedCanvasActionId(result.action.actionId);
       setActionMessage(`${result.draft.draftType.replaceAll("_", " ")} created in the existing Copilot Action Center. Review it before any execution.`);
       setDraftPreview(null);
     } catch {
@@ -163,6 +171,39 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
       setBusyNodeId(null);
     }
   }, [busyNodeId, draftPreview, projectId]);
+
+  const buildExecutionPreview = useCallback(async () => {
+    if (!projectId || executionBusy) return;
+    setExecutionBusy(true);
+    setActionMessage("");
+    try {
+      const result = await createStudioCanvasExecutionPreview(projectId, confirmedCanvasActionId);
+      setExecutionPreview(result);
+      setActionMessage(result.status === "READY"
+        ? "Execution Preview ready. No Job, Queue, Provider call, or Credits deduction occurred."
+        : "Execution Preview is blocked. Review the Gate results before continuing.");
+    } catch {
+      setExecutionPreview(null);
+      setActionMessage("Confirm a Canvas Draft and clear the execution gates before building a Preview. Nothing executed.");
+    } finally {
+      setExecutionBusy(false);
+    }
+  }, [confirmedCanvasActionId, executionBusy, projectId]);
+
+  const confirmExecutionPreview = useCallback(async () => {
+    if (!projectId || !executionPreview || executionPreview.status !== "READY" || executionBusy) return;
+    setExecutionBusy(true);
+    setActionMessage("");
+    try {
+      const result = await confirmStudioCanvasExecutionPreview(projectId, executionPreview.previewId);
+      setExecutionPreview(result);
+      setActionMessage("Execution Plan confirmed. Canvas still cannot execute; Runtime requires its separate execution confirmation.");
+    } catch {
+      setActionMessage("Execution Preview confirmation was blocked. No Runtime, Provider, or Credits action occurred.");
+    } finally {
+      setExecutionBusy(false);
+    }
+  }, [executionBusy, executionPreview, projectId]);
 
   const nodes = useMemo(() => graph ? toFlowNodes(graph, busyNodeId, previewDraft) : [], [busyNodeId, graph, previewDraft]);
   const edges = useMemo(() => graph ? toFlowEdges(graph) : [], [graph]);
@@ -202,6 +243,42 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
         </ReactFlow>
       </div>
       <aside className="studio-agent-canvas-details" aria-label="Agent Canvas node details">
+        <section className="studio-agent-canvas-execution-control" aria-label="Canvas Execution Preview controls">
+          <header>
+            <span>Execution Preview</span>
+            <b>{executionPreview?.status || "NOT BUILT"}</b>
+          </header>
+          <button disabled={executionBusy} onClick={() => void buildExecutionPreview()} type="button">
+            {executionBusy ? "Checking Gates…" : "Preview Execution"}
+          </button>
+          {executionPreview ? (
+            <div className="studio-agent-canvas-execution-summary" aria-label="Execution Summary">
+              <dl>
+                <div><dt>Agent nodes</dt><dd>{executionPreview.nodes.filter((node) => node.nodeType === "AGENT_TEAM").length}</dd></div>
+                <div><dt>Task nodes</dt><dd>{executionPreview.nodes.filter((node) => node.nodeType === "TASK").length}</dd></div>
+                <div><dt>Execution nodes</dt><dd>{executionPreview.executionPlanCandidate?.nodes.length || 0}</dd></div>
+                <div><dt>Capability</dt><dd>{executionPreview.executionPlanCandidate?.nodes.map((node) => node.capability).join(", ") || "Unavailable"}</dd></div>
+                <div><dt>Model</dt><dd>{executionPreview.executionPlanCandidate?.models.map((model) => model.modelId).join(", ") || "Unavailable"}</dd></div>
+                <div><dt>Estimated Credits</dt><dd>{executionPreview.estimatedCost.credits ?? "Unknown"} · no deduction</dd></div>
+              </dl>
+              <div className="studio-agent-canvas-gates">
+                {(Object.keys(STUDIO_CANVAS_EXECUTION_GATE_LABELS) as Array<keyof typeof STUDIO_CANVAS_EXECUTION_GATE_LABELS>).map((gateName) => (
+                  <span className={executionPreview.gates[gateName].passed ? "is-passed" : "is-blocked"} key={gateName}>
+                    {executionPreview.gates[gateName].passed ? "✓" : "!"} {STUDIO_CANVAS_EXECUTION_GATE_LABELS[gateName]}
+                  </span>
+                ))}
+              </div>
+              {executionPreview.riskFlags.length ? (
+                <div className="studio-agent-canvas-risks"><strong>Risks</strong><span>{executionPreview.riskFlags.join(" · ")}</span></div>
+              ) : null}
+              <small>Preview and confirmation only. Canvas has no Runtime Execute control.</small>
+              {executionPreview.status === "READY" ? (
+                <button disabled={executionBusy} onClick={() => void confirmExecutionPreview()} type="button">Confirm Execution Preview</button>
+              ) : null}
+              {executionPreview.status === "CONFIRMED" ? <b>Existing Execution Plan confirmed · separate Runtime confirmation required</b> : null}
+            </div>
+          ) : null}
+        </section>
         {selected ? (
           <>
             <header>

@@ -1,5 +1,6 @@
 import type {
   StudioAgentCanvasGraph,
+  StudioCanvasExecutionPreview,
   StudioCanvasDraftActionConfirmResult,
   StudioCanvasDraftActionPreviewResult,
   StudioCanvasDraftActionType,
@@ -33,5 +34,26 @@ export async function confirmStudioCanvasDraftAction(projectId: string, nodeId: 
     { method: "POST", body: JSON.stringify({ actionId, confirm: true }) },
   );
   if (!response.data?.draft || response.data.draft.status !== "DRAFT") throw new Error("Canvas Draft was not returned.");
+  return response.data;
+}
+
+export async function createStudioCanvasExecutionPreview(projectId: string, canvasActionId?: string | null) {
+  const response = await apiRequest<StudioCanvasExecutionPreview>(
+    `/api/projects/${encodeURIComponent(projectId)}/agent-canvas/execution-preview`,
+    {
+      method: "POST",
+      body: JSON.stringify(canvasActionId ? { canvasActionId } : {}),
+    },
+  );
+  if (!response.data?.previewId) throw new Error("Canvas Execution Preview was not returned.");
+  return response.data;
+}
+
+export async function confirmStudioCanvasExecutionPreview(projectId: string, previewId: string) {
+  const response = await apiRequest<StudioCanvasExecutionPreview>(
+    `/api/projects/${encodeURIComponent(projectId)}/agent-canvas/execution-preview/${encodeURIComponent(previewId)}/confirm`,
+    { method: "POST", body: JSON.stringify({ confirm: true }) },
+  );
+  if (response.data?.status !== "CONFIRMED") throw new Error("Canvas Execution Preview was not confirmed.");
   return response.data;
 }
