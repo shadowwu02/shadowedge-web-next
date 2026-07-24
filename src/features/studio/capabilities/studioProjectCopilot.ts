@@ -43,6 +43,7 @@ export const STUDIO_COPILOT_ACTION_TYPES = [
   "REVIEW_DECISION_SUPPORT",
   "REVIEW_SCENARIO",
   "REVIEW_DECISION_PATTERN",
+  "PROJECT_ACTION_DRAFT",
 ] as const;
 
 export const STUDIO_COPILOT_DRAFT_TYPES = [
@@ -64,6 +65,7 @@ export const STUDIO_COPILOT_DRAFT_TYPES = [
   "DECISION_SELECTION_DRAFT",
   "SCENARIO_DECISION_DRAFT",
   "DECISION_PATTERN_REVIEW_DRAFT",
+  "PROJECT_ACTION_DRAFT",
 ] as const;
 
 export type StudioCopilotActionType = typeof STUDIO_COPILOT_ACTION_TYPES[number];
@@ -391,6 +393,7 @@ export function studioCopilotActionLabel(type: StudioCopilotActionType) {
     REVIEW_DECISION_SUPPORT: "Review decision option",
     REVIEW_SCENARIO: "Review scenario",
     REVIEW_DECISION_PATTERN: "Review decision pattern",
+    PROJECT_ACTION_DRAFT: "Project action draft",
   } as const)[type];
 }
 
@@ -415,5 +418,6 @@ export function studioCopilotDraftLabel(type: StudioCopilotDraftType | undefined
     DECISION_SELECTION_DRAFT: "Decision Selection Draft",
     SCENARIO_DECISION_DRAFT: "Scenario Decision Draft",
     DECISION_PATTERN_REVIEW_DRAFT: "Decision Pattern Review Draft",
+    PROJECT_ACTION_DRAFT: "Project Action Draft",
   } as const)[type];
 }
