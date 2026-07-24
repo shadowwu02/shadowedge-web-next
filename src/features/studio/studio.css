@@ -4740,3 +4740,164 @@
   .studio-project-command-recommendations > div { grid-template-columns: 1fr; }
   .studio-project-command-boundary time { width: 100%; margin-left: 0; }
 }
+
+.studio-project-memory {
+  display: grid;
+  gap: 12px;
+  margin: 12px;
+  padding: 16px;
+  border: 1px solid rgba(45, 212, 191, 0.18);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(13, 148, 136, 0.08), transparent 42%),
+    rgba(8, 15, 29, 0.96);
+}
+.studio-project-memory > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.studio-project-memory > header > div:first-child { display: grid; gap: 4px; }
+.studio-project-memory > header > div:first-child > span {
+  color: #5eead4;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+.studio-project-memory h2 { margin: 0; color: #f8fafc; font-size: 19px; }
+.studio-project-memory > header p { max-width: 680px; margin: 0; color: #94a3b8; font-size: 10px; line-height: 1.5; }
+.studio-project-memory-count {
+  display: grid;
+  place-items: center;
+  min-width: 108px;
+  padding: 10px 14px;
+  border: 1px solid rgba(45, 212, 191, 0.2);
+  border-radius: 12px;
+  background: rgba(15, 118, 110, 0.1);
+}
+.studio-project-memory-count strong { color: #99f6e4; font-size: 21px; line-height: 1; }
+.studio-project-memory-count span { color: #5eead4; font-size: 7px; }
+.studio-project-memory-count small { color: #64748b; font-size: 7px; }
+.studio-project-memory-empty,
+.studio-project-memory-error {
+  display: grid;
+  gap: 3px;
+  min-height: 82px;
+  place-content: center;
+  border: 1px dashed rgba(45, 212, 191, 0.2);
+  border-radius: 12px;
+  color: #94a3b8;
+  font-size: 10px;
+  text-align: center;
+}
+.studio-project-memory-error { border-color: rgba(248, 113, 113, 0.22); }
+.studio-project-memory-error strong { color: #fca5a5; }
+.studio-project-memory-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.studio-project-memory-summary > div {
+  display: grid;
+  gap: 2px;
+  padding: 8px 9px;
+  border: 1px solid rgba(148, 163, 184, 0.09);
+  border-radius: 9px;
+  background: rgba(15, 23, 42, 0.5);
+}
+.studio-project-memory-summary span { color: #64748b; font-size: 7px; }
+.studio-project-memory-summary strong { color: #ccfbf1; font-size: 13px; }
+.studio-project-memory-stream {
+  display: grid;
+  gap: 9px;
+  padding: 11px;
+  border: 1px solid rgba(45, 212, 191, 0.13);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.42);
+}
+.studio-project-memory-stream > header,
+.studio-project-memory-grid > section > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.studio-project-memory-stream > header strong,
+.studio-project-memory-grid > section > header strong { color: #e2e8f0; font-size: 9px; }
+.studio-project-memory-stream > header span,
+.studio-project-memory-grid > section > header span { color: #2dd4bf; font-size: 7px; }
+.studio-project-memory-stream > div {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 1px 5px;
+}
+.studio-project-memory-stream article {
+  display: grid;
+  grid-template-columns: 22px minmax(150px, 1fr);
+  flex: 1 0 220px;
+  gap: 6px;
+  min-width: 220px;
+}
+.studio-project-memory-marker { position: relative; display: grid; justify-items: center; }
+.studio-project-memory-marker::after {
+  width: 1px;
+  height: 100%;
+  background: linear-gradient(#2dd4bf, rgba(45, 212, 191, 0.05));
+  content: "";
+}
+.studio-project-memory-marker span {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid rgba(45, 212, 191, 0.34);
+  border-radius: 50%;
+  background: #0f172a;
+  color: #99f6e4;
+  font-size: 7px;
+}
+.studio-project-memory-stream article > div:last-child {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  padding: 8px;
+  border-radius: 9px;
+  background: rgba(2, 6, 23, 0.32);
+}
+.studio-project-memory-stream article header { display: flex; justify-content: space-between; gap: 6px; }
+.studio-project-memory-stream article header span { color: #5eead4; font-size: 7px; }
+.studio-project-memory-stream article time { color: #64748b; font-size: 6px; }
+.studio-project-memory-stream article strong { color: #e2e8f0; font-size: 9px; }
+.studio-project-memory-stream article p,
+.studio-project-memory-grid article p { margin: 0; color: #94a3b8; font-size: 7px; line-height: 1.45; }
+.studio-project-memory-stream article small,
+.studio-project-memory-grid article small { color: #64748b; font-size: 6px; }
+.studio-project-memory-stream > p,
+.studio-project-memory-grid > section > p { margin: 0; color: #64748b; font-size: 8px; }
+.studio-project-memory-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.studio-project-memory-grid > section {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.09);
+  border-radius: 11px;
+  background: rgba(15, 23, 42, 0.42);
+}
+.studio-project-memory-grid article { display: grid; gap: 3px; padding: 7px; border-radius: 8px; background: rgba(2, 6, 23, 0.32); }
+.studio-project-memory-grid article > span { color: #2dd4bf; font-size: 7px; font-weight: 700; text-transform: uppercase; }
+.studio-project-memory-grid article > strong { color: #cbd5e1; font-size: 8px; line-height: 1.4; }
+.studio-project-memory > footer { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; color: #64748b; font-size: 7px; }
+.studio-project-memory > footer span { padding: 3px 6px; border: 1px solid rgba(148, 163, 184, 0.09); border-radius: 999px; }
+.studio-project-memory > footer time { margin-left: auto; }
+
+@media (max-width: 900px) {
+  .studio-project-memory-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 720px) {
+  .studio-project-memory { margin: 8px; padding: 12px; }
+  .studio-project-memory > header { align-items: flex-start; }
+  .studio-project-memory-count { min-width: 82px; padding: 8px; }
+  .studio-project-memory-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .studio-project-memory > footer time { width: 100%; margin-left: 0; }
+}

@@ -61,6 +61,13 @@ export type StudioProjectCopilotSnapshot = Readonly<{
     evidence: string;
   }>[];
   recommendations: readonly StudioProjectCopilotRecommendation[];
+  historicalMemory: Readonly<{
+    milestoneCount: number;
+    decisionCount: number;
+    successfulPatternCount: number;
+    lessonCount: number;
+    updatedAt: string;
+  }> | null;
   updatedAt: string;
   controlBoundary: Readonly<{
     analysisOnly: true;

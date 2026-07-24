@@ -13,6 +13,7 @@ import { StudioUnifiedTimeline } from "@/features/studio/components/StudioUnifie
 import { StudioStoryboardPanel } from "@/features/studio/components/StudioStoryboardPanel";
 import { StudioCreativeProjectIntelligenceDashboard } from "@/features/studio/components/StudioCreativeProjectIntelligenceDashboard";
 import { StudioProjectCopilotCommandCenter } from "@/features/studio/components/StudioProjectCopilotCommandCenter";
+import { StudioProjectMemoryTimeline } from "@/features/studio/components/StudioProjectMemoryTimeline";
 import {
   STUDIO_CANVAS_STORAGE_KEY,
   useStudioStore,
@@ -46,6 +47,7 @@ export function StudioWorkspace() {
         />
         <StudioCreativeProjectIntelligenceDashboard />
         <StudioProjectCopilotCommandCenter />
+        <StudioProjectMemoryTimeline />
         <div className="studio-layout">
           <StudioAssetPanel />
           <StudioCanvas />
