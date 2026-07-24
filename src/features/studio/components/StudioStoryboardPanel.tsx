@@ -9,6 +9,7 @@ import {
   type StudioShotDraft,
   type StudioShotGenerationDraft,
 } from "@/features/studio/capabilities/studioStoryboard";
+import type { StudioProductionRunPlan } from "@/features/studio/capabilities/studioProductionRunPlan";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import {
   confirmStudioShotDraft,
@@ -21,6 +22,11 @@ import {
   getStudioStoryboards,
   previewStudioShotDraft,
 } from "@/lib/studio-storyboard-api";
+import {
+  confirmStudioProductionRunPlan,
+  createStudioProductionRunPlan,
+  getStudioProductionRunPlan,
+} from "@/lib/studio-production-run-plan-api";
 
 export function StudioStoryboardPanel() {
   const projectId = useStudioStore((state) => state.projectId);
@@ -30,8 +36,10 @@ export function StudioStoryboardPanel() {
   const [shotDraft, setShotDraft] = useState<StudioShotDraft | null>(null);
   const [generationDraft, setGenerationDraft] = useState<StudioShotGenerationDraft | null>(null);
   const [batchPlan, setBatchPlan] = useState<StudioShotBatchGenerationPlan | null>(null);
+  const [productionPlan, setProductionPlan] = useState<StudioProductionRunPlan | null>(null);
   const [busyShotId, setBusyShotId] = useState<string | null>(null);
   const [batchBusy, setBatchBusy] = useState(false);
+  const [productionBusy, setProductionBusy] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -66,6 +74,15 @@ export function StudioStoryboardPanel() {
   }, [selectedSceneId]);
 
   useEffect(() => {
+    if (!projectId) return;
+    const controller = new AbortController();
+    void getStudioProductionRunPlan(projectId, controller.signal)
+      .then((value) => setProductionPlan(value.plan))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [projectId]);
+
+  useEffect(() => {
     if (!selectedSceneId) return;
     const controller = new AbortController();
     void getStudioShotBatchGenerationPlan(selectedSceneId, controller.signal)
@@ -77,6 +94,7 @@ export function StudioStoryboardPanel() {
   const shots = sceneShots && selectedSceneId && sceneShots.sceneId === selectedSceneId
     ? sceneShots.shots
     : selectedStoryboard?.shots || [];
+  const activeProductionPlan = productionPlan?.projectId === projectId ? productionPlan : null;
 
   const previewShotDraft = async (shot: StudioCreativeShot) => {
     setBusyShotId(shot.shotId);
@@ -174,6 +192,40 @@ export function StudioStoryboardPanel() {
     }
   };
 
+  const createProductionPlan = async () => {
+    if (!projectId) return;
+    setProductionBusy(true);
+    setMessage("");
+    try {
+      const result = await createStudioProductionRunPlan(projectId);
+      setProductionPlan(result.plan);
+      setMessage(
+        result.plan.status === "BLOCKED"
+          ? "Production Run Preview is blocked. Review Scene, Shot, Agent, or cost risks."
+          : "Production Run Plan preview ready. No Job, Queue, Provider call, Generate, or Credits action occurred.",
+      );
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Could not create the Production Run Plan preview.");
+    } finally {
+      setProductionBusy(false);
+    }
+  };
+
+  const confirmProductionPlan = async () => {
+    if (!projectId || !activeProductionPlan) return;
+    setProductionBusy(true);
+    setMessage("");
+    try {
+      const result = await confirmStudioProductionRunPlan(projectId, activeProductionPlan.runId);
+      setProductionPlan(result.plan);
+      setMessage("Production Draft confirmed. Existing Execution Approval remains mandatory; no Job or Queue was created.");
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Could not confirm the Production Run Plan.");
+    } finally {
+      setProductionBusy(false);
+    }
+  };
+
   return (
     <section className="studio-storyboard-workspace" id="storyboard-workspace" aria-label="Storyboard Workspace">
       <header>
@@ -222,6 +274,15 @@ export function StudioStoryboardPanel() {
             >
               <strong>{batchBusy ? "Planning…" : "Batch Generation Planning"}</strong>
               <small>Preview all Scene shots</small>
+            </button>
+            <button
+              className="studio-storyboard-production-button"
+              disabled={productionBusy}
+              onClick={() => void createProductionPlan()}
+              type="button"
+            >
+              <strong>{productionBusy ? "Planning…" : "Production Run Planner"}</strong>
+              <small>Preview all Scenes and Shots</small>
             </button>
           </nav>
 
@@ -351,6 +412,57 @@ export function StudioStoryboardPanel() {
                 </>
               ) : (
                 <p>Preview all Scene Shots, model suggestions, dependencies, and estimated Credits before confirmation.</p>
+              )}
+            </section>
+            <section className="studio-storyboard-draft-section" aria-label="Production Run Planner">
+              <span>Production Run Planner</span>
+              {activeProductionPlan ? (
+                <>
+                  <strong>{activeProductionPlan.summary.sceneCount} Scenes · {activeProductionPlan.summary.shotCount} Shots · {activeProductionPlan.status}</strong>
+                  <dl>
+                    <div><dt>Agents</dt><dd>{activeProductionPlan.summary.agentCount}</dd></div>
+                    <div><dt>Quality Checkpoints</dt><dd>{activeProductionPlan.summary.checkpointCount}</dd></div>
+                    <div><dt>Credits</dt><dd>{activeProductionPlan.estimatedCost.totalCreditsEstimate}</dd></div>
+                    <div><dt>Cost Confidence</dt><dd>{activeProductionPlan.estimatedCost.costConfidence}</dd></div>
+                    <div><dt>Unknown Cost</dt><dd>{activeProductionPlan.estimatedCost.unknownCost}</dd></div>
+                  </dl>
+                  <div className="studio-production-run-scenes" aria-label="Production Scene sequence">
+                    {activeProductionPlan.scenes.map((scene) => (
+                      <div key={scene.sceneId}>
+                        <strong>{String(scene.order).padStart(2, "0")} · {scene.name}</strong>
+                        <span>{scene.shotCount} Shots · {scene.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="studio-production-run-steps" aria-label="Production Steps">
+                    {activeProductionPlan.shots.map((step) => (
+                      <div key={step.stepId}>
+                        <strong>{step.agent.replaceAll("_", " ")}</strong>
+                        <span>{step.status}</span>
+                        <small>
+                          {step.sceneId} · {step.shotId} · {step.model?.displayName || "Model unavailable"}
+                        </small>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="studio-storyboard-batch-tags" aria-label="Production dependencies and risks">
+                    {Array.from(new Set(activeProductionPlan.dependencies.map((dependency) => dependency.type))).map((type) => (
+                      <span key={type}>{type}</span>
+                    ))}
+                    {activeProductionPlan.riskFlags.map((risk) => <span key={risk}>⚠ {risk}</span>)}
+                  </div>
+                  {activeProductionPlan.status === "PREVIEWED" ? (
+                    <button disabled={productionBusy} onClick={() => void confirmProductionPlan()} type="button">
+                      Confirm Production Draft
+                    </button>
+                  ) : activeProductionPlan.status === "CONFIRMED" ? (
+                    <small>Production Draft confirmed. Existing Execution Approval and Runtime confirmation remain mandatory.</small>
+                  ) : (
+                    <small>Confirmation blocked until all Scenes, Shots, Agent planning, and cost evidence are ready.</small>
+                  )}
+                </>
+              ) : (
+                <p>Aggregate every Scene Batch Plan, Agent Plan, dependency, checkpoint, and estimated Credit into one production preview.</p>
               )}
             </section>
             {message ? <small role="status">{message}</small> : null}
