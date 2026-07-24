@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -95,7 +95,7 @@ const laneX: Record<StudioAgentCanvasNodeType, number> = {
   ASSET: 1420,
 };
 
-function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
+const AgentNode = memo(function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
   const markers = data.source.metadata.insightMarkers || [];
   return (
     <article className={`studio-agent-canvas-node studio-agent-canvas-node-${data.source.nodeType.toLowerCase()}${selected ? " is-selected" : ""}`}>
@@ -118,9 +118,9 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
       <Handle type="source" position={Position.Right} isConnectable={false} />
     </article>
   );
-}
+});
 
-function AgentWorkflowNode({ data, selected }: NodeProps<AgentWorkflowFlowNode>) {
+const AgentWorkflowNode = memo(function AgentWorkflowNode({ data, selected }: NodeProps<AgentWorkflowFlowNode>) {
   return (
     <article className={`studio-agent-workflow-node studio-agent-workflow-node-${data.nodeType.toLowerCase()}${selected ? " is-selected" : ""}${data.waiting ? " is-waiting" : ""}`}>
       <Handle type="target" position={Position.Left} isConnectable={false} />
@@ -133,7 +133,7 @@ function AgentWorkflowNode({ data, selected }: NodeProps<AgentWorkflowFlowNode>)
       <Handle type="source" position={Position.Right} isConnectable={false} />
     </article>
   );
-}
+});
 
 const agentNodeTypes = { agentCanvas: AgentNode, agentWorkflow: AgentWorkflowNode } satisfies NodeTypes;
 
@@ -259,6 +259,33 @@ function detailValue(value: unknown) {
   return String(value ?? "");
 }
 
+function CanvasErrorPanel({
+  title = "Canvas Error Panel",
+  reason,
+  nodeId,
+  executionId,
+}: {
+  title?: string;
+  reason: string;
+  nodeId?: string | null;
+  executionId?: string | null;
+}) {
+  return (
+    <section className="studio-agent-canvas-error-panel" role="alert">
+      <header>
+        <span>Read-only diagnostic</span>
+        <strong>{title}</strong>
+      </header>
+      <dl>
+        <div><dt>Failed Node</dt><dd>{nodeId || "Not available"}</dd></div>
+        <div><dt>Reason</dt><dd>{reason}</dd></div>
+        <div><dt>Related Execution</dt><dd>{executionId || "Not available"}</dd></div>
+      </dl>
+      <small>No Runtime control, Retry, Cancel, Provider call, or Credits action is available here.</small>
+    </section>
+  );
+}
+
 export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
   const [graphState, setGraphState] = useState<{ projectId: string; graph: StudioAgentCanvasGraph } | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -276,6 +303,12 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
     value: StudioCanvasExecutionStatusProjection;
   } | null>(null);
   const [executionStatusError, setExecutionStatusError] = useState("");
+  const [executionRefreshState, setExecutionRefreshState] = useState<{
+    projectId: string;
+    lastSuccessAt: string | null;
+    consecutiveFailures: number;
+    nextRefreshMs: number;
+  } | null>(null);
   const [actionMessage, setActionMessage] = useState("");
   const [productionState, setProductionState] = useState<{ projectId: string; results: StudioCanvasProductionResults } | null>(null);
   const [productionError, setProductionError] = useState("");
@@ -321,13 +354,25 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
 
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
     if (!projectId) return () => { active = false; };
-    void getStudioAgentCanvas(projectId)
+    void getStudioAgentCanvas(projectId, controller.signal)
       .then((value) => { if (active) { setGraphState({ projectId, graph: value }); setErrorState(null); } })
-      .catch(() => { if (active) setErrorState({ projectId, message: "Agent Canvas is temporarily unavailable." }); });
-    void getStudioCanvasProductionResults(projectId)
+      .catch((loadError: unknown) => {
+        if (active && !(loadError instanceof DOMException && loadError.name === "AbortError")) {
+          setErrorState({
+            projectId,
+            message: "Agent Canvas could not load. Verify project access and data availability.",
+          });
+        }
+      });
+    void getStudioCanvasProductionResults(projectId, controller.signal)
       .then((value) => { if (active) { setProductionState({ projectId, results: value }); setProductionError(""); } })
-      .catch(() => { if (active) setProductionError("Result bindings are temporarily unavailable."); });
+      .catch((loadError: unknown) => {
+        if (active && !(loadError instanceof DOMException && loadError.name === "AbortError")) {
+          setProductionError("Result bindings are temporarily unavailable.");
+        }
+      });
     void getStudioUserWorkflowTemplates()
       .then((value) => { if (active) { setTemplateLibraryState({ projectId, library: value }); setTemplateMessage(""); } })
       .catch(() => { if (active) setTemplateMessage("Workflow Templates are temporarily unavailable."); });
@@ -343,32 +388,70 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
         }
       })
       .catch(() => { if (active) setAgentWorkflowError("Agent Workflow Graph is temporarily unavailable."); });
-    return () => { active = false; };
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [projectId]);
 
   useEffect(() => {
     let active = true;
-    let intervalId: ReturnType<typeof setInterval> | null = null;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let controller: AbortController | null = null;
+    let consecutiveFailures = 0;
     if (!projectId || agentCanvasMode !== "LIVE_EXECUTION") {
       return () => { active = false; };
     }
-    const refresh = () => {
-      void getStudioCanvasExecutionStatus(projectId)
-        .then((value) => {
-          if (!active) return;
-          setExecutionStatusState({ projectId, value });
-          setExecutionStatusError("");
-        })
-        .catch(() => {
-          if (!active) return;
-          setExecutionStatusError("Live Execution Status is temporarily unavailable.");
-        });
+    const schedule = (delay: number) => {
+      if (!active) return;
+      timeoutId = setTimeout(() => void refresh(), delay);
     };
-    refresh();
-    intervalId = setInterval(refresh, 5000);
+    const refresh = async () => {
+      if (!active) return;
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        schedule(15000);
+        return;
+      }
+      controller?.abort();
+      controller = new AbortController();
+      try {
+        const value = await getStudioCanvasExecutionStatus(projectId, controller.signal);
+        if (!active) return;
+        consecutiveFailures = 0;
+        setExecutionStatusState((current) =>
+          current?.projectId === projectId && current.value.revision === value.revision
+            ? current
+            : { projectId, value }
+        );
+        setExecutionStatusError("");
+        setExecutionRefreshState({
+          projectId,
+          lastSuccessAt: value.generatedAt,
+          consecutiveFailures: 0,
+          nextRefreshMs: value.refresh.recommendedIntervalMs,
+        });
+        schedule(value.refresh.recommendedIntervalMs);
+      } catch (refreshError: unknown) {
+        if (!active || (refreshError instanceof DOMException && refreshError.name === "AbortError")) return;
+        consecutiveFailures += 1;
+        const delay = Math.min(30000, 5000 * (2 ** Math.min(3, consecutiveFailures - 1)));
+        setExecutionStatusError(
+          "Runtime refresh failed. Showing the last successful snapshot while monitoring backs off safely.",
+        );
+        setExecutionRefreshState((current) => ({
+          projectId,
+          lastSuccessAt: current?.projectId === projectId ? current.lastSuccessAt : null,
+          consecutiveFailures,
+          nextRefreshMs: delay,
+        }));
+        schedule(delay);
+      }
+    };
+    void refresh();
     return () => {
       active = false;
-      if (intervalId) clearInterval(intervalId);
+      controller?.abort();
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [agentCanvasMode, projectId]);
 
@@ -486,6 +569,13 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
     () => visibleAgentWorkflowGraph ? toAgentWorkflowFlowEdges(visibleAgentWorkflowGraph) : [],
     [visibleAgentWorkflowGraph],
   );
+  const activeFlowNodeCount = agentCanvasMode === "AGENT_WORKFLOW"
+    ? agentWorkflowNodes.length
+    : nodes.length;
+  const largeGraph = activeFlowNodeCount > 150;
+  const executionRefresh = executionRefreshState?.projectId === projectId
+    ? executionRefreshState
+    : null;
   const selected = graph?.nodes.find((node) => node.nodeId === selectedId) || null;
   const selectedResult = production?.bindings.find((binding) => binding.canvasNodeId === selectedId) || null;
   const completedExecutionPlanId = graph?.nodes.find((node) =>
@@ -757,11 +847,34 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
   }
 
   if (!projectId) {
-    return <div className="studio-agent-canvas-empty">Open a cloud project to view its Agent Canvas.</div>;
+    return (
+      <section className="studio-agent-canvas-empty-state">
+        <span>New Project Canvas</span>
+        <strong>Start with a controlled draft</strong>
+        <p>Open a cloud project, then create a Workflow, import one of your Templates, or ask Copilot for a draft.</p>
+      </section>
+    );
   }
-  if (error) return <div className="studio-agent-canvas-empty" role="alert">{error}</div>;
+  if (error) {
+    return <CanvasErrorPanel reason={error} title="Canvas could not load" />;
+  }
   if (!graph) return <div className="studio-agent-canvas-empty">Building the read-only project graph…</div>;
-  if (!graph.nodes.length) return <div className="studio-agent-canvas-empty">No Agent project data has been recorded yet.</div>;
+  if (!graph.nodes.length) {
+    const projectQuery = encodeURIComponent(projectId);
+    return (
+      <section className="studio-agent-canvas-empty-state">
+        <span>New Project Canvas</span>
+        <strong>Build your first Creative Workflow</strong>
+        <p>No Agent project data has been recorded yet. Every option creates or opens a Draft; nothing executes automatically.</p>
+        <div>
+          <a href={`/studio?projectId=${projectQuery}&view=agent-canvas&action=create-workflow`}>Create Workflow</a>
+          <a href={`/studio?projectId=${projectQuery}&view=agent-canvas&action=import-template`}>Import Template</a>
+          <a href={`/studio?projectId=${projectQuery}&view=copilot`}>Ask Copilot</a>
+        </div>
+        <small>Draft only · Human Confirm required · no Provider or Credits action</small>
+      </section>
+    );
+  }
 
   return (
     <div className="studio-agent-canvas-production">
@@ -786,10 +899,29 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
                 {executionStatus?.status || "PENDING"}
               </b>
             </header>
-            {executionStatusError ? <p role="status">{executionStatusError}</p> : null}
+            {executionStatusError ? (
+              <CanvasErrorPanel
+                reason={executionStatusError}
+                title="Runtime refresh warning"
+              />
+            ) : null}
             {!executionStatus && !executionStatusError ? <p>Loading current Runtime state…</p> : null}
             {executionStatus ? (
               <>
+                <div className="studio-agent-live-refresh">
+                  <span>
+                    Last synced{" "}
+                    {executionRefresh?.lastSuccessAt
+                      ? new Date(executionRefresh.lastSuccessAt).toLocaleTimeString()
+                      : "not yet"}
+                  </span>
+                  <span>
+                    Next read in {Math.round((executionRefresh?.nextRefreshMs || executionStatus.refresh.recommendedIntervalMs) / 1000)}s
+                  </span>
+                  {executionRefresh?.consecutiveFailures
+                    ? <b>{executionRefresh.consecutiveFailures} refresh failure(s)</b>
+                    : <b>Runtime sync healthy</b>}
+                </div>
                 <div className="studio-agent-live-current">
                   <span>Current Step</span>
                   <strong>
@@ -809,6 +941,23 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
                   <span><b>{executionStatus.timeline.waitingNodeIds.length}</b> Waiting</span>
                   <span><b>{executionStatus.timeline.failedNodeIds.length}</b> Failed</span>
                 </div>
+                {executionStatus.issues.length ? (
+                  <section className="studio-agent-live-errors" aria-label="Canvas Error Panel">
+                    <header>
+                      <span>Canvas Error Panel</span>
+                      <b>{executionStatus.issues.length} diagnostic{executionStatus.issues.length === 1 ? "" : "s"}</b>
+                    </header>
+                    {executionStatus.issues.map((issue) => (
+                      <CanvasErrorPanel
+                        executionId={issue.executionId}
+                        key={`${issue.code}:${issue.executionId}:${issue.nodeId}`}
+                        nodeId={issue.nodeId}
+                        reason={`${issue.code.replaceAll("_", " ")} · ${issue.reason}`}
+                        title={issue.severity === "ERROR" ? "Failed Runtime Node" : "Runtime sync warning"}
+                      />
+                    ))}
+                  </section>
+                ) : null}
                 <div className="studio-agent-live-timeline" aria-label="Live Timeline">
                   {executionStatus.executions.map((execution) => (
                     <article className={`is-${execution.status.toLowerCase()}`} key={`${execution.executionId}:${execution.nodeId}`}>
@@ -817,7 +966,10 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
                           <strong>{execution.agent.roleId.replaceAll("_", " ")}</strong>
                           <small>{execution.capability || execution.nodeId}</small>
                         </div>
-                        <b>{execution.status}</b>
+                        <div className="studio-agent-live-state">
+                          <b>{execution.status}</b>
+                          {execution.syncState !== "CURRENT" ? <em>{execution.syncState.replaceAll("_", " ")}</em> : null}
+                        </div>
                       </header>
                       <div
                         aria-label={`${execution.progress}% complete`}
@@ -858,28 +1010,38 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
             ) : null}
           </section>
         ) : (
-          <ReactFlow<StudioFlowNode, Edge>
-            nodes={agentCanvasMode === "AGENT_WORKFLOW" ? agentWorkflowNodes : nodes}
-            edges={agentCanvasMode === "AGENT_WORKFLOW" ? agentWorkflowEdges : edges}
-            nodeTypes={agentNodeTypes}
-            nodesDraggable={false}
-            nodesConnectable={false}
-            elementsSelectable
-            onNodeClick={(_, node) => setSelectedId(node.id)}
-            onPaneClick={() => setSelectedId(null)}
-            fitView
-            fitViewOptions={{ padding: 0.16 }}
-            minZoom={0.35}
-            maxZoom={1.4}
-            panOnDrag
-            selectionOnDrag={false}
-            zoomOnDoubleClick={false}
-            deleteKeyCode={null}
-          >
-            <Background color="var(--studio-grid)" gap={22} size={1} variant={BackgroundVariant.Dots} />
-            <Controls position="bottom-left" showInteractive={false} />
-            <MiniMap maskColor="rgba(5, 7, 11, 0.72)" nodeColor="#818cf8" pannable position="bottom-right" zoomable />
-          </ReactFlow>
+          <>
+            {largeGraph ? (
+              <div className="studio-agent-canvas-performance-note" role="status">
+                Large workflow · {activeFlowNodeCount} nodes · viewport rendering optimized
+              </div>
+            ) : null}
+            <ReactFlow<StudioFlowNode, Edge>
+              nodes={agentCanvasMode === "AGENT_WORKFLOW" ? agentWorkflowNodes : nodes}
+              edges={agentCanvasMode === "AGENT_WORKFLOW" ? agentWorkflowEdges : edges}
+              nodeTypes={agentNodeTypes}
+              nodesDraggable={false}
+              nodesConnectable={false}
+              elementsSelectable
+              onNodeClick={(_, node) => setSelectedId(node.id)}
+              onPaneClick={() => setSelectedId(null)}
+              fitView
+              fitViewOptions={{ padding: 0.16 }}
+              minZoom={0.35}
+              maxZoom={1.4}
+              onlyRenderVisibleElements
+              panOnDrag
+              selectionOnDrag={false}
+              zoomOnDoubleClick={false}
+              deleteKeyCode={null}
+            >
+              <Background color="var(--studio-grid)" gap={22} size={1} variant={BackgroundVariant.Dots} />
+              <Controls position="bottom-left" showInteractive={false} />
+              {!largeGraph ? (
+                <MiniMap maskColor="rgba(5, 7, 11, 0.72)" nodeColor="#818cf8" pannable position="bottom-right" zoomable />
+              ) : null}
+            </ReactFlow>
+          </>
         )}
         </div>
         <aside className="studio-agent-canvas-details" aria-label="Agent Canvas node details">

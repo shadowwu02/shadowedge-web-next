@@ -12,17 +12,19 @@ import type {
 } from "@/features/studio/capabilities/studioAgentCanvas";
 import { apiRequest } from "@/lib/api";
 
-export async function getStudioAgentCanvas(projectId: string) {
+export async function getStudioAgentCanvas(projectId: string, signal?: AbortSignal) {
   const response = await apiRequest<StudioAgentCanvasGraph>(
     `/api/projects/${encodeURIComponent(projectId)}/agent-canvas`,
+    { signal },
   );
   if (!response.data?.projectId) throw new Error("Agent Canvas response was incomplete.");
   return response.data;
 }
 
-export async function getStudioCanvasProductionResults(projectId: string) {
+export async function getStudioCanvasProductionResults(projectId: string, signal?: AbortSignal) {
   const response = await apiRequest<StudioCanvasProductionResults>(
     `/api/projects/${encodeURIComponent(projectId)}/agent-canvas/results`,
+    { signal },
   );
   if (!response.data?.projectId || !Array.isArray(response.data.bindings)) {
     throw new Error("Canvas production results response was incomplete.");
@@ -125,9 +127,10 @@ export async function confirmStudioCanvasExecutionApproval(projectId: string, ap
   return response.data;
 }
 
-export async function getStudioCanvasExecutionStatus(projectId: string) {
+export async function getStudioCanvasExecutionStatus(projectId: string, signal?: AbortSignal) {
   const response = await apiRequest<StudioCanvasExecutionStatusProjection>(
     `/api/projects/${encodeURIComponent(projectId)}/agent-canvas/execution-status`,
+    { signal },
   );
   if (!response.data?.projectId || !Array.isArray(response.data.executions)) {
     throw new Error("Canvas Execution Status was not returned.");

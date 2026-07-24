@@ -36,7 +36,8 @@ test("Runtime Status API is authenticated read-only polling", () => {
   assert.match(api, /getStudioCanvasExecutionStatus/);
   assert.match(api, /agent-canvas\/execution-status/);
   assert.doesNotMatch(api, /execution-status[\s\S]{0,200}method:\s*"POST"/);
-  assert.match(component, /setInterval\(refresh, 5000\)/);
+  assert.match(component, /setTimeout\(\(\) => void refresh\(\), delay\)/);
+  assert.match(component, /value\.refresh\.recommendedIntervalMs/);
 });
 
 test("Live Execution Mode renders progress, status, current step, and result references", () => {

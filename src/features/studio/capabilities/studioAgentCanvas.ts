@@ -40,6 +40,13 @@ export type StudioAgentCanvasGraph = Readonly<{
   nodes: readonly StudioAgentCanvasNode[];
   edges: readonly StudioAgentCanvasEdge[];
   generatedAt: string;
+  revision: string;
+  performance: Readonly<{
+    nodeCount: number;
+    edgeCount: number;
+    executionPlanReads: number;
+    duplicateExecutionBindingsCollapsed: number;
+  }>;
   mode: "READ_ONLY";
   storage: "DERIVED_FROM_EXISTING_PROJECT_DATA";
   interactionBoundary: "VIEW_DETAILS_AND_NAVIGATE_ONLY";
@@ -327,6 +334,9 @@ export type StudioCanvasExecutionStatus = Readonly<{
   startedAt: string | null;
   updatedAt: string;
   completedAt: string | null;
+  expiresAt: string | null;
+  syncState: "CURRENT" | "STALE" | "EXPIRED" | "MISSING_RESULT";
+  staleAfterMs: number;
   capability: string | null;
   agent: Readonly<{
     taskId: string;
@@ -367,6 +377,13 @@ export type StudioCanvasExecutionStatusProjection = Readonly<{
   status: StudioCanvasRuntimeStatus;
   currentStep: StudioCanvasExecutionStatus | null;
   executions: readonly StudioCanvasExecutionStatus[];
+  issues: ReadonlyArray<Readonly<{
+    code: "EXECUTION_FAILED" | "RUNTIME_STATUS_STALE" | "EXECUTION_EXPIRED" | "RESULT_BINDING_MISSING";
+    severity: "ERROR" | "WARNING";
+    executionId: string;
+    nodeId: string;
+    reason: string;
+  }>>;
   timeline: Readonly<{
     currentNodeIds: readonly string[];
     completedNodeIds: readonly string[];
@@ -381,9 +398,12 @@ export type StudioCanvasExecutionStatusProjection = Readonly<{
     timeline: NonNullable<StudioCanvasExecutionStatus["result"]>["timeline"];
   }>>;
   generatedAt: string;
+  revision: string;
   refresh: Readonly<{
     mode: "POLL";
     recommendedIntervalMs: number;
+    staleAfterMs: number;
+    failureBackoffMaxMs: number;
   }>;
   controlBoundary: Readonly<{
     readOnly: true;
