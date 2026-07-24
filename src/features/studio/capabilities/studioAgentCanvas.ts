@@ -46,6 +46,55 @@ export type StudioAgentCanvasGraph = Readonly<{
   safety: "NO_CANVAS_WRITE_NO_EXECUTION_NO_PROVIDER_NO_BILLING_NO_CREDITS";
 }>;
 
+export type StudioCanvasResultBinding = Readonly<{
+  bindingId: string;
+  canvasNodeId: string;
+  executionId: string;
+  resultId: string;
+  timelineRef: string;
+  outputRef: string;
+  assetRef: string;
+  createdAt: string;
+  execution: Readonly<{
+    executionId: string;
+    status: string;
+  }>;
+  timeline: Readonly<{
+    clipId: string;
+    duration: number | null;
+    status: string;
+    assetId: string;
+    start: number | null;
+  }>;
+  output: Readonly<{
+    nodeId: string;
+    url: string | null;
+    assetId: string;
+    version: string | null;
+    qualityStatus: string;
+    status: string;
+  }>;
+  asset: Readonly<{
+    assetId: string;
+    status: string;
+    type: string | null;
+    url: string | null;
+    displayName: string | null;
+    version: string | null;
+  }>;
+}>;
+
+export type StudioCanvasProductionResults = Readonly<{
+  projectId: string;
+  bindings: readonly StudioCanvasResultBinding[];
+  generatedAt: string;
+  layout: "CREATIVE_PRODUCTION";
+  mode: "READ_ONLY";
+  storage: "REFERENCE_BINDINGS_ONLY";
+  sourceOfTruth: "TIMELINE_OUTPUT_ASSET";
+  safety: "NO_CANVAS_GENERATION_NO_TIMELINE_MUTATION_NO_RUNTIME_BYPASS_NO_AUTO_PUBLISH";
+}>;
+
 export const STUDIO_CANVAS_DRAFT_ACTION_TYPES = ["GOAL_REVIEW", "STRATEGY_REVIEW", "AGENT_EXPANSION", "WORKFLOW_IMPROVEMENT", "QUALITY_IMPROVEMENT", "COST_OPTIMIZATION"] as const;
 export type StudioCanvasDraftActionType = typeof STUDIO_CANVAS_DRAFT_ACTION_TYPES[number];
 

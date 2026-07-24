@@ -1,5 +1,6 @@
 import type {
   StudioAgentCanvasGraph,
+  StudioCanvasProductionResults,
   StudioCanvasExecutionPreview,
   StudioCanvasDraftActionConfirmResult,
   StudioCanvasDraftActionPreviewResult,
@@ -12,6 +13,16 @@ export async function getStudioAgentCanvas(projectId: string) {
     `/api/projects/${encodeURIComponent(projectId)}/agent-canvas`,
   );
   if (!response.data?.projectId) throw new Error("Agent Canvas response was incomplete.");
+  return response.data;
+}
+
+export async function getStudioCanvasProductionResults(projectId: string) {
+  const response = await apiRequest<StudioCanvasProductionResults>(
+    `/api/projects/${encodeURIComponent(projectId)}/agent-canvas/results`,
+  );
+  if (!response.data?.projectId || !Array.isArray(response.data.bindings)) {
+    throw new Error("Canvas production results response was incomplete.");
+  }
   return response.data;
 }
 

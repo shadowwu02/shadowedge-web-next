@@ -23,6 +23,7 @@ import {
   type StudioAgentCanvasGraph,
   type StudioAgentCanvasNode,
   type StudioAgentCanvasNodeType,
+  type StudioCanvasProductionResults,
   type StudioCanvasDraftActionPreviewResult,
   type StudioCanvasExecutionPreview,
 } from "@/features/studio/capabilities/studioAgentCanvas";
@@ -31,6 +32,7 @@ import {
   confirmStudioCanvasDraftAction,
   createStudioCanvasExecutionPreview,
   getStudioAgentCanvas,
+  getStudioCanvasProductionResults,
   previewStudioCanvasDraftAction,
 } from "@/lib/studio-agent-canvas-api";
 
@@ -123,7 +125,10 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
   const [executionPreview, setExecutionPreview] = useState<StudioCanvasExecutionPreview | null>(null);
   const [executionBusy, setExecutionBusy] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
+  const [productionState, setProductionState] = useState<{ projectId: string; results: StudioCanvasProductionResults } | null>(null);
+  const [productionError, setProductionError] = useState("");
   const graph = graphState?.projectId === projectId ? graphState.graph : null;
+  const production = productionState?.projectId === projectId ? productionState.results : null;
   const error = errorState?.projectId === projectId ? errorState.message : "";
 
   useEffect(() => {
@@ -132,6 +137,9 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
     void getStudioAgentCanvas(projectId)
       .then((value) => { if (active) { setGraphState({ projectId, graph: value }); setErrorState(null); } })
       .catch(() => { if (active) setErrorState({ projectId, message: "Agent Canvas is temporarily unavailable." }); });
+    void getStudioCanvasProductionResults(projectId)
+      .then((value) => { if (active) { setProductionState({ projectId, results: value }); setProductionError(""); } })
+      .catch(() => { if (active) setProductionError("Result bindings are temporarily unavailable."); });
     return () => { active = false; };
   }, [projectId]);
 
@@ -208,6 +216,7 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
   const nodes = useMemo(() => graph ? toFlowNodes(graph, busyNodeId, previewDraft) : [], [busyNodeId, graph, previewDraft]);
   const edges = useMemo(() => graph ? toFlowEdges(graph) : [], [graph]);
   const selected = graph?.nodes.find((node) => node.nodeId === selectedId) || null;
+  const selectedResult = production?.bindings.find((binding) => binding.canvasNodeId === selectedId) || null;
 
   if (!projectId) {
     return <div className="studio-agent-canvas-empty">Open a cloud project to view its Agent Canvas.</div>;
@@ -217,8 +226,9 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
   if (!graph.nodes.length) return <div className="studio-agent-canvas-empty">No Agent project data has been recorded yet.</div>;
 
   return (
-    <div className="studio-agent-canvas-layout">
-      <div className="studio-agent-canvas-flow" aria-label="Agent Canvas graph">
+    <div className="studio-agent-canvas-production">
+      <div className="studio-agent-canvas-layout">
+        <div className="studio-agent-canvas-flow" aria-label="Agent Canvas graph">
         <ReactFlow<AgentFlowNode, Edge>
           nodes={nodes}
           edges={edges}
@@ -241,8 +251,8 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
           <Controls position="bottom-left" showInteractive={false} />
           <MiniMap maskColor="rgba(5, 7, 11, 0.72)" nodeColor="#818cf8" pannable position="bottom-right" zoomable />
         </ReactFlow>
-      </div>
-      <aside className="studio-agent-canvas-details" aria-label="Agent Canvas node details">
+        </div>
+        <aside className="studio-agent-canvas-details" aria-label="Agent Canvas node details">
         <section className="studio-agent-canvas-execution-control" aria-label="Canvas Execution Preview controls">
           <header>
             <span>Execution Preview</span>
@@ -315,6 +325,17 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
                 <button disabled={Boolean(busyNodeId)} onClick={() => void confirmDraft()} type="button">Confirm Create Draft</button>
               </section>
             ) : null}
+            {selectedResult ? (
+              <section className="studio-agent-canvas-selected-result" aria-label="Selected Execution result">
+                <span>Bound result</span>
+                <dl>
+                  <div><dt>Clip</dt><dd>{selectedResult.timeline.clipId}</dd></div>
+                  <div><dt>Duration</dt><dd>{selectedResult.timeline.duration ?? "Unknown"}s</dd></div>
+                  <div><dt>Asset</dt><dd>{selectedResult.asset.assetId}</dd></div>
+                  <div><dt>Status</dt><dd>{selectedResult.execution.status}</dd></div>
+                </dl>
+              </section>
+            ) : null}
             {actionMessage ? <small className="studio-agent-canvas-action-message" role="status">{actionMessage}</small> : null}
           </>
         ) : (
@@ -324,7 +345,55 @@ export function StudioAgentCanvas({ projectId }: { projectId: string | null }) {
             <small>{STUDIO_AGENT_CANVAS_NODE_TYPES.length} read-only node types · No drag, delete, connect, or execute controls.</small>
           </>
         )}
-      </aside>
+        </aside>
+      </div>
+      <section className="studio-agent-canvas-production-layout" aria-label="Creative Production Layout">
+        <header>
+          <div>
+            <span>Creative Production</span>
+            <strong>Canvas, Timeline, Output, and Assets</strong>
+          </div>
+          <small>Read-only references · no publish or timeline edits</small>
+        </header>
+        {productionError ? <p className="studio-agent-canvas-production-error" role="status">{productionError}</p> : null}
+        {!production?.bindings.length ? (
+          <div className="studio-agent-canvas-production-empty">Completed Execution results will appear here after the existing Materializer binds them.</div>
+        ) : (
+          <div className="studio-agent-canvas-result-list">
+            {production.bindings.map((binding) => (
+              <article className="studio-agent-canvas-result" key={binding.bindingId}>
+                <section aria-label="Timeline Preview">
+                  <span>Timeline Preview</span>
+                  <strong>{binding.timeline.clipId}</strong>
+                  <dl>
+                    <div><dt>Duration</dt><dd>{binding.timeline.duration ?? "Unknown"}s</dd></div>
+                    <div><dt>Asset</dt><dd>{binding.timeline.assetId}</dd></div>
+                    <div><dt>Status</dt><dd>{binding.timeline.status}</dd></div>
+                  </dl>
+                </section>
+                <section aria-label="Output Panel">
+                  <span>Output</span>
+                  <strong>{binding.output.status}</strong>
+                  <dl>
+                    <div><dt>Version</dt><dd>{binding.output.version || "Unversioned"}</dd></div>
+                    <div><dt>Quality</dt><dd>{binding.output.qualityStatus}</dd></div>
+                  </dl>
+                  {binding.output.url ? <a href={binding.output.url} rel="noreferrer" target="_blank">Open output</a> : <small>Output URL unavailable</small>}
+                </section>
+                <section aria-label="Asset Panel">
+                  <span>Asset</span>
+                  <strong>{binding.asset.displayName || binding.asset.assetId}</strong>
+                  <dl>
+                    <div><dt>Type</dt><dd>{binding.asset.type || "Unknown"}</dd></div>
+                    <div><dt>Version</dt><dd>{binding.asset.version || "Unversioned"}</dd></div>
+                    <div><dt>Status</dt><dd>{binding.asset.status}</dd></div>
+                  </dl>
+                </section>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
