@@ -19,6 +19,7 @@ import type {
 } from "@/features/studio/capabilities/studioProductionDelivery";
 import type { StudioClientReviewWorkspace } from "@/features/studio/capabilities/studioClientReview";
 import type { StudioRevisionIntelligenceBundle } from "@/features/studio/capabilities/studioRevisionIntelligence";
+import type { StudioRevisionRunPlan } from "@/features/studio/capabilities/studioRevisionRunPlan";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import {
   confirmStudioShotDraft,
@@ -59,6 +60,11 @@ import {
   confirmStudioRevisionProposal,
   getStudioRevisionProposals,
 } from "@/lib/studio-revision-intelligence-api";
+import {
+  confirmStudioRevisionRunPlan,
+  createStudioRevisionRunPlan,
+  getStudioRevisionRunPlan,
+} from "@/lib/studio-revision-run-plan-api";
 
 export function StudioStoryboardPanel() {
   const projectId = useStudioStore((state) => state.projectId);
@@ -96,6 +102,11 @@ export function StudioStoryboardPanel() {
     value: StudioRevisionIntelligenceBundle;
   } | null>(null);
   const [revisionIntelligenceError, setRevisionIntelligenceError] = useState("");
+  const [revisionRunPlanState, setRevisionRunPlanState] = useState<{
+    projectId: string;
+    deliveryPackageId: string;
+    value: StudioRevisionRunPlan;
+  } | null>(null);
   const [reviewCommentContent, setReviewCommentContent] = useState("");
   const [reviewCommentTimestamp, setReviewCommentTimestamp] = useState(0);
   const [reviewCommentTarget, setReviewCommentTarget] = useState("");
@@ -108,6 +119,7 @@ export function StudioStoryboardPanel() {
   const [productionDeliveryBusy, setProductionDeliveryBusy] = useState(false);
   const [clientReviewBusy, setClientReviewBusy] = useState(false);
   const [revisionIntelligenceBusyId, setRevisionIntelligenceBusyId] = useState<string | null>(null);
+  const [revisionRunPlanBusy, setRevisionRunPlanBusy] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -214,6 +226,11 @@ export function StudioStoryboardPanel() {
     revisionIntelligenceState.deliveryPackageId === selectedReviewPackageId
       ? revisionIntelligenceState.value
       : null;
+  const activeRevisionRunPlan =
+    revisionRunPlanState?.projectId === projectId &&
+    revisionRunPlanState.deliveryPackageId === selectedReviewPackageId
+      ? revisionRunPlanState.value
+      : null;
   const clientReviewTargetRefs = Array.from(new Set(
     (activeClientReview?.deliveryPackage.outputs || []).flatMap((output) => [
       output.timelineRef,
@@ -226,6 +243,7 @@ export function StudioStoryboardPanel() {
     activeClientReview.session.revisions.length - 1
   ] || null;
   const activeClientReviewUpdatedAt = activeClientReview?.session.updatedAt || "";
+  const revisionConfirmedCount = activeRevisionIntelligence?.summary.confirmedCount || 0;
 
   useEffect(() => {
     if (!projectId || activeProductionRuntime?.tracking.status !== "COMPLETED") return;
@@ -308,6 +326,23 @@ export function StudioStoryboardPanel() {
       });
     return () => controller.abort();
   }, [activeClientReviewUpdatedAt, projectId, selectedReviewPackageId]);
+
+  useEffect(() => {
+    if (!projectId || !selectedReviewPackageId || revisionConfirmedCount < 1) return;
+    const controller = new AbortController();
+    void getStudioRevisionRunPlan(projectId, selectedReviewPackageId, controller.signal)
+      .then((value) => {
+        setRevisionRunPlanState({
+          projectId,
+          deliveryPackageId: selectedReviewPackageId,
+          value: value.plan,
+        });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setRevisionRunPlanState(null);
+      });
+    return () => controller.abort();
+  }, [projectId, revisionConfirmedCount, selectedReviewPackageId]);
 
   const previewShotDraft = async (shot: StudioCreativeShot) => {
     setBusyShotId(shot.shotId);
@@ -643,6 +678,51 @@ export function StudioStoryboardPanel() {
       setMessage(reason instanceof Error ? reason.message : "Could not confirm the AI Revision Suggestion.");
     } finally {
       setRevisionIntelligenceBusyId(null);
+    }
+  };
+
+  const createRevisionPlan = async (proposalId: string) => {
+    if (!projectId || !activeClientReview) return;
+    setRevisionRunPlanBusy(true);
+    setMessage("");
+    try {
+      const result = await createStudioRevisionRunPlan(projectId, {
+        proposalId,
+        deliveryPackageId: activeClientReview.deliveryPackage.packageId,
+      });
+      setRevisionRunPlanState({
+        projectId,
+        deliveryPackageId: activeClientReview.deliveryPackage.packageId,
+        value: result.plan,
+      });
+      setMessage("Revision Run Plan preview created. The delivered version is unchanged and no execution or charge occurred.");
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Could not create the Revision Run Plan.");
+    } finally {
+      setRevisionRunPlanBusy(false);
+    }
+  };
+
+  const confirmRevisionPlan = async () => {
+    if (!projectId || !activeRevisionRunPlan || !activeClientReview) return;
+    setRevisionRunPlanBusy(true);
+    setMessage("");
+    try {
+      const result = await confirmStudioRevisionRunPlan(
+        projectId,
+        activeRevisionRunPlan.revisionRunId,
+        activeClientReview.deliveryPackage.packageId,
+      );
+      setRevisionRunPlanState({
+        projectId,
+        deliveryPackageId: activeClientReview.deliveryPackage.packageId,
+        value: result.plan,
+      });
+      setMessage("Production Workflow Draft created for the planned Delivery version. Execution, Review, Delivery creation, publish, and Credits remain separate.");
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Could not confirm the Revision Run Plan.");
+    } finally {
+      setRevisionRunPlanBusy(false);
     }
   };
 
@@ -1311,9 +1391,18 @@ export function StudioStoryboardPanel() {
                             ))}
                           </ul>
                           {proposal.workflowDraftRef ? (
-                            <small>
-                              Workflow Draft: {proposal.workflowDraftRef.draftId} · {proposal.workflowDraftRef.status}
-                            </small>
+                            <>
+                              <small>
+                                Workflow Draft: {proposal.workflowDraftRef.draftId} · {proposal.workflowDraftRef.status}
+                              </small>
+                              <button
+                                disabled={revisionRunPlanBusy}
+                                onClick={() => void createRevisionPlan(proposal.proposalId)}
+                                type="button"
+                              >
+                                {revisionRunPlanBusy ? "Planning…" : "Plan Revision Run"}
+                              </button>
+                            </>
                           ) : (
                             <button
                               disabled={Boolean(revisionIntelligenceBusyId)}
@@ -1335,6 +1424,82 @@ export function StudioStoryboardPanel() {
                       <p>Add a Review Comment to receive an AI Revision Suggestion.</p>
                     )}
                     <small>Preview and explicit Confirm only · no result mutation, generation, execution, publish, or Credits action.</small>
+                  </div>
+                  <div className="studio-revision-planner" aria-label="Revision Planner">
+                    <header>
+                      <div>
+                        <strong>Revision Planner</strong>
+                        <small>Feedback → Revision Plan → New Version</small>
+                      </div>
+                      <span>{activeRevisionRunPlan?.status || "NOT PLANNED"}</span>
+                    </header>
+                    {activeRevisionRunPlan ? (
+                      <>
+                        <div className="studio-revision-version-loop" aria-label="Delivery Version Loop">
+                          <span>Delivery {activeRevisionRunPlan.versionPlan.sourceVersion}</span>
+                          <b>→</b>
+                          <span>Revision</span>
+                          <b>→</b>
+                          <span>Delivery {activeRevisionRunPlan.versionPlan.targetVersion}</span>
+                        </div>
+                        <dl>
+                          <div>
+                            <dt>Modified Shots</dt>
+                            <dd>{activeRevisionRunPlan.affectedShots.join(", ") || "None"}</dd>
+                          </div>
+                          <div>
+                            <dt>Preserved Content</dt>
+                            <dd>{activeRevisionRunPlan.preservedShots.join(", ") || "None"}</dd>
+                          </div>
+                          <div>
+                            <dt>Timeline Impact</dt>
+                            <dd>{activeRevisionRunPlan.impact.timelineImpact.status.replaceAll("_", " ")}</dd>
+                          </div>
+                          <div>
+                            <dt>Asset Impact</dt>
+                            <dd>{activeRevisionRunPlan.impact.assetImpact.status.replaceAll("_", " ")}</dd>
+                          </div>
+                          <div>
+                            <dt>Estimated Cost</dt>
+                            <dd>{activeRevisionRunPlan.estimatedCost.totalCreditsEstimate} Credits</dd>
+                          </div>
+                          <div>
+                            <dt>Cost Confidence</dt>
+                            <dd>{activeRevisionRunPlan.estimatedCost.costConfidence}</dd>
+                          </div>
+                        </dl>
+                        <div className="studio-revision-scope" aria-label="Revision Scope">
+                          {activeRevisionRunPlan.revisionScope.map((scope, index) => (
+                            <span key={`${scope.type}:${scope.shotId || scope.draftShotRef}:${index}`}>
+                              {scope.type.replaceAll("_", " ")} · {scope.shotId || scope.draftShotRef}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="studio-storyboard-batch-tags" aria-label="Revision Risks">
+                          {activeRevisionRunPlan.riskFlags.map((risk) => <span key={risk}>⚠ {risk}</span>)}
+                        </div>
+                        {activeRevisionRunPlan.productionWorkflowDraftRef ? (
+                          <small>
+                            Production Workflow Draft: {activeRevisionRunPlan.productionWorkflowDraftRef.draftId}
+                            {" · "}
+                            New Delivery version remains planned, not created or published.
+                          </small>
+                        ) : activeRevisionRunPlan.status === "PREVIEWED" ? (
+                          <button
+                            disabled={revisionRunPlanBusy}
+                            onClick={() => void confirmRevisionPlan()}
+                            type="button"
+                          >
+                            {revisionRunPlanBusy ? "Confirming…" : "Confirm Revision Plan"}
+                          </button>
+                        ) : (
+                          <small>Confirmation is blocked until Revision cost is known and all planning risks are reviewable.</small>
+                        )}
+                      </>
+                    ) : (
+                      <p>Confirm an AI Revision Suggestion, then preview its modified Shots, preserved content, impact, cost, and next Delivery version.</p>
+                    )}
+                    <small>Source Delivery is immutable · no automatic execution, generation, publish, or Credits deduction.</small>
                   </div>
                   <div className="studio-client-review-revision">
                     <header>
