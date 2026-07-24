@@ -12,6 +12,7 @@ import {
 import type { StudioProductionRunPlan } from "@/features/studio/capabilities/studioProductionRunPlan";
 import type { StudioProductionExecutionApproval } from "@/features/studio/capabilities/studioProductionExecutionApproval";
 import type { StudioProductionRuntimeProjection } from "@/features/studio/capabilities/studioProductionRuntime";
+import type { StudioProductionReview } from "@/features/studio/capabilities/studioProductionReview";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import {
   confirmStudioShotDraft,
@@ -34,6 +35,10 @@ import {
   createStudioProductionExecutionApproval,
 } from "@/lib/studio-production-execution-approval-api";
 import { getStudioProductionRunStatus } from "@/lib/studio-production-runtime-api";
+import {
+  approveStudioProductionReview,
+  getStudioProductionReview,
+} from "@/lib/studio-production-review-api";
 
 export function StudioStoryboardPanel() {
   const projectId = useStudioStore((state) => state.projectId);
@@ -50,10 +55,16 @@ export function StudioStoryboardPanel() {
     value: StudioProductionRuntimeProjection;
   } | null>(null);
   const [productionRuntimeError, setProductionRuntimeError] = useState("");
+  const [productionReviewState, setProductionReviewState] = useState<{
+    projectId: string;
+    value: StudioProductionReview;
+  } | null>(null);
+  const [productionReviewError, setProductionReviewError] = useState("");
   const [busyShotId, setBusyShotId] = useState<string | null>(null);
   const [batchBusy, setBatchBusy] = useState(false);
   const [productionBusy, setProductionBusy] = useState(false);
   const [productionApprovalBusy, setProductionApprovalBusy] = useState(false);
+  const [productionReviewBusy, setProductionReviewBusy] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -143,6 +154,27 @@ export function StudioStoryboardPanel() {
   const activeProductionRuntime = productionRuntimeState?.projectId === projectId
     ? productionRuntimeState.value
     : null;
+  const activeProductionReview = productionReviewState?.projectId === projectId
+    ? productionReviewState.value
+    : null;
+
+  useEffect(() => {
+    if (!projectId || activeProductionRuntime?.tracking.status !== "COMPLETED") return;
+    const controller = new AbortController();
+    void getStudioProductionReview(projectId, controller.signal)
+      .then((value) => {
+        setProductionReviewState({ projectId, value });
+        setProductionReviewError("");
+      })
+      .catch((reason: unknown) => {
+        if (!controller.signal.aborted) {
+          setProductionReviewError(
+            reason instanceof Error ? reason.message : "Production Review is unavailable.",
+          );
+        }
+      });
+    return () => controller.abort();
+  }, [activeProductionRuntime?.tracking.status, activeProductionRuntime?.tracking.trackingId, projectId]);
 
   const previewShotDraft = async (shot: StudioCreativeShot) => {
     setBusyShotId(shot.shotId);
@@ -310,6 +342,23 @@ export function StudioStoryboardPanel() {
       setMessage(reason instanceof Error ? reason.message : "Could not confirm Production Execution Approval.");
     } finally {
       setProductionApprovalBusy(false);
+    }
+  };
+
+  const approveProductionReview = async () => {
+    if (!projectId || !activeProductionReview || activeProductionReview.status !== "IN_REVIEW") return;
+    setProductionReviewBusy(true);
+    setMessage("");
+    try {
+      const value = await approveStudioProductionReview(projectId, activeProductionReview.reviewId);
+      setProductionReviewState({ projectId, value });
+      setMessage(
+        "Production Review approved. Results remain unpublished; no Asset, Timeline, Generation, Runtime, or Credits action occurred.",
+      );
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Could not approve Production Review.");
+    } finally {
+      setProductionReviewBusy(false);
     }
   };
 
@@ -674,6 +723,86 @@ export function StudioStoryboardPanel() {
                 </>
               ) : (
                 <p>Connecting the approved Production Run to its existing Execution Runtime…</p>
+              )}
+            </section>
+            <section className="studio-storyboard-draft-section studio-production-review" aria-label="Production Review Workspace">
+              <span>Production Review Workspace</span>
+              {activeProductionReview ? (
+                <>
+                  <strong>{activeProductionReview.status} · {activeProductionReview.reviewId}</strong>
+                  <div className="studio-production-review-gates" aria-label="Quality Gate">
+                    {activeProductionReview.qualityChecks.map((check) => (
+                      <div className={`is-${check.status.toLowerCase()}`} key={check.type}>
+                        <strong>{check.type.replaceAll("_", " ")}</strong>
+                        <span>{check.status}</span>
+                        <small>{check.score === null ? "Human review" : `${check.score} / 100`}</small>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="studio-production-review-suggestion">
+                    <strong>{activeProductionReview.reviewSuggestion.actionType}</strong>
+                    <span>{activeProductionReview.reviewSuggestion.status}</span>
+                    <p>{activeProductionReview.reviewSuggestion.summary}</p>
+                    <small>REVIEW_SUGGESTION · Quality Insight · Preview → Human Confirm</small>
+                  </div>
+                  <div className="studio-production-review-grid" aria-label="Shot Review Grid">
+                    {activeProductionReview.results.map((result) => (
+                      <article key={result.shotId}>
+                        <header>
+                          <strong>{result.shotId}</strong>
+                          <span>{result.decision}</span>
+                        </header>
+                        {result.resultRef.videoUrl ? (
+                          <video controls preload="metadata" src={result.resultRef.videoUrl} />
+                        ) : (
+                          <div className="studio-production-review-result-empty">Result preview unavailable</div>
+                        )}
+                        <dl>
+                          <div><dt>Quality</dt><dd>{result.quality.score ?? "Review"}</dd></div>
+                          <div><dt>Confidence</dt><dd>{result.quality.confidence}</dd></div>
+                          <div><dt>Timeline</dt><dd>{result.resultRef.timelineRef || "Unbound"}</dd></div>
+                          <div><dt>Output</dt><dd>{result.resultRef.outputRef || "Unbound"}</dd></div>
+                          <div><dt>Asset</dt><dd>{result.resultRef.assetRef || "Unbound"}</dd></div>
+                        </dl>
+                        <div className="studio-production-review-issues">
+                          {result.issues.length
+                            ? result.issues.map((issue) => (
+                                <p key={issue.issueId}>⚠ {issue.type.replaceAll("_", " ")} · {issue.message}</p>
+                              ))
+                            : <p>No measured quality issues.</p>}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                  {activeProductionReview.status === "IN_REVIEW" ? (
+                    <button
+                      disabled={productionReviewBusy || !activeProductionReview.approvalReady}
+                      onClick={() => void approveProductionReview()}
+                      type="button"
+                    >
+                      {productionReviewBusy ? "Approving…" : "Confirm Production Review"}
+                    </button>
+                  ) : (
+                    <small>
+                      Human review recorded at {activeProductionReview.approvedAt || activeProductionReview.createdAt}.
+                    </small>
+                  )}
+                  {!activeProductionReview.approvalReady ? (
+                    <small>Approval is blocked by the displayed Quality Gate. No automatic regeneration is available.</small>
+                  ) : null}
+                  <small>No publish, Asset replacement, regeneration, Timeline mutation, or Credits action is available here.</small>
+                </>
+              ) : activeProductionRuntime?.tracking.status === "COMPLETED" ? (
+                productionReviewError ? (
+                  <>
+                    <strong>Review unavailable</strong>
+                    <p>{productionReviewError}</p>
+                  </>
+                ) : (
+                  <p>Building a result-only Review Session from completed Production references…</p>
+                )
+              ) : (
+                <p>Production Review opens after every Production Shot is completed.</p>
               )}
             </section>
             {message ? <small role="status">{message}</small> : null}

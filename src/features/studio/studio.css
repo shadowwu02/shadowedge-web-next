@@ -3986,6 +3986,78 @@
 .studio-production-monitor-steps .is-completed { border-color: rgba(52, 211, 153, 0.2); }
 .studio-production-monitor-steps .is-executing { border-color: rgba(56, 189, 248, 0.24); }
 .studio-production-monitor-steps .is-failed { border-color: rgba(248, 113, 113, 0.24); }
+.studio-production-review {
+  border-top: 1px solid rgba(167, 139, 250, 0.12);
+  padding-top: 10px;
+}
+.studio-production-review-gates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+.studio-production-review-gates > div,
+.studio-production-review-suggestion,
+.studio-production-review-grid > article {
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.58);
+  padding: 7px;
+}
+.studio-production-review-gates > div {
+  display: grid;
+  gap: 2px;
+}
+.studio-production-review-gates strong,
+.studio-production-review-grid strong { color: #e2e8f0; font-size: 8px; }
+.studio-production-review-gates span,
+.studio-production-review-gates small { color: #94a3b8; font-size: 7px; }
+.studio-production-review-gates .is-pass { border-color: rgba(52, 211, 153, 0.22); }
+.studio-production-review-gates .is-warning { border-color: rgba(251, 191, 36, 0.24); }
+.studio-production-review-gates .is-blocked { border-color: rgba(248, 113, 113, 0.26); }
+.studio-production-review-suggestion {
+  display: grid;
+  gap: 3px;
+  border-color: rgba(167, 139, 250, 0.22);
+}
+.studio-production-review-suggestion strong { color: #c4b5fd; font-size: 8px; }
+.studio-production-review-suggestion span,
+.studio-production-review-suggestion small { color: #94a3b8; font-size: 7px; }
+.studio-production-review-suggestion p { color: #cbd5e1; font-size: 8px; margin: 0; }
+.studio-production-review-grid { display: grid; gap: 6px; }
+.studio-production-review-grid > article { display: grid; gap: 6px; }
+.studio-production-review-grid article > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.studio-production-review-grid article > header span { color: #67e8f9; font-size: 7px; }
+.studio-production-review-grid video {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  border-radius: 6px;
+  background: #020617;
+}
+.studio-production-review-result-empty {
+  display: grid;
+  min-height: 64px;
+  place-items: center;
+  border-radius: 6px;
+  background: rgba(2, 6, 23, 0.7);
+  color: #64748b;
+  font-size: 8px;
+}
+.studio-production-review-grid dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0;
+}
+.studio-production-review-grid dl > div { display: grid; gap: 1px; }
+.studio-production-review-grid dt { color: #64748b; font-size: 7px; }
+.studio-production-review-grid dd { color: #cbd5e1; font-size: 7px; margin: 0; overflow-wrap: anywhere; }
+.studio-production-review-issues { display: grid; gap: 3px; }
+.studio-production-review-issues p { color: #94a3b8; font-size: 7px; margin: 0; }
 .studio-agent-canvas-node-storyboard { border-color: rgba(167, 139, 250, 0.42); background: linear-gradient(180deg, rgba(76, 29, 149, 0.28), rgba(15, 23, 42, 0.92)); }
 
 @media (max-width: 1080px) {
