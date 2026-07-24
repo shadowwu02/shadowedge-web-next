@@ -17,6 +17,7 @@ import type {
   StudioProductionDeliveryCollection,
   StudioProductionDeliveryPackage,
 } from "@/features/studio/capabilities/studioProductionDelivery";
+import type { StudioClientReviewWorkspace } from "@/features/studio/capabilities/studioClientReview";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import {
   confirmStudioShotDraft,
@@ -47,6 +48,12 @@ import {
   createStudioProductionDeliveryPackage,
   getStudioProductionDeliveryPackages,
 } from "@/lib/studio-production-delivery-api";
+import {
+  confirmStudioRevisionDraft,
+  createStudioReviewComment,
+  createStudioRevisionDraft,
+  getStudioClientReviewSession,
+} from "@/lib/studio-client-review-api";
 
 export function StudioStoryboardPanel() {
   const projectId = useStudioStore((state) => state.projectId);
@@ -73,12 +80,22 @@ export function StudioStoryboardPanel() {
     value: StudioProductionDeliveryCollection;
   } | null>(null);
   const [productionDeliveryError, setProductionDeliveryError] = useState("");
+  const [clientReviewState, setClientReviewState] = useState<{
+    projectId: string;
+    value: StudioClientReviewWorkspace;
+  } | null>(null);
+  const [clientReviewError, setClientReviewError] = useState("");
+  const [reviewCommentContent, setReviewCommentContent] = useState("");
+  const [reviewCommentTimestamp, setReviewCommentTimestamp] = useState(0);
+  const [reviewCommentTarget, setReviewCommentTarget] = useState("");
+  const [selectedClientReviewPackageId, setSelectedClientReviewPackageId] = useState("");
   const [busyShotId, setBusyShotId] = useState<string | null>(null);
   const [batchBusy, setBatchBusy] = useState(false);
   const [productionBusy, setProductionBusy] = useState(false);
   const [productionApprovalBusy, setProductionApprovalBusy] = useState(false);
   const [productionReviewBusy, setProductionReviewBusy] = useState(false);
   const [productionDeliveryBusy, setProductionDeliveryBusy] = useState(false);
+  const [clientReviewBusy, setClientReviewBusy] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -175,6 +192,22 @@ export function StudioStoryboardPanel() {
     ? productionDeliveryState.value
     : null;
   const latestDeliveryPackage = activeProductionDelivery?.packages[0] || null;
+  const selectedReviewPackageId = selectedClientReviewPackageId || latestDeliveryPackage?.packageId || "";
+  const activeClientReview = clientReviewState?.projectId === projectId &&
+    clientReviewState.value.deliveryPackage.packageId === selectedReviewPackageId
+    ? clientReviewState.value
+    : null;
+  const clientReviewTargetRefs = Array.from(new Set(
+    (activeClientReview?.deliveryPackage.outputs || []).flatMap((output) => [
+      output.timelineRef,
+      output.outputRef,
+      output.assetRef,
+      output.shotId,
+    ]).filter((value): value is string => Boolean(value)),
+  ));
+  const latestRevision = activeClientReview?.session.revisions[
+    activeClientReview.session.revisions.length - 1
+  ] || null;
 
   useEffect(() => {
     if (!projectId || activeProductionRuntime?.tracking.status !== "COMPLETED") return;
@@ -211,6 +244,30 @@ export function StudioStoryboardPanel() {
       });
     return () => controller.abort();
   }, [activeProductionReview?.reviewId, activeProductionReview?.status, projectId]);
+
+  useEffect(() => {
+    if (!projectId || !selectedReviewPackageId) return;
+    const controller = new AbortController();
+    void getStudioClientReviewSession(projectId, selectedReviewPackageId, controller.signal)
+      .then((value) => {
+        setClientReviewState({ projectId, value });
+        setClientReviewError("");
+        setReviewCommentTarget(
+          value.deliveryPackage.timelineReferences[0] ||
+          value.deliveryPackage.outputs[0]?.outputRef ||
+          value.deliveryPackage.packageId
+        );
+        setReviewCommentTimestamp(0);
+      })
+      .catch((reason: unknown) => {
+        if (!controller.signal.aborted) {
+          setClientReviewError(
+            reason instanceof Error ? reason.message : "Client Review Workspace is unavailable.",
+          );
+        }
+      });
+    return () => controller.abort();
+  }, [projectId, selectedReviewPackageId]);
 
   const previewShotDraft = async (shot: StudioCreativeShot) => {
     setBusyShotId(shot.shotId);
@@ -431,6 +488,7 @@ export function StudioStoryboardPanel() {
           },
         },
       });
+      setSelectedClientReviewPackageId(deliveryPackage.packageId);
       setMessage(
         `${deliveryPackage.version} Delivery Package created as a reference-only Export Preview. Nothing was published, uploaded, shared, or charged.`,
       );
@@ -438,6 +496,75 @@ export function StudioStoryboardPanel() {
       setMessage(reason instanceof Error ? reason.message : "Could not create the Delivery Package.");
     } finally {
       setProductionDeliveryBusy(false);
+    }
+  };
+
+  const addReviewComment = async () => {
+    if (!projectId || !activeClientReview || !reviewCommentTarget || !reviewCommentContent.trim()) return;
+    setClientReviewBusy(true);
+    setMessage("");
+    try {
+      const result = await createStudioReviewComment(projectId, {
+        deliveryPackageId: activeClientReview.deliveryPackage.packageId,
+        targetRef: reviewCommentTarget,
+        timestamp: reviewCommentTimestamp,
+        content: reviewCommentContent,
+      });
+      setClientReviewState({
+        projectId,
+        value: { ...activeClientReview, session: result.session },
+      });
+      setReviewCommentContent("");
+      setMessage("Review Comment saved to this Delivery version. No Output, Timeline, Asset, Workflow, or Credits action occurred.");
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Could not save the Review Comment.");
+    } finally {
+      setClientReviewBusy(false);
+    }
+  };
+
+  const previewRevisionRequest = async () => {
+    if (!projectId || !activeClientReview) return;
+    setClientReviewBusy(true);
+    setMessage("");
+    try {
+      const result = await createStudioRevisionDraft(
+        projectId,
+        activeClientReview.session.reviewSessionId,
+        activeClientReview.deliveryPackage.packageId,
+      );
+      setClientReviewState({
+        projectId,
+        value: { ...activeClientReview, session: result.session },
+      });
+      setMessage("Revision Request Preview created. Confirm is still required before a new Workflow Draft exists.");
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Could not create the Revision Request Preview.");
+    } finally {
+      setClientReviewBusy(false);
+    }
+  };
+
+  const confirmRevisionRequest = async () => {
+    if (!projectId || !activeClientReview || !latestRevision || latestRevision.status !== "PREVIEW") return;
+    setClientReviewBusy(true);
+    setMessage("");
+    try {
+      const result = await confirmStudioRevisionDraft(
+        projectId,
+        activeClientReview.session.reviewSessionId,
+        latestRevision.revisionId,
+        activeClientReview.deliveryPackage.packageId,
+      );
+      setClientReviewState({
+        projectId,
+        value: { ...activeClientReview, session: result.session },
+      });
+      setMessage("New Workflow Draft created for human review. It was not confirmed, executed, generated, or charged.");
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Could not confirm the Revision Request.");
+    } finally {
+      setClientReviewBusy(false);
     }
   };
 
@@ -965,6 +1092,152 @@ export function StudioStoryboardPanel() {
                 </>
               ) : (
                 <p>Loading approved Outputs, Timeline references, Assets, and Quality evidence…</p>
+              )}
+            </section>
+            <section className="studio-storyboard-draft-section studio-client-review" aria-label="Client Review Workspace">
+              <span>Client Review Workspace</span>
+              {!latestDeliveryPackage ? (
+                <p>Create a Delivery Package before opening collaboration review.</p>
+              ) : activeClientReview ? (
+                <>
+                  <header>
+                    <div>
+                      <strong>{activeClientReview.deliveryPackage.version}</strong>
+                      <small>{activeClientReview.session.status}</small>
+                    </div>
+                    <small>{activeClientReview.session.comments.length} comments · {activeClientReview.session.revisions.length} revisions</small>
+                  </header>
+                  <label className="studio-client-review-version">
+                    <span>Delivery Version</span>
+                    <select
+                      onChange={(event) => setSelectedClientReviewPackageId(event.target.value)}
+                      value={activeClientReview.deliveryPackage.packageId}
+                    >
+                      {activeProductionDelivery?.packages.map((deliveryPackage) => (
+                        <option key={deliveryPackage.packageId} value={deliveryPackage.packageId}>
+                          {deliveryPackage.version} · {deliveryPackage.status}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="studio-client-review-video">
+                    {activeClientReview.deliveryPackage.outputs[0]?.videoUrl ? (
+                      <video
+                        controls
+                        preload="metadata"
+                        src={activeClientReview.deliveryPackage.outputs[0].videoUrl}
+                      />
+                    ) : (
+                      <div>Video Preview unavailable</div>
+                    )}
+                    <small>Delivery {activeClientReview.deliveryPackage.version} · read-only Video Preview</small>
+                  </div>
+                  <div className="studio-client-review-comment-form" aria-label="Timeline Comment">
+                    <label>
+                      <span>Target</span>
+                      <select
+                        onChange={(event) => setReviewCommentTarget(event.target.value)}
+                        value={reviewCommentTarget}
+                      >
+                        {clientReviewTargetRefs.map((targetRef) => (
+                          <option key={targetRef} value={targetRef}>{targetRef}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Timestamp</span>
+                      <input
+                        min={0}
+                        onChange={(event) => setReviewCommentTimestamp(Number(event.target.value))}
+                        step={0.1}
+                        type="number"
+                        value={reviewCommentTimestamp}
+                      />
+                    </label>
+                    <label>
+                      <span>Feedback</span>
+                      <textarea
+                        maxLength={2000}
+                        onChange={(event) => setReviewCommentContent(event.target.value)}
+                        placeholder="Describe the requested revision…"
+                        value={reviewCommentContent}
+                      />
+                    </label>
+                    <button
+                      disabled={clientReviewBusy || !reviewCommentContent.trim() || !reviewCommentTarget}
+                      onClick={() => void addReviewComment()}
+                      type="button"
+                    >
+                      {clientReviewBusy ? "Saving…" : "Add Review Comment"}
+                    </button>
+                  </div>
+                  <div className="studio-client-review-comments" aria-label="Review Feedback">
+                    {activeClientReview.session.comments.length ? (
+                      activeClientReview.session.comments.map((comment) => (
+                        <article key={comment.commentId}>
+                          <header>
+                            <strong>{comment.targetRef}</strong>
+                            <span>{comment.status}</span>
+                          </header>
+                          <p>{comment.content}</p>
+                          <small>{comment.timestamp}s · {comment.createdAt}</small>
+                        </article>
+                      ))
+                    ) : (
+                      <p>No feedback has been added to this Delivery version.</p>
+                    )}
+                  </div>
+                  <div className="studio-client-review-revision">
+                    <header>
+                      <strong>Revision Draft</strong>
+                      <span>{latestRevision?.status || "NOT CREATED"}</span>
+                    </header>
+                    {latestRevision ? (
+                      <>
+                        <dl>
+                          <div><dt>Comments</dt><dd>{latestRevision.impact.commentCount}</dd></div>
+                          <div><dt>Targets</dt><dd>{latestRevision.impact.targetCount}</dd></div>
+                          <div><dt>Shots</dt><dd>{latestRevision.impact.affectedShotIds.length}</dd></div>
+                          <div><dt>Workflow Impact</dt><dd>New Draft Only</dd></div>
+                        </dl>
+                        {latestRevision.workflowDraftRef ? (
+                          <small>
+                            New Workflow Draft: {latestRevision.workflowDraftRef.draftId} · {latestRevision.workflowDraftRef.status}
+                          </small>
+                        ) : (
+                          <small>Preview only. Current Workflow and Delivery remain unchanged.</small>
+                        )}
+                      </>
+                    ) : (
+                      <p>Aggregate OPEN comments into a Revision Request Preview.</p>
+                    )}
+                    {latestRevision?.status === "PREVIEW" ? (
+                      <button
+                        disabled={clientReviewBusy}
+                        onClick={() => void confirmRevisionRequest()}
+                        type="button"
+                      >
+                        {clientReviewBusy ? "Confirming…" : "Confirm Revision Draft"}
+                      </button>
+                    ) : (
+                      <button
+                        disabled={clientReviewBusy || !activeClientReview.session.comments.some((comment) => comment.status === "OPEN")}
+                        onClick={() => void previewRevisionRequest()}
+                        type="button"
+                      >
+                        {clientReviewBusy ? "Preparing…" : "Preview Revision Draft"}
+                      </button>
+                    )}
+                  </div>
+                  <small>Comments and Revision Drafts only · no Output change, regeneration, publish, Workflow execution, or Credits action.</small>
+                </>
+              ) : clientReviewError ? (
+                <>
+                  <strong>Client Review unavailable</strong>
+                  <p>{clientReviewError}</p>
+                </>
+              ) : (
+                <p>Opening the latest Delivery version for collaboration review…</p>
               )}
             </section>
             {message ? <small role="status">{message}</small> : null}
