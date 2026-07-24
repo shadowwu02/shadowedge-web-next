@@ -5,15 +5,19 @@ import {
   studioShotTypeLabel,
   type StudioCreativeShot,
   type StudioCreativeStoryboard,
+  type StudioShotBatchGenerationPlan,
   type StudioShotDraft,
   type StudioShotGenerationDraft,
 } from "@/features/studio/capabilities/studioStoryboard";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import {
   confirmStudioShotDraft,
+  confirmStudioShotBatchGenerationPlan,
   confirmStudioShotGenerationDraft,
+  createStudioShotBatchGenerationPlan,
   createStudioShotGenerationDraft,
   getStudioSceneShots,
+  getStudioShotBatchGenerationPlan,
   getStudioStoryboards,
   previewStudioShotDraft,
 } from "@/lib/studio-storyboard-api";
@@ -25,7 +29,9 @@ export function StudioStoryboardPanel() {
   const [sceneShots, setSceneShots] = useState<{ sceneId: string; shots: readonly StudioCreativeShot[] } | null>(null);
   const [shotDraft, setShotDraft] = useState<StudioShotDraft | null>(null);
   const [generationDraft, setGenerationDraft] = useState<StudioShotGenerationDraft | null>(null);
+  const [batchPlan, setBatchPlan] = useState<StudioShotBatchGenerationPlan | null>(null);
   const [busyShotId, setBusyShotId] = useState<string | null>(null);
+  const [batchBusy, setBatchBusy] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -56,6 +62,15 @@ export function StudioStoryboardPanel() {
     void getStudioSceneShots(selectedSceneId, controller.signal).then((value) => {
       setSceneShots({ sceneId: value.sceneId, shots: value.shots });
     }).catch(() => undefined);
+    return () => controller.abort();
+  }, [selectedSceneId]);
+
+  useEffect(() => {
+    if (!selectedSceneId) return;
+    const controller = new AbortController();
+    void getStudioShotBatchGenerationPlan(selectedSceneId, controller.signal)
+      .then((value) => setBatchPlan(value.plan))
+      .catch(() => undefined);
     return () => controller.abort();
   }, [selectedSceneId]);
 
@@ -125,6 +140,40 @@ export function StudioStoryboardPanel() {
     }
   };
 
+  const createBatchPlan = async () => {
+    if (!selectedSceneId) return;
+    setBatchBusy(true);
+    setMessage("");
+    try {
+      const result = await createStudioShotBatchGenerationPlan(selectedSceneId);
+      setBatchPlan(result.plan);
+      setMessage(
+        result.plan.status === "BLOCKED"
+          ? "Batch preview is blocked. Review unknown cost or unavailable Shot models."
+          : "Batch Generation Plan preview ready. No Queue, Job, Provider call, or Credits action occurred.",
+      );
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Could not create the Batch Generation Plan preview.");
+    } finally {
+      setBatchBusy(false);
+    }
+  };
+
+  const confirmBatchPlan = async () => {
+    if (!selectedSceneId || !batchPlan) return;
+    setBatchBusy(true);
+    setMessage("");
+    try {
+      const result = await confirmStudioShotBatchGenerationPlan(selectedSceneId, batchPlan.batchPlanId);
+      setBatchPlan(result.plan);
+      setMessage("Batch Plan Draft confirmed. Queue and Jobs remain uncreated; Execution Confirm is still required.");
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Could not confirm the Batch Generation Plan.");
+    } finally {
+      setBatchBusy(false);
+    }
+  };
+
   return (
     <section className="studio-storyboard-workspace" id="storyboard-workspace" aria-label="Storyboard Workspace">
       <header>
@@ -155,6 +204,7 @@ export function StudioStoryboardPanel() {
                   setSelectedStoryboardId(storyboard.storyboardId);
                   setShotDraft(null);
                   setGenerationDraft(null);
+                  setBatchPlan(null);
                   setMessage("");
                 }}
                 type="button"
@@ -164,6 +214,15 @@ export function StudioStoryboardPanel() {
                 <small>{storyboard.agentSource}</small>
               </button>
             ))}
+            <button
+              className="studio-storyboard-batch-button"
+              disabled={batchBusy}
+              onClick={() => void createBatchPlan()}
+              type="button"
+            >
+              <strong>{batchBusy ? "Planning…" : "Batch Generation Planning"}</strong>
+              <small>Preview all Scene shots</small>
+            </button>
           </nav>
 
           <div className="studio-storyboard-shot-list" aria-label="Shot cards">
@@ -245,6 +304,53 @@ export function StudioStoryboardPanel() {
                 </>
               ) : (
                 <p>Create Generation Draft to preview the recommended model, verified scope, references, and estimated cost.</p>
+              )}
+            </section>
+
+            <section className="studio-storyboard-draft-section" aria-label="Batch Generation Planning">
+              <span>Batch Generation Planning</span>
+              {batchPlan ? (
+                <>
+                  <strong>{batchPlan.shots.length} Shots · {batchPlan.status}</strong>
+                  <dl>
+                    <div><dt>Total Credits Estimate</dt><dd>{batchPlan.estimatedCost.totalCreditsEstimate}</dd></div>
+                    <div><dt>Cost Confidence</dt><dd>{batchPlan.estimatedCost.costConfidence}</dd></div>
+                    <div><dt>Unknown Cost</dt><dd>{batchPlan.estimatedCost.unknownCost}</dd></div>
+                    <div><dt>Models</dt><dd>{batchPlan.models.map((model) => model.displayName).join(", ") || "Unavailable"}</dd></div>
+                  </dl>
+                  <div className="studio-storyboard-batch-items">
+                    {batchPlan.shots.map((item) => (
+                      <div className="studio-storyboard-batch-item" key={item.shotId}>
+                        <strong>{item.shotId}</strong>
+                        <span>{item.status}</span>
+                        <small>
+                          {item.model?.displayName || item.blocker || "Model unavailable"}
+                          {" · "}
+                          {item.estimatedCost.shadowCredits === null ? "Unknown cost" : `${item.estimatedCost.shadowCredits} Credits`}
+                        </small>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="studio-storyboard-batch-tags" aria-label="Batch dependencies">
+                    {batchPlan.dependencies.map((dependency, index) => (
+                      <span key={`${dependency.fromShotId}:${dependency.toShotId || "independent"}:${index}`}>
+                        {dependency.type}
+                      </span>
+                    ))}
+                    {batchPlan.riskFlags.map((risk) => <span key={risk}>⚠ {risk}</span>)}
+                  </div>
+                  {batchPlan.status === "PREVIEWED" ? (
+                    <button disabled={batchBusy} onClick={() => void confirmBatchPlan()} type="button">
+                      Confirm Batch Plan Draft
+                    </button>
+                  ) : batchPlan.status === "CONFIRMED" ? (
+                    <small>Plan Draft confirmed. Existing Execution Preview and Confirm remain mandatory.</small>
+                  ) : (
+                    <small>Confirmation blocked until every Shot has an allowed model and known cost.</small>
+                  )}
+                </>
+              ) : (
+                <p>Preview all Scene Shots, model suggestions, dependencies, and estimated Credits before confirmation.</p>
               )}
             </section>
             {message ? <small role="status">{message}</small> : null}

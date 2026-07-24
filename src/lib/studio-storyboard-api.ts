@@ -1,5 +1,6 @@
 import type {
   StudioSceneShots,
+  StudioShotBatchGenerationPlan,
   StudioShotGenerationDraft,
   StudioShotDraft,
   StudioStoryboardBundle,
@@ -83,6 +84,41 @@ export async function confirmStudioShotGenerationDraft(shotId: string, draftId: 
   );
   if (!response.data?.draft?.draftId || response.data.draft.status !== "CONFIRMED") {
     throw new Error("Confirmed Shot Generation Draft was not returned.");
+  }
+  return response.data;
+}
+
+type StudioShotBatchGenerationPlanResponse = Readonly<{
+  plan: StudioShotBatchGenerationPlan;
+  actionType?: "BATCH_GENERATION_PLAN_DRAFT";
+  boundary: "PREVIEW_ONLY" | "BATCH_DRAFT_CONFIRMED_NO_QUEUE";
+}>;
+
+export async function createStudioShotBatchGenerationPlan(sceneId: string) {
+  const response = await apiRequest<StudioShotBatchGenerationPlanResponse>(
+    `/api/scenes/${encodeURIComponent(sceneId)}/batch-generation-plan`,
+    { method: "POST", body: JSON.stringify({ dependencyMode: "INDEPENDENT" }) },
+  );
+  if (!response.data?.plan?.batchPlanId) throw new Error("Batch Generation Plan was not returned.");
+  return response.data;
+}
+
+export async function getStudioShotBatchGenerationPlan(sceneId: string, signal?: AbortSignal) {
+  const response = await apiRequest<StudioShotBatchGenerationPlanResponse>(
+    `/api/scenes/${encodeURIComponent(sceneId)}/batch-generation-plan`,
+    { signal },
+  );
+  if (!response.data?.plan?.batchPlanId) throw new Error("Batch Generation Plan was not returned.");
+  return response.data;
+}
+
+export async function confirmStudioShotBatchGenerationPlan(sceneId: string, batchPlanId: string) {
+  const response = await apiRequest<StudioShotBatchGenerationPlanResponse>(
+    `/api/scenes/${encodeURIComponent(sceneId)}/batch-generation-plan`,
+    { method: "POST", body: JSON.stringify({ batchPlanId, confirm: true }) },
+  );
+  if (!response.data?.plan?.batchPlanId || response.data.plan.status !== "CONFIRMED") {
+    throw new Error("Confirmed Batch Generation Plan was not returned.");
   }
   return response.data;
 }

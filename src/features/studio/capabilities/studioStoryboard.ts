@@ -127,6 +127,62 @@ export type StudioShotGenerationDraft = Readonly<{
   updatedAt?: string;
 }>;
 
+export type StudioShotBatchDependencyType =
+  | "INDEPENDENT"
+  | "SEQUENTIAL"
+  | "SHARED_REFERENCE";
+
+export type StudioBatchShotItem = Readonly<{
+  shotId: string;
+  generationDraftId: string | null;
+  model: Readonly<{
+    providerId: string;
+    modelId: string;
+    displayName: string;
+    verifiedScope: string;
+  }> | null;
+  status: "READY" | "BLOCKED";
+  estimatedCost: Readonly<{
+    shadowCredits: number | null;
+    status: "VERIFIED" | "PARTIAL" | "QUOTE_ONLY" | "UNKNOWN";
+    kind: "CONFIRMED" | "ESTIMATED" | "UNKNOWN";
+  }>;
+  blocker?: string;
+}>;
+
+export type StudioShotBatchGenerationPlan = Readonly<{
+  batchPlanId: string;
+  sceneId: string;
+  projectId: string;
+  actionType: "BATCH_GENERATION_PLAN_DRAFT";
+  shots: readonly StudioBatchShotItem[];
+  models: readonly NonNullable<StudioBatchShotItem["model"]>[];
+  estimatedCost: Readonly<{
+    totalCreditsEstimate: number;
+    costConfidence: "HIGH" | "MEDIUM" | "LOW" | "UNKNOWN";
+    unknownCost: number;
+    status: "COMPLETE" | "PARTIAL" | "UNKNOWN";
+  }>;
+  dependencies: readonly Readonly<{
+    type: StudioShotBatchDependencyType;
+    fromShotId: string;
+    toShotId: string | null;
+    referenceIds: readonly string[];
+  }>[];
+  riskFlags: readonly string[];
+  status: "PREVIEWED" | "CONFIRMED" | "BLOCKED";
+  requiresConfirmation: true;
+  handoff?: Readonly<{
+    type: "EXISTING_EXECUTION_PREVIEW_INPUT_DRAFT";
+    status: "DRAFT";
+    requiresExecutionConfirm: true;
+    queueStarted: false;
+    jobsCreated: 0;
+  }>;
+  createdAt: string;
+  updatedAt?: string;
+}>;
+
 export function studioShotTypeLabel(type: StudioCreativeShotType) {
   return type.replaceAll("_", " ").toLowerCase().replace(/^\w/, (value) => value.toUpperCase());
 }

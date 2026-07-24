@@ -3795,6 +3795,12 @@
 .studio-storyboard-layout > nav button.is-active { border-color: rgba(167, 139, 250, 0.5); background: rgba(91, 33, 182, 0.15); color: #ede9fe; }
 .studio-storyboard-layout > nav strong { font-size: 10px; }
 .studio-storyboard-layout > nav span, .studio-storyboard-layout > nav small { color: inherit; font-size: 7px; }
+.studio-storyboard-layout > nav .studio-storyboard-batch-button {
+  border-color: rgba(34, 211, 238, 0.28);
+  background: rgba(8, 145, 178, 0.12);
+  color: #cffafe;
+  text-align: center;
+}
 .studio-storyboard-shot-list { min-width: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 9px; }
 .studio-storyboard-shot {
   min-width: 0;
@@ -3861,6 +3867,27 @@
   border: 1px solid rgba(34, 211, 238, 0.16);
   border-radius: 999px;
   color: #a5f3fc;
+  font-size: 7px;
+}
+.studio-storyboard-batch-items { display: grid; gap: 5px; }
+.studio-storyboard-batch-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 8px;
+  padding: 7px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 7px;
+  background: rgba(2, 6, 23, 0.38);
+}
+.studio-storyboard-batch-item strong { overflow-wrap: anywhere; color: #e2e8f0; font-size: 8px; }
+.studio-storyboard-batch-item span { color: #94a3b8; font-size: 7px; text-align: right; }
+.studio-storyboard-batch-item small { grid-column: 1 / -1; color: #64748b; font-size: 7px; }
+.studio-storyboard-batch-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.studio-storyboard-batch-tags span {
+  padding: 3px 5px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.7);
+  color: #a5b4fc;
   font-size: 7px;
 }
 .studio-agent-canvas-node-storyboard { border-color: rgba(167, 139, 250, 0.42); background: linear-gradient(180deg, rgba(76, 29, 149, 0.28), rgba(15, 23, 42, 0.92)); }
