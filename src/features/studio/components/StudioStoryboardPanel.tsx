@@ -18,6 +18,7 @@ import type {
   StudioProductionDeliveryPackage,
 } from "@/features/studio/capabilities/studioProductionDelivery";
 import type { StudioClientReviewWorkspace } from "@/features/studio/capabilities/studioClientReview";
+import type { StudioRevisionIntelligenceBundle } from "@/features/studio/capabilities/studioRevisionIntelligence";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import {
   confirmStudioShotDraft,
@@ -54,6 +55,10 @@ import {
   createStudioRevisionDraft,
   getStudioClientReviewSession,
 } from "@/lib/studio-client-review-api";
+import {
+  confirmStudioRevisionProposal,
+  getStudioRevisionProposals,
+} from "@/lib/studio-revision-intelligence-api";
 
 export function StudioStoryboardPanel() {
   const projectId = useStudioStore((state) => state.projectId);
@@ -85,6 +90,12 @@ export function StudioStoryboardPanel() {
     value: StudioClientReviewWorkspace;
   } | null>(null);
   const [clientReviewError, setClientReviewError] = useState("");
+  const [revisionIntelligenceState, setRevisionIntelligenceState] = useState<{
+    projectId: string;
+    deliveryPackageId: string;
+    value: StudioRevisionIntelligenceBundle;
+  } | null>(null);
+  const [revisionIntelligenceError, setRevisionIntelligenceError] = useState("");
   const [reviewCommentContent, setReviewCommentContent] = useState("");
   const [reviewCommentTimestamp, setReviewCommentTimestamp] = useState(0);
   const [reviewCommentTarget, setReviewCommentTarget] = useState("");
@@ -96,6 +107,7 @@ export function StudioStoryboardPanel() {
   const [productionReviewBusy, setProductionReviewBusy] = useState(false);
   const [productionDeliveryBusy, setProductionDeliveryBusy] = useState(false);
   const [clientReviewBusy, setClientReviewBusy] = useState(false);
+  const [revisionIntelligenceBusyId, setRevisionIntelligenceBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -197,6 +209,11 @@ export function StudioStoryboardPanel() {
     clientReviewState.value.deliveryPackage.packageId === selectedReviewPackageId
     ? clientReviewState.value
     : null;
+  const activeRevisionIntelligence =
+    revisionIntelligenceState?.projectId === projectId &&
+    revisionIntelligenceState.deliveryPackageId === selectedReviewPackageId
+      ? revisionIntelligenceState.value
+      : null;
   const clientReviewTargetRefs = Array.from(new Set(
     (activeClientReview?.deliveryPackage.outputs || []).flatMap((output) => [
       output.timelineRef,
@@ -208,6 +225,7 @@ export function StudioStoryboardPanel() {
   const latestRevision = activeClientReview?.session.revisions[
     activeClientReview.session.revisions.length - 1
   ] || null;
+  const activeClientReviewUpdatedAt = activeClientReview?.session.updatedAt || "";
 
   useEffect(() => {
     if (!projectId || activeProductionRuntime?.tracking.status !== "COMPLETED") return;
@@ -268,6 +286,28 @@ export function StudioStoryboardPanel() {
       });
     return () => controller.abort();
   }, [projectId, selectedReviewPackageId]);
+
+  useEffect(() => {
+    if (!projectId || !selectedReviewPackageId || !activeClientReviewUpdatedAt) return;
+    const controller = new AbortController();
+    void getStudioRevisionProposals(projectId, selectedReviewPackageId, controller.signal)
+      .then((value) => {
+        setRevisionIntelligenceState({
+          projectId,
+          deliveryPackageId: selectedReviewPackageId,
+          value,
+        });
+        setRevisionIntelligenceError("");
+      })
+      .catch((reason: unknown) => {
+        if (!controller.signal.aborted) {
+          setRevisionIntelligenceError(
+            reason instanceof Error ? reason.message : "AI Revision Suggestions are unavailable.",
+          );
+        }
+      });
+    return () => controller.abort();
+  }, [activeClientReviewUpdatedAt, projectId, selectedReviewPackageId]);
 
   const previewShotDraft = async (shot: StudioCreativeShot) => {
     setBusyShotId(shot.shotId);
@@ -565,6 +605,44 @@ export function StudioStoryboardPanel() {
       setMessage(reason instanceof Error ? reason.message : "Could not confirm the Revision Request.");
     } finally {
       setClientReviewBusy(false);
+    }
+  };
+
+  const confirmRevisionSuggestion = async (proposalId: string) => {
+    if (!projectId || !activeRevisionIntelligence) return;
+    setRevisionIntelligenceBusyId(proposalId);
+    setMessage("");
+    try {
+      const result = await confirmStudioRevisionProposal(
+        projectId,
+        proposalId,
+        activeRevisionIntelligence.deliveryPackageId,
+      );
+      setRevisionIntelligenceState({
+        projectId,
+        deliveryPackageId: activeRevisionIntelligence.deliveryPackageId,
+        value: {
+          ...activeRevisionIntelligence,
+          proposals: activeRevisionIntelligence.proposals.map((proposal) =>
+            proposal.proposalId === result.proposal.proposalId
+              ? result.proposal
+              : proposal,
+          ),
+          summary: {
+            ...activeRevisionIntelligence.summary,
+            confirmedCount: activeRevisionIntelligence.proposals.filter((proposal) =>
+              proposal.proposalId === result.proposal.proposalId
+                ? result.proposal.status === "CONFIRMED"
+                : proposal.status === "CONFIRMED"
+            ).length,
+          },
+        },
+      });
+      setMessage("AI Revision Suggestion confirmed into a new Workflow Draft. It was not executed, generated, published, or charged.");
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Could not confirm the AI Revision Suggestion.");
+    } finally {
+      setRevisionIntelligenceBusyId(null);
     }
   };
 
@@ -1186,6 +1264,77 @@ export function StudioStoryboardPanel() {
                     ) : (
                       <p>No feedback has been added to this Delivery version.</p>
                     )}
+                  </div>
+                  <div className="studio-revision-intelligence" aria-label="AI Revision Suggestion">
+                    <header>
+                      <div>
+                        <strong>AI Revision Suggestion</strong>
+                        <small>Feedback → Intent → Proposal</small>
+                      </div>
+                      <span>
+                        {activeRevisionIntelligence
+                          ? `${activeRevisionIntelligence.summary.proposalCount} proposals`
+                          : "ANALYZING"}
+                      </span>
+                    </header>
+                    {activeRevisionIntelligence?.proposals.length ? (
+                      activeRevisionIntelligence.proposals.map((proposal) => (
+                        <article key={proposal.proposalId}>
+                          <header>
+                            <strong>{proposal.feedbackIntent.type.replaceAll("_", " ")}</strong>
+                            <span>{proposal.confidence} CONFIDENCE</span>
+                          </header>
+                          <blockquote>{proposal.sourceComment.content}</blockquote>
+                          <dl>
+                            <div>
+                              <dt>Original Comment</dt>
+                              <dd>{proposal.sourceComment.targetRef} · {proposal.sourceComment.timestamp}s</dd>
+                            </div>
+                            <div>
+                              <dt>Understood Intent</dt>
+                              <dd>{proposal.feedbackIntent.type.replaceAll("_", " ")}</dd>
+                            </div>
+                            <div>
+                              <dt>Modification Scope</dt>
+                              <dd>{proposal.affectedShots.join(", ") || proposal.feedbackIntent.affectedRefs.join(", ")}</dd>
+                            </div>
+                            <div>
+                              <dt>Boundary</dt>
+                              <dd>New Workflow Draft only</dd>
+                            </div>
+                          </dl>
+                          <ul>
+                            {proposal.recommendedChanges.map((change) => (
+                              <li key={`${proposal.proposalId}:${change.targetRef}`}>
+                                {change.targetRef} · {change.description}
+                              </li>
+                            ))}
+                          </ul>
+                          {proposal.workflowDraftRef ? (
+                            <small>
+                              Workflow Draft: {proposal.workflowDraftRef.draftId} · {proposal.workflowDraftRef.status}
+                            </small>
+                          ) : (
+                            <button
+                              disabled={Boolean(revisionIntelligenceBusyId)}
+                              onClick={() => void confirmRevisionSuggestion(proposal.proposalId)}
+                              type="button"
+                            >
+                              {revisionIntelligenceBusyId === proposal.proposalId
+                                ? "Confirming…"
+                                : "Confirm AI Revision Draft"}
+                            </button>
+                          )}
+                        </article>
+                      ))
+                    ) : revisionIntelligenceError ? (
+                      <p>{revisionIntelligenceError}</p>
+                    ) : activeClientReview.session.comments.length ? (
+                      <p>Analyzing Review Feedback into read-only Revision Proposals…</p>
+                    ) : (
+                      <p>Add a Review Comment to receive an AI Revision Suggestion.</p>
+                    )}
+                    <small>Preview and explicit Confirm only · no result mutation, generation, execution, publish, or Credits action.</small>
                   </div>
                   <div className="studio-client-review-revision">
                     <header>

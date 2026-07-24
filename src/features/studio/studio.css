@@ -4220,6 +4220,60 @@
 .studio-client-review-revision p { color: #cbd5e1; font-size: 8px; margin: 0; }
 .studio-client-review-comments small,
 .studio-client-review-revision small { color: #64748b; font-size: 7px; }
+.studio-revision-intelligence {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(34, 211, 238, 0.18);
+  border-radius: 8px;
+  background: linear-gradient(145deg, rgba(8, 47, 73, 0.3), rgba(15, 23, 42, 0.72));
+  padding: 8px;
+}
+.studio-revision-intelligence > header,
+.studio-revision-intelligence article > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.studio-revision-intelligence > header > div { display: grid; gap: 2px; }
+.studio-revision-intelligence > header strong { color: #a5f3fc; font-size: 9px; }
+.studio-revision-intelligence > header span,
+.studio-revision-intelligence > header small,
+.studio-revision-intelligence article > header span,
+.studio-revision-intelligence > small { color: #67e8f9; font-size: 7px; }
+.studio-revision-intelligence article {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(34, 211, 238, 0.14);
+  border-radius: 7px;
+  background: rgba(2, 6, 23, 0.52);
+  padding: 7px;
+}
+.studio-revision-intelligence article > header strong { color: #cffafe; font-size: 8px; }
+.studio-revision-intelligence blockquote {
+  margin: 0;
+  border-left: 2px solid rgba(34, 211, 238, 0.36);
+  color: #cbd5e1;
+  font-size: 8px;
+  padding-left: 7px;
+}
+.studio-revision-intelligence dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  margin: 0;
+}
+.studio-revision-intelligence dl > div { display: grid; gap: 1px; }
+.studio-revision-intelligence dt { color: #64748b; font-size: 7px; }
+.studio-revision-intelligence dd { color: #e2e8f0; font-size: 7px; margin: 0; overflow-wrap: anywhere; }
+.studio-revision-intelligence ul {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding-left: 14px;
+}
+.studio-revision-intelligence li,
+.studio-revision-intelligence p { color: #94a3b8; font-size: 7px; margin: 0; }
 .studio-client-review-revision dl {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
