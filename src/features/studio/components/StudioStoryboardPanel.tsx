@@ -24,6 +24,7 @@ import type {
 import type { StudioRevisionIntelligenceBundle } from "@/features/studio/capabilities/studioRevisionIntelligence";
 import type { StudioRevisionRunPlan } from "@/features/studio/capabilities/studioRevisionRunPlan";
 import type { StudioClientFeedbackIntelligence } from "@/features/studio/capabilities/studioClientFeedbackIntelligence";
+import type { StudioClientRelationshipSnapshot } from "@/features/studio/capabilities/studioClientRelationshipIntelligence";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import {
   confirmStudioShotDraft,
@@ -74,6 +75,10 @@ import {
   confirmStudioClientInsight,
   getStudioClientInsights,
 } from "@/lib/studio-client-feedback-intelligence-api";
+import {
+  confirmStudioClientRelationshipRecommendation,
+  getStudioClientRelationship,
+} from "@/lib/studio-client-relationship-intelligence-api";
 
 export function StudioStoryboardPanel({
   workspaceFocus = "storyboard",
@@ -116,6 +121,13 @@ export function StudioStoryboardPanel({
   } | null>(null);
   const [clientInsightsError, setClientInsightsError] = useState("");
   const [clientInsightsBusyId, setClientInsightsBusyId] = useState<string | null>(null);
+  const [selectedClientRelationshipScope, setSelectedClientRelationshipScope] = useState("");
+  const [clientRelationshipState, setClientRelationshipState] = useState<{
+    clientScope: string;
+    value: StudioClientRelationshipSnapshot;
+  } | null>(null);
+  const [clientRelationshipError, setClientRelationshipError] = useState("");
+  const [clientRelationshipBusyId, setClientRelationshipBusyId] = useState<string | null>(null);
   const [revisionIntelligenceState, setRevisionIntelligenceState] = useState<{
     projectId: string;
     deliveryPackageId: string;
@@ -267,6 +279,13 @@ export function StudioStoryboardPanel({
   const activeClientInsights = clientInsightsState?.projectId === projectId
     ? clientInsightsState.value
     : null;
+  const activeClientRelationshipScope = selectedClientRelationshipScope ||
+    activeClientInsights?.patterns[0]?.clientScope ||
+    "";
+  const activeClientRelationship =
+    clientRelationshipState?.clientScope === activeClientRelationshipScope
+      ? clientRelationshipState.value
+      : null;
 
   useEffect(() => {
     if (!projectId || activeProductionRuntime?.tracking.status !== "COMPLETED") return;
@@ -367,6 +386,27 @@ export function StudioStoryboardPanel({
       });
     return () => controller.abort();
   }, [activeClientReviewUpdatedAt, projectId]);
+
+  useEffect(() => {
+    if (!activeClientRelationshipScope) return;
+    const controller = new AbortController();
+    void getStudioClientRelationship(activeClientRelationshipScope, controller.signal)
+      .then((value) => {
+        setClientRelationshipState({
+          clientScope: activeClientRelationshipScope,
+          value,
+        });
+        setClientRelationshipError("");
+      })
+      .catch((reason: unknown) => {
+        if (!controller.signal.aborted) {
+          setClientRelationshipError(
+            reason instanceof Error ? reason.message : "Client Relationship Intelligence is unavailable.",
+          );
+        }
+      });
+    return () => controller.abort();
+  }, [activeClientRelationshipScope]);
 
   useEffect(() => {
     if (!projectId || !selectedReviewPackageId || revisionConfirmedCount < 1) return;
@@ -772,6 +812,27 @@ export function StudioStoryboardPanel({
       setMessage(reason instanceof Error ? reason.message : "Could not confirm the Client Insight.");
     } finally {
       setClientInsightsBusyId(null);
+    }
+  };
+
+  const confirmClientRelationshipRecommendation = async (recommendationId: string) => {
+    if (!activeClientRelationshipScope || !activeClientRelationship) return;
+    setClientRelationshipBusyId(recommendationId);
+    setMessage("");
+    try {
+      const result = await confirmStudioClientRelationshipRecommendation(
+        activeClientRelationshipScope,
+        recommendationId,
+      );
+      setClientRelationshipState({
+        clientScope: activeClientRelationshipScope,
+        value: result.snapshot,
+      });
+      setMessage("Client Relationship recommendation confirmed as a Draft. No client profile, message, project, Workflow, or Credits action occurred.");
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Could not confirm the relationship recommendation.");
+    } finally {
+      setClientRelationshipBusyId(null);
     }
   };
 
@@ -1565,6 +1626,15 @@ export function StudioStoryboardPanel({
                                 : "Create Project Memory Draft"}
                             </button>
                           )}
+                          <button
+                            aria-pressed={activeClientRelationshipScope === pattern.clientScope}
+                            onClick={() => setSelectedClientRelationshipScope(pattern.clientScope)}
+                            type="button"
+                          >
+                            {activeClientRelationshipScope === pattern.clientScope
+                              ? "Relationship Selected"
+                              : "View Relationship"}
+                          </button>
                         </article>
                       ))
                     ) : clientInsightsError ? (
@@ -1575,6 +1645,123 @@ export function StudioStoryboardPanel({
                     <small>
                       Each client scope is isolated · preview and explicit Confirm only · no preference,
                       project, Revision, Provider, or Credits mutation.
+                    </small>
+                  </div>
+                  <div className="studio-revision-intelligence" aria-label="Client Relationship Center">
+                    <header>
+                      <div>
+                        <strong>Client Relationship Center</strong>
+                        <small>Qualified history · success patterns · preferences · risks</small>
+                      </div>
+                      <span>{activeClientRelationship?.confidence || "ANALYZING"}</span>
+                    </header>
+                    {activeClientRelationship ? (
+                      <>
+                        <small>
+                          Client scope {activeClientRelationship.clientScope.slice(-6)}
+                          {" · "}
+                          {activeClientRelationship.projects.length} projects
+                        </small>
+                        <dl>
+                          {Object.entries(activeClientRelationship.metrics).map(([name, metric]) => (
+                            <div key={name}>
+                              <dt>{name.replaceAll("_", " ")}</dt>
+                              <dd>
+                                {metric.value === null ? "Unknown" : String(metric.value)}
+                                {" "}
+                                {metric.unit.replaceAll("_", " ")}
+                              </dd>
+                            </div>
+                          ))}
+                        </dl>
+                        <div className="studio-storyboard-batch-tags" aria-label="Client Relationship Risks">
+                          {activeClientRelationship.riskFlags.length
+                            ? activeClientRelationship.riskFlags.map((risk) => (
+                              <span key={risk}>⚠ {risk.replaceAll("_", " ")}</span>
+                            ))
+                            : <span>No qualified relationship risk detected</span>}
+                        </div>
+                        <section>
+                          <strong>Historical Projects</strong>
+                          <ul>
+                            {activeClientRelationship.projects.map((project) => (
+                              <li key={project.projectId}>
+                                Project {project.projectId.slice(-8)}
+                                {" · "}
+                                {project.approvedDeliveries} approved deliveries
+                                {" · "}
+                                {project.confirmedRevisions} confirmed revisions
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                        <section>
+                          <strong>Qualified Preferences</strong>
+                          {activeClientRelationship.preferences.length ? (
+                            <ul>
+                              {activeClientRelationship.preferences.map((preference) => (
+                                <li key={preference.type}>
+                                  {preference.type.replaceAll("_", " ")}
+                                  {" · "}
+                                  {preference.confidence}
+                                  {" · "}
+                                  {preference.evidenceCount} evidence
+                                </li>
+                              ))}
+                            </ul>
+                          ) : <p>No qualified preference signal yet.</p>}
+                        </section>
+                        <section>
+                          <strong>Success Patterns</strong>
+                          {activeClientRelationship.successPatterns.length ? (
+                            <ul>
+                              {activeClientRelationship.successPatterns.map((pattern) => (
+                                <li key={`${pattern.type}:${pattern.evidenceRef}`}>
+                                  {pattern.type.replaceAll("_", " ")} · {pattern.summary}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : <p>No qualified success pattern yet.</p>}
+                        </section>
+                        <section>
+                          <strong>Future Recommendations</strong>
+                          {activeClientRelationship.recommendations.map((recommendation) => (
+                            <article key={recommendation.recommendationId}>
+                              <header>
+                                <strong>{recommendation.type.replaceAll("_", " ")}</strong>
+                                <span>{recommendation.confidence} CONFIDENCE</span>
+                              </header>
+                              <p>{recommendation.message}</p>
+                              <small>{recommendation.evidenceRefs.length} qualified evidence references</small>
+                              {recommendation.draft ? (
+                                <small>
+                                  Relationship Draft: {recommendation.draft.draftId} · {recommendation.draft.status}
+                                </small>
+                              ) : (
+                                <button
+                                  disabled={Boolean(clientRelationshipBusyId)}
+                                  onClick={() => void confirmClientRelationshipRecommendation(
+                                    recommendation.recommendationId,
+                                  )}
+                                  type="button"
+                                >
+                                  {clientRelationshipBusyId === recommendation.recommendationId
+                                    ? "Confirming…"
+                                    : "Create Relationship Draft"}
+                                </button>
+                              )}
+                            </article>
+                          ))}
+                        </section>
+                      </>
+                    ) : clientRelationshipError ? (
+                      <p>{clientRelationshipError}</p>
+                    ) : (
+                      <p>Select a qualified Client Insight to review long-term relationship history.</p>
+                    )}
+                    <small>
+                      Current user and explicit client scope only · no profile mutation, messaging,
+                      project changes, execution, Provider, or Credits action.
                     </small>
                   </div>
                   <div className="studio-revision-intelligence" aria-label="AI Revision Suggestion">

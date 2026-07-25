@@ -14,6 +14,7 @@ export const STUDIO_API_FEATURES = [
   "collaboration_activity",
   "external_client_review",
   "client_feedback_intelligence",
+  "client_relationship_intelligence",
   "agent_canvas",
   "timeline",
   "storyboard",

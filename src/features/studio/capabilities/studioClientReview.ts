@@ -85,6 +85,7 @@ export type StudioClientReviewLinkResult = Readonly<{
   link: Readonly<{
     linkId: string;
     deliveryPackageId: string;
+    clientScope: string;
     permissions: readonly StudioExternalReviewPermission[];
     expiresAt: string;
     createdAt: string;

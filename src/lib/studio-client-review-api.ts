@@ -83,6 +83,7 @@ export async function createStudioExternalReviewLink(
     deliveryPackageId: string;
     permissions: readonly ("VIEW" | "COMMENT" | "APPROVE" | "REQUEST_REVISION")[];
     expiresAt: string;
+    clientScope?: string;
   }>,
 ) {
   const response = await apiRequest<StudioClientReviewLinkResult>(
