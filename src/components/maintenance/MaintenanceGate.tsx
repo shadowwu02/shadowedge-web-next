@@ -10,6 +10,7 @@ const BYPASS_PREFIXES = [
   "/sign-up",
   "/forgot-password",
   "/reset-password",
+  "/client/review",
   "/history",
   "/api/auth",
   "/api/admin",

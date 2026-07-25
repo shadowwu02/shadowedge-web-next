@@ -17,7 +17,10 @@ import type {
   StudioProductionDeliveryCollection,
   StudioProductionDeliveryPackage,
 } from "@/features/studio/capabilities/studioProductionDelivery";
-import type { StudioClientReviewWorkspace } from "@/features/studio/capabilities/studioClientReview";
+import type {
+  StudioClientReviewLinkResult,
+  StudioClientReviewWorkspace,
+} from "@/features/studio/capabilities/studioClientReview";
 import type { StudioRevisionIntelligenceBundle } from "@/features/studio/capabilities/studioRevisionIntelligence";
 import type { StudioRevisionRunPlan } from "@/features/studio/capabilities/studioRevisionRunPlan";
 import { useStudioStore } from "@/features/studio/store/studioStore";
@@ -52,6 +55,7 @@ import {
 } from "@/lib/studio-production-delivery-api";
 import {
   confirmStudioRevisionDraft,
+  createStudioExternalReviewLink,
   createStudioReviewComment,
   createStudioRevisionDraft,
   getStudioClientReviewSession,
@@ -100,6 +104,7 @@ export function StudioStoryboardPanel({
     value: StudioClientReviewWorkspace;
   } | null>(null);
   const [clientReviewError, setClientReviewError] = useState("");
+  const [externalReviewLink, setExternalReviewLink] = useState<StudioClientReviewLinkResult | null>(null);
   const [revisionIntelligenceState, setRevisionIntelligenceState] = useState<{
     projectId: string;
     deliveryPackageId: string;
@@ -575,6 +580,26 @@ export function StudioStoryboardPanel({
       setMessage(reason instanceof Error ? reason.message : "Could not create the Delivery Package.");
     } finally {
       setProductionDeliveryBusy(false);
+    }
+  };
+
+  const createExternalReviewLink = async () => {
+    if (!projectId || !activeClientReview) return;
+    setClientReviewBusy(true);
+    setMessage("");
+    try {
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const result = await createStudioExternalReviewLink(projectId, {
+        deliveryPackageId: activeClientReview.deliveryPackage.packageId,
+        permissions: ["VIEW", "COMMENT", "APPROVE", "REQUEST_REVISION"],
+        expiresAt,
+      });
+      setExternalReviewLink(result);
+      setMessage("Secure external review link created. The token is shown once and expires in seven days.");
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Could not create the External Review Link.");
+    } finally {
+      setClientReviewBusy(false);
     }
   };
 
@@ -1319,6 +1344,39 @@ export function StudioStoryboardPanel({
                       ))}
                     </select>
                   </label>
+                  <div className="studio-client-review-link">
+                    <header>
+                      <strong>External Review Portal</strong>
+                      <span>Delivery scope only</span>
+                    </header>
+                    {externalReviewLink?.link.deliveryPackageId === activeClientReview.deliveryPackage.packageId ? (
+                      <>
+                        <input
+                          aria-label="External review link"
+                          readOnly
+                          value={`${typeof window === "undefined" ? "" : window.location.origin}${externalReviewLink.reviewPath}`}
+                        />
+                        <button
+                          onClick={() => void navigator.clipboard.writeText(`${window.location.origin}${externalReviewLink.reviewPath}`)}
+                          type="button"
+                        >
+                          Copy secure link
+                        </button>
+                        <small>
+                          Expires {new Date(externalReviewLink.link.expiresAt).toLocaleString()} · token shown once
+                        </small>
+                      </>
+                    ) : (
+                      <button
+                        disabled={clientReviewBusy}
+                        onClick={() => void createExternalReviewLink()}
+                        type="button"
+                      >
+                        {clientReviewBusy ? "Creating…" : "Create 7-day Review Link"}
+                      </button>
+                    )}
+                    <small>VIEW · COMMENT · APPROVE · REQUEST_REVISION · no Studio, Agent, Workflow, cost, or Credits access.</small>
+                  </div>
                   <div className="studio-client-review-video">
                     {activeClientReview.deliveryPackage.outputs[0]?.videoUrl ? (
                       <video

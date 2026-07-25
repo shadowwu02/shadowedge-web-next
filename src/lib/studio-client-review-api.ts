@@ -1,5 +1,6 @@
 import type {
   StudioClientReviewMutation,
+  StudioClientReviewLinkResult,
   StudioClientReviewWorkspace,
 } from "@/features/studio/capabilities/studioClientReview";
 import { apiRequest } from "@/lib/api";
@@ -74,4 +75,25 @@ export async function confirmStudioRevisionDraft(
     },
   );
   return assertMutation(response.data);
+}
+
+export async function createStudioExternalReviewLink(
+  projectId: string,
+  input: Readonly<{
+    deliveryPackageId: string;
+    permissions: readonly ("VIEW" | "COMMENT" | "APPROVE" | "REQUEST_REVISION")[];
+    expiresAt: string;
+  }>,
+) {
+  const response = await apiRequest<StudioClientReviewLinkResult>(
+    `/api/projects/${encodeURIComponent(projectId)}/client-review-link`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.data?.link?.linkId || !response.data.token || !response.data.reviewPath) {
+    throw new Error("External Review Link was not returned.");
+  }
+  return response.data;
 }

@@ -4237,6 +4237,26 @@
   font-size: 8px;
   padding: 6px;
 }
+.studio-client-review-link {
+  display: grid;
+  gap: 6px;
+  padding: 9px;
+  border: 1px solid rgba(34, 211, 238, 0.16);
+  border-radius: 9px;
+  background: rgba(8, 47, 73, 0.16);
+}
+.studio-client-review-link header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.studio-client-review-link strong { color: #a5f3fc; font-size: 8px; }
+.studio-client-review-link span, .studio-client-review-link small { color: #64748b; font-size: 7px; }
+.studio-client-review-link input {
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 7px;
+  background: rgba(2, 6, 23, 0.62);
+  color: #cbd5e1;
+  font-size: 7px;
+  padding: 7px 8px;
+}
 .studio-client-review-video {
   display: grid;
   gap: 4px;

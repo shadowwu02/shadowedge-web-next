@@ -78,3 +78,17 @@ export type StudioClientReviewMutation = Readonly<{
     boundary: "WORKFLOW_PROPOSAL_ONLY";
   }>;
 }>;
+
+export type StudioExternalReviewPermission = "VIEW" | "COMMENT" | "APPROVE" | "REQUEST_REVISION";
+
+export type StudioClientReviewLinkResult = Readonly<{
+  link: Readonly<{
+    linkId: string;
+    deliveryPackageId: string;
+    permissions: readonly StudioExternalReviewPermission[];
+    expiresAt: string;
+    createdAt: string;
+  }>;
+  token: string;
+  reviewPath: string;
+}>;
