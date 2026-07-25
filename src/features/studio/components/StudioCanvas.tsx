@@ -23,6 +23,7 @@ import { MotionControlNode } from "@/features/studio/nodes/MotionControlNode";
 import { CameraControlNode } from "@/features/studio/nodes/CameraControlNode";
 import { StudioAgentCanvas } from "@/features/studio/components/StudioAgentCanvas";
 import { StudioCreativeCanvas } from "@/features/studio/components/StudioCreativeCanvas";
+import { StudioProjectInitializationAssistant } from "@/features/studio/components/StudioProjectInitializationAssistant";
 import { StudioCapabilityBoundary } from "@/features/studio/components/StudioApiIntegration";
 import {
   getCurrentStudioSnapshot,
@@ -100,7 +101,7 @@ export function StudioCanvas() {
 
       {canvasView === "creative" ? (
         <StudioCapabilityBoundary feature="creative_canvas" label="Creative Canvas">
-          <StudioCreativeCanvas projectId={projectId} />
+          {projectId ? <StudioCreativeCanvas projectId={projectId} /> : <StudioProjectInitializationAssistant />}
         </StudioCapabilityBoundary>
       ) : canvasView === "agent" ? (
         <StudioCapabilityBoundary feature="agent_canvas" label="Agent Canvas">
