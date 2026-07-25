@@ -45,6 +45,7 @@ export const STUDIO_COPILOT_ACTION_TYPES = [
   "REVIEW_DECISION_PATTERN",
   "PROJECT_ACTION_DRAFT",
   "CANVAS_AUTO_PLAN_DRAFT",
+  "CANVAS_WORKFLOW_OPTIMIZATION_DRAFT",
 ] as const;
 
 export const STUDIO_COPILOT_DRAFT_TYPES = [
@@ -68,6 +69,7 @@ export const STUDIO_COPILOT_DRAFT_TYPES = [
   "DECISION_PATTERN_REVIEW_DRAFT",
   "PROJECT_ACTION_DRAFT",
   "CANVAS_AUTO_PLAN_DRAFT",
+  "CANVAS_WORKFLOW_OPTIMIZATION_DRAFT",
 ] as const;
 
 export type StudioCopilotActionType = typeof STUDIO_COPILOT_ACTION_TYPES[number];
@@ -397,6 +399,7 @@ export function studioCopilotActionLabel(type: StudioCopilotActionType) {
     REVIEW_DECISION_PATTERN: "Review decision pattern",
     PROJECT_ACTION_DRAFT: "Project action draft",
     CANVAS_AUTO_PLAN_DRAFT: "Canvas auto plan draft",
+    CANVAS_WORKFLOW_OPTIMIZATION_DRAFT: "Canvas workflow optimization draft",
   } as const)[type];
 }
 
@@ -423,5 +426,6 @@ export function studioCopilotDraftLabel(type: StudioCopilotDraftType | undefined
     DECISION_PATTERN_REVIEW_DRAFT: "Decision Pattern Review Draft",
     PROJECT_ACTION_DRAFT: "Project Action Draft",
     CANVAS_AUTO_PLAN_DRAFT: "Canvas Auto Plan Draft",
+    CANVAS_WORKFLOW_OPTIMIZATION_DRAFT: "Canvas Workflow Optimization Draft",
   } as const)[type];
 }

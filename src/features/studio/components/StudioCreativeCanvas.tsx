@@ -26,7 +26,14 @@ import {
   type StudioCreativeCanvasNodeType,
 } from "@/features/studio/capabilities/studioCreativeCanvas";
 import type { StudioAIPlannedCanvasDraft } from "@/features/studio/capabilities/studioCreativeCanvasPlanning";
+import {
+  STUDIO_CANVAS_OPTIMIZATION_TYPES,
+  studioCanvasOptimizationLabel,
+  type StudioAIOptimizedCanvasDraft,
+  type StudioCanvasOptimizationType,
+} from "@/features/studio/capabilities/studioCreativeCanvasOptimization";
 import { useStudioApiIntegration } from "@/features/studio/components/StudioApiIntegration";
+import { createStudioCreativeCanvasOptimization } from "@/lib/studio-creative-canvas-optimization-api";
 import { createStudioCreativeCanvasPlan } from "@/lib/studio-creative-canvas-planning-api";
 import {
   confirmStudioCreativeCanvasEditSession,
@@ -160,6 +167,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
   const { featureStatus } = useStudioApiIntegration();
   const editingAvailability = featureStatus("creative_canvas_editing");
   const planningAvailability = featureStatus("creative_canvas_auto_planning");
+  const optimizationAvailability = featureStatus("creative_canvas_workflow_optimization");
   const [loadState, setLoadState] = useState<{
     projectId: string | null;
     graph: StudioCreativeCanvasGraph | null;
@@ -171,11 +179,15 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
   const [changes, setChanges] = useState<StudioCreativeCanvasGraphChange[]>([]);
   const [session, setSession] = useState<StudioCreativeCanvasEditSession | null>(null);
   const [plannedDraft, setPlannedDraft] = useState<StudioAIPlannedCanvasDraft | null>(null);
+  const [optimizedDraft, setOptimizedDraft] = useState<StudioAIOptimizedCanvasDraft | null>(null);
   const [copilotOpen, setCopilotOpen] = useState(false);
+  const [optimizationOpen, setOptimizationOpen] = useState(false);
   const [copilotPrompt, setCopilotPrompt] = useState("");
   const [copilotGoal, setCopilotGoal] = useState("");
   const [copilotDuration, setCopilotDuration] = useState("");
   const [copilotRatio, setCopilotRatio] = useState("16:9");
+  const [optimizationTarget, setOptimizationTarget] = useState<StudioCanvasOptimizationType>("QUALITY_IMPROVEMENT");
+  const [optimizationConstraint, setOptimizationConstraint] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newNodeType, setNewNodeType] = useState<StudioCreativeCanvasNodeType>("GOAL");
   const [newNodeTitle, setNewNodeTitle] = useState("");
@@ -195,7 +207,9 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
         setChanges([]);
         setSession(null);
         setPlannedDraft(null);
+        setOptimizedDraft(null);
         setCopilotOpen(false);
+        setOptimizationOpen(false);
       })
       .catch((reason: unknown) => {
         if (controller.signal.aborted) return;
@@ -227,6 +241,8 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
     setChanges([]);
     setSession(null);
     setPlannedDraft(null);
+    setOptimizedDraft(null);
+    setOptimizationOpen(false);
     setActionState({ busy: false, message: "Draft mode is local until you review the changes." });
   }
 
@@ -238,7 +254,9 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
     setChanges([]);
     setSession(null);
     setPlannedDraft(null);
+    setOptimizedDraft(null);
     setCopilotOpen(false);
+    setOptimizationOpen(false);
     setActionState({ busy: false, message: "Draft discarded. The production Graph was unchanged." });
   }
 
@@ -387,6 +405,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
         },
       });
       setPlannedDraft(value);
+      setOptimizedDraft(null);
       setSession(value.editSession);
       setChanges([...value.changes]);
       setFlowNodes(toFlowNodes(value.graph, true));
@@ -404,6 +423,41 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
       setActionState({
         busy: false,
         message: reason instanceof Error ? reason.message : "Copilot could not create the Canvas Draft.",
+      });
+    }
+  }
+
+  async function optimizeWithCopilot() {
+    if (!projectId || !graph || optimizationAvailability !== "READY") return;
+    setActionState({ busy: true, message: "Copilot is analyzing the current Workflow…" });
+    try {
+      const value = await createStudioCreativeCanvasOptimization(projectId, {
+        graphVersion: graph.graphId,
+        target: optimizationTarget,
+        constraints: optimizationConstraint.trim()
+          ? { userConstraint: optimizationConstraint.trim() }
+          : {},
+      });
+      setOptimizedDraft(value);
+      setPlannedDraft(null);
+      setSession(value.editSession);
+      setChanges([...value.changes]);
+      setFlowNodes(toFlowNodes(value.optimizedGraph, true));
+      setFlowEdges(toFlowEdges(value.optimizedGraph, true));
+      setSelectedId(value.optimizedGraph.nodes[0]?.nodeId || null);
+      setMode("EDIT_DRAFT");
+      setOptimizationOpen(false);
+      setCopilotOpen(false);
+      setActionState({
+        busy: false,
+        message: value.validation.status === "READY"
+          ? "Optimization Draft is ready for Diff Review and human confirmation."
+          : "Optimization Draft is blocked by validation. Nothing was applied.",
+      });
+    } catch (reason) {
+      setActionState({
+        busy: false,
+        message: reason instanceof Error ? reason.message : "Copilot could not optimize this Workflow.",
       });
     }
   }
@@ -459,8 +513,17 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
           <b>{mode === "VIEW" ? "VIEW" : "EDIT DRAFT"}</b>
           {mode === "VIEW" ? (
             <div className="studio-creative-canvas-mode-actions">
-              <button disabled={planningAvailability !== "READY"} onClick={() => setCopilotOpen((value) => !value)} type="button">
+              <button disabled={planningAvailability !== "READY"} onClick={() => {
+                setCopilotOpen((value) => !value);
+                setOptimizationOpen(false);
+              }} type="button">
                 {planningAvailability === "READY" ? "Create with Copilot" : "Copilot unavailable"}
+              </button>
+              <button disabled={optimizationAvailability !== "READY"} onClick={() => {
+                setOptimizationOpen((value) => !value);
+                setCopilotOpen(false);
+              }} type="button">
+                {optimizationAvailability === "READY" ? "Optimize with Copilot" : "Optimization unavailable"}
               </button>
               <button disabled={editingAvailability !== "READY"} onClick={startEditing} type="button">
                 {editingAvailability === "READY" ? "Edit Canvas" : "Editing unavailable"}
@@ -502,6 +565,39 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
           <footer>
             <small>Uses this project’s Goal, Strategy, Memory, successful Workflow Templates, and qualified past success patterns.</small>
             <button disabled={!copilotPrompt.trim() || actionState.busy} onClick={() => void createWithCopilot()} type="button">Generate Draft Canvas</button>
+          </footer>
+        </section>
+      ) : null}
+      {optimizationOpen ? (
+        <section className="studio-creative-canvas-copilot-form" aria-label="Optimize Canvas with Copilot">
+          <header>
+            <div><span>Creative Copilot</span><strong>Workflow Optimization</strong></div>
+            <b>PREVIEW ONLY</b>
+          </header>
+          <label>
+            <span>Optimization target</span>
+            <select
+              onChange={(event) => setOptimizationTarget(event.target.value as StudioCanvasOptimizationType)}
+              value={optimizationTarget}
+            >
+              {STUDIO_CANVAS_OPTIMIZATION_TYPES.map((type) => (
+                <option key={type} value={type}>{studioCanvasOptimizationLabel(type)}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Constraints</span>
+            <textarea
+              onChange={(event) => setOptimizationConstraint(event.target.value)}
+              placeholder="Optional constraints, such as preserve approved Storyboard nodes"
+              value={optimizationConstraint}
+            />
+          </label>
+          <footer>
+            <small>Analyzes Production, Quality, Revision, Cost, Historical Success, Governance Knowledge, and Project Memory.</small>
+            <button disabled={actionState.busy} onClick={() => void optimizeWithCopilot()} type="button">
+              Create Optimization Draft
+            </button>
           </footer>
         </section>
       ) : null}
@@ -641,6 +737,48 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
           <footer>
             <span>Preview → Diff Review → Human Confirm</span>
             <small>Copilot created only a Draft. It did not modify the production Graph or start Execution.</small>
+          </footer>
+        </section>
+      ) : null}
+      {optimizedDraft ? (
+        <section className="studio-creative-canvas-ai-plan is-optimization" aria-label="AI Optimized Canvas Draft">
+          <header>
+            <div>
+              <span>CANVAS_WORKFLOW_OPTIMIZATION_DRAFT</span>
+              <strong>{studioCanvasOptimizationLabel(optimizedDraft.optimizationRequest.target)}</strong>
+            </div>
+            <b className={`is-${optimizedDraft.confidence.toLowerCase()}`}>{optimizedDraft.confidence} CONFIDENCE</b>
+          </header>
+          <p>Current Graph {optimizedDraft.optimizationRequest.graphVersion} remains unchanged while this Draft is reviewed.</p>
+          <div className="studio-creative-canvas-ai-grid">
+            <section>
+              <header><strong>Why this refinement</strong><span>{optimizedDraft.reasons.length}</span></header>
+              <div>
+                {optimizedDraft.reasons.map((item) => (
+                  <article key={item.reasonId}>
+                    <span>{item.type.replaceAll("_", " ")}</span>
+                    <strong>{item.changeRefs.length} proposed changes</strong>
+                    <small>{item.summary}</small>
+                  </article>
+                ))}
+              </div>
+            </section>
+            <section>
+              <header><strong>Evidence used</strong><span>{optimizedDraft.evidence.length}</span></header>
+              <div>
+                {optimizedDraft.evidence.map((item) => (
+                  <article key={item.evidenceId}>
+                    <span>{item.type.replaceAll("_", " ")}</span>
+                    <strong>{item.confidence}</strong>
+                    <small>{item.summary}</small>
+                  </article>
+                ))}
+              </div>
+            </section>
+          </div>
+          <footer>
+            <span>Existing Canvas → Optimization Analysis → Draft Graph → Diff Review → Human Confirm</span>
+            <small>No production Graph mutation, task creation, Provider call, execution, or Credits action occurred.</small>
           </footer>
         </section>
       ) : null}

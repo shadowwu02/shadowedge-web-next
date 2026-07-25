@@ -4515,6 +4515,7 @@
 .studio-creative-canvas-review > p,
 .studio-creative-canvas-message { margin: 0; color: #a7f3d0; font-size: 9px; line-height: 1.5; }
 .studio-creative-canvas-ai-plan { display: grid; gap: 10px; border: 1px solid rgba(167, 139, 250, 0.26); border-radius: 14px; background: rgba(46, 16, 101, 0.12); padding: 12px; }
+.studio-creative-canvas-ai-plan.is-optimization { border-color: rgba(45, 212, 191, 0.28); background: linear-gradient(135deg, rgba(13, 148, 136, 0.09), rgba(46, 16, 101, 0.1)); }
 .studio-creative-canvas-ai-plan > header,
 .studio-creative-canvas-ai-plan > footer,
 .studio-creative-canvas-ai-grid section > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
