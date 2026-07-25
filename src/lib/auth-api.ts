@@ -1,7 +1,9 @@
 import { apiRequest } from "@/lib/api";
 import {
   clearAuthSession,
+  getStoredAuthToken,
   getStoredRefreshToken,
+  markAuthSessionVerified,
   saveAuthSession,
   saveCachedProfile,
   type AuthSessionPayload,
@@ -79,6 +81,7 @@ export async function getCurrentUserProfile(): Promise<AuthMeResult> {
     maxConcurrency: data.profile?.maxConcurrency ?? data.maxConcurrency,
   };
 
+  markAuthSessionVerified(getStoredAuthToken());
   saveCachedProfile(profile);
 
   return {

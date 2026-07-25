@@ -41,7 +41,7 @@ export function TopBar({
   workspaceNav?: boolean;
   goldTideShell?: boolean;
 }) {
-  const { profile } = useAuthSession();
+  const { isSignedIn, profile } = useAuthSession();
   const { credits } = useCredits();
 
   return (
@@ -113,7 +113,7 @@ export function TopBar({
       <div className="flex shrink-0 items-center gap-2 overflow-visible md:gap-3">
         <CreditBadge credits={credits} label={creditLabel} variant={goldTideShell ? "goldTide" : "default"} />
         <LanguageSwitch locale={locale} onChange={onLocaleChange} />
-        {profile?.email ? (
+        {isSignedIn && profile?.email ? (
           <span
             className={cn(
               "hidden max-w-[190px] truncate rounded-full border px-3 py-2 text-xs font-medium md:inline-block",
@@ -123,7 +123,12 @@ export function TopBar({
             {profile.email}
           </span>
         ) : null}
-        <UserAvatar email={profile?.email} labels={userLabels} name={profile?.name} signInNext={signInNext} />
+        <UserAvatar
+          email={isSignedIn ? profile?.email : undefined}
+          labels={userLabels}
+          name={isSignedIn ? profile?.name : undefined}
+          signInNext={signInNext}
+        />
       </div>
     </header>
   );

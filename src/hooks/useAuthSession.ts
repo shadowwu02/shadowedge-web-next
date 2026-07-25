@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getCurrentUserProfile } from "@/lib/auth-api";
-import { getCachedProfile, getStoredAuthToken, isVerifiedAuthSession } from "@/lib/auth";
+import { getCachedAuthSessionState } from "@/lib/auth";
 import type { ShadowEdgeProfile } from "@/types/user";
 
 export function useAuthSession() {
@@ -12,64 +12,55 @@ export function useAuthSession() {
   const [isProfileVerified, setIsProfileVerified] = useState(false);
   const [error, setError] = useState("");
 
+  const syncCachedSession = useCallback(() => {
+    const next = getCachedAuthSessionState();
+    setProfile(next.profile);
+    setToken(next.token);
+    setIsProfileVerified(next.isProfileVerified);
+    return next;
+  }, []);
+
   const refresh = useCallback(async () => {
-    const currentToken = getStoredAuthToken();
-    if (!currentToken) {
-      setProfile(getCachedProfile());
-      setToken("");
-      setIsProfileVerified(false);
+    const current = getCachedAuthSessionState();
+    if (!current.token) {
+      syncCachedSession();
       setIsLoading(false);
       return null;
     }
 
     setIsLoading(true);
-    setIsProfileVerified(false);
     setError("");
 
     try {
       const result = await getCurrentUserProfile();
-      const verifiedToken = getStoredAuthToken();
-      setProfile(result.profile);
-      setToken(verifiedToken);
-      setIsProfileVerified(Boolean(verifiedToken && result.profile));
+      syncCachedSession();
       return result.profile;
     } catch (refreshError) {
-      const cached = getCachedProfile();
-      const nextToken = getStoredAuthToken();
-      setProfile(cached);
-      setToken(nextToken);
-      setIsProfileVerified(false);
+      const cached = syncCachedSession();
       setError(refreshError instanceof Error ? refreshError.message : "Profile refresh failed.");
-      return cached;
+      return cached.profile;
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [syncCachedSession]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setProfile(getCachedProfile());
-      setToken(getStoredAuthToken());
-      setIsProfileVerified(false);
+      syncCachedSession();
       void refresh();
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [refresh]);
+  }, [refresh, syncCachedSession]);
 
   useEffect(() => {
     function handleProfileUpdated() {
-      const cached = getCachedProfile();
-      const nextToken = getStoredAuthToken();
-      setProfile(cached);
-      setToken(nextToken);
-      setIsProfileVerified(false);
+      syncCachedSession();
     }
 
     function handleStorageUpdated() {
-      setProfile(getCachedProfile());
-      setToken(getStoredAuthToken());
-      setIsProfileVerified(false);
+      const next = syncCachedSession();
+      if (next.token && !next.isProfileVerified) void refresh();
     }
 
     window.addEventListener("shadowedge:profile-updated", handleProfileUpdated);
@@ -79,7 +70,7 @@ export function useAuthSession() {
       window.removeEventListener("shadowedge:profile-updated", handleProfileUpdated);
       window.removeEventListener("storage", handleStorageUpdated);
     };
-  }, []);
+  }, [refresh, syncCachedSession]);
 
   return {
     error,
@@ -88,6 +79,6 @@ export function useAuthSession() {
     profile,
     refresh,
     token,
-    isSignedIn: isVerifiedAuthSession(token, isProfileVerified),
+    isSignedIn: Boolean(token && isProfileVerified),
   };
 }

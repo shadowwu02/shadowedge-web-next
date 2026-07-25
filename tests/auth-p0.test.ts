@@ -7,6 +7,10 @@ import {
   AUTH_TOKEN_KEY,
   SUPABASE_STORAGE_KEY,
   clearAuthSession,
+  getCachedAuthSessionState,
+  markAuthSessionVerified,
+  saveAuthSession,
+  saveCachedProfile,
   isVerifiedAuthSession,
 } from "@/lib/auth";
 
@@ -112,6 +116,51 @@ describe("P0 Auth session behavior", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(window.localStorage.getItem(AUTH_TOKEN_KEY)).toBe("new-token");
     expect(window.localStorage.getItem("access_token")).toBe("new-token");
+    expect(getCachedAuthSessionState()).toMatchObject({
+      isProfileVerified: true,
+      isSignedIn: true,
+      token: "new-token",
+    });
+  });
+
+  it("shares verified Auth state across Header and Studio projections", () => {
+    saveAuthSession(
+      { access_token: "session-token", refresh_token: "refresh-token" },
+      { email: "user@example.test" },
+    );
+
+    expect(getCachedAuthSessionState()).toMatchObject({
+      isProfileVerified: false,
+      isSignedIn: false,
+      token: "session-token",
+    });
+
+    markAuthSessionVerified("session-token");
+    saveCachedProfile({ email: "user@example.test", name: "Verified User" });
+
+    expect(getCachedAuthSessionState()).toMatchObject({
+      isProfileVerified: true,
+      isSignedIn: true,
+      profile: { email: "user@example.test", name: "Verified User" },
+      token: "session-token",
+    });
+
+    saveAuthSession(
+      { access_token: "refreshed-token", refresh_token: "refreshed-refresh-token" },
+      { email: "user@example.test" },
+    );
+    expect(getCachedAuthSessionState().isSignedIn).toBe(false);
+
+    markAuthSessionVerified("refreshed-token");
+    expect(getCachedAuthSessionState().isSignedIn).toBe(true);
+
+    clearAuthSession();
+    expect(getCachedAuthSessionState()).toMatchObject({
+      isProfileVerified: false,
+      isSignedIn: false,
+      profile: null,
+      token: "",
+    });
   });
 
   it("clears all Auth aliases when an authenticated request receives Invalid authorization token", async () => {

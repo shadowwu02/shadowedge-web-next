@@ -35,6 +35,15 @@ export type AuthSessionPayload = {
   token_type?: string;
 };
 
+export type CachedAuthSessionState = {
+  isProfileVerified: boolean;
+  isSignedIn: boolean;
+  profile: ShadowEdgeProfile | null;
+  token: string;
+};
+
+let verifiedAuthToken = "";
+
 function getSupabaseAuthCache(): SupabaseAuthCache | null {
   try {
     if (typeof window === "undefined") return null;
@@ -46,6 +55,14 @@ function getSupabaseAuthCache(): SupabaseAuthCache | null {
 
 export function isVerifiedAuthSession(token: string, isProfileVerified: boolean) {
   return Boolean(token && isProfileVerified);
+}
+
+export function markAuthSessionVerified(token: string) {
+  verifiedAuthToken = token.trim();
+}
+
+export function isAuthTokenVerified(token: string) {
+  return Boolean(token && verifiedAuthToken === token);
 }
 
 export function getStoredAuthToken() {
@@ -110,11 +127,25 @@ export function getCachedProfile(): ShadowEdgeProfile | null {
   };
 }
 
+export function getCachedAuthSessionState(): CachedAuthSessionState {
+  const token = getStoredAuthToken();
+  const profile = getCachedProfile();
+  const isProfileVerified = Boolean(profile && isAuthTokenVerified(token));
+
+  return {
+    isProfileVerified,
+    isSignedIn: isVerifiedAuthSession(token, isProfileVerified),
+    profile,
+    token,
+  };
+}
+
 export function saveAuthSession(session: AuthSessionPayload | null | undefined, user?: { email?: string; user_metadata?: { name?: string; full_name?: string } }) {
   if (typeof window === "undefined" || !session?.access_token) return;
 
   const token = session.access_token;
   const refreshToken = session.refresh_token || "";
+  if (verifiedAuthToken !== token) verifiedAuthToken = "";
   const localSession = {
     access_token: token,
     refresh_token: refreshToken,
@@ -154,6 +185,7 @@ export function saveCachedProfile(profile: ShadowEdgeProfile | null | undefined)
 }
 
 export function clearAuthSession() {
+  verifiedAuthToken = "";
   if (typeof window === "undefined") return;
 
   [
