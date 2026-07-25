@@ -94,6 +94,7 @@ export async function signInWithPassword(email: string, password: string): Promi
       email: email.trim(),
       password,
     }),
+    token: "",
   });
 
   const data = envelope.data || {};

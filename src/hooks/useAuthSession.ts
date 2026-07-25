@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getCurrentUserProfile } from "@/lib/auth-api";
-import { getCachedProfile, getStoredAuthToken } from "@/lib/auth";
+import { getCachedProfile, getStoredAuthToken, isVerifiedAuthSession } from "@/lib/auth";
 import type { ShadowEdgeProfile } from "@/types/user";
 
 export function useAuthSession() {
@@ -63,7 +63,7 @@ export function useAuthSession() {
       const nextToken = getStoredAuthToken();
       setProfile(cached);
       setToken(nextToken);
-      setIsProfileVerified(Boolean(nextToken && cached));
+      setIsProfileVerified(false);
     }
 
     function handleStorageUpdated() {
@@ -88,6 +88,6 @@ export function useAuthSession() {
     profile,
     refresh,
     token,
-    isSignedIn: Boolean(token),
+    isSignedIn: isVerifiedAuthSession(token, isProfileVerified),
   };
 }

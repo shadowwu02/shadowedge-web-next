@@ -38,13 +38,14 @@ export type AuthSessionPayload = {
 function getSupabaseAuthCache(): SupabaseAuthCache | null {
   try {
     if (typeof window === "undefined") return null;
-    const key = Object.keys(window.localStorage).find(
-      (item) => item.startsWith("sb-") && item.includes("auth-token"),
-    );
-    return key ? readJsonFromStorage<SupabaseAuthCache>(key) : null;
+    return readJsonFromStorage<SupabaseAuthCache>(SUPABASE_STORAGE_KEY);
   } catch {
     return null;
   }
+}
+
+export function isVerifiedAuthSession(token: string, isProfileVerified: boolean) {
+  return Boolean(token && isProfileVerified);
 }
 
 export function getStoredAuthToken() {

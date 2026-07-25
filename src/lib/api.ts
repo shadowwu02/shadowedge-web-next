@@ -1,5 +1,5 @@
 import { ApiError, type ApiEnvelope, type ApiRequestOptions } from "@/types/api";
-import { getStoredAuthToken, getStoredRefreshToken, saveAuthSession } from "@/lib/auth";
+import { clearAuthSession, getStoredAuthToken, getStoredRefreshToken, saveAuthSession } from "@/lib/auth";
 import { shouldReplayRequestAfterAuthRefresh } from "@/lib/apiAuthReplayPolicy";
 
 const fallbackApiBaseUrl = "https://api.shadowedgeai.com";
@@ -27,6 +27,19 @@ function payloadText(payload: ApiEnvelope<unknown> | null) {
       record.errorCode ||
       "",
   ).toLowerCase();
+}
+
+function isInvalidAuthorizationResponse(status: number, payload: ApiEnvelope<unknown> | null) {
+  if (status !== 401) return false;
+  const text = payloadText(payload);
+  return (
+    text.includes("invalid authorization token") ||
+    text.includes("invalid or expired token") ||
+    text.includes("invalid token") ||
+    text.includes("token expired") ||
+    text.includes("jwt expired") ||
+    text.includes("auth_refresh_failed")
+  );
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -227,6 +240,10 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
         });
       }
     }
+  }
+
+  if (!hasExplicitToken && token && isInvalidAuthorizationResponse(response.status, payload)) {
+    clearAuthSession();
   }
 
   if (!response.ok || payload?.ok === false) {
