@@ -36,7 +36,16 @@ import {
   studioCanvasImpactLabel,
   type StudioCanvasChangeSimulation,
 } from "@/features/studio/capabilities/studioCreativeCanvasSimulation";
+import {
+  studioCanvasLearningSignalLabel,
+  type StudioCanvasDecisionHistory,
+  type StudioCanvasDecisionOptionId,
+} from "@/features/studio/capabilities/studioCreativeCanvasDecision";
 import { useStudioApiIntegration } from "@/features/studio/components/StudioApiIntegration";
+import {
+  getStudioCreativeCanvasDecisionHistory,
+  recordStudioCreativeCanvasDecision,
+} from "@/lib/studio-creative-canvas-decision-api";
 import { createStudioCreativeCanvasOptimization } from "@/lib/studio-creative-canvas-optimization-api";
 import { createStudioCreativeCanvasPlan } from "@/lib/studio-creative-canvas-planning-api";
 import { createStudioCreativeCanvasSimulation } from "@/lib/studio-creative-canvas-simulation-api";
@@ -174,6 +183,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
   const planningAvailability = featureStatus("creative_canvas_auto_planning");
   const optimizationAvailability = featureStatus("creative_canvas_workflow_optimization");
   const simulationAvailability = featureStatus("creative_canvas_impact_simulation");
+  const decisionAvailability = featureStatus("creative_canvas_decision_learning");
   const [loadState, setLoadState] = useState<{
     projectId: string | null;
     graph: StudioCreativeCanvasGraph | null;
@@ -187,6 +197,9 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
   const [plannedDraft, setPlannedDraft] = useState<StudioAIPlannedCanvasDraft | null>(null);
   const [optimizedDraft, setOptimizedDraft] = useState<StudioAIOptimizedCanvasDraft | null>(null);
   const [simulation, setSimulation] = useState<StudioCanvasChangeSimulation | null>(null);
+  const [decisionHistory, setDecisionHistory] = useState<StudioCanvasDecisionHistory | null>(null);
+  const [decisionChoice, setDecisionChoice] = useState<StudioCanvasDecisionOptionId>("SELECT_DRAFT");
+  const [decisionReason, setDecisionReason] = useState("");
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [optimizationOpen, setOptimizationOpen] = useState(false);
   const [copilotPrompt, setCopilotPrompt] = useState("");
@@ -216,6 +229,9 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
         setPlannedDraft(null);
         setOptimizedDraft(null);
         setSimulation(null);
+        setDecisionHistory(null);
+        setDecisionChoice("SELECT_DRAFT");
+        setDecisionReason("");
         setCopilotOpen(false);
         setOptimizationOpen(false);
       })
@@ -229,6 +245,17 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
       });
     return () => controller.abort();
   }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId || decisionAvailability !== "READY") return;
+    const controller = new AbortController();
+    void getStudioCreativeCanvasDecisionHistory(projectId, controller.signal)
+      .then(setDecisionHistory)
+      .catch(() => {
+        if (!controller.signal.aborted) setDecisionHistory(null);
+      });
+    return () => controller.abort();
+  }, [decisionAvailability, projectId]);
 
   const graph = loadState.projectId === projectId ? loadState.graph : null;
   const error = loadState.projectId === projectId ? loadState.error : "";
@@ -497,6 +524,34 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
       setActionState({
         busy: false,
         message: reason instanceof Error ? reason.message : "Canvas impact simulation failed.",
+      });
+    }
+  }
+
+  async function recordDecision() {
+    if (
+      !projectId ||
+      !simulation ||
+      !decisionReason.trim() ||
+      decisionAvailability !== "READY"
+    ) return;
+    setActionState({ busy: true, message: "Recording your Canvas decision without applying the Draft…" });
+    try {
+      await recordStudioCreativeCanvasDecision(projectId, {
+        simulationId: simulation.simulationId,
+        selectedOption: decisionChoice,
+        reason: decisionReason.trim(),
+      });
+      setDecisionHistory(await getStudioCreativeCanvasDecisionHistory(projectId));
+      setDecisionReason("");
+      setActionState({
+        busy: false,
+        message: "Decision recorded for future suggestions. Preferences and the production Canvas remain unchanged.",
+      });
+    } catch (reason) {
+      setActionState({
+        busy: false,
+        message: reason instanceof Error ? reason.message : "Canvas decision could not be recorded.",
       });
     }
   }
@@ -922,8 +977,81 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
             <span>Comparison Preview only</span>
             <small>No change was applied. Cost values are estimates and Credits remain unchanged.</small>
           </footer>
+          <section className="studio-creative-canvas-decision-form" aria-label="Record Canvas decision">
+            <header>
+              <strong>Record your choice</strong>
+              <small>This records a human decision; it does not confirm or apply the Draft.</small>
+            </header>
+            <div>
+              <button
+                className={decisionChoice === "SELECT_DRAFT" ? "is-selected" : ""}
+                onClick={() => setDecisionChoice("SELECT_DRAFT")}
+                type="button"
+              >
+                Select Draft
+              </button>
+              <button
+                className={decisionChoice === "KEEP_CURRENT" ? "is-selected" : ""}
+                onClick={() => setDecisionChoice("KEEP_CURRENT")}
+                type="button"
+              >
+                Keep current
+              </button>
+            </div>
+            <textarea
+              onChange={(event) => setDecisionReason(event.target.value)}
+              placeholder="Why did you choose this option?"
+              value={decisionReason}
+            />
+            <button
+              disabled={!decisionReason.trim() || actionState.busy || decisionAvailability !== "READY"}
+              onClick={() => void recordDecision()}
+              type="button"
+            >
+              Record decision
+            </button>
+          </section>
         </section>
       ) : null}
+      <section className="studio-creative-canvas-decision-history" aria-label="Decision History">
+        <header>
+          <div><span>DECISION MEMORY</span><strong>Decision History</strong></div>
+          <small>
+            Project-scoped · {decisionHistory?.outcomeAnalysis.recorded || 0} outcomes · future suggestions only
+          </small>
+        </header>
+        {decisionHistory?.learningSignals.length ? (
+          <div className="studio-creative-canvas-learning-signals">
+            {decisionHistory.learningSignals.map((item) => (
+              <span key={item.signal}>
+                {studioCanvasLearningSignalLabel(item.signal)} · {item.confidence}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {decisionHistory?.decisions.length ? (
+          <div className="studio-creative-canvas-decision-list">
+            {decisionHistory.decisions.map((decision) => (
+              <article key={decision.decisionId}>
+                <header>
+                  <strong>{decision.selectedOption === "SELECT_DRAFT" ? "Selected Draft" : "Kept current Canvas"}</strong>
+                  <small>{new Date(decision.createdAt).toLocaleDateString()}</small>
+                </header>
+                <p>{decision.reason}</p>
+                <span>{decision.sourceDraft.draftSource.replaceAll("_", " ")}</span>
+                <small>
+                  {decision.outcome
+                    ? `Outcome: quality ${String(decision.outcome.quality ?? "unknown")} · delivery ${String(decision.outcome.delivery ?? "unknown")}`
+                    : "Outcome pending"}
+                </small>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p>No Canvas decisions recorded for this project.</p>
+        )}
+        <footer>No cross-user learning, automatic preference changes, execution, Provider calls, or Credits actions.</footer>
+      </section>
       {actionState.message ? <p className="studio-creative-canvas-message" role="status">{actionState.message}</p> : null}
       <footer className="studio-creative-canvas-migration">
         <div>
