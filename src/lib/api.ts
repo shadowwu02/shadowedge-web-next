@@ -105,6 +105,15 @@ export function normalizeApiError(status: number, payload: ApiEnvelope<unknown> 
     });
   }
 
+  if (status === 404 && text.includes("api route not found")) {
+    return new ApiError("This Studio service is not deployed on the current API version.", {
+      status,
+      code: "STUDIO_SERVICE_NOT_DEPLOYED",
+      payload,
+      kind: "unknown",
+    });
+  }
+
   return new ApiError(message || "ShadowEdge API request failed", {
     status,
     code,

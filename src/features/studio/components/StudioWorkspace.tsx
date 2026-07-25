@@ -20,6 +20,11 @@ import { StudioPortfolioResourceCenter } from "@/features/studio/components/Stud
 import { StudioPortfolioPerformanceCenter } from "@/features/studio/components/StudioPortfolioPerformanceCenter";
 import { StudioPortfolioForecastCenter } from "@/features/studio/components/StudioPortfolioForecastCenter";
 import {
+  StudioApiIntegrationProvider,
+  StudioApiVersionStatus,
+  StudioCapabilityBoundary,
+} from "@/features/studio/components/StudioApiIntegration";
+import {
   STUDIO_CANVAS_STORAGE_KEY,
   useStudioStore,
 } from "@/features/studio/store/studioStore";
@@ -45,31 +50,54 @@ export function StudioWorkspace() {
 
   return (
     <AppShell hideSidebar workspaceNav>
-      <div className="studio-shell" style={studioTheme}>
-        <StudioToolbar
-          brandName={activeBrand.shortName}
-          storageKey={STUDIO_CANVAS_STORAGE_KEY}
-        />
-        <StudioCreativeProjectIntelligenceDashboard />
-        <StudioProjectCopilotCommandCenter />
-        <StudioProjectMemoryTimeline />
-        <StudioProjectRoadmapTimeline />
-        <StudioPortfolioStrategyCenter />
-        <StudioPortfolioResourceCenter />
-        <StudioPortfolioPerformanceCenter />
-        <StudioPortfolioForecastCenter />
-        <div className="studio-layout">
-          <StudioAssetPanel />
-          <StudioCanvas />
-          <div className="studio-runtime-sidebar">
-            <NodeInspector />
-            <StudioRunHistoryPanel />
+      <StudioApiIntegrationProvider>
+        <div className="studio-shell" style={studioTheme}>
+          <StudioToolbar
+            brandName={activeBrand.shortName}
+            storageKey={STUDIO_CANVAS_STORAGE_KEY}
+          />
+          <StudioApiVersionStatus />
+          <StudioCapabilityBoundary feature="project_intelligence" label="Project Intelligence">
+            <StudioCreativeProjectIntelligenceDashboard />
+          </StudioCapabilityBoundary>
+          <StudioCapabilityBoundary feature="copilot_center" label="Project Copilot Center">
+            <StudioProjectCopilotCommandCenter />
+          </StudioCapabilityBoundary>
+          <StudioCapabilityBoundary feature="project_memory" label="Project Memory">
+            <StudioProjectMemoryTimeline />
+          </StudioCapabilityBoundary>
+          <StudioCapabilityBoundary feature="project_roadmap" label="Project Roadmap">
+            <StudioProjectRoadmapTimeline />
+          </StudioCapabilityBoundary>
+          <StudioCapabilityBoundary feature="portfolio_strategy" label="Portfolio Strategy">
+            <StudioPortfolioStrategyCenter />
+          </StudioCapabilityBoundary>
+          <StudioCapabilityBoundary feature="portfolio_resources" label="Portfolio Resources">
+            <StudioPortfolioResourceCenter />
+          </StudioCapabilityBoundary>
+          <StudioCapabilityBoundary feature="portfolio_performance" label="Portfolio Performance">
+            <StudioPortfolioPerformanceCenter />
+          </StudioCapabilityBoundary>
+          <StudioCapabilityBoundary feature="portfolio_forecast" label="Portfolio Forecast">
+            <StudioPortfolioForecastCenter />
+          </StudioCapabilityBoundary>
+          <div className="studio-layout">
+            <StudioAssetPanel />
+            <StudioCanvas />
+            <div className="studio-runtime-sidebar">
+              <NodeInspector />
+              <StudioRunHistoryPanel />
+            </div>
           </div>
+          <StudioCapabilityBoundary feature="timeline" label="Unified Timeline">
+            <StudioUnifiedTimeline />
+          </StudioCapabilityBoundary>
+          <StudioCapabilityBoundary feature="storyboard" label="Storyboard">
+            <StudioStoryboardPanel />
+          </StudioCapabilityBoundary>
+          <StudioTimelinePanel />
         </div>
-        <StudioUnifiedTimeline />
-        <StudioStoryboardPanel />
-        <StudioTimelinePanel />
-      </div>
+      </StudioApiIntegrationProvider>
     </AppShell>
   );
 }

@@ -22,6 +22,7 @@ import { VideoEditNode } from "@/features/studio/nodes/VideoEditNode";
 import { MotionControlNode } from "@/features/studio/nodes/MotionControlNode";
 import { CameraControlNode } from "@/features/studio/nodes/CameraControlNode";
 import { StudioAgentCanvas } from "@/features/studio/components/StudioAgentCanvas";
+import { StudioCapabilityBoundary } from "@/features/studio/components/StudioApiIntegration";
 import {
   getCurrentStudioSnapshot,
   useStudioStore,
@@ -87,7 +88,11 @@ export function StudioCanvas() {
         </div>
       </div>
 
-      {canvasView === "agent" ? <StudioAgentCanvas projectId={projectId} /> : <div className="studio-flow-stage">
+      {canvasView === "agent" ? (
+        <StudioCapabilityBoundary feature="agent_canvas" label="Agent Canvas">
+          <StudioAgentCanvas projectId={projectId} />
+        </StudioCapabilityBoundary>
+      ) : <div className="studio-flow-stage">
         <ReactFlow<StudioNode, StudioEdge>
           colorMode="dark"
           connectionLineStyle={{ stroke: "var(--studio-accent)", strokeWidth: 2 }}
