@@ -32,9 +32,14 @@ import {
   type StudioAIOptimizedCanvasDraft,
   type StudioCanvasOptimizationType,
 } from "@/features/studio/capabilities/studioCreativeCanvasOptimization";
+import {
+  studioCanvasImpactLabel,
+  type StudioCanvasChangeSimulation,
+} from "@/features/studio/capabilities/studioCreativeCanvasSimulation";
 import { useStudioApiIntegration } from "@/features/studio/components/StudioApiIntegration";
 import { createStudioCreativeCanvasOptimization } from "@/lib/studio-creative-canvas-optimization-api";
 import { createStudioCreativeCanvasPlan } from "@/lib/studio-creative-canvas-planning-api";
+import { createStudioCreativeCanvasSimulation } from "@/lib/studio-creative-canvas-simulation-api";
 import {
   confirmStudioCreativeCanvasEditSession,
   createStudioCreativeCanvasEditSession,
@@ -168,6 +173,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
   const editingAvailability = featureStatus("creative_canvas_editing");
   const planningAvailability = featureStatus("creative_canvas_auto_planning");
   const optimizationAvailability = featureStatus("creative_canvas_workflow_optimization");
+  const simulationAvailability = featureStatus("creative_canvas_impact_simulation");
   const [loadState, setLoadState] = useState<{
     projectId: string | null;
     graph: StudioCreativeCanvasGraph | null;
@@ -180,6 +186,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
   const [session, setSession] = useState<StudioCreativeCanvasEditSession | null>(null);
   const [plannedDraft, setPlannedDraft] = useState<StudioAIPlannedCanvasDraft | null>(null);
   const [optimizedDraft, setOptimizedDraft] = useState<StudioAIOptimizedCanvasDraft | null>(null);
+  const [simulation, setSimulation] = useState<StudioCanvasChangeSimulation | null>(null);
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [optimizationOpen, setOptimizationOpen] = useState(false);
   const [copilotPrompt, setCopilotPrompt] = useState("");
@@ -208,6 +215,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
         setSession(null);
         setPlannedDraft(null);
         setOptimizedDraft(null);
+        setSimulation(null);
         setCopilotOpen(false);
         setOptimizationOpen(false);
       })
@@ -232,6 +240,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
       flowNodes.filter((node) => node.data.source.nodeType === type).length,
     ]),
   ), [flowNodes]);
+  const simulationDraftId = optimizedDraft?.draftId || plannedDraft?.draftId || session?.sessionId || null;
 
   function startEditing() {
     if (!graph || editingAvailability !== "READY") return;
@@ -242,6 +251,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
     setSession(null);
     setPlannedDraft(null);
     setOptimizedDraft(null);
+    setSimulation(null);
     setOptimizationOpen(false);
     setActionState({ busy: false, message: "Draft mode is local until you review the changes." });
   }
@@ -255,6 +265,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
     setSession(null);
     setPlannedDraft(null);
     setOptimizedDraft(null);
+    setSimulation(null);
     setCopilotOpen(false);
     setOptimizationOpen(false);
     setActionState({ busy: false, message: "Draft discarded. The production Graph was unchanged." });
@@ -300,6 +311,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
     setSelectedId(nodeId);
     setNewNodeTitle("");
     setSession(null);
+    setSimulation(null);
   }
 
   function removeSelected() {
@@ -313,6 +325,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
     }]);
     setSelectedId(null);
     setSession(null);
+    setSimulation(null);
   }
 
   function updateSelectedConfig() {
@@ -325,6 +338,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
     }]);
     setConfigValue("");
     setSession(null);
+    setSimulation(null);
   }
 
   function handleConnect(connection: Connection) {
@@ -350,6 +364,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
       edgeType,
     }]);
     setSession(null);
+    setSimulation(null);
   }
 
   async function reviewChanges() {
@@ -406,6 +421,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
       });
       setPlannedDraft(value);
       setOptimizedDraft(null);
+      setSimulation(null);
       setSession(value.editSession);
       setChanges([...value.changes]);
       setFlowNodes(toFlowNodes(value.graph, true));
@@ -440,6 +456,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
       });
       setOptimizedDraft(value);
       setPlannedDraft(null);
+      setSimulation(null);
       setSession(value.editSession);
       setChanges([...value.changes]);
       setFlowNodes(toFlowNodes(value.optimizedGraph, true));
@@ -458,6 +475,28 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
       setActionState({
         busy: false,
         message: reason instanceof Error ? reason.message : "Copilot could not optimize this Workflow.",
+      });
+    }
+  }
+
+  async function simulateChange() {
+    if (
+      !projectId ||
+      !simulationDraftId ||
+      simulationAvailability !== "READY"
+    ) return;
+    setActionState({ busy: true, message: "Simulating Draft impact without applying changes…" });
+    try {
+      const value = await createStudioCreativeCanvasSimulation(projectId, simulationDraftId);
+      setSimulation(value);
+      setActionState({
+        busy: false,
+        message: "Impact Simulation is ready. The Draft and production Graph remain unchanged.",
+      });
+    } catch (reason) {
+      setActionState({
+        busy: false,
+        message: reason instanceof Error ? reason.message : "Canvas impact simulation failed.",
       });
     }
   }
@@ -645,6 +684,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
                 { changeId: uid("change"), type: "MOVE_NODE", nodeId: node.id, position: node.position },
               ]);
               setSession(null);
+              setSimulation(null);
             } : undefined}
             onEdgesDelete={mode === "EDIT_DRAFT" ? (deleted) => {
               setFlowEdges((current) => current.filter((edge) => !deleted.some((item) => item.id === edge.id)));
@@ -660,6 +700,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
                 })),
               ]);
               setSession(null);
+              setSimulation(null);
             } : undefined}
           >
             <Background color="var(--studio-grid)" gap={22} size={1} variant={BackgroundVariant.Dots} />
@@ -786,7 +827,16 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
         <section className="studio-creative-canvas-review" aria-label="Canvas Graph Diff">
           <header>
             <div><span>Graph Diff</span><strong>{session.status}</strong></div>
-            <b className={session.validation.status === "READY" ? "is-ready" : "is-blocked"}>{session.validation.status}</b>
+            <div className="studio-creative-canvas-review-actions">
+              <button
+                disabled={!simulationDraftId || simulationAvailability !== "READY" || actionState.busy}
+                onClick={() => void simulateChange()}
+                type="button"
+              >
+                {simulationAvailability === "READY" ? "Simulate Change" : "Simulation unavailable"}
+              </button>
+              <b className={session.validation.status === "READY" ? "is-ready" : "is-blocked"}>{session.validation.status}</b>
+            </div>
           </header>
           <div className="studio-creative-canvas-diff">
             <span>Added nodes <b>{session.diff.summary.addedNodes}</b></span>
@@ -811,6 +861,67 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
               Confirm draft
             </button>
           )}
+        </section>
+      ) : null}
+      {simulation ? (
+        <section className="studio-creative-canvas-simulation" aria-label="Canvas Change Simulation">
+          <header>
+            <div>
+              <span>CHANGE SIMULATION</span>
+              <strong>{simulation.draftSource.replaceAll("_", " ")}</strong>
+            </div>
+            <b className={`is-${simulation.confidence.toLowerCase()}`}>{simulation.confidence} CONFIDENCE</b>
+          </header>
+          <div className="studio-creative-canvas-simulation-comparison">
+            <article>
+              <span>Before</span>
+              <strong>{simulation.beforeState.agentCount} Agents</strong>
+              <small>{simulation.beforeState.nodeCount} nodes · {simulation.beforeState.edgeCount} edges</small>
+            </article>
+            <em>→</em>
+            <article>
+              <span>After</span>
+              <strong>{simulation.afterState.agentCount} Agents</strong>
+              <small>{simulation.afterState.nodeCount} nodes · {simulation.afterState.edgeCount} edges</small>
+            </article>
+            <article>
+              <span>Agent changes</span>
+              <strong>
+                {simulation.comparison.addedAgents.length
+                  ? `+ ${simulation.comparison.addedAgents.join(", ")}`
+                  : "No additions"}
+              </strong>
+              <small>
+                {simulation.comparison.removedAgents.length
+                  ? `− ${simulation.comparison.removedAgents.join(", ")}`
+                  : "No removals"}
+              </small>
+            </article>
+          </div>
+          <div className="studio-creative-canvas-simulation-grid">
+            <section>
+              <header><strong>Impact</strong><span>{simulation.impact.length} metrics</span></header>
+              {simulation.impact.map((item) => (
+                <article key={item.metric}>
+                  <div><strong>{studioCanvasImpactLabel(item.metric)}</strong><b>{item.assessment.replaceAll("_", " ")}</b></div>
+                  <small>{item.summary}</small>
+                </article>
+              ))}
+            </section>
+            <section>
+              <header><strong>Risk analysis</strong><span>{simulation.risks.length} checks</span></header>
+              {simulation.risks.map((risk) => (
+                <article className={`is-${risk.severity.toLowerCase()}`} key={risk.riskId}>
+                  <div><strong>{risk.type.replaceAll("_", " ")}</strong><b>{risk.severity}</b></div>
+                  <small>{risk.message}</small>
+                </article>
+              ))}
+            </section>
+          </div>
+          <footer>
+            <span>Comparison Preview only</span>
+            <small>No change was applied. Cost values are estimates and Credits remain unchanged.</small>
+          </footer>
         </section>
       ) : null}
       {actionState.message ? <p className="studio-creative-canvas-message" role="status">{actionState.message}</p> : null}

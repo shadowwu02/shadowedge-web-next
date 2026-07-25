@@ -6,6 +6,7 @@ export const STUDIO_API_FEATURES = [
   "creative_canvas_editing",
   "creative_canvas_auto_planning",
   "creative_canvas_workflow_optimization",
+  "creative_canvas_impact_simulation",
   "agent_canvas",
   "timeline",
   "storyboard",
