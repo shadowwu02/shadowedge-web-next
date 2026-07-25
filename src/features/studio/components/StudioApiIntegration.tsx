@@ -111,6 +111,12 @@ export function StudioCapabilityBoundary({
   const { featureStatus, refresh } = useStudioApiIntegration();
   const status = featureStatus(feature);
   if (status === "READY") return children;
+  const displayStatus =
+    status === "AVAILABLE"
+      ? "LOADING"
+      : status === "NOT_DEPLOYED"
+        ? "UNAVAILABLE"
+        : status;
 
   const message = status === "AVAILABLE"
     ? `Checking ${label} service availability…`
@@ -121,7 +127,7 @@ export function StudioCapabilityBoundary({
   return (
     <section className={`studio-capability-state is-${status.toLowerCase()}`} aria-label={`${label} availability`}>
       <span>{label}</span>
-      <strong>{status}</strong>
+      <strong>{displayStatus}</strong>
       <p>{message}</p>
       {status === "ERROR" || status === "NOT_DEPLOYED" ? (
         <button onClick={refresh} type="button">Check availability</button>

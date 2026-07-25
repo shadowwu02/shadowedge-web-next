@@ -66,7 +66,11 @@ import {
   getStudioRevisionRunPlan,
 } from "@/lib/studio-revision-run-plan-api";
 
-export function StudioStoryboardPanel() {
+export function StudioStoryboardPanel({
+  workspaceFocus = "storyboard",
+}: Readonly<{
+  workspaceFocus?: "storyboard" | "production" | "review" | "delivery";
+}>) {
   const projectId = useStudioStore((state) => state.projectId);
   const [bundle, setBundle] = useState<{ projectId: string; storyboards: readonly StudioCreativeStoryboard[]; error: string } | null>(null);
   const [selectedStoryboardId, setSelectedStoryboardId] = useState<string | null>(null);
@@ -727,12 +731,49 @@ export function StudioStoryboardPanel() {
   };
 
   return (
-    <section className="studio-storyboard-workspace" id="storyboard-workspace" aria-label="Storyboard Workspace">
+    <section
+      className="studio-storyboard-workspace"
+      data-workspace-focus={workspaceFocus}
+      id={`${workspaceFocus}-workspace`}
+      aria-label={
+        workspaceFocus === "storyboard"
+          ? "Storyboard Workspace"
+          : workspaceFocus === "production"
+            ? "Production Workspace"
+            : workspaceFocus === "review"
+              ? "Review Workspace"
+              : "Delivery Workspace"
+      }
+    >
       <header>
         <div>
-          <span>AI Scene Planning</span>
-          <h2>Storyboard Workspace</h2>
-          <p>Scene → Storyboard → Shot → Generation Draft</p>
+          <span>
+            {workspaceFocus === "storyboard"
+              ? "AI Scene Planning"
+              : workspaceFocus === "production"
+                ? "Production Planning"
+                : workspaceFocus === "review"
+                  ? "Quality and Collaboration"
+                  : "Versioned Delivery"}
+          </span>
+          <h2>
+            {workspaceFocus === "storyboard"
+              ? "Storyboard Workspace"
+              : workspaceFocus === "production"
+                ? "Production Workspace"
+                : workspaceFocus === "review"
+                  ? "Review Workspace"
+                  : "Delivery Workspace"}
+          </h2>
+          <p>
+            {workspaceFocus === "storyboard"
+              ? "Scene → Storyboard → Shot → Generation Draft"
+              : workspaceFocus === "production"
+                ? "Run Plan → Gate Review → Approval → Runtime Status"
+                : workspaceFocus === "review"
+                  ? "Result → Quality Gate → Feedback → Revision Draft"
+                  : "Approved Result → Package → Version History"}
+          </p>
         </div>
         <small>Draft only · no Timeline edits, Job creation, Provider calls, or Credits</small>
       </header>
@@ -817,7 +858,7 @@ export function StudioStoryboardPanel() {
           </div>
 
           <aside className="studio-storyboard-draft" aria-label="Storyboard Draft Preview">
-            <section className="studio-storyboard-draft-section">
+            <section className="studio-storyboard-draft-section studio-story-workspace-section">
               <span>Copilot Shot Planning</span>
               {shotDraft ? (
                 <>
@@ -838,7 +879,7 @@ export function StudioStoryboardPanel() {
               )}
             </section>
 
-            <section className="studio-storyboard-draft-section" aria-label="Generation Draft Panel">
+            <section className="studio-storyboard-draft-section studio-story-workspace-section" aria-label="Generation Draft Panel">
               <span>Generation Draft Panel</span>
               {generationDraft ? (
                 <>
@@ -868,7 +909,7 @@ export function StudioStoryboardPanel() {
               )}
             </section>
 
-            <section className="studio-storyboard-draft-section" aria-label="Batch Generation Planning">
+            <section className="studio-storyboard-draft-section studio-story-workspace-section" aria-label="Batch Generation Planning">
               <span>Batch Generation Planning</span>
               {batchPlan ? (
                 <>
@@ -914,7 +955,7 @@ export function StudioStoryboardPanel() {
                 <p>Preview all Scene Shots, model suggestions, dependencies, and estimated Credits before confirmation.</p>
               )}
             </section>
-            <section className="studio-storyboard-draft-section" aria-label="Production Run Planner">
+            <section className="studio-storyboard-draft-section studio-production-run" aria-label="Production Run Planner">
               <span>Production Run Planner</span>
               {activeProductionPlan ? (
                 <>
