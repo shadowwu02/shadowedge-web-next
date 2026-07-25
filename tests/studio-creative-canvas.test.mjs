@@ -39,8 +39,8 @@ test("Unified Creative Canvas declares the converged node and edge schema", () =
 test("Creative Canvas reads the authenticated project graph and renders every layer", () => {
   assert.match(apiSource, /\/creative-canvas/);
   assert.match(componentSource, /ReactFlow/);
-  assert.match(componentSource, /nodesDraggable=\{false\}/);
-  assert.match(componentSource, /nodesConnectable=\{false\}/);
+  assert.match(componentSource, /nodesDraggable=\{mode === "EDIT_DRAFT"\}/);
+  assert.match(componentSource, /nodesConnectable=\{mode === "EDIT_DRAFT"\}/);
   assert.match(componentSource, /Creative Operating Canvas/);
   assert.match(componentSource, /Timeline/);
   assert.match(componentSource, /Delivery/);
@@ -55,9 +55,11 @@ test("Studio converges on Creative Canvas while preserving draft compatibility",
   assert.match(legacyCanvasSource, /Open Studio Creative Canvas/);
 });
 
-test("Unified visualization cannot execute, generate, or mutate a project", () => {
+test("Unified Canvas can only create and confirm a draft edit session", () => {
   const combined = apiSource + componentSource;
-  assert.doesNotMatch(combined, /method:\s*"(POST|PUT|PATCH|DELETE)"/);
   assert.doesNotMatch(combined, /executeNode|generateVideo|submitProvider|deductCredits|saveProject/);
-  assert.match(componentSource, /cannot edit, connect, execute, generate, or migrate nodes/);
+  assert.match(apiSource, /creative-canvas\/edit-session/);
+  assert.match(apiSource, /JSON\.stringify\(\{ confirm: true \}\)/);
+  assert.match(componentSource, /Production Graph and Execution Runtime remain unchanged/);
+  assert.match(componentSource, /No production Graph, Execution, Provider, or Credits action occurred/);
 });

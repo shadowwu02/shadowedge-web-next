@@ -3,6 +3,7 @@ import { getApiBaseUrl } from "@/lib/api";
 export const STUDIO_API_FEATURES = [
   "studio_projects",
   "creative_canvas",
+  "creative_canvas_editing",
   "agent_canvas",
   "timeline",
   "storyboard",
