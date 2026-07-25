@@ -25,7 +25,9 @@ import {
   type StudioCreativeCanvasNode,
   type StudioCreativeCanvasNodeType,
 } from "@/features/studio/capabilities/studioCreativeCanvas";
+import type { StudioAIPlannedCanvasDraft } from "@/features/studio/capabilities/studioCreativeCanvasPlanning";
 import { useStudioApiIntegration } from "@/features/studio/components/StudioApiIntegration";
+import { createStudioCreativeCanvasPlan } from "@/lib/studio-creative-canvas-planning-api";
 import {
   confirmStudioCreativeCanvasEditSession,
   createStudioCreativeCanvasEditSession,
@@ -157,6 +159,7 @@ function changeLabel(change: StudioCreativeCanvasGraphChange) {
 export function StudioCreativeCanvas({ projectId }: { projectId: string | null }) {
   const { featureStatus } = useStudioApiIntegration();
   const editingAvailability = featureStatus("creative_canvas_editing");
+  const planningAvailability = featureStatus("creative_canvas_auto_planning");
   const [loadState, setLoadState] = useState<{
     projectId: string | null;
     graph: StudioCreativeCanvasGraph | null;
@@ -167,6 +170,12 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
   const [flowEdges, setFlowEdges] = useState<Edge[]>([]);
   const [changes, setChanges] = useState<StudioCreativeCanvasGraphChange[]>([]);
   const [session, setSession] = useState<StudioCreativeCanvasEditSession | null>(null);
+  const [plannedDraft, setPlannedDraft] = useState<StudioAIPlannedCanvasDraft | null>(null);
+  const [copilotOpen, setCopilotOpen] = useState(false);
+  const [copilotPrompt, setCopilotPrompt] = useState("");
+  const [copilotGoal, setCopilotGoal] = useState("");
+  const [copilotDuration, setCopilotDuration] = useState("");
+  const [copilotRatio, setCopilotRatio] = useState("16:9");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newNodeType, setNewNodeType] = useState<StudioCreativeCanvasNodeType>("GOAL");
   const [newNodeTitle, setNewNodeTitle] = useState("");
@@ -185,6 +194,8 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
         setMode("VIEW");
         setChanges([]);
         setSession(null);
+        setPlannedDraft(null);
+        setCopilotOpen(false);
       })
       .catch((reason: unknown) => {
         if (controller.signal.aborted) return;
@@ -215,6 +226,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
     setFlowEdges(toFlowEdges(graph, true));
     setChanges([]);
     setSession(null);
+    setPlannedDraft(null);
     setActionState({ busy: false, message: "Draft mode is local until you review the changes." });
   }
 
@@ -225,6 +237,8 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
     setFlowEdges(toFlowEdges(graph, false));
     setChanges([]);
     setSession(null);
+    setPlannedDraft(null);
+    setCopilotOpen(false);
     setActionState({ busy: false, message: "Draft discarded. The production Graph was unchanged." });
   }
 
@@ -360,6 +374,40 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
     }
   }
 
+  async function createWithCopilot() {
+    if (!projectId || !copilotPrompt.trim() || planningAvailability !== "READY") return;
+    setActionState({ busy: true, message: "Copilot is building a reviewable Canvas Draft…" });
+    try {
+      const value = await createStudioCreativeCanvasPlan(projectId, {
+        prompt: copilotPrompt.trim(),
+        goal: copilotGoal.trim() || copilotPrompt.trim(),
+        constraints: {
+          ...(copilotDuration.trim() ? { duration: copilotDuration.trim() } : {}),
+          ...(copilotRatio ? { ratio: copilotRatio } : {}),
+        },
+      });
+      setPlannedDraft(value);
+      setSession(value.editSession);
+      setChanges([...value.changes]);
+      setFlowNodes(toFlowNodes(value.graph, true));
+      setFlowEdges(toFlowEdges(value.graph, true));
+      setSelectedId(value.graph.nodes[0]?.nodeId || null);
+      setMode("EDIT_DRAFT");
+      setCopilotOpen(false);
+      setActionState({
+        busy: false,
+        message: value.validation.status === "READY"
+          ? "AI Canvas Draft is ready for Diff Review and human confirmation."
+          : "AI Canvas Draft is blocked by validation. Nothing was applied.",
+      });
+    } catch (reason) {
+      setActionState({
+        busy: false,
+        message: reason instanceof Error ? reason.message : "Copilot could not create the Canvas Draft.",
+      });
+    }
+  }
+
   if (!projectId) {
     return (
       <section className="studio-creative-canvas-empty" aria-label="Unified Creative Canvas empty state">
@@ -384,7 +432,16 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
       <section className="studio-creative-canvas-empty">
         <strong>Project graph is ready</strong>
         <p>Add project goals, scenes, Storyboards, or completed Outputs through their existing confirmed workflows.</p>
-        <button disabled={editingAvailability !== "READY"} onClick={startEditing} type="button">Edit Canvas</button>
+        <div className="studio-creative-canvas-empty-actions">
+          <button disabled={planningAvailability !== "READY"} onClick={() => setCopilotOpen(true)} type="button">Create with Copilot</button>
+          <button disabled={editingAvailability !== "READY"} onClick={startEditing} type="button">Edit Canvas</button>
+        </div>
+        {copilotOpen ? (
+          <section className="studio-creative-canvas-copilot-form" aria-label="Create Canvas with Copilot">
+            <textarea onChange={(event) => setCopilotPrompt(event.target.value)} placeholder="What do you want to create?" value={copilotPrompt} />
+            <button disabled={!copilotPrompt.trim() || actionState.busy} onClick={() => void createWithCopilot()} type="button">Generate Draft Canvas</button>
+          </section>
+        ) : null}
         <small>This view never creates or migrates project data.</small>
       </section>
     );
@@ -401,14 +458,53 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
           <span>{graph.schemaVersion}</span>
           <b>{mode === "VIEW" ? "VIEW" : "EDIT DRAFT"}</b>
           {mode === "VIEW" ? (
-            <button disabled={editingAvailability !== "READY"} onClick={startEditing} type="button">
-              {editingAvailability === "READY" ? "Edit Canvas" : "Editing unavailable"}
-            </button>
+            <div className="studio-creative-canvas-mode-actions">
+              <button disabled={planningAvailability !== "READY"} onClick={() => setCopilotOpen((value) => !value)} type="button">
+                {planningAvailability === "READY" ? "Create with Copilot" : "Copilot unavailable"}
+              </button>
+              <button disabled={editingAvailability !== "READY"} onClick={startEditing} type="button">
+                {editingAvailability === "READY" ? "Edit Canvas" : "Editing unavailable"}
+              </button>
+            </div>
           ) : (
             <button onClick={cancelEditing} type="button">Exit draft</button>
           )}
         </div>
       </div>
+      {copilotOpen ? (
+        <section className="studio-creative-canvas-copilot-form" aria-label="Create Canvas with Copilot">
+          <header>
+            <div><span>Creative Copilot</span><strong>AI Canvas Draft Planner</strong></div>
+            <b>PREVIEW ONLY</b>
+          </header>
+          <label>
+            <span>Prompt</span>
+            <textarea onChange={(event) => setCopilotPrompt(event.target.value)} placeholder="Describe what you want to create…" value={copilotPrompt} />
+          </label>
+          <label>
+            <span>Creative goal</span>
+            <input onChange={(event) => setCopilotGoal(event.target.value)} placeholder="Optional — defaults to your Prompt" value={copilotGoal} />
+          </label>
+          <div>
+            <label>
+              <span>Duration</span>
+              <input onChange={(event) => setCopilotDuration(event.target.value)} placeholder="e.g. 15s" value={copilotDuration} />
+            </label>
+            <label>
+              <span>Ratio</span>
+              <select onChange={(event) => setCopilotRatio(event.target.value)} value={copilotRatio}>
+                <option value="16:9">16:9</option>
+                <option value="9:16">9:16</option>
+                <option value="1:1">1:1</option>
+              </select>
+            </label>
+          </div>
+          <footer>
+            <small>Uses this project’s Goal, Strategy, Memory, successful Workflow Templates, and qualified past success patterns.</small>
+            <button disabled={!copilotPrompt.trim() || actionState.busy} onClick={() => void createWithCopilot()} type="button">Generate Draft Canvas</button>
+          </footer>
+        </section>
+      ) : null}
       {mode === "EDIT_DRAFT" ? (
         <section className="studio-creative-canvas-edit-toolbar" aria-label="Canvas Edit Mode">
           <div>
@@ -506,6 +602,48 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
           ) : null}
         </aside>
       </div>
+      {plannedDraft ? (
+        <section className="studio-creative-canvas-ai-plan" aria-label="AI Planned Canvas Draft">
+          <header>
+            <div>
+              <span>CANVAS_AUTO_PLAN_DRAFT</span>
+              <strong>{plannedDraft.planningRequest.intent.replaceAll("_", " ")}</strong>
+            </div>
+            <b className={`is-${plannedDraft.confidence.toLowerCase()}`}>{plannedDraft.confidence} CONFIDENCE</b>
+          </header>
+          <p>{plannedDraft.planningRequest.goal}</p>
+          <div className="studio-creative-canvas-ai-grid">
+            <section>
+              <header><strong>Why these nodes</strong><span>{plannedDraft.reasoning.length}</span></header>
+              <div>
+                {plannedDraft.reasoning.map((item) => (
+                  <article key={item.nodeId}>
+                    <span>{item.nodeType}</span>
+                    <strong>{item.label}</strong>
+                    <small>{item.reason}</small>
+                  </article>
+                ))}
+              </div>
+            </section>
+            <section>
+              <header><strong>Evidence used</strong><span>{plannedDraft.evidence.length}</span></header>
+              <div>
+                {plannedDraft.evidence.map((item) => (
+                  <article key={item.evidenceId}>
+                    <span>{item.type.replaceAll("_", " ")}</span>
+                    <strong>{item.confidence}</strong>
+                    <small>{item.summary}</small>
+                  </article>
+                ))}
+              </div>
+            </section>
+          </div>
+          <footer>
+            <span>Preview → Diff Review → Human Confirm</span>
+            <small>Copilot created only a Draft. It did not modify the production Graph or start Execution.</small>
+          </footer>
+        </section>
+      ) : null}
       {session ? (
         <section className="studio-creative-canvas-review" aria-label="Canvas Graph Diff">
           <header>
