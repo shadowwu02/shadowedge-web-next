@@ -15,6 +15,7 @@ export const STUDIO_CANVAS_PLANNING_INTENTS = [
 
 export type StudioCanvasPlanningIntent = typeof STUDIO_CANVAS_PLANNING_INTENTS[number];
 export type StudioCanvasPlanConfidence = "HIGH" | "MEDIUM" | "LOW";
+export type StudioCanvasPlanningStatus = "CREATED" | "BUILDING" | "COMPLETED" | "FAILED";
 
 export type StudioCanvasPlanningRequest = Readonly<{
   requestId: string;
@@ -75,6 +76,20 @@ export type StudioAIPlannedCanvasDraft = Readonly<{
   }>;
   createdAt: string;
   boundary: "AI_PLAN_DRAFT_ONLY_NO_PRODUCTION_GRAPH_MUTATION_NO_EXECUTION";
+}>;
+
+export type StudioCanvasPlanStatus = Readonly<{
+  draftId: string;
+  requestId: string;
+  projectId: string;
+  status: StudioCanvasPlanningStatus;
+  createdAt: string;
+  updatedAt: string;
+  draft: StudioAIPlannedCanvasDraft | null;
+  error: Readonly<{
+    code: string;
+    message: string;
+  }> | null;
 }>;
 
 export type CreateStudioCanvasPlanInput = Readonly<{

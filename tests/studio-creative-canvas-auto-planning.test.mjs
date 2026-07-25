@@ -42,8 +42,11 @@ test("Canvas Planning contracts expose Request, Draft, Evidence, and Confidence"
 
 test("Canvas Auto Planning uses exact authenticated project APIs", () => {
   assert.match(apiSource, /\/creative-canvas\/plan/);
+  assert.match(apiSource, /\/status/);
   assert.match(apiSource, /method: "POST"/);
   assert.match(apiSource, /getStudioCreativeCanvasPlan/);
+  assert.match(apiSource, /pollStudioCreativeCanvasPlan/);
+  assert.match(apiSource, /PLAN_POLL_MAX_ATTEMPTS/);
   assert.match(versionSource, /"creative_canvas_auto_planning"/);
 });
 
