@@ -23,6 +23,7 @@ import type {
 } from "@/features/studio/capabilities/studioClientReview";
 import type { StudioRevisionIntelligenceBundle } from "@/features/studio/capabilities/studioRevisionIntelligence";
 import type { StudioRevisionRunPlan } from "@/features/studio/capabilities/studioRevisionRunPlan";
+import type { StudioClientFeedbackIntelligence } from "@/features/studio/capabilities/studioClientFeedbackIntelligence";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import {
   confirmStudioShotDraft,
@@ -69,6 +70,10 @@ import {
   createStudioRevisionRunPlan,
   getStudioRevisionRunPlan,
 } from "@/lib/studio-revision-run-plan-api";
+import {
+  confirmStudioClientInsight,
+  getStudioClientInsights,
+} from "@/lib/studio-client-feedback-intelligence-api";
 
 export function StudioStoryboardPanel({
   workspaceFocus = "storyboard",
@@ -105,6 +110,12 @@ export function StudioStoryboardPanel({
   } | null>(null);
   const [clientReviewError, setClientReviewError] = useState("");
   const [externalReviewLink, setExternalReviewLink] = useState<StudioClientReviewLinkResult | null>(null);
+  const [clientInsightsState, setClientInsightsState] = useState<{
+    projectId: string;
+    value: StudioClientFeedbackIntelligence;
+  } | null>(null);
+  const [clientInsightsError, setClientInsightsError] = useState("");
+  const [clientInsightsBusyId, setClientInsightsBusyId] = useState<string | null>(null);
   const [revisionIntelligenceState, setRevisionIntelligenceState] = useState<{
     projectId: string;
     deliveryPackageId: string;
@@ -253,6 +264,9 @@ export function StudioStoryboardPanel({
   ] || null;
   const activeClientReviewUpdatedAt = activeClientReview?.session.updatedAt || "";
   const revisionConfirmedCount = activeRevisionIntelligence?.summary.confirmedCount || 0;
+  const activeClientInsights = clientInsightsState?.projectId === projectId
+    ? clientInsightsState.value
+    : null;
 
   useEffect(() => {
     if (!projectId || activeProductionRuntime?.tracking.status !== "COMPLETED") return;
@@ -335,6 +349,24 @@ export function StudioStoryboardPanel({
       });
     return () => controller.abort();
   }, [activeClientReviewUpdatedAt, projectId, selectedReviewPackageId]);
+
+  useEffect(() => {
+    if (!projectId || !activeClientReviewUpdatedAt) return;
+    const controller = new AbortController();
+    void getStudioClientInsights(projectId, controller.signal)
+      .then((value) => {
+        setClientInsightsState({ projectId, value });
+        setClientInsightsError("");
+      })
+      .catch((reason: unknown) => {
+        if (!controller.signal.aborted) {
+          setClientInsightsError(
+            reason instanceof Error ? reason.message : "Client Insights are unavailable.",
+          );
+        }
+      });
+    return () => controller.abort();
+  }, [activeClientReviewUpdatedAt, projectId]);
 
   useEffect(() => {
     if (!projectId || !selectedReviewPackageId || revisionConfirmedCount < 1) return;
@@ -707,6 +739,39 @@ export function StudioStoryboardPanel({
       setMessage(reason instanceof Error ? reason.message : "Could not confirm the AI Revision Suggestion.");
     } finally {
       setRevisionIntelligenceBusyId(null);
+    }
+  };
+
+  const confirmClientInsight = async (patternId: string) => {
+    if (!projectId || !activeClientInsights) return;
+    setClientInsightsBusyId(patternId);
+    setMessage("");
+    try {
+      const result = await confirmStudioClientInsight(projectId, patternId);
+      setClientInsightsState({
+        projectId,
+        value: {
+          ...activeClientInsights,
+          patterns: activeClientInsights.patterns.map((pattern) =>
+            pattern.patternId === result.pattern.patternId
+              ? { ...result.pattern, historicalFeedbackCount: pattern.historicalFeedbackCount }
+              : pattern,
+          ),
+          summary: {
+            ...activeClientInsights.summary,
+            confirmedMemoryDraftCount: activeClientInsights.patterns.filter((pattern) =>
+              pattern.patternId === result.pattern.patternId
+                ? result.pattern.status === "CONFIRMED"
+                : pattern.status === "CONFIRMED"
+            ).length,
+          },
+        },
+      });
+      setMessage("Client Insight confirmed into a Project Memory Draft. No project, preference, Revision, or Credits action occurred.");
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Could not confirm the Client Insight.");
+    } finally {
+      setClientInsightsBusyId(null);
     }
   };
 
@@ -1443,6 +1508,74 @@ export function StudioStoryboardPanel({
                     ) : (
                       <p>No feedback has been added to this Delivery version.</p>
                     )}
+                  </div>
+                  <div className="studio-revision-intelligence" aria-label="Client Insights">
+                    <header>
+                      <div>
+                        <strong>Client Insights</strong>
+                        <small>Feedback → Pattern → Human Review → Project Memory Draft</small>
+                      </div>
+                      <span>
+                        {activeClientInsights
+                          ? `${activeClientInsights.summary.patternCount} patterns`
+                          : "ANALYZING"}
+                      </span>
+                    </header>
+                    {activeClientInsights?.patterns.length ? (
+                      activeClientInsights.patterns.map((pattern) => (
+                        <article key={pattern.patternId}>
+                          <header>
+                            <strong>Client scope {pattern.clientScope.slice(-6)}</strong>
+                            <span>{pattern.confidence} CONFIDENCE</span>
+                          </header>
+                          <small>{pattern.historicalFeedbackCount} historical feedback items</small>
+                          <ul>
+                            {pattern.patterns.map((item) => (
+                              <li key={`${pattern.patternId}:${item.type}`}>
+                                <strong>{item.type.replaceAll("_", " ")}</strong>
+                                {" · "}
+                                {item.recommendation}
+                                {" · "}
+                                {item.evidenceCount} evidence
+                              </li>
+                            ))}
+                          </ul>
+                          <details>
+                            <summary>Evidence used</summary>
+                            <ul>
+                              {pattern.evidence.map((evidence) => (
+                                <li key={evidence.evidenceId}>
+                                  {evidence.type.replaceAll("_", " ")} · {evidence.summary}
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                          {pattern.memoryDraft ? (
+                            <small>
+                              Project Memory Draft: {pattern.memoryDraft.draftId} · {pattern.memoryDraft.status}
+                            </small>
+                          ) : (
+                            <button
+                              disabled={Boolean(clientInsightsBusyId)}
+                              onClick={() => void confirmClientInsight(pattern.patternId)}
+                              type="button"
+                            >
+                              {clientInsightsBusyId === pattern.patternId
+                                ? "Confirming…"
+                                : "Create Project Memory Draft"}
+                            </button>
+                          )}
+                        </article>
+                      ))
+                    ) : clientInsightsError ? (
+                      <p>{clientInsightsError}</p>
+                    ) : (
+                      <p>Client patterns will appear after scoped Review feedback or a verified outcome exists.</p>
+                    )}
+                    <small>
+                      Each client scope is isolated · preview and explicit Confirm only · no preference,
+                      project, Revision, Provider, or Credits mutation.
+                    </small>
                   </div>
                   <div className="studio-revision-intelligence" aria-label="AI Revision Suggestion">
                     <header>

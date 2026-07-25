@@ -12,6 +12,8 @@ export const STUDIO_API_FEATURES = [
   "project_execution_concierge",
   "project_collaboration",
   "collaboration_activity",
+  "external_client_review",
+  "client_feedback_intelligence",
   "agent_canvas",
   "timeline",
   "storyboard",
