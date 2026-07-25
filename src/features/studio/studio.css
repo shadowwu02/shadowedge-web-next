@@ -5662,3 +5662,221 @@
   .studio-portfolio-performance-signals { grid-template-columns: 1fr !important; }
   .studio-portfolio-performance-footer button { width: 100%; }
 }
+
+.studio-portfolio-forecast {
+  display: grid;
+  gap: 10px;
+  margin: 10px 12px 0;
+  padding: 14px;
+  border: 1px solid rgba(167, 139, 250, 0.18);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 82% 7%, rgba(124, 58, 237, 0.13), transparent 31%),
+    linear-gradient(145deg, rgba(13, 10, 30, 0.97), rgba(8, 11, 24, 0.95));
+  box-shadow: 0 12px 32px rgba(2, 6, 23, 0.22);
+}
+.studio-portfolio-forecast > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.studio-portfolio-forecast > header > div:first-child { display: grid; gap: 4px; }
+.studio-portfolio-forecast > header > div:first-child > span {
+  color: #a78bfa;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.studio-portfolio-forecast h2 { margin: 0; color: #f8fafc; font-size: 19px; }
+.studio-portfolio-forecast > header p { margin: 0; color: #8490a8; font-size: 8px; }
+.studio-portfolio-forecast-confidence {
+  display: grid;
+  min-width: 132px;
+  gap: 1px;
+  padding: 8px 10px;
+  border: 1px solid rgba(167, 139, 250, 0.2);
+  border-radius: 9px;
+  background: rgba(15, 23, 42, 0.54);
+  text-align: right;
+}
+.studio-portfolio-forecast-confidence strong { color: #ddd6fe; font-size: 12px; }
+.studio-portfolio-forecast-confidence span { color: #8b7da8; font-size: 7px; }
+.studio-portfolio-forecast-confidence small { color: #665c79; font-size: 6px; }
+.studio-portfolio-forecast-confidence.is-high strong { color: #86efac; }
+.studio-portfolio-forecast-confidence.is-low strong { color: #fbbf24; }
+.studio-portfolio-forecast-empty {
+  display: grid;
+  gap: 3px;
+  min-height: 54px;
+  place-content: center;
+  border: 1px dashed rgba(167, 139, 250, 0.2);
+  border-radius: 9px;
+  color: #718096;
+  font-size: 8px;
+  text-align: center;
+}
+.studio-portfolio-forecast-empty strong { color: #ddd6fe; }
+.studio-portfolio-forecast-trends {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+.studio-portfolio-forecast-trends article {
+  display: grid;
+  gap: 3px;
+  padding: 9px;
+  border: 1px solid rgba(167, 139, 250, 0.11);
+  border-radius: 9px;
+  background: rgba(15, 23, 42, 0.48);
+}
+.studio-portfolio-forecast-trends article header { display: flex; justify-content: space-between; gap: 6px; }
+.studio-portfolio-forecast-trends article header span { color: #9b8cb6; font-size: 7px; }
+.studio-portfolio-forecast-trends article header strong { color: #c4b5fd; font-size: 6px; }
+.studio-portfolio-forecast-trends article > div { display: flex; align-items: baseline; gap: 5px; }
+.studio-portfolio-forecast-trends article b { color: #a78bfa; font-size: 15px; }
+.studio-portfolio-forecast-trends article > div strong { color: #ede9fe; font-size: 15px; }
+.studio-portfolio-forecast-trends article p { margin: 0; color: #a78bfa; font-size: 7px; }
+.studio-portfolio-forecast-trends article small { color: #5f687a; font-size: 6px; line-height: 1.35; }
+.studio-portfolio-forecast-outcomes,
+.studio-portfolio-forecast-scenarios {
+  display: grid;
+  gap: 6px;
+  padding: 9px;
+  border: 1px solid rgba(167, 139, 250, 0.12);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.3);
+}
+.studio-portfolio-forecast-outcomes > header,
+.studio-portfolio-forecast-scenarios > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.studio-portfolio-forecast-outcomes > header strong,
+.studio-portfolio-forecast-scenarios > header strong { color: #ddd6fe; font-size: 9px; }
+.studio-portfolio-forecast-outcomes > header span,
+.studio-portfolio-forecast-scenarios > header span { color: #6f6682; font-size: 7px; }
+.studio-portfolio-forecast-outcomes > div {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+}
+.studio-portfolio-forecast-outcomes article,
+.studio-portfolio-forecast-scenarios article {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.42);
+}
+.studio-portfolio-forecast-outcomes article header,
+.studio-portfolio-forecast-scenarios article header { display: flex; justify-content: space-between; gap: 6px; }
+.studio-portfolio-forecast-outcomes article header strong,
+.studio-portfolio-forecast-scenarios article header strong { color: #c4b5fd; font-size: 7px; }
+.studio-portfolio-forecast-outcomes article header span,
+.studio-portfolio-forecast-scenarios article header span { color: #8b5cf6; font-size: 6px; }
+.studio-portfolio-forecast-outcomes article p,
+.studio-portfolio-forecast-scenarios article p { margin: 0; color: #cbd5e1; font-size: 7px; line-height: 1.4; }
+.studio-portfolio-forecast-outcomes article small,
+.studio-portfolio-forecast-scenarios article small { color: #64748b; font-size: 6px; line-height: 1.35; }
+.studio-portfolio-forecast-outcomes article footer,
+.studio-portfolio-forecast-scenarios article footer { color: #63587a; font-size: 6px; }
+.studio-portfolio-forecast-scenarios > div {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.studio-portfolio-forecast-scenarios article > div { display: flex; flex-wrap: wrap; gap: 3px; }
+.studio-portfolio-forecast-scenarios article > div span {
+  padding: 2px 4px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.08);
+  color: #b68b4e;
+  font-size: 5px;
+}
+.studio-portfolio-forecast-evidence {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 5px 10px;
+  align-items: center;
+  padding: 9px;
+  border: 1px dashed rgba(167, 139, 250, 0.2);
+  border-radius: 9px;
+}
+.studio-portfolio-forecast-evidence > strong { color: #ddd6fe; font-size: 8px; }
+.studio-portfolio-forecast-evidence > span { color: #8b7da8; font-size: 7px; }
+.studio-portfolio-forecast-evidence > div { display: flex; flex-wrap: wrap; gap: 4px; }
+.studio-portfolio-forecast-evidence > div span {
+  padding: 3px 5px;
+  border-radius: 999px;
+  background: rgba(124, 58, 237, 0.09);
+  color: #9484ad;
+  font-size: 6px;
+}
+.studio-portfolio-forecast-evidence small { grid-column: 1 / -1; color: #626b7d; font-size: 6px; }
+.studio-portfolio-forecast-preview {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px dashed rgba(167, 139, 250, 0.3);
+  border-radius: 9px;
+}
+.studio-portfolio-forecast-preview strong { color: #ddd6fe; font-size: 8px; }
+.studio-portfolio-forecast-preview span { color: #cbd5e1; font-size: 7px; }
+.studio-portfolio-forecast-preview small { color: #64748b; font-size: 6px; }
+.studio-portfolio-forecast-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.studio-portfolio-forecast-footer > div { display: flex; flex-wrap: wrap; gap: 5px; }
+.studio-portfolio-forecast-footer span {
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: rgba(124, 58, 237, 0.08);
+  color: #82749a;
+  font-size: 6px;
+}
+.studio-portfolio-forecast-footer button {
+  min-width: 186px;
+  padding: 8px 11px;
+  border: 1px solid rgba(167, 139, 250, 0.34);
+  border-radius: 8px;
+  background: rgba(109, 40, 217, 0.16);
+  color: #ede9fe;
+  cursor: pointer;
+  font-size: 8px;
+  font-weight: 700;
+}
+.studio-portfolio-forecast-footer button:hover:not(:disabled) { background: rgba(109, 40, 217, 0.28); }
+.studio-portfolio-forecast-footer button:disabled { cursor: not-allowed; opacity: 0.55; }
+.studio-portfolio-forecast-message {
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: rgba(109, 40, 217, 0.1);
+  color: #ede9fe;
+  font-size: 8px;
+}
+
+@media (max-width: 1100px) {
+  .studio-portfolio-forecast-trends,
+  .studio-portfolio-forecast-outcomes > div { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .studio-portfolio-forecast-scenarios > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .studio-portfolio-forecast { margin: 8px; padding: 12px; }
+  .studio-portfolio-forecast > header,
+  .studio-portfolio-forecast-footer { align-items: stretch; flex-direction: column; }
+  .studio-portfolio-forecast-trends,
+  .studio-portfolio-forecast-outcomes > div,
+  .studio-portfolio-forecast-scenarios > div { grid-template-columns: 1fr; }
+  .studio-portfolio-forecast-evidence { grid-template-columns: 1fr; }
+  .studio-portfolio-forecast-evidence small { grid-column: auto; }
+  .studio-portfolio-forecast-footer button { width: 100%; }
+}

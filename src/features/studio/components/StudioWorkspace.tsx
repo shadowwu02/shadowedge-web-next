@@ -18,6 +18,7 @@ import { StudioProjectRoadmapTimeline } from "@/features/studio/components/Studi
 import { StudioPortfolioStrategyCenter } from "@/features/studio/components/StudioPortfolioStrategyCenter";
 import { StudioPortfolioResourceCenter } from "@/features/studio/components/StudioPortfolioResourceCenter";
 import { StudioPortfolioPerformanceCenter } from "@/features/studio/components/StudioPortfolioPerformanceCenter";
+import { StudioPortfolioForecastCenter } from "@/features/studio/components/StudioPortfolioForecastCenter";
 import {
   STUDIO_CANVAS_STORAGE_KEY,
   useStudioStore,
@@ -56,6 +57,7 @@ export function StudioWorkspace() {
         <StudioPortfolioStrategyCenter />
         <StudioPortfolioResourceCenter />
         <StudioPortfolioPerformanceCenter />
+        <StudioPortfolioForecastCenter />
         <div className="studio-layout">
           <StudioAssetPanel />
           <StudioCanvas />
