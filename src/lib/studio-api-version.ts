@@ -11,6 +11,7 @@ export const STUDIO_API_FEATURES = [
   "project_initialization_assistant",
   "project_execution_concierge",
   "project_collaboration",
+  "collaboration_activity",
   "agent_canvas",
   "timeline",
   "storyboard",

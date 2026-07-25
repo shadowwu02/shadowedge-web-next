@@ -6463,6 +6463,20 @@
 .studio-project-members-form button:disabled { cursor: not-allowed; opacity: .45; }
 .studio-project-members p, .studio-project-members footer, .studio-project-members-empty { margin: 0; line-height: 1.45; }
 .studio-project-members-empty { padding: 9px; color: #94a3b8; font-size: 8px; }
+.studio-collaboration-center { display: grid; gap: 9px; margin-bottom: 10px; padding: 10px; border: 1px solid rgba(52, 211, 153, .2); border-radius: 12px; background: rgba(6, 78, 59, .08); }
+.studio-collaboration-center > header, .studio-collaboration-center > section > header, .studio-collaboration-center article > div { display: flex; align-items: center; justify-content: space-between; gap: 7px; }
+.studio-collaboration-center > header > div { display: grid; gap: 2px; }
+.studio-collaboration-center > header span, .studio-collaboration-center > section > header span { color: #6ee7b7; font-size: 7px; }
+.studio-collaboration-center > header strong, .studio-collaboration-center > section > header strong, .studio-collaboration-center article strong { color: #d1fae5; font-size: 9px; }
+.studio-collaboration-center > header b { color: #34d399; font-size: 8px; }
+.studio-collaboration-center > section { display: grid; gap: 5px; }
+.studio-collaboration-center article { display: grid; gap: 4px; padding: 7px; border: 1px solid rgba(52, 211, 153, .1); border-radius: 8px; background: rgba(15, 23, 42, .4); }
+.studio-collaboration-center article.is-unread { border-color: rgba(52, 211, 153, .35); }
+.studio-collaboration-center article.is-read { opacity: .65; }
+.studio-collaboration-center article time, .studio-collaboration-center article small, .studio-collaboration-center p, .studio-collaboration-center footer { color: #94a3b8; font-size: 7px; }
+.studio-collaboration-center article button { justify-self: start; border: 0; border-radius: 6px; padding: 4px 6px; background: rgba(16, 185, 129, .18); color: #6ee7b7; font-size: 7px; cursor: pointer; }
+.studio-collaboration-center article button:disabled { cursor: not-allowed; opacity: .45; }
+.studio-collaboration-center p, .studio-collaboration-center footer { margin: 0; line-height: 1.45; }
 
 .studio-context-panel .studio-project-command-center {
   margin: 0;

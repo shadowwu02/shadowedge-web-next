@@ -78,6 +78,11 @@ const StudioProjectMembersPanel = lazy(() =>
     (module) => ({ default: module.StudioProjectMembersPanel }),
   ),
 );
+const StudioCollaborationActivityCenter = lazy(() =>
+  import("@/features/studio/components/StudioCollaborationActivityCenter").then(
+    (module) => ({ default: module.StudioCollaborationActivityCenter }),
+  ),
+);
 const StudioProjectMemoryTimeline = lazy(() =>
   import("@/features/studio/components/StudioProjectMemoryTimeline").then((module) => ({
     default: module.StudioProjectMemoryTimeline,
@@ -449,6 +454,9 @@ export function StudioWorkspace() {
                   </StudioCapabilityBoundary>
                   <StudioCapabilityBoundary feature="project_collaboration" label="Project Members">
                     <StudioProjectMembersPanel projectId={projectId} />
+                  </StudioCapabilityBoundary>
+                  <StudioCapabilityBoundary feature="collaboration_activity" label="Collaboration Activity">
+                    <StudioCollaborationActivityCenter projectId={projectId} />
                   </StudioCapabilityBoundary>
                   <StudioCapabilityBoundary feature="copilot_center" label="Project Copilot Center">
                     <StudioProjectCopilotCommandCenter />
