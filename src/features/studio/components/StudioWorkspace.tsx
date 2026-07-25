@@ -73,6 +73,11 @@ const StudioProjectExecutionConcierge = lazy(() =>
     (module) => ({ default: module.StudioProjectExecutionConcierge }),
   ),
 );
+const StudioProjectMembersPanel = lazy(() =>
+  import("@/features/studio/components/StudioProjectMembersPanel").then(
+    (module) => ({ default: module.StudioProjectMembersPanel }),
+  ),
+);
 const StudioProjectMemoryTimeline = lazy(() =>
   import("@/features/studio/components/StudioProjectMemoryTimeline").then((module) => ({
     default: module.StudioProjectMemoryTimeline,
@@ -441,6 +446,9 @@ export function StudioWorkspace() {
                 <Suspense fallback={<StudioModuleLoading label="Copilot" />}>
                   <StudioCapabilityBoundary feature="project_execution_concierge" label="Project Copilot Assistant">
                     <StudioProjectExecutionConcierge projectId={projectId} />
+                  </StudioCapabilityBoundary>
+                  <StudioCapabilityBoundary feature="project_collaboration" label="Project Members">
+                    <StudioProjectMembersPanel projectId={projectId} />
                   </StudioCapabilityBoundary>
                   <StudioCapabilityBoundary feature="copilot_center" label="Project Copilot Center">
                     <StudioProjectCopilotCommandCenter />

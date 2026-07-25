@@ -6449,6 +6449,20 @@
 .studio-execution-concierge article.is-critical { border-color: rgba(248, 113, 113, .25); }
 .studio-execution-concierge-evidence { display: grid !important; gap: 2px !important; }
 .studio-execution-concierge-empty { padding: 9px; color: #94a3b8; font-size: 8px; }
+.studio-project-members { display: grid; gap: 8px; margin-bottom: 10px; padding: 10px; border: 1px solid rgba(167, 139, 250, .22); border-radius: 12px; background: rgba(76, 29, 149, .08); }
+.studio-project-members > header, .studio-project-members article > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.studio-project-members > header > div { display: grid; gap: 2px; }
+.studio-project-members > header span, .studio-project-members small, .studio-project-members p, .studio-project-members footer { color: #a78bfa; font-size: 7px; }
+.studio-project-members > header strong, .studio-project-members article strong { color: #ede9fe; font-size: 9px; }
+.studio-project-members > header b, .studio-project-members article b { color: #c4b5fd; font-size: 8px; }
+.studio-project-members-list { display: grid; gap: 5px; }
+.studio-project-members article { display: grid; gap: 3px; padding: 7px; border-radius: 8px; background: rgba(15, 23, 42, .4); }
+.studio-project-members-form { display: grid; grid-template-columns: 1fr auto; gap: 5px; }
+.studio-project-members-form input, .studio-project-members-form select { min-width: 0; border: 1px solid rgba(167, 139, 250, .25); border-radius: 7px; padding: 6px; background: rgba(15, 23, 42, .75); color: #ede9fe; font-size: 8px; }
+.studio-project-members-form button { grid-column: 1 / -1; border: 0; border-radius: 7px; padding: 6px; background: #7c3aed; color: white; font-size: 8px; cursor: pointer; }
+.studio-project-members-form button:disabled { cursor: not-allowed; opacity: .45; }
+.studio-project-members p, .studio-project-members footer, .studio-project-members-empty { margin: 0; line-height: 1.45; }
+.studio-project-members-empty { padding: 9px; color: #94a3b8; font-size: 8px; }
 
 .studio-context-panel .studio-project-command-center {
   margin: 0;

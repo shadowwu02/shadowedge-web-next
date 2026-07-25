@@ -10,6 +10,7 @@ export const STUDIO_API_FEATURES = [
   "creative_canvas_decision_learning",
   "project_initialization_assistant",
   "project_execution_concierge",
+  "project_collaboration",
   "agent_canvas",
   "timeline",
   "storyboard",
