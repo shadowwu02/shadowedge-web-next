@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { CanvasBoard } from "@/components/canvas/CanvasBoard";
 import { CanvasTemplatePanel, canvasTemplates } from "@/components/canvas/CanvasTemplatePanel";
 import type { CanvasNodeType, CanvasPosition, CanvasTemplateId, CanvasWorkflow } from "@/components/canvas/canvasTypes";
@@ -274,6 +275,15 @@ export function CanvasWorkspace() {
                 {t("canvas.noGeneration")}
               </span>
             </div>
+          </div>
+          <div className="mt-5 flex flex-col gap-3 rounded-[20px] border border-[#6fd7d7]/20 bg-[#6fd7d7]/8 px-4 py-3 text-sm text-[#d6d0c4]/72 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <strong className="block text-[#9be7e7]">Legacy Canvas · preserved</strong>
+              <span>This local workflow remains editable and is not automatically migrated into a project.</span>
+            </div>
+            <Link className="se-button-secondary shrink-0 justify-center rounded-2xl px-4 py-2 text-xs font-semibold" href="/studio?canvas=creative">
+              Open Studio Creative Canvas
+            </Link>
           </div>
         </section>
 

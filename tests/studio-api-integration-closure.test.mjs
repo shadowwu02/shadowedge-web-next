@@ -49,6 +49,7 @@ test("Studio gates every audited read-only module behind advertised capabilities
   ]) {
     assert.match(workspaceSource, new RegExp(`feature="${feature}"`));
   }
+  assert.match(canvasSource, /feature="creative_canvas"/);
   assert.match(canvasSource, /feature="agent_canvas"/);
 });
 

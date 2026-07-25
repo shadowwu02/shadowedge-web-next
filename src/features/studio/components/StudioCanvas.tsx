@@ -22,6 +22,7 @@ import { VideoEditNode } from "@/features/studio/nodes/VideoEditNode";
 import { MotionControlNode } from "@/features/studio/nodes/MotionControlNode";
 import { CameraControlNode } from "@/features/studio/nodes/CameraControlNode";
 import { StudioAgentCanvas } from "@/features/studio/components/StudioAgentCanvas";
+import { StudioCreativeCanvas } from "@/features/studio/components/StudioCreativeCanvas";
 import { StudioCapabilityBoundary } from "@/features/studio/components/StudioApiIntegration";
 import {
   getCurrentStudioSnapshot,
@@ -49,7 +50,7 @@ const nodeTypes = {
 } satisfies NodeTypes;
 
 export function StudioCanvas() {
-  const [canvasView, setCanvasView] = useState<"workflow" | "agent">("workflow");
+  const [canvasView, setCanvasView] = useState<"creative" | "workflow" | "agent">("creative");
   const nodes = useStudioStore((state) => state.nodes);
   const edges = useStudioStore((state) => state.edges);
   const viewport = useStudioStore((state) => state.viewport);
@@ -68,15 +69,24 @@ export function StudioCanvas() {
     <section className="studio-canvas-panel" aria-label="Studio workflow canvas">
       <div className="studio-canvas-heading">
         <div>
-          <p>{canvasView === "workflow" ? "Workflow Canvas" : "Agent Canvas"}</p>
-          <span>{canvasView === "workflow" ? "Drag nodes, connect handles, and shape the generation flow." : "Goals, strategy, agents, tasks, execution, and results in one read-only view."}</span>
+          <p>{canvasView === "creative" ? "Creative Operating Canvas" : canvasView === "workflow" ? "Workflow Draft" : "Agent Draft Tools"}</p>
+          <span>
+            {canvasView === "creative"
+              ? "Goals, agents, scenes, shots, execution, outputs, assets, and delivery in one read-only graph."
+              : canvasView === "workflow"
+                ? "Legacy-compatible editable workflow draft. It remains separate from confirmed execution."
+                : "Existing Agent draft actions and execution previews remain available behind their confirmation gates."}
+          </span>
         </div>
         <div className="studio-canvas-view-switcher" aria-label="Canvas view">
-          <button className={canvasView === "workflow" ? "is-active" : ""} onClick={() => setCanvasView("workflow")} type="button">Workflow</button>
-          <button className={canvasView === "agent" ? "is-active" : ""} onClick={() => setCanvasView("agent")} type="button">Agent Canvas</button>
+          <button className={canvasView === "creative" ? "is-active" : ""} onClick={() => setCanvasView("creative")} type="button">Creative Canvas</button>
+          <button className={canvasView === "workflow" ? "is-active" : ""} onClick={() => setCanvasView("workflow")} type="button">Workflow Draft</button>
+          <button className={canvasView === "agent" ? "is-active" : ""} onClick={() => setCanvasView("agent")} type="button">Agent Tools</button>
           <span className="studio-local-badge">
-            {canvasView === "agent"
-              ? "Read-only projection"
+            {canvasView === "creative"
+              ? "Unified read model"
+              : canvasView === "agent"
+                ? "Draft compatibility"
               : loadingProject
                 ? "Loading cloud project"
                 : projectId
@@ -88,7 +98,11 @@ export function StudioCanvas() {
         </div>
       </div>
 
-      {canvasView === "agent" ? (
+      {canvasView === "creative" ? (
+        <StudioCapabilityBoundary feature="creative_canvas" label="Creative Canvas">
+          <StudioCreativeCanvas projectId={projectId} />
+        </StudioCapabilityBoundary>
+      ) : canvasView === "agent" ? (
         <StudioCapabilityBoundary feature="agent_canvas" label="Agent Canvas">
           <StudioAgentCanvas projectId={projectId} />
         </StudioCapabilityBoundary>
