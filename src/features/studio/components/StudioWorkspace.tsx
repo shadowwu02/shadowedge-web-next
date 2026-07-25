@@ -15,6 +15,7 @@ import { StudioCreativeProjectIntelligenceDashboard } from "@/features/studio/co
 import { StudioProjectCopilotCommandCenter } from "@/features/studio/components/StudioProjectCopilotCommandCenter";
 import { StudioProjectMemoryTimeline } from "@/features/studio/components/StudioProjectMemoryTimeline";
 import { StudioProjectRoadmapTimeline } from "@/features/studio/components/StudioProjectRoadmapTimeline";
+import { StudioPortfolioStrategyCenter } from "@/features/studio/components/StudioPortfolioStrategyCenter";
 import {
   STUDIO_CANVAS_STORAGE_KEY,
   useStudioStore,
@@ -50,6 +51,7 @@ export function StudioWorkspace() {
         <StudioProjectCopilotCommandCenter />
         <StudioProjectMemoryTimeline />
         <StudioProjectRoadmapTimeline />
+        <StudioPortfolioStrategyCenter />
         <div className="studio-layout">
           <StudioAssetPanel />
           <StudioCanvas />

@@ -5081,3 +5081,172 @@
   .studio-project-roadmap-footer { align-items: stretch; flex-direction: column; }
   .studio-project-roadmap-footer button { width: 100%; }
 }
+
+.studio-portfolio-strategy {
+  display: grid;
+  gap: 12px;
+  margin: 12px;
+  padding: 16px;
+  border: 1px solid rgba(167, 139, 250, 0.2);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 85% 0%, rgba(124, 58, 237, 0.13), transparent 34%),
+    linear-gradient(145deg, rgba(30, 41, 59, 0.25), transparent 58%),
+    rgba(8, 15, 29, 0.96);
+}
+.studio-portfolio-strategy > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.studio-portfolio-strategy > header > div:first-child { display: grid; gap: 4px; }
+.studio-portfolio-strategy > header > div:first-child > span {
+  color: #a78bfa;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+.studio-portfolio-strategy h2 { margin: 0; color: #f8fafc; font-size: 19px; }
+.studio-portfolio-strategy > header p { max-width: 720px; margin: 0; color: #94a3b8; font-size: 10px; line-height: 1.5; }
+.studio-portfolio-strategy-confidence {
+  display: grid;
+  place-items: center;
+  min-width: 116px;
+  padding: 10px 14px;
+  border: 1px solid rgba(167, 139, 250, 0.22);
+  border-radius: 12px;
+  background: rgba(76, 29, 149, 0.11);
+}
+.studio-portfolio-strategy-confidence strong { color: #c4b5fd; font-size: 15px; }
+.studio-portfolio-strategy-confidence span { color: #a78bfa; font-size: 7px; }
+.studio-portfolio-strategy-confidence small { color: #64748b; font-size: 6px; }
+.studio-portfolio-strategy-confidence.is-high { border-color: rgba(52, 211, 153, 0.24); }
+.studio-portfolio-strategy-confidence.is-high strong { color: #6ee7b7; }
+.studio-portfolio-strategy-empty {
+  display: grid;
+  gap: 3px;
+  min-height: 82px;
+  place-content: center;
+  border: 1px dashed rgba(167, 139, 250, 0.22);
+  border-radius: 12px;
+  color: #94a3b8;
+  font-size: 10px;
+  text-align: center;
+}
+.studio-portfolio-strategy-vision {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(167, 139, 250, 0.13);
+  border-radius: 11px;
+  background: rgba(15, 23, 42, 0.5);
+}
+.studio-portfolio-strategy-vision > div { display: flex; flex-wrap: wrap; gap: 5px; }
+.studio-portfolio-strategy-vision > div:first-child { display: grid; gap: 2px; }
+.studio-portfolio-strategy-vision span { color: #a78bfa; font-size: 7px; }
+.studio-portfolio-strategy-vision strong { color: #e2e8f0; font-size: 10px; }
+.studio-portfolio-strategy-vision > div:last-child span,
+.studio-portfolio-strategy-projects footer span,
+.studio-portfolio-strategy > footer span {
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: rgba(124, 58, 237, 0.1);
+}
+.studio-portfolio-strategy-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.studio-portfolio-strategy-grid > section,
+.studio-portfolio-strategy-recommendations {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.09);
+  border-radius: 11px;
+  background: rgba(15, 23, 42, 0.42);
+}
+.studio-portfolio-strategy-grid section > header,
+.studio-portfolio-strategy-recommendations > header,
+.studio-portfolio-strategy-projects article > header,
+.studio-portfolio-strategy-relationships article > header,
+.studio-portfolio-strategy-recommendations article > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.studio-portfolio-strategy-grid section > header strong,
+.studio-portfolio-strategy-recommendations > header strong { color: #e2e8f0; font-size: 9px; }
+.studio-portfolio-strategy-grid section > header span,
+.studio-portfolio-strategy-recommendations > header span { color: #a78bfa; font-size: 7px; }
+.studio-portfolio-strategy-projects,
+.studio-portfolio-strategy-relationships { display: grid; gap: 5px; max-height: 240px; overflow-y: auto; }
+.studio-portfolio-strategy-projects article,
+.studio-portfolio-strategy-relationships article,
+.studio-portfolio-strategy-recommendations article {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.4);
+}
+.studio-portfolio-strategy-projects article strong,
+.studio-portfolio-strategy-relationships article strong,
+.studio-portfolio-strategy-recommendations article strong { color: #c4b5fd; font-size: 8px; }
+.studio-portfolio-strategy-projects article header span,
+.studio-portfolio-strategy-relationships article header span,
+.studio-portfolio-strategy-recommendations article header span { color: #a78bfa; font-size: 7px; }
+.studio-portfolio-strategy-projects p,
+.studio-portfolio-strategy-relationships p,
+.studio-portfolio-strategy-recommendations p { margin: 0; color: #cbd5e1; font-size: 8px; line-height: 1.4; }
+.studio-portfolio-strategy-projects small,
+.studio-portfolio-strategy-relationships small,
+.studio-portfolio-strategy-recommendations small { color: #64748b; font-size: 6px; }
+.studio-portfolio-strategy-projects footer,
+.studio-portfolio-strategy-grid > section > footer { display: flex; flex-wrap: wrap; gap: 4px; }
+.studio-portfolio-strategy-projects footer span,
+.studio-portfolio-strategy-grid > section > footer span { color: #a78bfa; font-size: 6px; }
+.studio-portfolio-strategy-recommendations > div { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.studio-portfolio-strategy-preview {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px dashed rgba(167, 139, 250, 0.28);
+  border-radius: 9px;
+}
+.studio-portfolio-strategy-preview strong { color: #c4b5fd; font-size: 8px; }
+.studio-portfolio-strategy-preview span { color: #cbd5e1; font-size: 7px; }
+.studio-portfolio-strategy-preview small { color: #64748b; font-size: 6px; }
+.studio-portfolio-strategy-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.studio-portfolio-strategy-footer > div { display: flex; flex-wrap: wrap; gap: 5px; }
+.studio-portfolio-strategy-footer span { color: #7c8ba1; font-size: 7px; }
+.studio-portfolio-strategy-footer button {
+  min-width: 176px;
+  padding: 8px 11px;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  border-radius: 8px;
+  background: rgba(109, 40, 217, 0.16);
+  color: #ddd6fe;
+  cursor: pointer;
+  font-size: 8px;
+  font-weight: 700;
+}
+.studio-portfolio-strategy-footer button:hover:not(:disabled) { background: rgba(109, 40, 217, 0.27); }
+.studio-portfolio-strategy-footer button:disabled { cursor: not-allowed; opacity: 0.55; }
+.studio-portfolio-strategy-message { padding: 7px 9px; border-radius: 8px; background: rgba(124, 58, 237, 0.09); color: #ddd6fe; font-size: 8px; }
+
+@media (max-width: 980px) {
+  .studio-portfolio-strategy-grid { grid-template-columns: 1fr; }
+  .studio-portfolio-strategy-recommendations > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .studio-portfolio-strategy { margin: 8px; padding: 12px; }
+  .studio-portfolio-strategy > header,
+  .studio-portfolio-strategy-vision,
+  .studio-portfolio-strategy-footer { align-items: stretch; flex-direction: column; }
+  .studio-portfolio-strategy-recommendations > div { grid-template-columns: 1fr; }
+  .studio-portfolio-strategy-footer button { width: 100%; }
+}
