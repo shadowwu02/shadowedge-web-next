@@ -6426,6 +6426,30 @@
   line-height: 1.5;
 }
 
+.studio-execution-concierge { display: grid; gap: 8px; margin-bottom: 10px; padding: 10px; border: 1px solid rgba(34, 211, 238, .2); border-radius: 12px; background: linear-gradient(145deg, rgba(8, 145, 178, .1), rgba(15, 23, 42, .65)); }
+.studio-execution-concierge > header, .studio-execution-concierge > section > header { display: flex; align-items: center; justify-content: space-between; gap: 7px; }
+.studio-execution-concierge > header > div { display: grid; gap: 2px; }
+.studio-execution-concierge > header span { color: #67e8f9; font-size: 7px; letter-spacing: .06em; }
+.studio-execution-concierge > header strong { color: #ecfeff; font-size: 11px; }
+.studio-execution-concierge > header > b { color: #22d3ee; font-size: 14px; }
+.studio-execution-concierge-stage { display: grid; grid-template-columns: 1fr auto; gap: 3px 7px; padding: 8px; border-radius: 8px; background: rgba(8, 145, 178, .08); }
+.studio-execution-concierge-stage span, .studio-execution-concierge-stage small { color: #67e8f9; font-size: 7px; }
+.studio-execution-concierge-stage strong { color: #cffafe; font-size: 10px; }
+.studio-execution-concierge-stage small { grid-column: 1 / -1; }
+.studio-execution-concierge-blocks { display: flex; flex-wrap: wrap; gap: 4px; }
+.studio-execution-concierge-blocks span { padding: 4px 6px; border-radius: 999px; background: rgba(239, 68, 68, .1); color: #fca5a5; font-size: 7px; }
+.studio-execution-concierge > section { display: grid; gap: 5px; }
+.studio-execution-concierge > section > header strong { color: #cffafe; font-size: 9px; }
+.studio-execution-concierge > section > header span { color: #67e8f9; font-size: 7px; }
+.studio-execution-concierge article { display: grid; gap: 4px; padding: 7px; border: 1px solid rgba(34, 211, 238, .1); border-radius: 8px; background: rgba(15, 23, 42, .36); }
+.studio-execution-concierge article > div, .studio-execution-concierge article > footer { display: flex; justify-content: space-between; gap: 6px; }
+.studio-execution-concierge article strong { color: #e0f2fe; font-size: 8px; }
+.studio-execution-concierge article b, .studio-execution-concierge article span { color: #67e8f9; font-size: 7px; }
+.studio-execution-concierge article p, .studio-execution-concierge article small, .studio-execution-concierge > p, .studio-execution-concierge > footer { margin: 0; color: #94a3b8; font-size: 7px; line-height: 1.45; }
+.studio-execution-concierge article.is-critical { border-color: rgba(248, 113, 113, .25); }
+.studio-execution-concierge-evidence { display: grid !important; gap: 2px !important; }
+.studio-execution-concierge-empty { padding: 9px; color: #94a3b8; font-size: 8px; }
+
 .studio-context-panel .studio-project-command-center {
   margin: 0;
   padding: 11px;
