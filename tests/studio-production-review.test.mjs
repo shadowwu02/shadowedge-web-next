@@ -35,7 +35,7 @@ test("Production Review and Shot Review schemas preserve result-only references"
   ]) {
     assert.match(schema, new RegExp(`${field}:`));
   }
-  for (const status of ["PENDING", "IN_REVIEW", "APPROVED", "REJECTED"]) {
+  for (const status of ["PENDING", "IN_REVIEW", "APPROVED", "REJECTED", "FAILED", "EXPIRED"]) {
     assert.match(schema, new RegExp(`"${status}"`));
   }
   assert.match(schema, /automaticPublish: false/);
@@ -48,6 +48,9 @@ test("Production Review API reads a session and requires explicit approve confir
   assert.match(api, /\/approve/);
   assert.match(api, /method: "POST"/);
   assert.match(api, /JSON\.stringify\(\{ confirm: true \}\)/);
+  assert.match(api, /10_000/);
+  assert.match(api, /Production Review request timed out/);
+  assert.match(api, /productionRunId/);
   assert.doesNotMatch(api, /publish|replaceAsset|regenerate|execute|deductCredits/);
 });
 

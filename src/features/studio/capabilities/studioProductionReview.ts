@@ -2,7 +2,9 @@ export type StudioProductionReviewStatus =
   | "PENDING"
   | "IN_REVIEW"
   | "APPROVED"
-  | "REJECTED";
+  | "REJECTED"
+  | "FAILED"
+  | "EXPIRED";
 
 export type StudioProductionReviewGateStatus = "PASS" | "WARNING" | "BLOCKED";
 
@@ -62,6 +64,8 @@ export type StudioProductionReview = Readonly<{
   createdAt: string;
   approvedAt: string | null;
   approvedBy: string | null;
+  expiredAt?: string | null;
+  failure?: Readonly<{ code: string; message: string }> | null;
   controlBoundary: Readonly<{
     previewThenConfirm: true;
     humanApprovalRequired: true;

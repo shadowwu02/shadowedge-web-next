@@ -103,11 +103,16 @@ export function StudioStoryboardPanel({
   const [productionRuntimeError, setProductionRuntimeError] = useState("");
   const [productionReviewState, setProductionReviewState] = useState<{
     projectId: string;
+    productionRunId: string;
     value: StudioProductionReview;
   } | null>(null);
   const [productionReviewError, setProductionReviewError] = useState("");
+  const [productionReviewLoadStatus, setProductionReviewLoadStatus] = useState<
+    "IDLE" | "PENDING" | "READY" | "FAILED"
+  >("IDLE");
   const [productionDeliveryState, setProductionDeliveryState] = useState<{
     projectId: string;
+    reviewId: string;
     value: StudioProductionDeliveryCollection;
   } | null>(null);
   const [productionDeliveryError, setProductionDeliveryError] = useState("");
@@ -243,10 +248,12 @@ export function StudioStoryboardPanel({
   const activeProductionRuntime = productionRuntimeState?.projectId === projectId
     ? productionRuntimeState.value
     : null;
-  const activeProductionReview = productionReviewState?.projectId === projectId
+  const activeProductionReview = productionReviewState?.projectId === projectId &&
+    productionReviewState.productionRunId === activeProductionRuntime?.handoff.runId
     ? productionReviewState.value
     : null;
-  const activeProductionDelivery = productionDeliveryState?.projectId === projectId
+  const activeProductionDelivery = productionDeliveryState?.projectId === projectId &&
+    productionDeliveryState.reviewId === activeProductionReview?.reviewId
     ? productionDeliveryState.value
     : null;
   const latestDeliveryPackage = activeProductionDelivery?.packages[0] || null;
@@ -292,27 +299,52 @@ export function StudioStoryboardPanel({
   useEffect(() => {
     if (!projectId || activeProductionRuntime?.tracking.status !== "COMPLETED") return;
     const controller = new AbortController();
-    void getStudioProductionReview(projectId, controller.signal)
-      .then((value) => {
-        setProductionReviewState({ projectId, value });
+    void Promise.resolve().then(async () => {
+      if (controller.signal.aborted) return;
+      setProductionReviewLoadStatus("PENDING");
+      setProductionReviewError("");
+      try {
+        const value = await getStudioProductionReview(
+          projectId,
+          controller.signal,
+          activeProductionRuntime.handoff.runId,
+        );
+        if (controller.signal.aborted) return;
+        setProductionReviewState({
+          projectId,
+          productionRunId: activeProductionRuntime.handoff.runId,
+          value,
+        });
         setProductionReviewError("");
-      })
-      .catch((reason: unknown) => {
+        setProductionReviewLoadStatus("READY");
+      } catch (reason: unknown) {
         if (!controller.signal.aborted) {
           setProductionReviewError(
-          reason instanceof Error ? reason.message : t("studio.review.error.unavailable"),
+            reason instanceof Error ? reason.message : t("studio.review.error.unavailable"),
           );
+          setProductionReviewLoadStatus("FAILED");
         }
-      });
+      }
+    });
     return () => controller.abort();
-  }, [activeProductionRuntime?.tracking.status, activeProductionRuntime?.tracking.trackingId, projectId, t]);
+  }, [
+    activeProductionRuntime?.handoff.runId,
+    activeProductionRuntime?.tracking.status,
+    activeProductionRuntime?.tracking.trackingId,
+    projectId,
+    t,
+  ]);
 
   useEffect(() => {
     if (!projectId || activeProductionReview?.status !== "APPROVED") return;
     const controller = new AbortController();
     void getStudioProductionDeliveryPackages(projectId, controller.signal)
       .then((value) => {
-        setProductionDeliveryState({ projectId, value });
+        setProductionDeliveryState({
+          projectId,
+          reviewId: activeProductionReview.reviewId,
+          value,
+        });
         setProductionDeliveryError("");
       })
       .catch((reason: unknown) => {
@@ -602,7 +634,11 @@ export function StudioStoryboardPanel({
     setMessage("");
     try {
       const value = await approveStudioProductionReview(projectId, activeProductionReview.reviewId);
-      setProductionReviewState({ projectId, value });
+      setProductionReviewState({
+        projectId,
+        productionRunId: activeProductionReview.productionRunId,
+        value,
+      });
       setMessage(
         t("studio.review.message.approved"),
       );
@@ -630,6 +666,7 @@ export function StudioStoryboardPanel({
         .map((value) => Number(value));
       setProductionDeliveryState({
         projectId,
+        reviewId: activeProductionReview.reviewId,
         value: {
           projectId,
           productionId: deliveryPackage.productionId,
@@ -1351,9 +1388,9 @@ export function StudioStoryboardPanel({
                   <small>{t("studio.review.boundary")}</small>
                 </>
               ) : activeProductionRuntime?.tracking.status === "COMPLETED" ? (
-                productionReviewError ? (
+                productionReviewLoadStatus === "FAILED" || productionReviewError ? (
                   <>
-                    <strong>{t("studio.review.unavailable")}</strong>
+                    <strong>FAILED · {t("studio.review.unavailable")}</strong>
                     <p>{productionReviewError}</p>
                   </>
                 ) : (
