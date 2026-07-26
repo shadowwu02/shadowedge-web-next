@@ -16,7 +16,10 @@ test("recommended Canvas entry points converge on Studio Creative Canvas", () =>
   assert.match(appShell, /label: t\("nav\.canvas"\), href: CREATIVE_CANVAS_ENTRY/);
   assert.doesNotMatch(appShell, /href: "\/workspace\/canvas"/);
   assert.doesNotMatch(homePage, /href[:=]\s*["']\/workspace\/canvas/);
-  assert.match(studioWorkspace, /useState<StudioWorkspaceModule>\("canvas"\)/);
+  assert.match(
+    studioWorkspace,
+    /useState<StudioWorkspaceModule>\(\(\) => \{[\s\S]*?: "canvas";[\s\S]*?\}\)/,
+  );
 });
 
 test("legacy Canvas remains available with a clear migration banner", () => {

@@ -10,6 +10,14 @@ const recovery = fs.readFileSync(
   "src/lib/studio-creative-canvas-draft-recovery.ts",
   "utf8",
 );
+const canvas = fs.readFileSync(
+  "src/features/studio/components/StudioCanvas.tsx",
+  "utf8",
+);
+const workspace = fs.readFileSync(
+  "src/features/studio/components/StudioWorkspace.tsx",
+  "utf8",
+);
 
 test("Studio restores the active project Draft through the existing read APIs", () => {
   assert.match(component, /getActiveStudioCreativeCanvasDraft\(projectId\)/);
@@ -46,4 +54,29 @@ test("terminal Draft states cannot cross the human confirmation boundary", () =>
     recovery + component,
     /executeNode|generateVideo|submitProvider|deductCredits|chargeCredits|startQueue|createJob/,
   );
+});
+
+test("new-tab recovery waits for auth, project graph, and Canvas capability readiness", () => {
+  assert.match(workspace, /StudioCanvas authReady=\{!authLoading && isSignedIn\}/);
+  assert.match(canvas, /StudioCreativeCanvas authReady=\{authReady\} projectId=\{projectId\}/);
+  assert.match(component, /if \(!projectId \|\| !authReady\) return/);
+  assert.match(
+    component,
+    /if \(!authReady \|\| !projectId \|\| loadState\.projectId !== projectId \|\| !loadState\.graph\) return/,
+  );
+  assert.match(component, /if \(availability !== "READY"\)/);
+});
+
+test("recovery uses bounded transport retry without repeating Draft creation", () => {
+  const recoveryEffectStart = component.indexOf("void recoverStudioCreativeCanvasDraft");
+  const recoveryEffectEnd = component.indexOf("return () =>", recoveryEffectStart);
+  const recoveryEffect = component.slice(recoveryEffectStart, recoveryEffectEnd);
+  assert.match(component, /recoverStudioCreativeCanvasDraft/);
+  assert.match(recovery, /maxAttempts \?\? 3/);
+  assert.match(recovery, /reason instanceof ApiError && reason\.kind === "network"/);
+  assert.match(recovery, /timeoutMs \?\? 8_000/);
+  assert.match(recoveryEffect, /getStudioCreativeCanvasPlan/);
+  assert.match(recoveryEffect, /getStudioCreativeCanvasOptimization/);
+  assert.match(recoveryEffect, /getStudioCreativeCanvasEditSession/);
+  assert.doesNotMatch(recoveryEffect, /createStudioCreativeCanvasPlan\(/);
 });

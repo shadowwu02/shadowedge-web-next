@@ -2,11 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearAuthSession } from "@/lib/auth";
 import {
   STUDIO_CREATIVE_CANVAS_ACTIVE_DRAFTS_STORAGE_KEY,
+  canvasDraftRecoveryErrorMessage,
   clearActiveStudioCreativeCanvasDraft,
   getActiveStudioCreativeCanvasDraft,
+  recoverStudioCreativeCanvasDraft,
   saveActiveStudioCreativeCanvasDraft,
   type StudioCreativeCanvasActiveDraft,
 } from "@/lib/studio-creative-canvas-draft-recovery";
+import { ApiError } from "@/types/api";
 
 class MemoryStorage implements Storage {
   private values = new Map<string, string>();
@@ -88,5 +91,57 @@ describe("Creative Canvas active Draft recovery", () => {
     expect(clearActiveStudioCreativeCanvasDraft("project-1")).toBe(true);
     expect(getActiveStudioCreativeCanvasDraft("project-1")).toBeNull();
     expect(getActiveStudioCreativeCanvasDraft("project-2")?.draftId).toBe("edit-2");
+  });
+
+  it("recovers a new-tab Draft after bounded temporary network failures", async () => {
+    const operation = vi.fn()
+      .mockRejectedValueOnce(new ApiError("Network request failed.", { kind: "network" }))
+      .mockRejectedValueOnce(new ApiError("Network request failed.", { kind: "network" }))
+      .mockResolvedValue({ draftId: "plan-draft-1", status: "REVIEW" });
+    const wait = vi.fn(async () => undefined);
+
+    await expect(recoverStudioCreativeCanvasDraft(operation, {
+      maxAttempts: 3,
+      timeoutMs: 0,
+      retryDelaysMs: [10, 20],
+      wait,
+    })).resolves.toEqual({ draftId: "plan-draft-1", status: "REVIEW" });
+    expect(operation).toHaveBeenCalledTimes(3);
+    expect(wait).toHaveBeenNthCalledWith(1, 10, undefined);
+    expect(wait).toHaveBeenNthCalledWith(2, 20, undefined);
+  });
+
+  it("does not retry permission failures", async () => {
+    const permissionFailure = new ApiError("Project access denied.", {
+      kind: "auth",
+      status: 403,
+    });
+    const operation = vi.fn().mockRejectedValue(permissionFailure);
+
+    await expect(recoverStudioCreativeCanvasDraft(operation, {
+      maxAttempts: 3,
+      timeoutMs: 0,
+      wait: vi.fn(async () => undefined),
+    })).rejects.toBe(permissionFailure);
+    expect(operation).toHaveBeenCalledTimes(1);
+    expect(canvasDraftRecoveryErrorMessage(permissionFailure)).toBe("Project access denied.");
+  });
+
+  it("cancels recovery when the auth/project lifecycle aborts", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const operation = vi.fn();
+
+    await expect(recoverStudioCreativeCanvasDraft(operation, {
+      signal: controller.signal,
+      timeoutMs: 0,
+    })).rejects.toMatchObject({ name: "AbortError" });
+    expect(operation).not.toHaveBeenCalled();
+  });
+
+  it("shows a friendly retry message only after transient recovery failure", () => {
+    expect(canvasDraftRecoveryErrorMessage(
+      new ApiError("Network request failed.", { kind: "network" }),
+    )).toContain("temporary network problem");
   });
 });

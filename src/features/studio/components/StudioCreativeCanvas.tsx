@@ -64,8 +64,10 @@ import {
 } from "@/lib/studio-creative-canvas-api";
 import {
   STUDIO_CREATIVE_CANVAS_ACTIVE_DRAFTS_STORAGE_KEY,
+  canvasDraftRecoveryErrorMessage,
   clearActiveStudioCreativeCanvasDraft,
   getActiveStudioCreativeCanvasDraft,
+  recoverStudioCreativeCanvasDraft,
   saveActiveStudioCreativeCanvasDraft,
   type StudioCreativeCanvasActiveDraft,
   type StudioCreativeCanvasDraftType,
@@ -195,7 +197,13 @@ function changeLabel(change: StudioCreativeCanvasGraphChange) {
   }
 }
 
-export function StudioCreativeCanvas({ projectId }: { projectId: string | null }) {
+export function StudioCreativeCanvas({
+  projectId,
+  authReady = true,
+}: {
+  projectId: string | null;
+  authReady?: boolean;
+}) {
   const { featureStatus } = useStudioApiIntegration();
   const editingAvailability = featureStatus("creative_canvas_editing");
   const planningAvailability = featureStatus("creative_canvas_auto_planning");
@@ -240,7 +248,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
   const [actionState, setActionState] = useState<{ busy: boolean; message: string }>({ busy: false, message: "" });
 
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId || !authReady) return;
     const controller = new AbortController();
     void getStudioCreativeCanvas(projectId, controller.signal)
       .then((value) => {
@@ -272,7 +280,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
         });
       });
     return () => controller.abort();
-  }, [projectId]);
+  }, [authReady, projectId]);
 
   useEffect(() => {
     const handleDraftStorage = (event: StorageEvent) => {
@@ -289,7 +297,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
   }, [projectId]);
 
   useEffect(() => {
-    if (!projectId || loadState.projectId !== projectId || !loadState.graph) return;
+    if (!authReady || !projectId || loadState.projectId !== projectId || !loadState.graph) return;
     const storedDraft = getActiveStudioCreativeCanvasDraft(projectId);
     if (!storedDraft) return;
 
@@ -320,7 +328,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
       setDraftRecovery({ status: "RESTORING", message: "Restoring the saved Draft Preview…" });
     }, 0);
 
-    void (async () => {
+    void recoverStudioCreativeCanvasDraft(async (attemptSignal) => {
       let nextPlannedDraft: StudioAIPlannedCanvasDraft | null = null;
       let nextOptimizedDraft: StudioAIOptimizedCanvasDraft | null = null;
       let editSessionId = storedDraft.editSessionId;
@@ -329,14 +337,14 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
         nextPlannedDraft = await getStudioCreativeCanvasPlan(
           projectId,
           storedDraft.draftId,
-          controller.signal,
+          attemptSignal,
         );
         editSessionId = nextPlannedDraft.editSession.sessionId;
       } else if (storedDraft.draftType === "AI_OPTIMIZATION") {
         nextOptimizedDraft = await getStudioCreativeCanvasOptimization(
           projectId,
           storedDraft.draftId,
-          controller.signal,
+          attemptSignal,
         );
         editSessionId = nextOptimizedDraft.editSession.sessionId;
       }
@@ -344,10 +352,10 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
       const nextSession = await getStudioCreativeCanvasEditSession(
         projectId,
         editSessionId,
-        controller.signal,
+        attemptSignal,
       );
       return { nextOptimizedDraft, nextPlannedDraft, nextSession };
-    })()
+    }, { signal: controller.signal })
       .then(({ nextOptimizedDraft, nextPlannedDraft, nextSession }) => {
         if (controller.signal.aborted) return;
         const currentPointer = getActiveStudioCreativeCanvasDraft(projectId);
@@ -385,9 +393,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
         if (controller.signal.aborted) return;
         setDraftRecovery({
           status: "UNAVAILABLE",
-          message: reason instanceof Error
-            ? reason.message
-            : "The saved Canvas Draft could not be restored.",
+          message: canvasDraftRecoveryErrorMessage(reason),
         });
       });
 
@@ -399,6 +405,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
       }
     };
   }, [
+    authReady,
     draftRestoreVersion,
     editingAvailability,
     loadState.graph,

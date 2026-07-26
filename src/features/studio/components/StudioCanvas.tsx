@@ -50,7 +50,7 @@ const nodeTypes = {
   output: OutputNode,
 } satisfies NodeTypes;
 
-export function StudioCanvas() {
+export function StudioCanvas({ authReady = true }: { authReady?: boolean }) {
   const [canvasView, setCanvasView] = useState<"creative" | "workflow" | "agent">("creative");
   const nodes = useStudioStore((state) => state.nodes);
   const edges = useStudioStore((state) => state.edges);
@@ -101,7 +101,11 @@ export function StudioCanvas() {
 
       {canvasView === "creative" ? (
         <StudioCapabilityBoundary feature="creative_canvas" label="Creative Canvas">
-          {projectId ? <StudioCreativeCanvas projectId={projectId} /> : <StudioProjectInitializationAssistant />}
+          {projectId ? (
+            <StudioCreativeCanvas authReady={authReady} projectId={projectId} />
+          ) : (
+            <StudioProjectInitializationAssistant />
+          )}
         </StudioCapabilityBoundary>
       ) : canvasView === "agent" ? (
         <StudioCapabilityBoundary feature="agent_canvas" label="Agent Canvas">

@@ -368,7 +368,7 @@ export function StudioWorkspace() {
             ) : null}
             <div className="studio-layout studio-workspace-canvas-layout">
               <StudioAssetPanel />
-              <StudioCanvas />
+              <StudioCanvas authReady={!authLoading && isSignedIn} />
               <div className="studio-runtime-sidebar">
                 <NodeInspector />
                 <StudioRunHistoryPanel />

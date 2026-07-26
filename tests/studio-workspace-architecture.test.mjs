@@ -29,7 +29,10 @@ test("Studio has one project workspace with the complete module navigation", () 
   ]) {
     assert.match(workspace, new RegExp(`label: "${moduleName}"`));
   }
-  assert.match(workspace, /useState<StudioWorkspaceModule>\("canvas"\)/);
+  assert.match(
+    workspace,
+    /useState<StudioWorkspaceModule>\(\(\) => \{[\s\S]*?: "canvas";[\s\S]*?\}\)/,
+  );
   assert.match(workspace, /studio-project-header/);
   assert.match(workspace, /studio-main-workspace/);
   assert.match(workspace, /Copilot Context Panel/);
