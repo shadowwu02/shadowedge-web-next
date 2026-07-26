@@ -15,10 +15,11 @@ test("Agent Canvas UI renders the seven read-only project graph node types", () 
 });
 
 test("Studio preserves Workflow Draft and Agent tools behind the unified Creative Canvas", () => {
-  const canvas = fs.readFileSync("src/features/studio/components/StudioCanvas.tsx", "utf8");
-  assert.match(canvas, />Creative Canvas</);
-  assert.match(canvas, />Workflow Draft</);
-  assert.match(canvas, />Agent Tools</);
+  const canvas = fs.readFileSync("src/features/studio/components/StudioCanvas.tsx", "utf8")
+    + fs.readFileSync("src/i18n/dictionary.ts", "utf8");
+  assert.match(canvas, /studio\.canvas\.switch\.creative/);
+  assert.match(canvas, /studio\.canvas\.switch\.workflow/);
+  assert.match(canvas, /studio\.canvas\.switch\.agent/);
   assert.match(canvas, /<StudioAgentCanvas projectId=\{projectId\}/);
   assert.match(canvas, /<ReactFlow<StudioNode, StudioEdge>/);
 });

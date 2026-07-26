@@ -13,7 +13,7 @@ const api = fs.readFileSync(
 const panel = fs.readFileSync(
   "src/features/studio/components/StudioStoryboardPanel.tsx",
   "utf8",
-);
+) + fs.readFileSync("src/i18n/productPhase2Dictionary.ts", "utf8");
 
 test("Production Runtime Handoff and Tracking schemas expose existing Runtime mapping", () => {
   for (const field of [

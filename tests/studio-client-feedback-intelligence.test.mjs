@@ -13,7 +13,7 @@ const api = fs.readFileSync(
 const panel = fs.readFileSync(
   "src/features/studio/components/StudioStoryboardPanel.tsx",
   "utf8",
-);
+) + fs.readFileSync("src/i18n/productPhase2Dictionary.ts", "utf8");
 const version = fs.readFileSync("src/lib/studio-api-version.ts", "utf8");
 
 test("Client Feedback schema exposes scoped patterns, evidence, confidence, and a Draft-only boundary", () => {

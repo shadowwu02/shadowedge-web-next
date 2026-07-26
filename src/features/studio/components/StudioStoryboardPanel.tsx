@@ -26,6 +26,7 @@ import type { StudioRevisionRunPlan } from "@/features/studio/capabilities/studi
 import type { StudioClientFeedbackIntelligence } from "@/features/studio/capabilities/studioClientFeedbackIntelligence";
 import type { StudioClientRelationshipSnapshot } from "@/features/studio/capabilities/studioClientRelationshipIntelligence";
 import { useStudioStore } from "@/features/studio/store/studioStore";
+import { useI18n } from "@/i18n/useI18n";
 import {
   confirmStudioShotDraft,
   confirmStudioShotBatchGenerationPlan,
@@ -85,6 +86,7 @@ export function StudioStoryboardPanel({
 }: Readonly<{
   workspaceFocus?: "storyboard" | "production" | "review" | "delivery";
 }>) {
+  const { t, tf } = useI18n();
   const projectId = useStudioStore((state) => state.projectId);
   const [bundle, setBundle] = useState<{ projectId: string; storyboards: readonly StudioCreativeStoryboard[]; error: string } | null>(null);
   const [selectedStoryboardId, setSelectedStoryboardId] = useState<string | null>(null);
@@ -166,11 +168,11 @@ export function StudioStoryboardPanel({
       );
     }).catch((reason: unknown) => {
       if (!controller.signal.aborted) {
-        setBundle({ projectId, storyboards: [], error: reason instanceof Error ? reason.message : "Storyboard Workspace is unavailable." });
+        setBundle({ projectId, storyboards: [], error: reason instanceof Error ? reason.message : t("studio.storyboard.error.unavailable") });
       }
     });
     return () => controller.abort();
-  }, [projectId]);
+  }, [projectId, t]);
 
   const storyboards = bundle?.projectId === projectId ? bundle.storyboards : [];
   const selectedStoryboard = storyboards.find((storyboard) => storyboard.storyboardId === selectedStoryboardId) || storyboards[0] || null;
@@ -201,7 +203,7 @@ export function StudioStoryboardPanel({
         setProductionRuntimeError(
           reason instanceof Error
             ? reason.message
-            : "Production Runtime tracking is unavailable.",
+        : t("studio.production.error.runtimeUnavailable"),
         );
       } finally {
         if (active) timer = setTimeout(() => void refresh(), 5000);
@@ -213,7 +215,7 @@ export function StudioStoryboardPanel({
       controller.abort();
       if (timer) clearTimeout(timer);
     };
-  }, [projectId]);
+  }, [projectId, t]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -298,12 +300,12 @@ export function StudioStoryboardPanel({
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
           setProductionReviewError(
-            reason instanceof Error ? reason.message : "Production Review is unavailable.",
+          reason instanceof Error ? reason.message : t("studio.review.error.unavailable"),
           );
         }
       });
     return () => controller.abort();
-  }, [activeProductionRuntime?.tracking.status, activeProductionRuntime?.tracking.trackingId, projectId]);
+  }, [activeProductionRuntime?.tracking.status, activeProductionRuntime?.tracking.trackingId, projectId, t]);
 
   useEffect(() => {
     if (!projectId || activeProductionReview?.status !== "APPROVED") return;
@@ -316,12 +318,12 @@ export function StudioStoryboardPanel({
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
           setProductionDeliveryError(
-            reason instanceof Error ? reason.message : "Production Delivery Workspace is unavailable.",
+          reason instanceof Error ? reason.message : t("studio.delivery.error.unavailable"),
           );
         }
       });
     return () => controller.abort();
-  }, [activeProductionReview?.reviewId, activeProductionReview?.status, projectId]);
+  }, [activeProductionReview?.reviewId, activeProductionReview?.status, projectId, t]);
 
   useEffect(() => {
     if (!projectId || !selectedReviewPackageId) return;
@@ -340,12 +342,12 @@ export function StudioStoryboardPanel({
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
           setClientReviewError(
-            reason instanceof Error ? reason.message : "Client Review Workspace is unavailable.",
+          reason instanceof Error ? reason.message : t("studio.clientReview.error.unavailable"),
           );
         }
       });
     return () => controller.abort();
-  }, [projectId, selectedReviewPackageId]);
+  }, [projectId, selectedReviewPackageId, t]);
 
   useEffect(() => {
     if (!projectId || !selectedReviewPackageId || !activeClientReviewUpdatedAt) return;
@@ -362,12 +364,12 @@ export function StudioStoryboardPanel({
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
           setRevisionIntelligenceError(
-            reason instanceof Error ? reason.message : "AI Revision Suggestions are unavailable.",
+          reason instanceof Error ? reason.message : t("studio.review.error.revisionUnavailable"),
           );
         }
       });
     return () => controller.abort();
-  }, [activeClientReviewUpdatedAt, projectId, selectedReviewPackageId]);
+  }, [activeClientReviewUpdatedAt, projectId, selectedReviewPackageId, t]);
 
   useEffect(() => {
     if (!projectId || !activeClientReviewUpdatedAt) return;
@@ -380,12 +382,12 @@ export function StudioStoryboardPanel({
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
           setClientInsightsError(
-            reason instanceof Error ? reason.message : "Client Insights are unavailable.",
+          reason instanceof Error ? reason.message : t("studio.clientReview.error.insightsUnavailable"),
           );
         }
       });
     return () => controller.abort();
-  }, [activeClientReviewUpdatedAt, projectId]);
+  }, [activeClientReviewUpdatedAt, projectId, t]);
 
   useEffect(() => {
     if (!activeClientRelationshipScope) return;
@@ -401,12 +403,12 @@ export function StudioStoryboardPanel({
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
           setClientRelationshipError(
-            reason instanceof Error ? reason.message : "Client Relationship Intelligence is unavailable.",
+          reason instanceof Error ? reason.message : t("studio.clientReview.error.relationshipUnavailable"),
           );
         }
       });
     return () => controller.abort();
-  }, [activeClientRelationshipScope]);
+  }, [activeClientRelationshipScope, t]);
 
   useEffect(() => {
     if (!projectId || !selectedReviewPackageId || revisionConfirmedCount < 1) return;
@@ -431,9 +433,9 @@ export function StudioStoryboardPanel({
     try {
       const result = await previewStudioShotDraft(shot.sceneId, shot.shotId);
       setShotDraft(result.draft);
-      setMessage("SHOT_DRAFT preview ready. Timeline remains unchanged.");
+      setMessage(t("studio.storyboard.message.shotPreviewReady"));
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not preview the Shot Draft.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.storyboard.error.shotPreview"));
     } finally {
       setBusyShotId(null);
     }
@@ -446,9 +448,9 @@ export function StudioStoryboardPanel({
     try {
       const result = await confirmStudioShotDraft(shotDraft.sceneId, shotDraft.shotId, shotDraft.draftId);
       setShotDraft(result.draft);
-      setMessage("SHOT_DRAFT created. No Timeline, Agent, or Runtime action was started.");
+      setMessage(t("studio.storyboard.message.shotCreated"));
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not confirm the Shot Draft.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.storyboard.error.shotConfirm"));
     } finally {
       setBusyShotId(null);
     }
@@ -462,11 +464,11 @@ export function StudioStoryboardPanel({
       setGenerationDraft(result.draft);
       setMessage(
         result.draft.status === "CONFIRMED"
-          ? "Existing Video Workflow Draft is ready. Execution still requires a separate confirmation."
-          : "Generation Draft preview ready. No Job, Provider call, or Credits action occurred.",
+          ? t("studio.storyboard.message.generationConfirmed")
+          : t("studio.storyboard.message.generationPreview"),
       );
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not create the Generation Draft preview.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.storyboard.error.generationPreview"));
     } finally {
       setBusyShotId(null);
     }
@@ -479,9 +481,9 @@ export function StudioStoryboardPanel({
     try {
       const result = await confirmStudioShotGenerationDraft(generationDraft.shotId, generationDraft.draftId);
       setGenerationDraft(result.draft);
-      setMessage("Existing Video Workflow Draft created. Runtime execution remains unstarted and separately gated.");
+      setMessage(t("studio.storyboard.message.generationCreated"));
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not confirm the Generation Draft.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.storyboard.error.generationConfirm"));
     } finally {
       setBusyShotId(null);
     }
@@ -496,11 +498,11 @@ export function StudioStoryboardPanel({
       setBatchPlan(result.plan);
       setMessage(
         result.plan.status === "BLOCKED"
-          ? "Batch preview is blocked. Review unknown cost or unavailable Shot models."
-          : "Batch Generation Plan preview ready. No Queue, Job, Provider call, or Credits action occurred.",
+          ? t("studio.storyboard.message.batchBlocked")
+          : t("studio.storyboard.message.batchReady"),
       );
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not create the Batch Generation Plan preview.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.storyboard.error.batchPreview"));
     } finally {
       setBatchBusy(false);
     }
@@ -513,9 +515,9 @@ export function StudioStoryboardPanel({
     try {
       const result = await confirmStudioShotBatchGenerationPlan(selectedSceneId, batchPlan.batchPlanId);
       setBatchPlan(result.plan);
-      setMessage("Batch Plan Draft confirmed. Queue and Jobs remain uncreated; Execution Confirm is still required.");
+      setMessage(t("studio.storyboard.message.batchConfirmed"));
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not confirm the Batch Generation Plan.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.storyboard.error.batchConfirm"));
     } finally {
       setBatchBusy(false);
     }
@@ -530,11 +532,11 @@ export function StudioStoryboardPanel({
       setProductionPlan(result.plan);
       setMessage(
         result.plan.status === "BLOCKED"
-          ? "Production Run Preview is blocked. Review Scene, Shot, Agent, or cost risks."
-          : "Production Run Plan preview ready. No Job, Queue, Provider call, Generate, or Credits action occurred.",
+          ? t("studio.production.message.runBlocked")
+          : t("studio.production.message.runReady"),
       );
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not create the Production Run Plan preview.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.production.error.runPreview"));
     } finally {
       setProductionBusy(false);
     }
@@ -547,9 +549,9 @@ export function StudioStoryboardPanel({
     try {
       const result = await confirmStudioProductionRunPlan(projectId, activeProductionPlan.runId);
       setProductionPlan(result.plan);
-      setMessage("Production Draft confirmed. Existing Execution Approval remains mandatory; no Job or Queue was created.");
+      setMessage(t("studio.production.message.runConfirmed"));
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not confirm the Production Run Plan.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.production.error.runConfirm"));
     } finally {
       setProductionBusy(false);
     }
@@ -564,11 +566,11 @@ export function StudioStoryboardPanel({
       setProductionApproval(result);
       setMessage(
         result.status === "PENDING"
-          ? "Production Approval Package ready. Human Confirm is still required."
-          : "Production Approval is blocked by current Capability, model, cost, or policy Gates.",
+          ? t("studio.production.message.approvalReady")
+          : t("studio.production.message.approvalBlocked"),
       );
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not create the Production Approval Package.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.production.error.approvalCreate"));
     } finally {
       setProductionApprovalBusy(false);
     }
@@ -585,10 +587,10 @@ export function StudioStoryboardPanel({
       );
       setProductionApproval(result);
       setMessage(
-        "Production Execution Approval confirmed. A separate Runtime start remains required; no Job, Queue, Provider call, Generate, or Credits action occurred.",
+        t("studio.production.message.approvalConfirmed"),
       );
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not confirm Production Execution Approval.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.production.error.approvalConfirm"));
     } finally {
       setProductionApprovalBusy(false);
     }
@@ -602,10 +604,10 @@ export function StudioStoryboardPanel({
       const value = await approveStudioProductionReview(projectId, activeProductionReview.reviewId);
       setProductionReviewState({ projectId, value });
       setMessage(
-        "Production Review approved. Results remain unpublished; no Asset, Timeline, Generation, Runtime, or Credits action occurred.",
+        t("studio.review.message.approved"),
       );
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not approve Production Review.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.review.error.approve"));
     } finally {
       setProductionReviewBusy(false);
     }
@@ -649,7 +651,7 @@ export function StudioStoryboardPanel({
         `${deliveryPackage.version} Delivery Package created as a reference-only Export Preview. Nothing was published, uploaded, shared, or charged.`,
       );
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not create the Delivery Package.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.delivery.error.create"));
     } finally {
       setProductionDeliveryBusy(false);
     }
@@ -667,9 +669,9 @@ export function StudioStoryboardPanel({
         expiresAt,
       });
       setExternalReviewLink(result);
-      setMessage("Secure external review link created. The token is shown once and expires in seven days.");
+      setMessage(t("studio.clientReview.message.linkCreated"));
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not create the External Review Link.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.clientReview.error.linkCreate"));
     } finally {
       setClientReviewBusy(false);
     }
@@ -691,9 +693,9 @@ export function StudioStoryboardPanel({
         value: { ...activeClientReview, session: result.session },
       });
       setReviewCommentContent("");
-      setMessage("Review Comment saved to this Delivery version. No Output, Timeline, Asset, Workflow, or Credits action occurred.");
+      setMessage(t("studio.clientReview.message.commentSaved"));
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not save the Review Comment.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.clientReview.error.commentSave"));
     } finally {
       setClientReviewBusy(false);
     }
@@ -713,9 +715,9 @@ export function StudioStoryboardPanel({
         projectId,
         value: { ...activeClientReview, session: result.session },
       });
-      setMessage("Revision Request Preview created. Confirm is still required before a new Workflow Draft exists.");
+      setMessage(t("studio.review.message.revisionPreview"));
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not create the Revision Request Preview.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.review.error.revisionPreview"));
     } finally {
       setClientReviewBusy(false);
     }
@@ -736,9 +738,9 @@ export function StudioStoryboardPanel({
         projectId,
         value: { ...activeClientReview, session: result.session },
       });
-      setMessage("New Workflow Draft created for human review. It was not confirmed, executed, generated, or charged.");
+      setMessage(t("studio.review.message.workflowDraftCreated"));
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not confirm the Revision Request.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.review.error.revisionConfirm"));
     } finally {
       setClientReviewBusy(false);
     }
@@ -774,9 +776,9 @@ export function StudioStoryboardPanel({
           },
         },
       });
-      setMessage("AI Revision Suggestion confirmed into a new Workflow Draft. It was not executed, generated, published, or charged.");
+      setMessage(t("studio.review.message.aiRevisionConfirmed"));
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not confirm the AI Revision Suggestion.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.review.error.aiRevisionConfirm"));
     } finally {
       setRevisionIntelligenceBusyId(null);
     }
@@ -807,9 +809,9 @@ export function StudioStoryboardPanel({
           },
         },
       });
-      setMessage("Client Insight confirmed into a Project Memory Draft. No project, preference, Revision, or Credits action occurred.");
+      setMessage(t("studio.clientReview.message.insightConfirmed"));
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not confirm the Client Insight.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.clientReview.error.insightConfirm"));
     } finally {
       setClientInsightsBusyId(null);
     }
@@ -828,9 +830,9 @@ export function StudioStoryboardPanel({
         clientScope: activeClientRelationshipScope,
         value: result.snapshot,
       });
-      setMessage("Client Relationship recommendation confirmed as a Draft. No client profile, message, project, Workflow, or Credits action occurred.");
+      setMessage(t("studio.clientReview.message.relationshipConfirmed"));
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not confirm the relationship recommendation.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.clientReview.error.relationshipConfirm"));
     } finally {
       setClientRelationshipBusyId(null);
     }
@@ -850,9 +852,9 @@ export function StudioStoryboardPanel({
         deliveryPackageId: activeClientReview.deliveryPackage.packageId,
         value: result.plan,
       });
-      setMessage("Revision Run Plan preview created. The delivered version is unchanged and no execution or charge occurred.");
+      setMessage(t("studio.review.message.revisionPlanCreated"));
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not create the Revision Run Plan.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.review.error.revisionPlanCreate"));
     } finally {
       setRevisionRunPlanBusy(false);
     }
@@ -873,9 +875,9 @@ export function StudioStoryboardPanel({
         deliveryPackageId: activeClientReview.deliveryPackage.packageId,
         value: result.plan,
       });
-      setMessage("Production Workflow Draft created for the planned Delivery version. Execution, Review, Delivery creation, publish, and Credits remain separate.");
+      setMessage(t("studio.review.message.productionDraftCreated"));
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Could not confirm the Revision Run Plan.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.review.error.revisionPlanConfirm"));
     } finally {
       setRevisionRunPlanBusy(false);
     }
@@ -888,58 +890,58 @@ export function StudioStoryboardPanel({
       id={`${workspaceFocus}-workspace`}
       aria-label={
         workspaceFocus === "storyboard"
-          ? "Storyboard Workspace"
+          ? t("studio.storyboard.title")
           : workspaceFocus === "production"
-            ? "Production Workspace"
+            ? t("studio.production.title")
             : workspaceFocus === "review"
-              ? "Review Workspace"
-              : "Delivery Workspace"
+              ? t("studio.review.title")
+              : t("studio.delivery.title")
       }
     >
       <header>
         <div>
           <span>
             {workspaceFocus === "storyboard"
-              ? "AI Scene Planning"
+              ? t("studio.storyboard.eyebrow")
               : workspaceFocus === "production"
-                ? "Production Planning"
+                ? t("studio.production.eyebrow")
                 : workspaceFocus === "review"
-                  ? "Quality and Collaboration"
-                  : "Versioned Delivery"}
+                  ? t("studio.review.eyebrow")
+                  : t("studio.delivery.eyebrow")}
           </span>
           <h2>
             {workspaceFocus === "storyboard"
-              ? "Storyboard Workspace"
+              ? t("studio.storyboard.title")
               : workspaceFocus === "production"
-                ? "Production Workspace"
+                ? t("studio.production.title")
                 : workspaceFocus === "review"
-                  ? "Review Workspace"
-                  : "Delivery Workspace"}
+                  ? t("studio.review.title")
+                  : t("studio.delivery.title")}
           </h2>
           <p>
             {workspaceFocus === "storyboard"
-              ? "Scene → Storyboard → Shot → Generation Draft"
+              ? t("studio.storyboard.flow")
               : workspaceFocus === "production"
-                ? "Run Plan → Gate Review → Approval → Runtime Status"
+                ? t("studio.production.flow")
                 : workspaceFocus === "review"
-                  ? "Result → Quality Gate → Feedback → Revision Draft"
-                  : "Approved Result → Package → Version History"}
+                  ? t("studio.review.flow")
+                  : t("studio.delivery.flow")}
           </p>
         </div>
-        <small>Draft only · no Timeline edits, Job creation, Provider calls, or Credits</small>
+        <small>{t("studio.storyboard.boundary")}</small>
       </header>
 
       {!projectId ? (
-        <div className="studio-storyboard-empty">Open a saved project to plan its Scenes and Shots.</div>
+        <div className="studio-storyboard-empty">{t("studio.storyboard.empty.openProject")}</div>
       ) : bundle?.projectId !== projectId ? (
-        <div className="studio-storyboard-empty">Building Storyboards from the Unified Timeline…</div>
+        <div className="studio-storyboard-empty">{t("studio.storyboard.loading")}</div>
       ) : bundle.error ? (
         <div className="studio-storyboard-error" role="status">{bundle.error}</div>
       ) : !storyboards.length ? (
-        <div className="studio-storyboard-empty">Add a visual Scene to create its first reference-only Storyboard.</div>
+        <div className="studio-storyboard-empty">{t("studio.storyboard.empty.addScene")}</div>
       ) : (
         <div className="studio-storyboard-layout">
-          <nav aria-label="Storyboard scenes">
+          <nav aria-label={t("studio.storyboard.scenesLabel")}>
             {storyboards.map((storyboard) => (
               <button
                 className={storyboard.storyboardId === selectedStoryboard?.storyboardId ? "is-active" : ""}
@@ -954,7 +956,7 @@ export function StudioStoryboardPanel({
                 type="button"
               >
                 <strong>{storyboard.sceneName}</strong>
-                <span>{storyboard.shots.length} shots</span>
+                <span>{tf("studio.storyboard.shotCount", { count: storyboard.shots.length })}</span>
                 <small>{storyboard.agentSource}</small>
               </button>
             ))}
@@ -964,8 +966,8 @@ export function StudioStoryboardPanel({
               onClick={() => void createBatchPlan()}
               type="button"
             >
-              <strong>{batchBusy ? "Planning…" : "Batch Generation Planning"}</strong>
-              <small>Preview all Scene shots</small>
+              <strong>{batchBusy ? t("studio.storyboard.planning") : t("studio.storyboard.batch.title")}</strong>
+              <small>{t("studio.storyboard.batch.previewAll")}</small>
             </button>
             <button
               className="studio-storyboard-production-button"
@@ -973,103 +975,103 @@ export function StudioStoryboardPanel({
               onClick={() => void createProductionPlan()}
               type="button"
             >
-              <strong>{productionBusy ? "Planning…" : "Production Run Planner"}</strong>
-              <small>Preview all Scenes and Shots</small>
+              <strong>{productionBusy ? t("studio.storyboard.planning") : t("studio.production.planner.title")}</strong>
+              <small>{t("studio.production.planner.previewAll")}</small>
             </button>
           </nav>
 
-          <div className="studio-storyboard-shot-list" aria-label="Shot cards">
+          <div className="studio-storyboard-shot-list" aria-label={t("studio.storyboard.shotCardsLabel")}>
             {shots.map((shot, index) => (
               <article className="studio-storyboard-shot" key={shot.shotId}>
                 <header>
-                  <span>Shot {String(index + 1).padStart(2, "0")}</span>
+                  <span>{tf("studio.storyboard.shotNumber", { number: String(index + 1).padStart(2, "0") })}</span>
                   <b>{studioShotTypeLabel(shot.shotType)}</b>
                 </header>
                 <h3>{shot.description}</h3>
                 <dl>
-                  <div><dt>Camera</dt><dd>{shot.camera}</dd></div>
-                  <div><dt>Duration</dt><dd>{shot.duration}s</dd></div>
-                  <div><dt>Timeline</dt><dd>{shot.timelinePlaceholder.status.replaceAll("_", " ")}</dd></div>
+                  <div><dt>{t("studio.storyboard.camera")}</dt><dd>{shot.camera}</dd></div>
+                  <div><dt>{t("studio.storyboard.duration")}</dt><dd>{shot.duration}s</dd></div>
+                  <div><dt>{t("studio.storyboard.timeline")}</dt><dd>{shot.timelinePlaceholder.status.replaceAll("_", " ")}</dd></div>
                 </dl>
                 <div className="studio-storyboard-references">
-                  <strong>References</strong>
-                  <span>{shot.references.length ? shot.references.join(" · ") : "No bound reference"}</span>
+                  <strong>{t("studio.storyboard.references")}</strong>
+                  <span>{shot.references.length ? shot.references.join(" · ") : t("studio.storyboard.noReference")}</span>
                 </div>
                 <p>{shot.promptDraft.text}</p>
                 <div className="studio-storyboard-shot-actions">
                   <button disabled={Boolean(busyShotId)} onClick={() => void previewShotDraft(shot)} type="button">
-                    {busyShotId === shot.shotId ? "Preparing…" : "Preview SHOT_DRAFT"}
+                    {busyShotId === shot.shotId ? t("studio.storyboard.preparing") : t("studio.storyboard.shotDraft.preview")}
                   </button>
                   <button disabled={Boolean(busyShotId)} onClick={() => void createGenerationDraft(shot)} type="button">
-                    {busyShotId === shot.shotId ? "Preparing…" : "Create Generation Draft"}
+                    {busyShotId === shot.shotId ? t("studio.storyboard.preparing") : t("studio.storyboard.generation.create")}
                   </button>
                 </div>
               </article>
             ))}
           </div>
 
-          <aside className="studio-storyboard-draft" aria-label="Storyboard Draft Preview">
+          <aside className="studio-storyboard-draft" aria-label={t("studio.storyboard.draftPreviewLabel")}>
             <section className="studio-storyboard-draft-section studio-story-workspace-section">
-              <span>Copilot Shot Planning</span>
+              <span>{t("studio.storyboard.shotDraft.title")}</span>
               {shotDraft ? (
                 <>
-                  <strong>{shotDraft.status === "CONFIRMED" ? "SHOT_DRAFT confirmed" : "Preview ready"}</strong>
+                  <strong>{shotDraft.status === "CONFIRMED" ? t("studio.storyboard.shotDraft.confirmed") : t("studio.storyboard.previewReady")}</strong>
                   <p>{shotDraft.reason}</p>
                   <dl>
-                    <div><dt>Camera</dt><dd>{shotDraft.proposal.camera}</dd></div>
-                    <div><dt>Duration</dt><dd>{shotDraft.proposal.duration}s</dd></div>
-                    <div><dt>Impact</dt><dd>Placeholder reference only</dd></div>
+                    <div><dt>{t("studio.storyboard.camera")}</dt><dd>{shotDraft.proposal.camera}</dd></div>
+                    <div><dt>{t("studio.storyboard.duration")}</dt><dd>{shotDraft.proposal.duration}s</dd></div>
+                    <div><dt>{t("studio.storyboard.impact")}</dt><dd>{t("studio.storyboard.placeholderOnly")}</dd></div>
                   </dl>
                   <blockquote>{shotDraft.proposal.prompt}</blockquote>
                   {shotDraft.status === "PREVIEWED" ? (
-                    <button disabled={Boolean(busyShotId)} onClick={() => void confirmShotDraft()} type="button">Confirm Shot Draft</button>
-                  ) : <small>Draft created. Existing Timeline remains unchanged.</small>}
+                    <button disabled={Boolean(busyShotId)} onClick={() => void confirmShotDraft()} type="button">{t("studio.storyboard.shotDraft.confirm")}</button>
+                  ) : <small>{t("studio.storyboard.shotDraft.unchanged")}</small>}
                 </>
               ) : (
-                <p>Preview a Shot Draft to review its prompt and Timeline placeholder.</p>
+                <p>{t("studio.storyboard.shotDraft.empty")}</p>
               )}
             </section>
 
-            <section className="studio-storyboard-draft-section studio-story-workspace-section" aria-label="Generation Draft Panel">
-              <span>Generation Draft Panel</span>
+            <section className="studio-storyboard-draft-section studio-story-workspace-section" aria-label={t("studio.storyboard.generation.title")}>
+              <span>{t("studio.storyboard.generation.title")}</span>
               {generationDraft ? (
                 <>
                   <strong>{generationDraft.modelSuggestion.displayName} · {generationDraft.confidence}</strong>
                   <p>{generationDraft.modelSuggestion.reason}</p>
                   <dl>
-                    <div><dt>Scope</dt><dd>{generationDraft.parameters.duration}s · {generationDraft.parameters.resolution} · {generationDraft.parameters.ratio}</dd></div>
-                    <div><dt>Cost</dt><dd>{generationDraft.estimatedCost.kind} · {generationDraft.estimatedCost.shadowCredits} Credits</dd></div>
-                    <div><dt>Gate</dt><dd>{generationDraft.modelSuggestion.availability} · {generationDraft.modelSuggestion.costStatus}</dd></div>
+                    <div><dt>{t("studio.storyboard.scope")}</dt><dd>{generationDraft.parameters.duration}s · {generationDraft.parameters.resolution} · {generationDraft.parameters.ratio}</dd></div>
+                    <div><dt>{t("studio.storyboard.cost")}</dt><dd>{generationDraft.estimatedCost.kind} · {generationDraft.estimatedCost.shadowCredits} {t("studio.storyboard.credits")}</dd></div>
+                    <div><dt>{t("studio.storyboard.gate")}</dt><dd>{generationDraft.modelSuggestion.availability} · {generationDraft.modelSuggestion.costStatus}</dd></div>
                   </dl>
                   <blockquote>{generationDraft.prompt}</blockquote>
-                  <div className="studio-storyboard-generation-references" aria-label="Reference bindings">
+                  <div className="studio-storyboard-generation-references" aria-label={t("studio.storyboard.referenceBindings")}>
                     {generationDraft.references.map((reference) => (
-                      <span key={reference.referenceId}>{reference.type} · bound</span>
+                      <span key={reference.referenceId}>{reference.type} · {t("studio.storyboard.bound")}</span>
                     ))}
                   </div>
                   {generationDraft.status === "PREVIEWED" ? (
                     <button disabled={Boolean(busyShotId)} onClick={() => void confirmGenerationDraft()} type="button">
-                      Confirm Generation Draft
+                      {t("studio.storyboard.generation.confirm")}
                     </button>
                   ) : (
-                    <small>Video Workflow Draft ready. A separate Execution Confirm is still required.</small>
+                    <small>{t("studio.storyboard.generation.ready")}</small>
                   )}
                 </>
               ) : (
-                <p>Create Generation Draft to preview the recommended model, verified scope, references, and estimated cost.</p>
+                <p>{t("studio.storyboard.generation.empty")}</p>
               )}
             </section>
 
-            <section className="studio-storyboard-draft-section studio-story-workspace-section" aria-label="Batch Generation Planning">
-              <span>Batch Generation Planning</span>
+            <section className="studio-storyboard-draft-section studio-story-workspace-section" aria-label={t("studio.storyboard.batch.title")}>
+              <span>{t("studio.storyboard.batch.title")}</span>
               {batchPlan ? (
                 <>
-                  <strong>{batchPlan.shots.length} Shots · {batchPlan.status}</strong>
+                  <strong>{tf("studio.storyboard.batch.summary", { count: batchPlan.shots.length, status: batchPlan.status })}</strong>
                   <dl>
-                    <div><dt>Total Credits Estimate</dt><dd>{batchPlan.estimatedCost.totalCreditsEstimate}</dd></div>
-                    <div><dt>Cost Confidence</dt><dd>{batchPlan.estimatedCost.costConfidence}</dd></div>
-                    <div><dt>Unknown Cost</dt><dd>{batchPlan.estimatedCost.unknownCost}</dd></div>
-                    <div><dt>Models</dt><dd>{batchPlan.models.map((model) => model.displayName).join(", ") || "Unavailable"}</dd></div>
+                    <div><dt>{t("studio.production.totalCredits")}</dt><dd>{batchPlan.estimatedCost.totalCreditsEstimate}</dd></div>
+                    <div><dt>{t("studio.production.costConfidence")}</dt><dd>{batchPlan.estimatedCost.costConfidence}</dd></div>
+                    <div><dt>{t("studio.production.unknownCost")}</dt><dd>{batchPlan.estimatedCost.unknownCost}</dd></div>
+                    <div><dt>{t("studio.storyboard.models")}</dt><dd>{batchPlan.models.map((model) => model.displayName).join(", ") || t("studio.common.unavailable")}</dd></div>
                   </dl>
                   <div className="studio-storyboard-batch-items">
                     {batchPlan.shots.map((item) => (
@@ -1077,14 +1079,14 @@ export function StudioStoryboardPanel({
                         <strong>{item.shotId}</strong>
                         <span>{item.status}</span>
                         <small>
-                          {item.model?.displayName || item.blocker || "Model unavailable"}
+                          {item.model?.displayName || item.blocker || t("studio.storyboard.modelUnavailable")}
                           {" · "}
-                          {item.estimatedCost.shadowCredits === null ? "Unknown cost" : `${item.estimatedCost.shadowCredits} Credits`}
+                          {item.estimatedCost.shadowCredits === null ? t("studio.production.unknownCost") : tf("studio.production.creditsValue", { count: item.estimatedCost.shadowCredits })}
                         </small>
                       </div>
                     ))}
                   </div>
-                  <div className="studio-storyboard-batch-tags" aria-label="Batch dependencies">
+                  <div className="studio-storyboard-batch-tags" aria-label={t("studio.storyboard.batch.dependencies")}>
                     {batchPlan.dependencies.map((dependency, index) => (
                       <span key={`${dependency.fromShotId}:${dependency.toShotId || "independent"}:${index}`}>
                         {dependency.type}
@@ -1094,50 +1096,50 @@ export function StudioStoryboardPanel({
                   </div>
                   {batchPlan.status === "PREVIEWED" ? (
                     <button disabled={batchBusy} onClick={() => void confirmBatchPlan()} type="button">
-                      Confirm Batch Plan Draft
+                      {t("studio.storyboard.batch.confirm")}
                     </button>
                   ) : batchPlan.status === "CONFIRMED" ? (
-                    <small>Plan Draft confirmed. Existing Execution Preview and Confirm remain mandatory.</small>
+                    <small>{t("studio.storyboard.batch.confirmed")}</small>
                   ) : (
-                    <small>Confirmation blocked until every Shot has an allowed model and known cost.</small>
+                    <small>{t("studio.storyboard.batch.blocked")}</small>
                   )}
                 </>
               ) : (
-                <p>Preview all Scene Shots, model suggestions, dependencies, and estimated Credits before confirmation.</p>
+                <p>{t("studio.storyboard.batch.empty")}</p>
               )}
             </section>
-            <section className="studio-storyboard-draft-section studio-production-run" aria-label="Production Run Planner">
-              <span>Production Run Planner</span>
+            <section className="studio-storyboard-draft-section studio-production-run" aria-label={t("studio.production.planner.title")}>
+              <span>{t("studio.production.planner.title")}</span>
               {activeProductionPlan ? (
                 <>
-                  <strong>{activeProductionPlan.summary.sceneCount} Scenes · {activeProductionPlan.summary.shotCount} Shots · {activeProductionPlan.status}</strong>
+                  <strong>{tf("studio.production.planner.summary", { scenes: activeProductionPlan.summary.sceneCount, shots: activeProductionPlan.summary.shotCount, status: activeProductionPlan.status })}</strong>
                   <dl>
-                    <div><dt>Agents</dt><dd>{activeProductionPlan.summary.agentCount}</dd></div>
-                    <div><dt>Quality Checkpoints</dt><dd>{activeProductionPlan.summary.checkpointCount}</dd></div>
-                    <div><dt>Credits</dt><dd>{activeProductionPlan.estimatedCost.totalCreditsEstimate}</dd></div>
-                    <div><dt>Cost Confidence</dt><dd>{activeProductionPlan.estimatedCost.costConfidence}</dd></div>
-                    <div><dt>Unknown Cost</dt><dd>{activeProductionPlan.estimatedCost.unknownCost}</dd></div>
+                    <div><dt>{t("studio.production.agents")}</dt><dd>{activeProductionPlan.summary.agentCount}</dd></div>
+                    <div><dt>{t("studio.production.checkpoints")}</dt><dd>{activeProductionPlan.summary.checkpointCount}</dd></div>
+                    <div><dt>{t("studio.storyboard.credits")}</dt><dd>{activeProductionPlan.estimatedCost.totalCreditsEstimate}</dd></div>
+                    <div><dt>{t("studio.production.costConfidence")}</dt><dd>{activeProductionPlan.estimatedCost.costConfidence}</dd></div>
+                    <div><dt>{t("studio.production.unknownCost")}</dt><dd>{activeProductionPlan.estimatedCost.unknownCost}</dd></div>
                   </dl>
-                  <div className="studio-production-run-scenes" aria-label="Production Scene sequence">
+                  <div className="studio-production-run-scenes" aria-label={t("studio.production.sceneSequence")}>
                     {activeProductionPlan.scenes.map((scene) => (
                       <div key={scene.sceneId}>
                         <strong>{String(scene.order).padStart(2, "0")} · {scene.name}</strong>
-                        <span>{scene.shotCount} Shots · {scene.status}</span>
+                        <span>{tf("studio.production.sceneShots", { count: scene.shotCount, status: scene.status })}</span>
                       </div>
                     ))}
                   </div>
-                  <div className="studio-production-run-steps" aria-label="Production Steps">
+                  <div className="studio-production-run-steps" aria-label={t("studio.production.steps")}>
                     {activeProductionPlan.shots.map((step) => (
                       <div key={step.stepId}>
                         <strong>{step.agent.replaceAll("_", " ")}</strong>
                         <span>{step.status}</span>
                         <small>
-                          {step.sceneId} · {step.shotId} · {step.model?.displayName || "Model unavailable"}
+                          {step.sceneId} · {step.shotId} · {step.model?.displayName || t("studio.storyboard.modelUnavailable")}
                         </small>
                       </div>
                     ))}
                   </div>
-                  <div className="studio-storyboard-batch-tags" aria-label="Production dependencies and risks">
+                  <div className="studio-storyboard-batch-tags" aria-label={t("studio.production.dependenciesRisks")}>
                     {Array.from(new Set(activeProductionPlan.dependencies.map((dependency) => dependency.type))).map((type) => (
                       <span key={type}>{type}</span>
                     ))}
@@ -1145,52 +1147,52 @@ export function StudioStoryboardPanel({
                   </div>
                   {activeProductionPlan.status === "PREVIEWED" ? (
                     <button disabled={productionBusy} onClick={() => void confirmProductionPlan()} type="button">
-                      Confirm Production Draft
+                      {t("studio.production.planner.confirm")}
                     </button>
                   ) : activeProductionPlan.status === "CONFIRMED" ? (
-                    <small>Production Draft confirmed. Existing Execution Approval and Runtime confirmation remain mandatory.</small>
+                    <small>{t("studio.production.planner.confirmed")}</small>
                   ) : (
-                    <small>Confirmation blocked until all Scenes, Shots, Agent planning, and cost evidence are ready.</small>
+                    <small>{t("studio.production.planner.blocked")}</small>
                   )}
                 </>
               ) : (
-                <p>Aggregate every Scene Batch Plan, Agent Plan, dependency, checkpoint, and estimated Credit into one production preview.</p>
+                <p>{t("studio.production.planner.empty")}</p>
               )}
             </section>
-            <section className="studio-storyboard-draft-section studio-production-approval" aria-label="Production Approval Panel">
-              <span>Production Approval Panel</span>
+            <section className="studio-storyboard-draft-section studio-production-approval" aria-label={t("studio.production.approval.title")}>
+              <span>{t("studio.production.approval.title")}</span>
               {activeProductionApproval ? (
                 <>
                   <strong>{activeProductionApproval.status} · {activeProductionApproval.approvalId}</strong>
                   <dl>
-                    <div><dt>Scenes</dt><dd>{activeProductionApproval.executionSummary.sceneCount}</dd></div>
-                    <div><dt>Shots</dt><dd>{activeProductionApproval.executionSummary.shotCount}</dd></div>
-                    <div><dt>Agents</dt><dd>{activeProductionApproval.executionSummary.agentCount}</dd></div>
-                    <div><dt>Tasks</dt><dd>{activeProductionApproval.executionSummary.taskCount}</dd></div>
-                    <div><dt>Credits</dt><dd>{activeProductionApproval.cost.estimatedCredits}</dd></div>
-                    <div><dt>Cost Confidence</dt><dd>{activeProductionApproval.cost.confidence}</dd></div>
-                    <div><dt>Agent Policy</dt><dd>{activeProductionApproval.policy.status}</dd></div>
+                    <div><dt>{t("studio.production.scenes")}</dt><dd>{activeProductionApproval.executionSummary.sceneCount}</dd></div>
+                    <div><dt>{t("studio.production.shots")}</dt><dd>{activeProductionApproval.executionSummary.shotCount}</dd></div>
+                    <div><dt>{t("studio.production.agents")}</dt><dd>{activeProductionApproval.executionSummary.agentCount}</dd></div>
+                    <div><dt>{t("studio.production.tasks")}</dt><dd>{activeProductionApproval.executionSummary.taskCount}</dd></div>
+                    <div><dt>{t("studio.storyboard.credits")}</dt><dd>{activeProductionApproval.cost.estimatedCredits}</dd></div>
+                    <div><dt>{t("studio.production.costConfidence")}</dt><dd>{activeProductionApproval.cost.confidence}</dd></div>
+                    <div><dt>{t("studio.production.agentPolicy")}</dt><dd>{activeProductionApproval.policy.status}</dd></div>
                   </dl>
-                  <div className="studio-production-approval-gates" aria-label="Production Gate summary">
+                  <div className="studio-production-approval-gates" aria-label={t("studio.production.approval.gates")}>
                     {([
-                      ["Capability", activeProductionApproval.gates.capability],
-                      ["Availability", activeProductionApproval.gates.availability],
-                      ["Readiness", activeProductionApproval.gates.readiness],
-                      ["Verified Scope", activeProductionApproval.gates.verifiedScope],
-                      ["Cost", activeProductionApproval.gates.cost],
-                      ["Agent Policy", activeProductionApproval.gates.agentPolicy],
+                      [t("studio.production.gate.capability"), activeProductionApproval.gates.capability],
+                      [t("studio.production.gate.availability"), activeProductionApproval.gates.availability],
+                      [t("studio.production.gate.readiness"), activeProductionApproval.gates.readiness],
+                      [t("studio.production.gate.verifiedScope"), activeProductionApproval.gates.verifiedScope],
+                      [t("studio.storyboard.cost"), activeProductionApproval.gates.cost],
+                      [t("studio.production.agentPolicy"), activeProductionApproval.gates.agentPolicy],
                     ] as const).map(([label, gate]) => (
                       <div className={gate.passed ? "is-passed" : "is-blocked"} key={label}>
                         <strong>{label}</strong>
-                        <span>{gate.passed ? "PASS" : "BLOCKED"}</span>
+                        <span>{gate.passed ? t("studio.production.gate.pass") : t("studio.production.gate.blocked")}</span>
                         {gate.blockers.length ? <small>{gate.blockers.join(", ")}</small> : null}
                       </div>
                     ))}
                   </div>
-                  <div className="studio-storyboard-batch-tags" aria-label="Production Approval risks">
+                  <div className="studio-storyboard-batch-tags" aria-label={t("studio.production.approval.risks")}>
                     {activeProductionApproval.riskFlags.length
                       ? activeProductionApproval.riskFlags.map((risk) => <span key={risk}>⚠ {risk}</span>)
-                      : <span>No current risk flags</span>}
+                      : <span>{t("studio.production.noRisks")}</span>}
                   </div>
                   {activeProductionApproval.status === "PENDING" ? (
                     <button
@@ -1198,46 +1200,46 @@ export function StudioStoryboardPanel({
                       onClick={() => void confirmProductionApproval()}
                       type="button"
                     >
-                      {productionApprovalBusy ? "Confirming…" : "Confirm Production Execution Approval"}
+                      {productionApprovalBusy ? t("studio.common.confirming") : t("studio.production.approval.confirm")}
                     </button>
                   ) : activeProductionApproval.status === "APPROVED" ? (
-                    <small>A separate Runtime start remains required. This approval did not create a Queue, Job, or charge.</small>
+                    <small>{t("studio.production.approval.confirmed")}</small>
                   ) : (
-                    <small>Approval is blocked or expired. Resolve the displayed Gate failures before creating a new package.</small>
+                    <small>{t("studio.production.approval.blocked")}</small>
                   )}
                 </>
               ) : activeProductionPlan?.status === "CONFIRMED" ? (
                 <>
-                  <p>Revalidate Capability, Availability, Readiness, Verified Scope, Cost, and Agent Policy.</p>
+                  <p>{t("studio.production.approval.revalidate")}</p>
                   <button
                     disabled={productionApprovalBusy}
                     onClick={() => void createProductionApproval()}
                     type="button"
                   >
-                    {productionApprovalBusy ? "Preparing…" : "Prepare Production Approval"}
+                    {productionApprovalBusy ? t("studio.storyboard.preparing") : t("studio.production.approval.prepare")}
                   </button>
                 </>
               ) : (
-                <p>Confirm the Production Run Draft before preparing its unified Execution Approval Package.</p>
+                <p>{t("studio.production.approval.empty")}</p>
               )}
             </section>
-            <section className="studio-storyboard-draft-section studio-production-monitor" aria-label="Production Run Monitor">
-              <span>Production Run Monitor</span>
+            <section className="studio-storyboard-draft-section studio-production-monitor" aria-label={t("studio.production.monitor.title")}>
+              <span>{t("studio.production.monitor.title")}</span>
               {activeProductionRuntime ? (
                 <>
                   <strong>
                     {activeProductionRuntime.tracking.status}
                     {" · "}
-                    {activeProductionRuntime.tracking.progress}% Progress
+                    {tf("studio.production.monitor.progress", { progress: activeProductionRuntime.tracking.progress })}
                   </strong>
                   <dl>
-                    <div><dt>Current Wave</dt><dd>{activeProductionRuntime.tracking.currentWave} / {activeProductionRuntime.tracking.totalWaves}</dd></div>
-                    <div><dt>Shots</dt><dd>{activeProductionRuntime.tracking.steps.length}</dd></div>
-                    <div><dt>Agents</dt><dd>{new Set(activeProductionRuntime.tracking.steps.map((step) => step.agent)).size}</dd></div>
-                    <div><dt>Results</dt><dd>{activeProductionRuntime.tracking.results.length}</dd></div>
+                    <div><dt>{t("studio.production.monitor.wave")}</dt><dd>{activeProductionRuntime.tracking.currentWave} / {activeProductionRuntime.tracking.totalWaves}</dd></div>
+                    <div><dt>{t("studio.production.shots")}</dt><dd>{activeProductionRuntime.tracking.steps.length}</dd></div>
+                    <div><dt>{t("studio.production.agents")}</dt><dd>{new Set(activeProductionRuntime.tracking.steps.map((step) => step.agent)).size}</dd></div>
+                    <div><dt>{t("studio.production.monitor.results")}</dt><dd>{activeProductionRuntime.tracking.results.length}</dd></div>
                   </dl>
                   <div
-                    aria-label="Production Progress"
+                    aria-label={t("studio.production.monitor.progressLabel")}
                     aria-valuemax={100}
                     aria-valuemin={0}
                     aria-valuenow={activeProductionRuntime.tracking.progress}
@@ -1246,7 +1248,7 @@ export function StudioStoryboardPanel({
                   >
                     <span style={{ width: `${activeProductionRuntime.tracking.progress}%` }} />
                   </div>
-                  <div className="studio-production-monitor-steps" aria-label="Shot Status and Agent Status">
+                  <div className="studio-production-monitor-steps" aria-label={t("studio.production.monitor.statusLabel")}>
                     {activeProductionRuntime.tracking.steps.map((step) => (
                       <article className={`is-${step.status.toLowerCase()}`} key={step.productionStepId}>
                         <header>
@@ -1254,44 +1256,44 @@ export function StudioStoryboardPanel({
                           <span>{step.status}</span>
                         </header>
                         <small>
-                          Wave {step.wave} · {step.agent.replaceAll("_", " ")} · {step.capability}
+                          {tf("studio.production.monitor.waveNumber", { wave: step.wave })} · {step.agent.replaceAll("_", " ")} · {step.capability}
                         </small>
                         {step.result ? (
                           <dl>
-                            <div><dt>Timeline Clip</dt><dd>{step.result.timelineClipId || "Pending binding"}</dd></div>
-                            <div><dt>Asset</dt><dd>{step.result.assetId || "Pending binding"}</dd></div>
-                            <div><dt>Output</dt><dd>{step.result.outputNodeId || "Pending binding"}</dd></div>
+                            <div><dt>{t("studio.production.monitor.timelineClip")}</dt><dd>{step.result.timelineClipId || t("studio.production.monitor.pendingBinding")}</dd></div>
+                            <div><dt>{t("studio.production.monitor.asset")}</dt><dd>{step.result.assetId || t("studio.production.monitor.pendingBinding")}</dd></div>
+                            <div><dt>{t("studio.production.monitor.output")}</dt><dd>{step.result.outputNodeId || t("studio.production.monitor.pendingBinding")}</dd></div>
                           </dl>
                         ) : null}
                       </article>
                     ))}
                   </div>
                   <small>
-                    Existing Execution Runtime · read-only tracking · updated {activeProductionRuntime.tracking.updatedAt}
+                    {tf("studio.production.monitor.updated", { time: activeProductionRuntime.tracking.updatedAt })}
                   </small>
-                  <small>No Retry, Runtime control, Provider call, or Credits action is available here.</small>
+                  <small>{t("studio.production.monitor.boundary")}</small>
                 </>
               ) : productionRuntimeError ? (
                 <>
-                  <strong>Tracking not ready</strong>
+                  <strong>{t("studio.production.monitor.notReady")}</strong>
                   <p>{productionRuntimeError}</p>
-                  <small>Approve Production and bind a compatible existing Execution Plan to begin read-only tracking.</small>
+                  <small>{t("studio.production.monitor.notReadyHelp")}</small>
                 </>
               ) : (
-                <p>Connecting the approved Production Run to its existing Execution Runtime…</p>
+                <p>{t("studio.production.monitor.connecting")}</p>
               )}
             </section>
-            <section className="studio-storyboard-draft-section studio-production-review" aria-label="Production Review Workspace">
-              <span>Production Review Workspace</span>
+            <section className="studio-storyboard-draft-section studio-production-review" aria-label={t("studio.review.productionTitle")}>
+              <span>{t("studio.review.productionTitle")}</span>
               {activeProductionReview ? (
                 <>
                   <strong>{activeProductionReview.status} · {activeProductionReview.reviewId}</strong>
-                  <div className="studio-production-review-gates" aria-label="Quality Gate">
+                  <div className="studio-production-review-gates" aria-label={t("studio.review.qualityGate")}>
                     {activeProductionReview.qualityChecks.map((check) => (
                       <div className={`is-${check.status.toLowerCase()}`} key={check.type}>
                         <strong>{check.type.replaceAll("_", " ")}</strong>
                         <span>{check.status}</span>
-                        <small>{check.score === null ? "Human review" : `${check.score} / 100`}</small>
+                        <small>{check.score === null ? t("studio.review.humanReview") : `${check.score} / 100`}</small>
                       </div>
                     ))}
                   </div>
@@ -1299,9 +1301,9 @@ export function StudioStoryboardPanel({
                     <strong>{activeProductionReview.reviewSuggestion.actionType}</strong>
                     <span>{activeProductionReview.reviewSuggestion.status}</span>
                     <p>{activeProductionReview.reviewSuggestion.summary}</p>
-                    <small>REVIEW_SUGGESTION · Quality Insight · Preview → Human Confirm</small>
+                    <small>{t("studio.review.suggestionFlow")}</small>
                   </div>
-                  <div className="studio-production-review-grid" aria-label="Shot Review Grid">
+                  <div className="studio-production-review-grid" aria-label={t("studio.review.shotGrid")}>
                     {activeProductionReview.results.map((result) => (
                       <article key={result.shotId}>
                         <header>
@@ -1311,21 +1313,21 @@ export function StudioStoryboardPanel({
                         {result.resultRef.videoUrl ? (
                           <video controls preload="metadata" src={result.resultRef.videoUrl} />
                         ) : (
-                          <div className="studio-production-review-result-empty">Result preview unavailable</div>
+                          <div className="studio-production-review-result-empty">{t("studio.review.resultUnavailable")}</div>
                         )}
                         <dl>
-                          <div><dt>Quality</dt><dd>{result.quality.score ?? "Review"}</dd></div>
-                          <div><dt>Confidence</dt><dd>{result.quality.confidence}</dd></div>
-                          <div><dt>Timeline</dt><dd>{result.resultRef.timelineRef || "Unbound"}</dd></div>
-                          <div><dt>Output</dt><dd>{result.resultRef.outputRef || "Unbound"}</dd></div>
-                          <div><dt>Asset</dt><dd>{result.resultRef.assetRef || "Unbound"}</dd></div>
+                          <div><dt>{t("studio.review.quality")}</dt><dd>{result.quality.score ?? t("studio.review.review")}</dd></div>
+                          <div><dt>{t("studio.common.confidence")}</dt><dd>{result.quality.confidence}</dd></div>
+                          <div><dt>{t("studio.storyboard.timeline")}</dt><dd>{result.resultRef.timelineRef || t("studio.review.unbound")}</dd></div>
+                          <div><dt>{t("studio.production.monitor.output")}</dt><dd>{result.resultRef.outputRef || t("studio.review.unbound")}</dd></div>
+                          <div><dt>{t("studio.production.monitor.asset")}</dt><dd>{result.resultRef.assetRef || t("studio.review.unbound")}</dd></div>
                         </dl>
                         <div className="studio-production-review-issues">
                           {result.issues.length
                             ? result.issues.map((issue) => (
                                 <p key={issue.issueId}>⚠ {issue.type.replaceAll("_", " ")} · {issue.message}</p>
                               ))
-                            : <p>No measured quality issues.</p>}
+                            : <p>{t("studio.review.noIssues")}</p>}
                         </div>
                       </article>
                     ))}
@@ -1336,84 +1338,84 @@ export function StudioStoryboardPanel({
                       onClick={() => void approveProductionReview()}
                       type="button"
                     >
-                      {productionReviewBusy ? "Approving…" : "Confirm Production Review"}
+                      {productionReviewBusy ? t("studio.review.approving") : t("studio.review.confirm")}
                     </button>
                   ) : (
                     <small>
-                      Human review recorded at {activeProductionReview.approvedAt || activeProductionReview.createdAt}.
+                      {tf("studio.review.recordedAt", { time: activeProductionReview.approvedAt || activeProductionReview.createdAt })}
                     </small>
                   )}
                   {!activeProductionReview.approvalReady ? (
-                    <small>Approval is blocked by the displayed Quality Gate. No automatic regeneration is available.</small>
+                    <small>{t("studio.review.approvalBlocked")}</small>
                   ) : null}
-                  <small>No publish, Asset replacement, regeneration, Timeline mutation, or Credits action is available here.</small>
+                  <small>{t("studio.review.boundary")}</small>
                 </>
               ) : activeProductionRuntime?.tracking.status === "COMPLETED" ? (
                 productionReviewError ? (
                   <>
-                    <strong>Review unavailable</strong>
+                    <strong>{t("studio.review.unavailable")}</strong>
                     <p>{productionReviewError}</p>
                   </>
                 ) : (
-                  <p>Building a result-only Review Session from completed Production references…</p>
+                  <p>{t("studio.review.building")}</p>
                 )
               ) : (
-                <p>Production Review opens after every Production Shot is completed.</p>
+                <p>{t("studio.review.empty")}</p>
               )}
             </section>
-            <section className="studio-storyboard-draft-section studio-production-delivery" aria-label="Delivery Workspace">
-              <span>Delivery Workspace</span>
+            <section className="studio-storyboard-draft-section studio-production-delivery" aria-label={t("studio.delivery.title")}>
+              <span>{t("studio.delivery.title")}</span>
               {activeProductionReview?.status !== "APPROVED" ? (
-                <p>Approve Production Review before creating a versioned Delivery Package.</p>
+                <p>{t("studio.delivery.requiresApproval")}</p>
               ) : activeProductionDelivery ? (
                 <>
                   <header>
                     <div>
-                      <strong>{latestDeliveryPackage?.version || "No version"}</strong>
-                      <small>{latestDeliveryPackage?.status || "READY FOR FIRST PACKAGE"}</small>
+                      <strong>{latestDeliveryPackage?.version || t("studio.delivery.noVersion")}</strong>
+                      <small>{latestDeliveryPackage?.status || t("studio.delivery.readyFirst")}</small>
                     </div>
-                    <small>{activeProductionDelivery.packages.length} immutable version{activeProductionDelivery.packages.length === 1 ? "" : "s"}</small>
+                    <small>{tf("studio.delivery.versionCount", { count: activeProductionDelivery.packages.length })}</small>
                   </header>
                   {latestDeliveryPackage ? (
                     <>
-                      <div className="studio-production-delivery-summary" aria-label="Delivery Package summary">
-                        <div><strong>{latestDeliveryPackage.outputs.length}</strong><span>Approved Outputs</span></div>
-                        <div><strong>{latestDeliveryPackage.assets.length}</strong><span>Assets</span></div>
-                        <div><strong>{latestDeliveryPackage.timelineReferences.length}</strong><span>Timeline Refs</span></div>
-                        <div><strong>{latestDeliveryPackage.qualitySummary.checks.length}</strong><span>Quality Checks</span></div>
+                      <div className="studio-production-delivery-summary" aria-label={t("studio.delivery.packageSummary")}>
+                        <div><strong>{latestDeliveryPackage.outputs.length}</strong><span>{t("studio.delivery.approvedOutputs")}</span></div>
+                        <div><strong>{latestDeliveryPackage.assets.length}</strong><span>{t("studio.delivery.assets")}</span></div>
+                        <div><strong>{latestDeliveryPackage.timelineReferences.length}</strong><span>{t("studio.delivery.timelineRefs")}</span></div>
+                        <div><strong>{latestDeliveryPackage.qualitySummary.checks.length}</strong><span>{t("studio.delivery.qualityChecks")}</span></div>
                       </div>
                       <div className="studio-production-delivery-export">
-                        <strong>Export Preview · {latestDeliveryPackage.exportPreview.format.replaceAll("_", " ")}</strong>
-                        <small>Reference manifest only · no external upload</small>
+                        <strong>{tf("studio.delivery.exportPreview", { format: latestDeliveryPackage.exportPreview.format.replaceAll("_", " ") })}</strong>
+                        <small>{t("studio.delivery.exportBoundary")}</small>
                         <div>
                           {latestDeliveryPackage.outputs.map((output) => (
                             <article key={`${latestDeliveryPackage.packageId}:${output.shotId}`}>
                               <span>{output.shotId}</span>
-                              <strong>{output.quality.score ?? "Review"} Quality</strong>
+                              <strong>{tf("studio.delivery.qualityValue", { score: output.quality.score ?? t("studio.review.review") })}</strong>
                               <small>
-                                {output.outputRef || "Output unbound"} · {output.assetRef || "Asset unbound"}
+                                {output.outputRef || t("studio.delivery.outputUnbound")} · {output.assetRef || t("studio.delivery.assetUnbound")}
                               </small>
                             </article>
                           ))}
                         </div>
                       </div>
-                      <div className="studio-production-delivery-quality" aria-label="Delivery Quality summary">
+                      <div className="studio-production-delivery-quality" aria-label={t("studio.delivery.qualitySummary")}>
                         {latestDeliveryPackage.qualitySummary.checks.map((check) => (
                           <span key={check.type}>{check.type.replaceAll("_", " ")} · {check.status}</span>
                         ))}
                       </div>
-                      <div className="studio-production-delivery-history" aria-label="Delivery Version history">
+                      <div className="studio-production-delivery-history" aria-label={t("studio.delivery.versionHistory")}>
                         {activeProductionDelivery.packages.map((deliveryPackage) => (
                           <div key={deliveryPackage.packageId}>
                             <strong>{deliveryPackage.version}</strong>
                             <span>{deliveryPackage.status}</span>
-                            <small>{deliveryPackage.outputs.length} outputs · {deliveryPackage.createdAt}</small>
+                            <small>{tf("studio.delivery.outputCount", { count: deliveryPackage.outputs.length })} · {deliveryPackage.createdAt}</small>
                           </div>
                         ))}
                       </div>
                     </>
                   ) : (
-                    <p>Create the first `v1.0` reference manifest from approved Outputs, Timeline references, Assets, and Quality evidence.</p>
+                    <p>{t("studio.delivery.empty")}</p>
                   )}
                   <div className="studio-production-delivery-actions">
                     {activeProductionDelivery.allowedVersions.map((version, index) => (
@@ -1424,30 +1426,30 @@ export function StudioStoryboardPanel({
                         type="button"
                       >
                         {productionDeliveryBusy
-                          ? "Creating…"
+                          ? t("studio.delivery.creating")
                           : activeProductionDelivery.packages.length
                             ? index === 0
-                              ? `Create Revision ${version}`
-                              : `Create Major ${version}`
-                            : `Create Package ${version}`}
+                              ? tf("studio.delivery.createRevision", { version })
+                              : tf("studio.delivery.createMajor", { version })
+                            : tf("studio.delivery.createPackage", { version })}
                       </button>
                     ))}
                   </div>
-                  <small>Append-only versions · no publish, external upload, share, history deletion, or Credits action.</small>
+                  <small>{t("studio.delivery.boundary")}</small>
                 </>
               ) : productionDeliveryError ? (
                 <>
-                  <strong>Delivery unavailable</strong>
+                  <strong>{t("studio.delivery.unavailable")}</strong>
                   <p>{productionDeliveryError}</p>
                 </>
               ) : (
-                <p>Loading approved Outputs, Timeline references, Assets, and Quality evidence…</p>
+                <p>{t("studio.delivery.loading")}</p>
               )}
             </section>
-            <section className="studio-storyboard-draft-section studio-client-review" aria-label="Client Review Workspace">
-              <span>Client Review Workspace</span>
+            <section className="studio-storyboard-draft-section studio-client-review" aria-label={t("studio.clientReview.title")}>
+              <span>{t("studio.clientReview.title")}</span>
               {!latestDeliveryPackage ? (
-                <p>Create a Delivery Package before opening collaboration review.</p>
+                <p>{t("studio.clientReview.requiresDelivery")}</p>
               ) : activeClientReview ? (
                 <>
                   <header>
@@ -1455,10 +1457,10 @@ export function StudioStoryboardPanel({
                       <strong>{activeClientReview.deliveryPackage.version}</strong>
                       <small>{activeClientReview.session.status}</small>
                     </div>
-                    <small>{activeClientReview.session.comments.length} comments · {activeClientReview.session.revisions.length} revisions</small>
+                    <small>{tf("studio.clientReview.summary", { comments: activeClientReview.session.comments.length, revisions: activeClientReview.session.revisions.length })}</small>
                   </header>
                   <label className="studio-client-review-version">
-                    <span>Delivery Version</span>
+                    <span>{t("studio.clientReview.deliveryVersion")}</span>
                     <select
                       onChange={(event) => setSelectedClientReviewPackageId(event.target.value)}
                       value={activeClientReview.deliveryPackage.packageId}
@@ -1472,13 +1474,13 @@ export function StudioStoryboardPanel({
                   </label>
                   <div className="studio-client-review-link">
                     <header>
-                      <strong>External Review Portal</strong>
-                      <span>Delivery scope only</span>
+                      <strong>{t("studio.clientReview.externalPortal")}</strong>
+                      <span>{t("studio.clientReview.deliveryScopeOnly")}</span>
                     </header>
                     {externalReviewLink?.link.deliveryPackageId === activeClientReview.deliveryPackage.packageId ? (
                       <>
                         <input
-                          aria-label="External review link"
+                          aria-label={t("studio.clientReview.externalLinkLabel")}
                           readOnly
                           value={`${typeof window === "undefined" ? "" : window.location.origin}${externalReviewLink.reviewPath}`}
                         />
@@ -1486,10 +1488,10 @@ export function StudioStoryboardPanel({
                           onClick={() => void navigator.clipboard.writeText(`${window.location.origin}${externalReviewLink.reviewPath}`)}
                           type="button"
                         >
-                          Copy secure link
+                          {t("studio.clientReview.copyLink")}
                         </button>
                         <small>
-                          Expires {new Date(externalReviewLink.link.expiresAt).toLocaleString()} · token shown once
+                          {tf("studio.clientReview.expires", { time: new Date(externalReviewLink.link.expiresAt).toLocaleString() })}
                         </small>
                       </>
                     ) : (
@@ -1498,10 +1500,10 @@ export function StudioStoryboardPanel({
                         onClick={() => void createExternalReviewLink()}
                         type="button"
                       >
-                        {clientReviewBusy ? "Creating…" : "Create 7-day Review Link"}
+                        {clientReviewBusy ? t("studio.delivery.creating") : t("studio.clientReview.createLink")}
                       </button>
                     )}
-                    <small>VIEW · COMMENT · APPROVE · REQUEST_REVISION · no Studio, Agent, Workflow, cost, or Credits access.</small>
+                    <small>{t("studio.clientReview.linkBoundary")}</small>
                   </div>
                   <div className="studio-client-review-video">
                     {activeClientReview.deliveryPackage.outputs[0]?.videoUrl ? (
@@ -1511,13 +1513,13 @@ export function StudioStoryboardPanel({
                         src={activeClientReview.deliveryPackage.outputs[0].videoUrl}
                       />
                     ) : (
-                      <div>Video Preview unavailable</div>
+                      <div>{t("studio.clientReview.videoUnavailable")}</div>
                     )}
-                    <small>Delivery {activeClientReview.deliveryPackage.version} · read-only Video Preview</small>
+                    <small>{tf("studio.clientReview.videoCaption", { version: activeClientReview.deliveryPackage.version })}</small>
                   </div>
-                  <div className="studio-client-review-comment-form" aria-label="Timeline Comment">
+                  <div className="studio-client-review-comment-form" aria-label={t("studio.clientReview.timelineComment")}>
                     <label>
-                      <span>Target</span>
+                      <span>{t("studio.clientReview.target")}</span>
                       <select
                         onChange={(event) => setReviewCommentTarget(event.target.value)}
                         value={reviewCommentTarget}
@@ -1528,7 +1530,7 @@ export function StudioStoryboardPanel({
                       </select>
                     </label>
                     <label>
-                      <span>Timestamp</span>
+                      <span>{t("studio.clientReview.timestamp")}</span>
                       <input
                         min={0}
                         onChange={(event) => setReviewCommentTimestamp(Number(event.target.value))}
@@ -1538,11 +1540,11 @@ export function StudioStoryboardPanel({
                       />
                     </label>
                     <label>
-                      <span>Feedback</span>
+                      <span>{t("studio.clientReview.feedback")}</span>
                       <textarea
                         maxLength={2000}
                         onChange={(event) => setReviewCommentContent(event.target.value)}
-                        placeholder="Describe the requested revision…"
+                        placeholder={t("studio.clientReview.feedbackPlaceholder")}
                         value={reviewCommentContent}
                       />
                     </label>
@@ -1551,10 +1553,10 @@ export function StudioStoryboardPanel({
                       onClick={() => void addReviewComment()}
                       type="button"
                     >
-                      {clientReviewBusy ? "Saving…" : "Add Review Comment"}
+                      {clientReviewBusy ? t("studio.clientReview.saving") : t("studio.clientReview.addComment")}
                     </button>
                   </div>
-                  <div className="studio-client-review-comments" aria-label="Review Feedback">
+                  <div className="studio-client-review-comments" aria-label={t("studio.clientReview.reviewFeedback")}>
                     {activeClientReview.session.comments.length ? (
                       activeClientReview.session.comments.map((comment) => (
                         <article key={comment.commentId}>
@@ -1567,29 +1569,29 @@ export function StudioStoryboardPanel({
                         </article>
                       ))
                     ) : (
-                      <p>No feedback has been added to this Delivery version.</p>
+                      <p>{t("studio.clientReview.noFeedback")}</p>
                     )}
                   </div>
-                  <div className="studio-revision-intelligence" aria-label="Client Insights">
+                  <div className="studio-revision-intelligence" aria-label={t("studio.clientReview.insights.title")}>
                     <header>
                       <div>
-                        <strong>Client Insights</strong>
-                        <small>Feedback → Pattern → Human Review → Project Memory Draft</small>
+                        <strong>{t("studio.clientReview.insights.title")}</strong>
+                        <small>{t("studio.clientReview.insights.flow")}</small>
                       </div>
                       <span>
                         {activeClientInsights
-                          ? `${activeClientInsights.summary.patternCount} patterns`
-                          : "ANALYZING"}
+                          ? tf("studio.clientReview.insights.patternCount", { count: activeClientInsights.summary.patternCount })
+                          : t("studio.clientReview.analyzing")}
                       </span>
                     </header>
                     {activeClientInsights?.patterns.length ? (
                       activeClientInsights.patterns.map((pattern) => (
                         <article key={pattern.patternId}>
                           <header>
-                            <strong>Client scope {pattern.clientScope.slice(-6)}</strong>
-                            <span>{pattern.confidence} CONFIDENCE</span>
+                            <strong>{tf("studio.clientReview.clientScope", { scope: pattern.clientScope.slice(-6) })}</strong>
+                            <span>{tf("studio.clientReview.confidenceValue", { confidence: pattern.confidence })}</span>
                           </header>
-                          <small>{pattern.historicalFeedbackCount} historical feedback items</small>
+                          <small>{tf("studio.clientReview.insights.feedbackCount", { count: pattern.historicalFeedbackCount })}</small>
                           <ul>
                             {pattern.patterns.map((item) => (
                               <li key={`${pattern.patternId}:${item.type}`}>
@@ -1597,12 +1599,12 @@ export function StudioStoryboardPanel({
                                 {" · "}
                                 {item.recommendation}
                                 {" · "}
-                                {item.evidenceCount} evidence
+                                {tf("studio.clientReview.evidenceCount", { count: item.evidenceCount })}
                               </li>
                             ))}
                           </ul>
                           <details>
-                            <summary>Evidence used</summary>
+                            <summary>{t("studio.clientReview.evidenceUsed")}</summary>
                             <ul>
                               {pattern.evidence.map((evidence) => (
                                 <li key={evidence.evidenceId}>
@@ -1613,7 +1615,7 @@ export function StudioStoryboardPanel({
                           </details>
                           {pattern.memoryDraft ? (
                             <small>
-                              Project Memory Draft: {pattern.memoryDraft.draftId} · {pattern.memoryDraft.status}
+                              {tf("studio.clientReview.memoryDraft", { id: pattern.memoryDraft.draftId, status: pattern.memoryDraft.status })}
                             </small>
                           ) : (
                             <button
@@ -1622,8 +1624,8 @@ export function StudioStoryboardPanel({
                               type="button"
                             >
                               {clientInsightsBusyId === pattern.patternId
-                                ? "Confirming…"
-                                : "Create Project Memory Draft"}
+                                ? t("studio.common.confirming")
+                                : t("studio.clientReview.createMemoryDraft")}
                             </button>
                           )}
                           <button
@@ -1632,71 +1634,70 @@ export function StudioStoryboardPanel({
                             type="button"
                           >
                             {activeClientRelationshipScope === pattern.clientScope
-                              ? "Relationship Selected"
-                              : "View Relationship"}
+                              ? t("studio.clientReview.relationshipSelected")
+                              : t("studio.clientReview.viewRelationship")}
                           </button>
                         </article>
                       ))
                     ) : clientInsightsError ? (
                       <p>{clientInsightsError}</p>
                     ) : (
-                      <p>Client patterns will appear after scoped Review feedback or a verified outcome exists.</p>
+                      <p>{t("studio.clientReview.insights.empty")}</p>
                     )}
                     <small>
-                      Each client scope is isolated · preview and explicit Confirm only · no preference,
-                      project, Revision, Provider, or Credits mutation.
+                      {t("studio.clientReview.insights.boundary")}
                     </small>
                   </div>
-                  <div className="studio-revision-intelligence" aria-label="Client Relationship Center">
+                  <div className="studio-revision-intelligence" aria-label={t("studio.clientReview.relationship.title")}>
                     <header>
                       <div>
-                        <strong>Client Relationship Center</strong>
-                        <small>Qualified history · success patterns · preferences · risks</small>
+                        <strong>{t("studio.clientReview.relationship.title")}</strong>
+                        <small>{t("studio.clientReview.relationship.description")}</small>
                       </div>
-                      <span>{activeClientRelationship?.confidence || "ANALYZING"}</span>
+                      <span>{activeClientRelationship?.confidence || t("studio.clientReview.analyzing")}</span>
                     </header>
                     {activeClientRelationship ? (
                       <>
                         <small>
-                          Client scope {activeClientRelationship.clientScope.slice(-6)}
+                          {tf("studio.clientReview.clientScope", { scope: activeClientRelationship.clientScope.slice(-6) })}
                           {" · "}
-                          {activeClientRelationship.projects.length} projects
+                          {tf("studio.clientReview.relationship.projectCount", { count: activeClientRelationship.projects.length })}
                         </small>
                         <dl>
                           {Object.entries(activeClientRelationship.metrics).map(([name, metric]) => (
                             <div key={name}>
                               <dt>{name.replaceAll("_", " ")}</dt>
                               <dd>
-                                {metric.value === null ? "Unknown" : String(metric.value)}
+                                {metric.value === null ? t("studio.common.unknown") : String(metric.value)}
                                 {" "}
                                 {metric.unit.replaceAll("_", " ")}
                               </dd>
                             </div>
                           ))}
                         </dl>
-                        <div className="studio-storyboard-batch-tags" aria-label="Client Relationship Risks">
+                        <div className="studio-storyboard-batch-tags" aria-label={t("studio.clientReview.relationship.risks")}>
                           {activeClientRelationship.riskFlags.length
                             ? activeClientRelationship.riskFlags.map((risk) => (
                               <span key={risk}>⚠ {risk.replaceAll("_", " ")}</span>
                             ))
-                            : <span>No qualified relationship risk detected</span>}
+                            : <span>{t("studio.clientReview.relationship.noRisk")}</span>}
                         </div>
                         <section>
-                          <strong>Historical Projects</strong>
+                          <strong>{t("studio.clientReview.relationship.history")}</strong>
                           <ul>
                             {activeClientRelationship.projects.map((project) => (
                               <li key={project.projectId}>
-                                Project {project.projectId.slice(-8)}
+                                {tf("studio.clientReview.relationship.project", { id: project.projectId.slice(-8) })}
                                 {" · "}
-                                {project.approvedDeliveries} approved deliveries
+                                {tf("studio.clientReview.relationship.approvedDeliveries", { count: project.approvedDeliveries })}
                                 {" · "}
-                                {project.confirmedRevisions} confirmed revisions
+                                {tf("studio.clientReview.relationship.confirmedRevisions", { count: project.confirmedRevisions })}
                               </li>
                             ))}
                           </ul>
                         </section>
                         <section>
-                          <strong>Qualified Preferences</strong>
+                          <strong>{t("studio.clientReview.relationship.preferences")}</strong>
                           {activeClientRelationship.preferences.length ? (
                             <ul>
                               {activeClientRelationship.preferences.map((preference) => (
@@ -1705,14 +1706,14 @@ export function StudioStoryboardPanel({
                                   {" · "}
                                   {preference.confidence}
                                   {" · "}
-                                  {preference.evidenceCount} evidence
+                                  {tf("studio.clientReview.evidenceCount", { count: preference.evidenceCount })}
                                 </li>
                               ))}
                             </ul>
-                          ) : <p>No qualified preference signal yet.</p>}
+                          ) : <p>{t("studio.clientReview.relationship.noPreference")}</p>}
                         </section>
                         <section>
-                          <strong>Success Patterns</strong>
+                          <strong>{t("studio.clientReview.relationship.successPatterns")}</strong>
                           {activeClientRelationship.successPatterns.length ? (
                             <ul>
                               {activeClientRelationship.successPatterns.map((pattern) => (
@@ -1721,21 +1722,21 @@ export function StudioStoryboardPanel({
                                 </li>
                               ))}
                             </ul>
-                          ) : <p>No qualified success pattern yet.</p>}
+                          ) : <p>{t("studio.clientReview.relationship.noSuccessPattern")}</p>}
                         </section>
                         <section>
-                          <strong>Future Recommendations</strong>
+                          <strong>{t("studio.clientReview.relationship.recommendations")}</strong>
                           {activeClientRelationship.recommendations.map((recommendation) => (
                             <article key={recommendation.recommendationId}>
                               <header>
                                 <strong>{recommendation.type.replaceAll("_", " ")}</strong>
-                                <span>{recommendation.confidence} CONFIDENCE</span>
+                                <span>{tf("studio.clientReview.confidenceValue", { confidence: recommendation.confidence })}</span>
                               </header>
                               <p>{recommendation.message}</p>
-                              <small>{recommendation.evidenceRefs.length} qualified evidence references</small>
+                              <small>{tf("studio.clientReview.relationship.qualifiedEvidence", { count: recommendation.evidenceRefs.length })}</small>
                               {recommendation.draft ? (
                                 <small>
-                                  Relationship Draft: {recommendation.draft.draftId} · {recommendation.draft.status}
+                                  {tf("studio.clientReview.relationship.draft", { id: recommendation.draft.draftId, status: recommendation.draft.status })}
                                 </small>
                               ) : (
                                 <button
@@ -1746,8 +1747,8 @@ export function StudioStoryboardPanel({
                                   type="button"
                                 >
                                   {clientRelationshipBusyId === recommendation.recommendationId
-                                    ? "Confirming…"
-                                    : "Create Relationship Draft"}
+                                    ? t("studio.common.confirming")
+                                    : t("studio.clientReview.relationship.createDraft")}
                                 </button>
                               )}
                             </article>
@@ -1757,23 +1758,22 @@ export function StudioStoryboardPanel({
                     ) : clientRelationshipError ? (
                       <p>{clientRelationshipError}</p>
                     ) : (
-                      <p>Select a qualified Client Insight to review long-term relationship history.</p>
+                      <p>{t("studio.clientReview.relationship.empty")}</p>
                     )}
                     <small>
-                      Current user and explicit client scope only · no profile mutation, messaging,
-                      project changes, execution, Provider, or Credits action.
+                      {t("studio.clientReview.relationship.boundary")}
                     </small>
                   </div>
-                  <div className="studio-revision-intelligence" aria-label="AI Revision Suggestion">
+                  <div className="studio-revision-intelligence" aria-label={t("studio.review.aiRevision.title")}>
                     <header>
                       <div>
-                        <strong>AI Revision Suggestion</strong>
-                        <small>Feedback → Intent → Proposal</small>
+                        <strong>{t("studio.review.aiRevision.title")}</strong>
+                        <small>{t("studio.review.aiRevision.flow")}</small>
                       </div>
                       <span>
                         {activeRevisionIntelligence
-                          ? `${activeRevisionIntelligence.summary.proposalCount} proposals`
-                          : "ANALYZING"}
+                          ? tf("studio.review.aiRevision.proposalCount", { count: activeRevisionIntelligence.summary.proposalCount })
+                          : t("studio.clientReview.analyzing")}
                       </span>
                     </header>
                     {activeRevisionIntelligence?.proposals.length ? (
@@ -1781,25 +1781,25 @@ export function StudioStoryboardPanel({
                         <article key={proposal.proposalId}>
                           <header>
                             <strong>{proposal.feedbackIntent.type.replaceAll("_", " ")}</strong>
-                            <span>{proposal.confidence} CONFIDENCE</span>
+                            <span>{tf("studio.clientReview.confidenceValue", { confidence: proposal.confidence })}</span>
                           </header>
                           <blockquote>{proposal.sourceComment.content}</blockquote>
                           <dl>
                             <div>
-                              <dt>Original Comment</dt>
+                              <dt>{t("studio.review.aiRevision.originalComment")}</dt>
                               <dd>{proposal.sourceComment.targetRef} · {proposal.sourceComment.timestamp}s</dd>
                             </div>
                             <div>
-                              <dt>Understood Intent</dt>
+                              <dt>{t("studio.review.aiRevision.intent")}</dt>
                               <dd>{proposal.feedbackIntent.type.replaceAll("_", " ")}</dd>
                             </div>
                             <div>
-                              <dt>Modification Scope</dt>
+                              <dt>{t("studio.review.aiRevision.scope")}</dt>
                               <dd>{proposal.affectedShots.join(", ") || proposal.feedbackIntent.affectedRefs.join(", ")}</dd>
                             </div>
                             <div>
-                              <dt>Boundary</dt>
-                              <dd>New Workflow Draft only</dd>
+                              <dt>{t("studio.review.aiRevision.boundaryLabel")}</dt>
+                              <dd>{t("studio.review.aiRevision.draftOnly")}</dd>
                             </div>
                           </dl>
                           <ul>
@@ -1812,14 +1812,14 @@ export function StudioStoryboardPanel({
                           {proposal.workflowDraftRef ? (
                             <>
                               <small>
-                                Workflow Draft: {proposal.workflowDraftRef.draftId} · {proposal.workflowDraftRef.status}
+                                {tf("studio.review.aiRevision.workflowDraft", { id: proposal.workflowDraftRef.draftId, status: proposal.workflowDraftRef.status })}
                               </small>
                               <button
                                 disabled={revisionRunPlanBusy}
                                 onClick={() => void createRevisionPlan(proposal.proposalId)}
                                 type="button"
                               >
-                                {revisionRunPlanBusy ? "Planning…" : "Plan Revision Run"}
+                                {revisionRunPlanBusy ? t("studio.storyboard.planning") : t("studio.review.aiRevision.planRun")}
                               </button>
                             </>
                           ) : (
@@ -1829,8 +1829,8 @@ export function StudioStoryboardPanel({
                               type="button"
                             >
                               {revisionIntelligenceBusyId === proposal.proposalId
-                                ? "Confirming…"
-                                : "Confirm AI Revision Draft"}
+                                ? t("studio.common.confirming")
+                                : t("studio.review.aiRevision.confirm")}
                             </button>
                           )}
                         </article>
@@ -1838,70 +1838,70 @@ export function StudioStoryboardPanel({
                     ) : revisionIntelligenceError ? (
                       <p>{revisionIntelligenceError}</p>
                     ) : activeClientReview.session.comments.length ? (
-                      <p>Analyzing Review Feedback into read-only Revision Proposals…</p>
+                      <p>{t("studio.review.aiRevision.analyzing")}</p>
                     ) : (
-                      <p>Add a Review Comment to receive an AI Revision Suggestion.</p>
+                      <p>{t("studio.review.aiRevision.empty")}</p>
                     )}
-                    <small>Preview and explicit Confirm only · no result mutation, generation, execution, publish, or Credits action.</small>
+                    <small>{t("studio.review.aiRevision.safety")}</small>
                   </div>
-                  <div className="studio-revision-planner" aria-label="Revision Planner">
+                  <div className="studio-revision-planner" aria-label={t("studio.review.revisionPlanner.title")}>
                     <header>
                       <div>
-                        <strong>Revision Planner</strong>
-                        <small>Feedback → Revision Plan → New Version</small>
+                        <strong>{t("studio.review.revisionPlanner.title")}</strong>
+                        <small>{t("studio.review.revisionPlanner.flow")}</small>
                       </div>
-                      <span>{activeRevisionRunPlan?.status || "NOT PLANNED"}</span>
+                      <span>{activeRevisionRunPlan?.status || t("studio.review.revisionPlanner.notPlanned")}</span>
                     </header>
                     {activeRevisionRunPlan ? (
                       <>
-                        <div className="studio-revision-version-loop" aria-label="Delivery Version Loop">
-                          <span>Delivery {activeRevisionRunPlan.versionPlan.sourceVersion}</span>
+                        <div className="studio-revision-version-loop" aria-label={t("studio.review.revisionPlanner.versionLoop")}>
+                          <span>{tf("studio.clientReview.deliveryLabel", { version: activeRevisionRunPlan.versionPlan.sourceVersion })}</span>
                           <b>→</b>
-                          <span>Revision</span>
+                          <span>{t("studio.review.revisionPlanner.revision")}</span>
                           <b>→</b>
-                          <span>Delivery {activeRevisionRunPlan.versionPlan.targetVersion}</span>
+                          <span>{tf("studio.clientReview.deliveryLabel", { version: activeRevisionRunPlan.versionPlan.targetVersion })}</span>
                         </div>
                         <dl>
                           <div>
-                            <dt>Modified Shots</dt>
-                            <dd>{activeRevisionRunPlan.affectedShots.join(", ") || "None"}</dd>
+                            <dt>{t("studio.review.revisionPlanner.modifiedShots")}</dt>
+                            <dd>{activeRevisionRunPlan.affectedShots.join(", ") || t("studio.common.none")}</dd>
                           </div>
                           <div>
-                            <dt>Preserved Content</dt>
-                            <dd>{activeRevisionRunPlan.preservedShots.join(", ") || "None"}</dd>
+                            <dt>{t("studio.review.revisionPlanner.preserved")}</dt>
+                            <dd>{activeRevisionRunPlan.preservedShots.join(", ") || t("studio.common.none")}</dd>
                           </div>
                           <div>
-                            <dt>Timeline Impact</dt>
+                            <dt>{t("studio.review.revisionPlanner.timelineImpact")}</dt>
                             <dd>{activeRevisionRunPlan.impact.timelineImpact.status.replaceAll("_", " ")}</dd>
                           </div>
                           <div>
-                            <dt>Asset Impact</dt>
+                            <dt>{t("studio.review.revisionPlanner.assetImpact")}</dt>
                             <dd>{activeRevisionRunPlan.impact.assetImpact.status.replaceAll("_", " ")}</dd>
                           </div>
                           <div>
-                            <dt>Estimated Cost</dt>
-                            <dd>{activeRevisionRunPlan.estimatedCost.totalCreditsEstimate} Credits</dd>
+                            <dt>{t("studio.review.revisionPlanner.cost")}</dt>
+                            <dd>{tf("studio.production.creditsValue", { count: activeRevisionRunPlan.estimatedCost.totalCreditsEstimate })}</dd>
                           </div>
                           <div>
-                            <dt>Cost Confidence</dt>
+                            <dt>{t("studio.production.costConfidence")}</dt>
                             <dd>{activeRevisionRunPlan.estimatedCost.costConfidence}</dd>
                           </div>
                         </dl>
-                        <div className="studio-revision-scope" aria-label="Revision Scope">
+                        <div className="studio-revision-scope" aria-label={t("studio.review.revisionPlanner.scope")}>
                           {activeRevisionRunPlan.revisionScope.map((scope, index) => (
                             <span key={`${scope.type}:${scope.shotId || scope.draftShotRef}:${index}`}>
                               {scope.type.replaceAll("_", " ")} · {scope.shotId || scope.draftShotRef}
                             </span>
                           ))}
                         </div>
-                        <div className="studio-storyboard-batch-tags" aria-label="Revision Risks">
+                        <div className="studio-storyboard-batch-tags" aria-label={t("studio.review.revisionPlanner.risks")}>
                           {activeRevisionRunPlan.riskFlags.map((risk) => <span key={risk}>⚠ {risk}</span>)}
                         </div>
                         {activeRevisionRunPlan.productionWorkflowDraftRef ? (
                           <small>
-                            Production Workflow Draft: {activeRevisionRunPlan.productionWorkflowDraftRef.draftId}
+                            {tf("studio.review.revisionPlanner.productionDraft", { id: activeRevisionRunPlan.productionWorkflowDraftRef.draftId })}
                             {" · "}
-                            New Delivery version remains planned, not created or published.
+                            {t("studio.review.revisionPlanner.versionPlanned")}
                           </small>
                         ) : activeRevisionRunPlan.status === "PREVIEWED" ? (
                           <button
@@ -1909,40 +1909,40 @@ export function StudioStoryboardPanel({
                             onClick={() => void confirmRevisionPlan()}
                             type="button"
                           >
-                            {revisionRunPlanBusy ? "Confirming…" : "Confirm Revision Plan"}
+                            {revisionRunPlanBusy ? t("studio.common.confirming") : t("studio.review.revisionPlanner.confirm")}
                           </button>
                         ) : (
-                          <small>Confirmation is blocked until Revision cost is known and all planning risks are reviewable.</small>
+                          <small>{t("studio.review.revisionPlanner.blocked")}</small>
                         )}
                       </>
                     ) : (
-                      <p>Confirm an AI Revision Suggestion, then preview its modified Shots, preserved content, impact, cost, and next Delivery version.</p>
+                      <p>{t("studio.review.revisionPlanner.empty")}</p>
                     )}
-                    <small>Source Delivery is immutable · no automatic execution, generation, publish, or Credits deduction.</small>
+                    <small>{t("studio.review.revisionPlanner.boundary")}</small>
                   </div>
                   <div className="studio-client-review-revision">
                     <header>
-                      <strong>Revision Draft</strong>
-                      <span>{latestRevision?.status || "NOT CREATED"}</span>
+                      <strong>{t("studio.review.revisionDraft.title")}</strong>
+                      <span>{latestRevision?.status || t("studio.review.revisionDraft.notCreated")}</span>
                     </header>
                     {latestRevision ? (
                       <>
                         <dl>
-                          <div><dt>Comments</dt><dd>{latestRevision.impact.commentCount}</dd></div>
-                          <div><dt>Targets</dt><dd>{latestRevision.impact.targetCount}</dd></div>
-                          <div><dt>Shots</dt><dd>{latestRevision.impact.affectedShotIds.length}</dd></div>
-                          <div><dt>Workflow Impact</dt><dd>New Draft Only</dd></div>
+                          <div><dt>{t("studio.review.revisionDraft.comments")}</dt><dd>{latestRevision.impact.commentCount}</dd></div>
+                          <div><dt>{t("studio.review.revisionDraft.targets")}</dt><dd>{latestRevision.impact.targetCount}</dd></div>
+                          <div><dt>{t("studio.production.shots")}</dt><dd>{latestRevision.impact.affectedShotIds.length}</dd></div>
+                          <div><dt>{t("studio.review.revisionDraft.workflowImpact")}</dt><dd>{t("studio.review.revisionDraft.newOnly")}</dd></div>
                         </dl>
                         {latestRevision.workflowDraftRef ? (
                           <small>
-                            New Workflow Draft: {latestRevision.workflowDraftRef.draftId} · {latestRevision.workflowDraftRef.status}
+                            {tf("studio.review.revisionDraft.workflowDraft", { id: latestRevision.workflowDraftRef.draftId, status: latestRevision.workflowDraftRef.status })}
                           </small>
                         ) : (
-                          <small>Preview only. Current Workflow and Delivery remain unchanged.</small>
+                          <small>{t("studio.review.revisionDraft.previewOnly")}</small>
                         )}
                       </>
                     ) : (
-                      <p>Aggregate OPEN comments into a Revision Request Preview.</p>
+                      <p>{t("studio.review.revisionDraft.empty")}</p>
                     )}
                     {latestRevision?.status === "PREVIEW" ? (
                       <button
@@ -1950,7 +1950,7 @@ export function StudioStoryboardPanel({
                         onClick={() => void confirmRevisionRequest()}
                         type="button"
                       >
-                        {clientReviewBusy ? "Confirming…" : "Confirm Revision Draft"}
+                        {clientReviewBusy ? t("studio.common.confirming") : t("studio.review.revisionDraft.confirm")}
                       </button>
                     ) : (
                       <button
@@ -1958,19 +1958,19 @@ export function StudioStoryboardPanel({
                         onClick={() => void previewRevisionRequest()}
                         type="button"
                       >
-                        {clientReviewBusy ? "Preparing…" : "Preview Revision Draft"}
+                        {clientReviewBusy ? t("studio.storyboard.preparing") : t("studio.review.revisionDraft.preview")}
                       </button>
                     )}
                   </div>
-                  <small>Comments and Revision Drafts only · no Output change, regeneration, publish, Workflow execution, or Credits action.</small>
+                  <small>{t("studio.clientReview.boundary")}</small>
                 </>
               ) : clientReviewError ? (
                 <>
-                  <strong>Client Review unavailable</strong>
+                  <strong>{t("studio.clientReview.unavailable")}</strong>
                   <p>{clientReviewError}</p>
                 </>
               ) : (
-                <p>Opening the latest Delivery version for collaboration review…</p>
+                <p>{t("studio.clientReview.loading")}</p>
               )}
             </section>
             {message ? <small role="status">{message}</small> : null}

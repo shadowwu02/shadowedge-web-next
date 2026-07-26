@@ -13,7 +13,7 @@ const api = fs.readFileSync(
 const panel = fs.readFileSync(
   "src/features/studio/components/StudioStoryboardPanel.tsx",
   "utf8",
-);
+) + fs.readFileSync("src/i18n/productPhase2Dictionary.ts", "utf8");
 const styles = fs.readFileSync(
   "src/features/studio/studio.css",
   "utf8",

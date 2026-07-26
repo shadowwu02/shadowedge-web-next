@@ -60,13 +60,13 @@ test("Simulation uses exact project APIs and the version capability handshake", 
 });
 
 test("Canvas renders Simulate Change, Before/After comparison, Impact, Risk, and Draft-only boundary", () => {
-  assert.match(componentSource, /Simulate Change/);
-  assert.match(componentSource, /Canvas Change Simulation/);
-  assert.match(componentSource, />Before</);
-  assert.match(componentSource, />After</);
-  assert.match(componentSource, /Risk analysis/);
-  assert.match(componentSource, /Comparison Preview only/);
-  assert.match(componentSource, /No change was applied/);
+  assert.match(componentSource, /studio\.creativeCanvas\.simulation\.action/);
+  assert.match(componentSource, /studio\.creativeCanvas\.simulation\.title/);
+  assert.match(componentSource, /studio\.creativeCanvas\.simulation\.before/);
+  assert.match(componentSource, /studio\.creativeCanvas\.simulation\.after/);
+  assert.match(componentSource, /studio\.creativeCanvas\.simulation\.risk/);
+  assert.match(componentSource, /studio\.creativeCanvas\.simulation\.previewOnly/);
+  assert.match(componentSource, /studio\.creativeCanvas\.simulation\.boundary/);
   assert.doesNotMatch(
     apiSource + componentSource,
     /executeNode|generateVideo|submitProvider|deductCredits|chargeCredits|startQueue|createJob|confirmSimulation/,

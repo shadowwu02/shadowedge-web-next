@@ -10,7 +10,7 @@ const api = fs.readFileSync("src/lib/studio-storyboard-api.ts", "utf8");
 const panel = fs.readFileSync(
   "src/features/studio/components/StudioStoryboardPanel.tsx",
   "utf8",
-);
+) + fs.readFileSync("src/i18n/productPhase2Dictionary.ts", "utf8");
 
 test("Batch Generation Plan and Shot Item schemas expose planning, cost, dependency, and risk data", () => {
   for (const field of [

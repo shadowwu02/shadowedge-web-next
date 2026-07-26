@@ -16,7 +16,7 @@ const api = fs.readFileSync(
 const component = fs.readFileSync(
   "src/features/studio/components/StudioCreativeCanvas.tsx",
   "utf8",
-);
+) + fs.readFileSync("src/i18n/dictionary.ts", "utf8");
 const version = fs.readFileSync("src/lib/studio-api-version.ts", "utf8");
 
 test("Canvas Decision schema covers source Draft, options, selected option, reason, and outcome", () => {

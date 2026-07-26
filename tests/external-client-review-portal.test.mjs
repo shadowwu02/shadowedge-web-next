@@ -4,10 +4,12 @@ import test from "node:test";
 
 const schema = fs.readFileSync("src/features/studio/capabilities/externalClientReview.ts", "utf8");
 const api = fs.readFileSync("src/lib/external-client-review-api.ts", "utf8");
-const portal = fs.readFileSync("src/features/client-review/ExternalClientReviewPortal.tsx", "utf8");
+const portal = fs.readFileSync("src/features/client-review/ExternalClientReviewPortal.tsx", "utf8")
+  + fs.readFileSync("src/i18n/productPhase2Dictionary.ts", "utf8");
 const page = fs.readFileSync("src/app/client/review/[token]/page.tsx", "utf8");
 const studioApi = fs.readFileSync("src/lib/studio-client-review-api.ts", "utf8");
-const studioPanel = fs.readFileSync("src/features/studio/components/StudioStoryboardPanel.tsx", "utf8");
+const studioPanel = fs.readFileSync("src/features/studio/components/StudioStoryboardPanel.tsx", "utf8")
+  + fs.readFileSync("src/i18n/productPhase2Dictionary.ts", "utf8");
 const maintenance = fs.readFileSync("src/components/maintenance/MaintenanceGate.tsx", "utf8");
 
 test("External Review contract exposes only Delivery preview, public comments, and decisions", () => {

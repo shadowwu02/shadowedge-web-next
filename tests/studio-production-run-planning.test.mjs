@@ -13,7 +13,7 @@ const api = fs.readFileSync(
 const panel = fs.readFileSync(
   "src/features/studio/components/StudioStoryboardPanel.tsx",
   "utf8",
-);
+) + fs.readFileSync("src/i18n/productPhase2Dictionary.ts", "utf8");
 
 test("Production Run Plan and Production Step schemas expose the complete project preview", () => {
   for (const field of [

@@ -7,6 +7,7 @@ const demo = fs.readFileSync("src/features/dashboard/components/DemoProjectWorks
 const signIn = fs.readFileSync("src/components/auth/SignInForm.tsx", "utf8");
 const signUp = fs.readFileSync("src/components/auth/SignUpForm.tsx", "utf8");
 const studio = fs.readFileSync("src/features/studio/components/StudioWorkspace.tsx", "utf8");
+const phase2Catalog = fs.readFileSync("src/i18n/productPhase2Dictionary.ts", "utf8");
 
 test("login and registration default to Dashboard while explicit next routes remain supported", () => {
   assert.match(signIn, /getSafeAuthNext\(searchParams\.get\("next"\), "\/dashboard"\)/);
@@ -20,9 +21,9 @@ test("Dashboard exposes onboarding, project, Canvas, template, and demo entry po
     "Open Creative Canvas",
     "Browse Templates",
     "Open Demo Project",
-  ]) assert.match(dashboard, new RegExp(label));
+  ]) assert.match(`${dashboard}\n${phase2Catalog}`, new RegExp(label));
   assert.match(dashboard, /listStudioProjects\(\)/);
-  assert.match(dashboard, /createStudioProject\("Untitled Creative Project"\)/);
+  assert.match(dashboard, /createStudioProject\(t\("dashboard\.project\.untitled"\)\)/);
 });
 
 test("Studio accepts an owned project route and leaves ownership enforcement to the protected project API", () => {
@@ -32,7 +33,7 @@ test("Studio accepts an owned project route and leaves ownership enforcement to 
 });
 
 test("Demo stays read-only and does not call project, provider, runtime, billing, or generation APIs", () => {
-  assert.match(demo, /Read only/);
-  assert.match(demo, /Excluded from analytics/);
+  assert.match(phase2Catalog, /Read only/);
+  assert.match(phase2Catalog, /Excluded from analytics/);
   assert.doesNotMatch(demo, /apiRequest|createStudioProject|updateStudioProject|fetch\(|Provider|Generate|Run|Credits/);
 });

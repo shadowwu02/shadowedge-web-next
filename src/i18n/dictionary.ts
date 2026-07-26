@@ -1,9 +1,12 @@
+import { productPhase2En, productPhase2Zh } from "@/i18n/productPhase2Dictionary";
+
 export type Locale = "en" | "zh";
 
 // Keep this file encoded as UTF-8. Video-specific keys use dotted namespaces
 // until the UI is migrated to a nested i18n dictionary in F6.
 export const dictionary = {
   en: {
+    ...productPhase2En,
     videoWorkspace: "Video Workspace",
     workspace: "Workspace",
     image: "Image",
@@ -1931,6 +1934,7 @@ export const dictionary = {
     "image.errors.withDetails": "{message}: {details}",
   },
   zh: {
+    ...productPhase2Zh,
     "studio.common.close": "关闭",
     "studio.common.retry": "重试",
     "studio.common.checkAgain": "重新检查",

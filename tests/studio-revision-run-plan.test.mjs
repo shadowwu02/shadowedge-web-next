@@ -13,7 +13,7 @@ const api = fs.readFileSync(
 const panel = fs.readFileSync(
   "src/features/studio/components/StudioStoryboardPanel.tsx",
   "utf8",
-);
+) + fs.readFileSync("src/i18n/productPhase2Dictionary.ts", "utf8");
 const styles = fs.readFileSync(
   "src/features/studio/studio.css",
   "utf8",
@@ -71,8 +71,9 @@ test("Client Review renders Revision Planner scope, impact, cost, and next versi
     assert.match(panel, new RegExp(label));
   }
   assert.match(panel, /Feedback → Revision Plan → New Version/);
-  assert.match(panel, /Delivery \{activeRevisionRunPlan\.versionPlan\.sourceVersion\}/);
-  assert.match(panel, /Delivery \{activeRevisionRunPlan\.versionPlan\.targetVersion\}/);
+  assert.match(panel, /studio\.clientReview\.deliveryLabel/);
+  assert.match(panel, /versionPlan\.sourceVersion/);
+  assert.match(panel, /versionPlan\.targetVersion/);
   assert.match(styles, /\.studio-revision-planner/);
   assert.match(styles, /\.studio-revision-version-loop/);
 });
