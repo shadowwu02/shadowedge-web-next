@@ -3807,15 +3807,41 @@ export function VideoWorkspace() {
   );
 
   const workspaceTabs: Array<{
-    disabled?: boolean;
     key: WorkspaceMode;
     label: string;
+    preview?: boolean;
   }> = [
     { key: "create", label: t("video.workspace.createVideo") },
-    { disabled: true, key: "edit", label: t("video.workspace.editVideo") },
-    { disabled: true, key: "motion", label: t("video.workspace.motionControl") },
+    { key: "edit", label: t("video.workspace.editVideo"), preview: true },
+    { key: "motion", label: t("video.workspace.motionControl"), preview: true },
     { key: "remake", label: t("video.remake.tab") },
   ];
+
+  const comingSoonCapability: {
+    description: DictionaryKey;
+    directions: DictionaryKey[];
+    title: DictionaryKey;
+  } | null = workspaceMode === "edit"
+    ? {
+        description: "video.workspace.editVideo.description",
+        directions: [
+          "video.workspace.editVideo.direction.timeline",
+          "video.workspace.editVideo.direction.guided",
+          "video.workspace.editVideo.direction.export",
+        ],
+        title: "video.workspace.editVideo",
+      }
+    : workspaceMode === "motion"
+      ? {
+          description: "video.workspace.motionControl.description",
+          directions: [
+            "video.workspace.motionControl.direction.camera",
+            "video.workspace.motionControl.direction.reference",
+            "video.workspace.motionControl.direction.validation",
+          ],
+          title: "video.workspace.motionControl",
+        }
+      : null;
 
   const remakeLongVideoCostNotice = useMemo(() => {
     if (guardedLongVideoUxVisible) return "";
@@ -3882,18 +3908,18 @@ export function VideoWorkspace() {
                   className={`whitespace-nowrap border-b-2 pb-2 transition-colors ${
                     isActive
                       ? "border-[#ffb44d] text-[#f4f4f4]"
-                      : tab.disabled
-                        ? "cursor-not-allowed border-transparent text-[#b9b9b9]/42"
-                        : "border-transparent text-[#b9b9b9]/66 hover:text-[#ffb44d]"
+                      : "border-transparent text-[#b9b9b9]/66 hover:text-[#ffb44d]"
                   }`}
-                  disabled={tab.disabled}
                   key={tab.key}
-                  onClick={() => {
-                    if (!tab.disabled) setWorkspaceMode(tab.key);
-                  }}
+                  onClick={() => setWorkspaceMode(tab.key)}
                   type="button"
                 >
-                  {tab.label}
+                  <span>{tab.label}</span>
+                  {tab.preview ? (
+                    <span className="ml-1.5 rounded-full border border-[#ffb44d]/25 bg-[#ffb44d]/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[.12em] text-[#ffd08a]">
+                      {t("video.workspace.betaBadge")}
+                    </span>
+                  ) : null}
                 </button>
               );
             })}
@@ -3901,7 +3927,60 @@ export function VideoWorkspace() {
         </div>
 
         <div className="se-subtle-scrollbar grid min-h-0 min-w-0 flex-1 content-start gap-3.5 overflow-x-hidden overflow-y-auto p-3.5">
-          {workspaceMode === "remake" ? (
+          {comingSoonCapability ? (
+            <section
+              className="min-w-0 overflow-hidden rounded-[24px] border border-[#ffb44d]/20 bg-[linear-gradient(145deg,rgba(255,180,77,.09),rgba(15,15,18,.94)_48%,rgba(23,18,12,.96))] p-4 sm:p-5"
+              data-capability={workspaceMode}
+              data-testid="video-capability-coming-soon"
+            >
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                <span className="text-[10px] font-black uppercase tracking-[.2em] text-[#ffca78]">
+                  {t("video.workspace.capabilityPreview")}
+                </span>
+                <span className="rounded-full border border-[#ffb44d]/30 bg-[#ffb44d]/12 px-2.5 py-1 text-[10px] font-black uppercase tracking-[.12em] text-[#ffe0a3]">
+                  {t("video.workspace.betaComingSoon")}
+                </span>
+              </div>
+
+              <h2 className="mt-5 break-words text-2xl font-black tracking-[-.03em] text-white">
+                {t(comingSoonCapability.title)}
+              </h2>
+              <p className="mt-2 break-words text-sm leading-6 text-white/58">
+                {t(comingSoonCapability.description)}
+              </p>
+
+              <div className="mt-5">
+                <h3 className="text-[11px] font-black uppercase tracking-[.16em] text-white/44">
+                  {t("video.workspace.plannedDirection")}
+                </h3>
+                <div className="mt-3 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3 xl:grid-cols-1">
+                  {comingSoonCapability.directions.map((direction, index) => (
+                    <div className="min-w-0 rounded-2xl border border-white/[.07] bg-black/25 p-3" key={direction}>
+                      <span className="text-[10px] font-black tabular-nums text-[#ffb44d]/72">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <p className="mt-1 break-words text-xs font-semibold leading-5 text-white/68">
+                        {t(direction)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-emerald-300/15 bg-emerald-300/[.055] p-3 text-xs leading-5 text-emerald-100/72">
+                <strong className="block text-emerald-100">{t("video.workspace.createReady")}</strong>
+                <span>{t("video.workspace.comingSoonBoundary")}</span>
+              </div>
+
+              <button
+                className="mt-4 w-full rounded-2xl bg-[#ffb44d] px-4 py-3 text-sm font-black text-[#17120b] transition hover:bg-[#ffc46d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffcf88]"
+                onClick={() => setWorkspaceMode("create")}
+                type="button"
+              >
+                {t("video.workspace.backToCreate")}
+              </button>
+            </section>
+          ) : workspaceMode === "remake" ? (
             <VideoRemakeWorkspace
               analysisError={remakeAnalysisError}
               analysisNotice={remakeAnalysisNotice}
