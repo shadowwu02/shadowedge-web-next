@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { listMediaAssets, mapMediaAssetsToUserAssets, type AssetKind, type AssetSource, type UserAsset } from "@/lib/assets-api";
 import { saveAssetLibraryImageHandoff } from "@/lib/assets/assetLibraryImageHandoff";
+import { saveImageUpscaleAssetHandoff } from "@/lib/image/imageUpscaleHandoff";
+import { useI18n } from "@/i18n/useI18n";
 import { ApiError } from "@/types/api";
 
 type KindFilter = "all" | AssetKind;
@@ -174,13 +176,16 @@ function AssetCard({
   asset,
   copiedLabel,
   onCopy,
+  onUpscale,
   onUseInImage,
 }: {
   asset: UserAsset;
   copiedLabel: string;
   onCopy: (value: string, label: "Job ID" | "URL") => void;
+  onUpscale: (asset: UserAsset) => void;
   onUseInImage: (asset: UserAsset) => void;
 }) {
+  const { t } = useI18n();
   const rows = sourceTraceRows(asset);
   const dimensions = asset.width && asset.height ? `${asset.width} x ${asset.height}` : "";
   const details = [dimensions, formatDuration(asset.durationSeconds), formatBytes(asset.sizeBytes)].filter(Boolean);
@@ -288,6 +293,15 @@ function AssetCard({
             Use in Image
           </button>
           <button
+            className="rounded-full border border-[#8fcbd4]/25 bg-[#8fcbd4]/10 px-3 py-2 text-xs font-black text-[#c9f2f7] transition hover:border-[#8fcbd4]/45 disabled:cursor-not-allowed disabled:opacity-35"
+            disabled={!canUseInImage}
+            onClick={() => onUpscale(asset)}
+            title={useInImageDisabledReason || t("image.upscale.assetActionHint")}
+            type="button"
+          >
+            {t("image.actions.upscale")}
+          </button>
+          <button
             className="rounded-full border border-dashed border-white/14 px-3 py-2 text-xs font-black text-white/35"
             disabled
             title="Draft-only reuse will be connected after the asset-to-workspace draft contract is approved."
@@ -303,6 +317,7 @@ function AssetCard({
 
 export function AssetLibraryPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [assets, setAssets] = useState<UserAsset[]>([]);
   const [copiedLabel, setCopiedLabel] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -388,6 +403,14 @@ export function AssetLibraryPage() {
     }
 
     router.push("/workspace/image?from=asset-library");
+  }
+
+  function handleUpscale(asset: UserAsset) {
+    if (!saveImageUpscaleAssetHandoff(asset)) {
+      setErrorMessage(t("image.upscale.assetPrepareFailed"));
+      return;
+    }
+    router.push("/workspace/image?from=asset-upscale");
   }
 
   return (
@@ -478,6 +501,7 @@ export function AssetLibraryPage() {
                 copiedLabel={copiedLabel}
                 key={asset.id}
                 onCopy={(value, label) => void handleCopy(asset, value, label)}
+                onUpscale={handleUpscale}
                 onUseInImage={handleUseInImage}
               />
             ))}

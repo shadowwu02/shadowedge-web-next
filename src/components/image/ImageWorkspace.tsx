@@ -6,11 +6,13 @@ import { ImageHistoryPanel } from "@/components/image/ImageHistoryPanel";
 import { ImageOutputDetailPanel } from "@/components/image/ImageOutputDetailPanel";
 import { ImageOutputStage } from "@/components/image/ImageOutputStage";
 import { ImagePromptPanel } from "@/components/image/ImagePromptPanel";
+import { ImageUpscalePanel } from "@/components/image/ImageUpscalePanel";
 import { useImageGeneration } from "@/hooks/useImageGeneration";
 import { useI18n } from "@/i18n/useI18n";
 import { assetLibraryImageHandoffToReference, consumeAssetLibraryImageHandoff } from "@/lib/assets/assetLibraryImageHandoff";
 import { getImageUserFacingError } from "@/lib/image/imageErrorDisplay";
 import { isImageActiveStatus } from "@/lib/image/imageHistoryUtils";
+import { consumeImageUpscaleAssetHandoff } from "@/lib/image/imageUpscaleHandoff";
 import { IMAGE_PROMPT_FRONTEND_LIMIT_LABEL } from "@/lib/image/imagePromptLimits";
 import {
   consumePromptStudioToImageDraft,
@@ -19,6 +21,7 @@ import {
   type PromptStudioBridgeDraft,
 } from "@/lib/prompt-studio-draft-bridge";
 import type { ImageHistoryItem, ImageReferenceItem } from "@/types/image";
+import type { ImageUpscaleSource } from "@/types/image-upscale";
 
 function getPromptStudioImageReferences(draft: PromptStudioBridgeDraft | null): ImageReferenceItem[] {
   return (draft?.referenceImages || [])
@@ -72,6 +75,7 @@ export function ImageWorkspace() {
   const [pendingPromptStudioDraft, setPendingPromptStudioDraft] = useState<PromptStudioBridgeDraft | null>(null);
   const [promptStudioNotice, setPromptStudioNotice] = useState("");
   const [isPromptStudioImportHighlighted, setIsPromptStudioImportHighlighted] = useState(false);
+  const [upscaleSource, setUpscaleSource] = useState<ImageUpscaleSource | null>(null);
   const displayJob = image.currentJob || image.outputs[0] || null;
   const localizedError = useMemo(() => {
     const message = String(image.error || "").trim();
@@ -208,6 +212,15 @@ export function ImageWorkspace() {
     return () => window.clearTimeout(timer);
   }, [focusPromptStudioImportTarget, image, image.draftReady, image.references, image.selectedModel?.capabilities.maxReferences]);
 
+  useEffect(() => {
+    if (!image.draftReady) return;
+    const timer = window.setTimeout(() => {
+      const source = consumeImageUpscaleAssetHandoff();
+      if (source) setUpscaleSource(source);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [image.draftReady]);
+
   const handleImportPromptStudioDraft = useCallback(() => {
     if (!pendingPromptStudioDraft?.prompt) return;
     image.setPrompt(pendingPromptStudioDraft.prompt);
@@ -292,6 +305,7 @@ export function ImageWorkspace() {
           isPolling={image.isPolling}
           job={displayJob}
           onRefresh={handleRefreshStatus}
+          onUpscale={setUpscaleSource}
           recoveredJobId={image.recoveredJobId}
         />
       </div>
@@ -308,6 +322,7 @@ export function ImageWorkspace() {
         />
         <ImageOutputDetailPanel job={displayJob} />
       </div>
+      {upscaleSource ? <ImageUpscalePanel onClose={() => setUpscaleSource(null)} source={upscaleSource} /> : null}
     </div>
   );
 }

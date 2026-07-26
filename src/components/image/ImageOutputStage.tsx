@@ -10,6 +10,7 @@ import { sendImageResultToVideoDraft } from "@/lib/video/videoResultDrafts";
 import { useI18n } from "@/i18n/useI18n";
 import { formatTime } from "@/lib/utils";
 import type { ImageHistoryItem } from "@/types/image";
+import type { ImageUpscaleSource } from "@/types/image-upscale";
 
 function CopyIcon() {
   return (
@@ -54,12 +55,21 @@ function outputActionClass(tone: "normal" | "primary" = "normal") {
   return "se-button-ghost inline-flex min-h-8 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold disabled:cursor-not-allowed disabled:opacity-45";
 }
 
+function outputDimensions(job: ImageHistoryItem) {
+  const match = String(job.resolution || "").match(/(\d+)\s*[x×]\s*(\d+)/i);
+  return {
+    width: Number(job.meta?.width) || Number(match?.[1]) || undefined,
+    height: Number(job.meta?.height) || Number(match?.[2]) || undefined,
+  };
+}
+
 export function ImageOutputStage({
   error,
   isGenerating,
   isPolling,
   job,
   onRefresh,
+  onUpscale,
   recoveredJobId,
 }: {
   error?: string;
@@ -67,6 +77,7 @@ export function ImageOutputStage({
   isPolling?: boolean;
   job: ImageHistoryItem | null;
   onRefresh?: (jobId: string) => void;
+  onUpscale?: (source: ImageUpscaleSource) => void;
   recoveredJobId?: string;
 }) {
   const router = useRouter();
@@ -227,6 +238,18 @@ export function ImageOutputStage({
                         kind="image"
                         outputUrl={url}
                       />
+                      <button
+                        className={outputActionClass("primary")}
+                        onClick={() => onUpscale?.({
+                          sourceJobId: job.dbJobId || job.jobId || job.id,
+                          url,
+                          displayName: tf("image.output.imageLabel", { index: index + 1 }),
+                          ...outputDimensions(job),
+                        })}
+                        type="button"
+                      >
+                        {t("image.actions.upscale")}
+                      </button>
                       <a className={outputActionClass("normal")} href={url} rel="noreferrer" target="_blank">
                         <ExternalIcon />
                         {t("image.actions.open")}
