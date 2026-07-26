@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { BetaFeedbackCenter } from "@/components/feedback/BetaFeedbackCenter";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import {
   getDashboardOnboardingKey,
@@ -318,6 +319,8 @@ export function UserDashboard() {
           </div>
           <Link className="shrink-0 rounded-2xl border border-white/12 bg-white/[.04] px-5 py-3 text-center text-sm font-black text-white" href="/dashboard/demo">{t("dashboard.demo.open")}</Link>
         </section>
+
+        <BetaFeedbackCenter appearance="card" entry="dashboard" />
       </div>
     </div>
   );

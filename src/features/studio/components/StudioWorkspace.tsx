@@ -12,6 +12,7 @@ import {
 } from "react";
 import { useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
+import { BetaFeedbackCenter } from "@/components/feedback/BetaFeedbackCenter";
 import { activeBrand } from "@/config/brand";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { StudioToolbar } from "@/features/studio/components/StudioToolbar";
@@ -556,6 +557,7 @@ export function StudioWorkspace() {
                   <StudioCapabilityBoundary feature="copilot_center" label={t("studio.capability.copilotCenter")}>
                     <StudioProjectCopilotCommandCenter />
                   </StudioCapabilityBoundary>
+                  <BetaFeedbackCenter appearance="compact" entry="studio" />
                 </Suspense>
               </StudioModuleErrorBoundary>
             </aside>

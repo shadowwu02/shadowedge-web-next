@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
+import { BetaFeedbackCenter } from "@/components/feedback/BetaFeedbackCenter";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useI18n } from "@/i18n/useI18n";
 import { getImageHistory } from "@/lib/image-api";
@@ -435,6 +436,8 @@ export function AccountCreditsPage() {
               <p className="se-eyebrow">{t("account.billingNote")}</p>
               <p className="mt-3 text-sm leading-6 text-[#f4f4f4]/72">{t("account.billingMigrationNote")}</p>
             </section>
+
+            <BetaFeedbackCenter appearance="card" entry="account" />
           </aside>
         </div>
       </div>
