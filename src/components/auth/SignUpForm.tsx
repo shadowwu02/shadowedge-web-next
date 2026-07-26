@@ -24,13 +24,14 @@ export function SignUpForm() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const passwordRules = evaluatePasswordRules(password);
   const isPasswordValid = passwordRules.every((rule) => rule.passed);
   const isEmailValid = isValidEmail(email.trim());
   const passwordsMatch = Boolean(confirmPassword) && password === confirmPassword;
-  const canSubmit = isEmailValid && isPasswordValid && passwordsMatch && !isLoading;
+  const canSubmit = isEmailValid && isPasswordValid && passwordsMatch && acceptedLegal && !isLoading;
   const isGoldTide = activeBrand.id === "newbrand";
   const cardClass = isGoldTide
     ? "w-full max-w-md rounded-[28px] border border-[#d9b56d]/20 bg-[#12110f]/88 p-6 shadow-2xl shadow-black/45 md:p-8"
@@ -69,6 +70,11 @@ export function SignUpForm() {
       return;
     }
 
+    if (!acceptedLegal) {
+      setStatus(t("auth.legal.required"));
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -77,7 +83,7 @@ export function SignUpForm() {
 
       try {
         await signInWithPassword(cleanEmail, password);
-        router.replace(nextPath);
+        router.replace(nextPath === "/dashboard" ? "/dashboard?welcome=1" : nextPath);
         router.refresh();
       } catch {
         router.replace(`/sign-in?registered=1&next=${encodeURIComponent(nextPath)}`);
@@ -158,9 +164,28 @@ export function SignUpForm() {
           </div>
         </label>
 
-        <p className="rounded-2xl border border-white/10 bg-black/24 p-3 text-xs leading-5 text-white/52">
-          {t("auth.termsHint")}
-        </p>
+        <div className="rounded-2xl border border-white/10 bg-black/24 p-3">
+          <label className="flex cursor-pointer items-start gap-3 text-xs leading-5 text-white/62" htmlFor="accept-commercial-beta-legal">
+            <input
+              checked={acceptedLegal}
+              className="mt-1 size-4 shrink-0 accent-[#d9b56d]"
+              id="accept-commercial-beta-legal"
+              onChange={(event) => setAcceptedLegal(event.target.checked)}
+              type="checkbox"
+            />
+            <span>
+              {t("auth.legal.acceptPrefix")}{" "}
+              <Link className="font-black text-[#ffd08a] underline underline-offset-2" href="/terms" rel="noreferrer" target="_blank">
+                {t("commercial.terms")}
+              </Link>{" "}
+              {t("auth.legal.and")}{" "}
+              <Link className="font-black text-[#ffd08a] underline underline-offset-2" href="/privacy" rel="noreferrer" target="_blank">
+                {t("commercial.privacy")}
+              </Link>
+            </span>
+          </label>
+          <p className="mt-3 border-t border-white/8 pt-3 text-xs leading-5 text-white/42">{t("auth.legal.betaNotice")}</p>
+        </div>
 
         <button
           className={primaryButtonClass}

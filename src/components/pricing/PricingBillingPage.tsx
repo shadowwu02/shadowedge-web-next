@@ -16,7 +16,8 @@ const pricingPlans = [
     monthlyCreditsKey: "pricing.plan.essential.monthlyCredits",
     annualCreditsKey: "pricing.plan.essential.annualCredits",
     recommendedKey: "pricing.plan.essential.recommended",
-    ctaKey: "pricing.contactAdmin",
+    ctaKey: "pricing.beta.join",
+    ctaHref: "/sign-up?next=%2Fdashboard",
     parallelKey: "pricing.plan.essential.parallel",
     featured: false,
     features: [
@@ -35,7 +36,8 @@ const pricingPlans = [
     monthlyCreditsKey: "pricing.plan.pro.monthlyCredits",
     annualCreditsKey: "pricing.plan.pro.annualCredits",
     recommendedKey: "pricing.plan.pro.recommended",
-    ctaKey: "pricing.contactAdmin",
+    ctaKey: "pricing.beta.request",
+    ctaHref: "/contact",
     parallelKey: "pricing.plan.pro.parallel",
     featured: true,
     features: [
@@ -55,7 +57,8 @@ const pricingPlans = [
     monthlyCreditsKey: "pricing.plan.studio.monthlyCredits",
     annualCreditsKey: "pricing.plan.studio.annualCredits",
     recommendedKey: "pricing.plan.studio.recommended",
-    ctaKey: "pricing.contactAdmin",
+    ctaKey: "pricing.beta.contact",
+    ctaHref: "/contact",
     parallelKey: "pricing.plan.studio.parallel",
     featured: false,
     features: [
@@ -184,9 +187,14 @@ export function PricingBillingPage() {
         <section className="se-card-quiet rounded-[30px] p-5 md:p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
-              <p className="se-eyebrow">{t("pricing.eyebrow")}</p>
-              <h1 className="mt-2 text-3xl font-black tracking-tight text-[#f4f4f4] md:text-4xl">{t("pricing.title")}</h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-[#b9b9b9]/62">{t("pricing.subtitle")}</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="se-eyebrow">{t("pricing.beta.eyebrow")}</p>
+                <span className="rounded-full border border-emerald-400/20 bg-emerald-400/[.07] px-3 py-1 text-[10px] font-black uppercase tracking-[.14em] text-emerald-300">
+                  {t("commercial.betaBadge")}
+                </span>
+              </div>
+              <h1 className="mt-2 text-3xl font-black tracking-tight text-[#f4f4f4] md:text-4xl">{t("pricing.beta.title")}</h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-[#b9b9b9]/62">{t("pricing.beta.subtitle")}</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -216,9 +224,9 @@ export function PricingBillingPage() {
         <section className="rounded-[28px] border border-[#ffb44d]/16 bg-[#ffb44d]/8 p-4 md:p-5">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-sm font-black text-[#ffd08a]">{t("pricing.checkoutMigratingTitle")}</p>
+              <p className="text-sm font-black text-[#ffd08a]">{t("pricing.beta.noticeTitle")}</p>
               <p className="mt-1 text-sm leading-6 text-[#f4f4f4]/72">
-                {t("pricing.checkoutMigrating")}
+                {t("pricing.beta.noticeBody")}
               </p>
             </div>
             <span className="w-fit rounded-full border border-white/10 bg-[#05070b]/42 px-3 py-1.5 text-[11px] font-black text-[#f4f4f4]/70">
@@ -257,7 +265,7 @@ export function PricingBillingPage() {
                 <p className="mt-4 min-h-[52px] text-sm leading-6 text-[#b9b9b9]/64">{t(plan.recommendedKey)}</p>
 
                 <div className="mt-4 rounded-[18px] border border-[#ffb44d]/18 bg-[#ffb44d]/10 px-4 py-3">
-                  <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ffd08a]/78">{t("pricing.includedCredits")}</p>
+                  <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#ffd08a]/78">{t("pricing.beta.estimated")}</p>
                   <p className="mt-1 text-sm font-black text-[#f4f4f4]">{t(isAnnual ? plan.annualCreditsKey : plan.monthlyCreditsKey)}</p>
                 </div>
 
@@ -275,12 +283,12 @@ export function PricingBillingPage() {
                   ))}
                 </ul>
 
-                <button
-                  className="se-button-primary mt-auto min-h-11 rounded-[18px] px-4 text-sm font-black"
-                  type="button"
+                <Link
+                  className="se-button-primary mt-auto inline-flex min-h-11 items-center justify-center rounded-[18px] px-4 text-sm font-black"
+                  href={plan.ctaHref}
                 >
                   {t(plan.ctaKey)}
-                </button>
+                </Link>
               </div>
             </article>
           ))}
@@ -313,8 +321,12 @@ export function PricingBillingPage() {
             </section>
 
             <section className="se-card-quiet rounded-[28px] p-4">
-              <p className="se-eyebrow">{t("pricing.actualBillingNote")}</p>
-              <p className="mt-3 text-sm leading-6 text-[#f4f4f4]/72">{t("pricing.billingNoteBody")}</p>
+              <p className="se-eyebrow">{t("pricing.beta.billingTitle")}</p>
+              <p className="mt-3 text-sm leading-6 text-[#f4f4f4]/72">{t("pricing.beta.billingBody")}</p>
+              <div className="mt-4 flex flex-wrap gap-3 text-xs font-bold">
+                <Link className="text-[#ffd08a] hover:text-white" href="/terms">{t("commercial.terms")}</Link>
+                <Link className="text-[#ffd08a] hover:text-white" href="/privacy">{t("commercial.privacy")}</Link>
+              </div>
             </section>
           </aside>
         </div>

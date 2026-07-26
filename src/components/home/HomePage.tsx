@@ -47,9 +47,9 @@ type ToolCard = {
 };
 
 const heroCtas: CtaItem[] = [
-  { href: "/workspace/video", key: "home.createVideo", primary: true },
-  { href: "/workspace/image", key: "home.createImage" },
-  { href: "/workspace/video?tab=remake", key: "home.tryRemake" },
+  { href: "/sign-up?next=%2Fdashboard", key: "home.launch.start", primary: true },
+  { href: "/dashboard/demo", key: "home.launch.demo" },
+  { href: CREATIVE_CANVAS_ENTRY, key: "home.launch.canvas" },
 ];
 
 const goldHeroCtas: CtaItem[] = [
@@ -218,9 +218,10 @@ const featureCards: FeatureCard[] = [
 ];
 
 const workflowSteps: Array<{ bodyKey: DictionaryKey; titleKey: DictionaryKey }> = [
-  { titleKey: "home.workflow.step1.title", bodyKey: "home.workflow.step1.body" },
-  { titleKey: "home.workflow.step2.title", bodyKey: "home.workflow.step2.body" },
-  { titleKey: "home.workflow.step3.title", bodyKey: "home.workflow.step3.body" },
+  { titleKey: "home.launch.flow.project.title", bodyKey: "home.launch.flow.project.body" },
+  { titleKey: "home.launch.flow.canvas.title", bodyKey: "home.launch.flow.canvas.body" },
+  { titleKey: "home.launch.flow.production.title", bodyKey: "home.launch.flow.production.body" },
+  { titleKey: "home.launch.flow.delivery.title", bodyKey: "home.launch.flow.delivery.body" },
 ];
 
 const pricingPreview = [
@@ -468,13 +469,13 @@ export function HomePage() {
         <section className="grid gap-8 pb-14 md:pb-20 xl:grid-cols-[48%_52%] xl:items-start">
           <div className="pt-2 md:pt-5">
             <p className={isGoldTide ? "text-xs font-black uppercase tracking-[.22em] text-[#d9b56d]" : "se-eyebrow"}>
-              {isGoldTide ? activeBrand.name : t("home.heroEyebrow")}
+              {isGoldTide ? activeBrand.name : t("home.launch.heroEyebrow")}
             </p>
             <h1 className="mt-4 max-w-3xl text-4xl font-black leading-[1.06] tracking-tight text-[#f4f4f4] md:text-6xl">
-              {isGoldTide ? "Premium AI Creative Studio" : t("home.title")}
+              {isGoldTide ? "Premium AI Creative Studio" : t("home.launch.title")}
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-[#b9b9b9]/82 md:text-xl">
-              {isGoldTide ? "Create cinematic images, videos, and prompts with a refined AI workspace." : t("home.subtitle")}
+              {isGoldTide ? "Create cinematic images, videos, and prompts with a refined AI workspace." : t("home.launch.subtitle")}
             </p>
             <div className="mt-8">
               <HomeCtaRow items={isGoldTide ? goldHeroCtas : heroCtas} tone={isGoldTide ? "gold" : "default"} />
@@ -489,7 +490,7 @@ export function HomePage() {
               <p className="text-sm leading-6 text-[#f4f4f4]/78">
                 {isGoldTide
                   ? "A premium creative desk for image generation, cinematic motion, prompt refinement, and reference-led production."
-                  : t("home.betaNotice")}
+                  : t("home.launch.betaNotice")}
               </p>
             </div>
           </div>
@@ -574,15 +575,15 @@ export function HomePage() {
 
         <section className="py-10 md:py-14">
           <SectionHeader
-            eyebrowKey="home.workflowTitle"
+            eyebrowKey="home.launch.flowEyebrow"
             eyebrowText={isGoldTide ? "Creative flow" : undefined}
-            subtitleKey="home.workflowSubtitle"
+            subtitleKey="home.launch.flowSubtitle"
             subtitleText={isGoldTide ? "Move from direction to model choice to review without leaving the Gold-Tide workspace." : undefined}
-            titleKey="home.workflowLegacyTitle"
+            titleKey="home.launch.flowTitle"
             titleText={isGoldTide ? "A calmer path from idea to polished output" : undefined}
             tone={isGoldTide ? "gold" : "default"}
           />
-          <div className="mt-8 grid gap-5 md:grid-cols-3">
+          <div className={`mt-8 grid gap-5 ${isGoldTide ? "md:grid-cols-3" : "md:grid-cols-2 xl:grid-cols-4"}`}>
             {isGoldTide
               ? goldWorkflowSteps.map((step, index) => (
                   <article className="rounded-[24px] border border-[#d9b56d]/16 bg-[#171614]/82 p-6" key={step.title}>
@@ -604,6 +605,20 @@ export function HomePage() {
                 ))}
           </div>
         </section>
+
+        {!isGoldTide ? (
+          <section className="grid gap-6 rounded-[30px] border border-[#ffb44d]/18 bg-[radial-gradient(circle_at_85%_20%,rgba(255,180,77,.12),transparent_35%),#17181e] p-6 md:grid-cols-[1fr_auto] md:items-center md:p-8">
+            <div>
+              <p className="se-eyebrow">{t("home.launch.demoEyebrow")}</p>
+              <h2 className="mt-3 text-3xl font-black leading-tight text-white">{t("home.launch.demoTitle")}</h2>
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-white/60">{t("home.launch.demoBody")}</p>
+            </div>
+            <Link className="se-button-primary inline-flex min-h-12 items-center justify-center rounded-2xl px-6 text-sm font-black" href="/dashboard/demo">
+              {t("home.launch.demoCta")}
+              <span className="ml-2" aria-hidden="true">→</span>
+            </Link>
+          </section>
+        ) : null}
 
         <section className="py-10 md:py-14">
           <SectionHeader
@@ -687,6 +702,16 @@ export function HomePage() {
             </div>
           </aside>
         </section>
+
+        {!isGoldTide ? (
+          <footer className="flex flex-col gap-3 border-t border-white/8 py-8 text-xs text-white/42 sm:flex-row sm:items-center sm:justify-between">
+            <span>{t("commercial.betaBadge")} · {t("commercial.noPayment")}</span>
+            <nav aria-label={t("commercial.legalLinks")} className="flex items-center gap-4">
+              <Link className="font-bold transition hover:text-white" href="/terms">{t("commercial.terms")}</Link>
+              <Link className="font-bold transition hover:text-white" href="/privacy">{t("commercial.privacy")}</Link>
+            </nav>
+          </footer>
+        ) : null}
       </div>
     </div>
   );

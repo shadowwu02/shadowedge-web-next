@@ -85,13 +85,23 @@ function Onboarding({
               ))}
             </div>
           ) : null}
+          {step === 2 ? (
+            <p className="mt-7 rounded-2xl border border-[#d9b56d]/18 bg-[#d9b56d]/[.06] p-4 text-sm leading-6 text-[#f2d899]/75">
+              {t("dashboard.onboarding.demoHint")}
+            </p>
+          ) : null}
         </div>
         <footer className="flex items-center justify-between gap-3 border-t border-white/8 px-6 py-5 md:px-8">
           <button className="rounded-xl px-4 py-2 text-sm font-bold text-white/50 disabled:opacity-25" disabled={step === 0} onClick={() => setStep((value) => Math.max(0, value - 1))} type="button">{t("dashboard.onboarding.back")}</button>
           {step < steps.length - 1 ? (
             <button className="rounded-2xl bg-[#d9b56d] px-5 py-3 text-sm font-black text-[#11100e] transition hover:bg-[#f2d899]" onClick={() => setStep((value) => value + 1)} type="button">{t("dashboard.onboarding.continue")}</button>
           ) : (
-            <Link className="rounded-2xl bg-[#d9b56d] px-5 py-3 text-sm font-black text-[#11100e] transition hover:bg-[#f2d899]" href="/studio?module=canvas&start=copilot" onClick={onComplete}>{t("dashboard.onboarding.enterStudio")}</Link>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Link className="rounded-2xl border border-white/12 bg-white/[.04] px-5 py-3 text-sm font-black text-white" href="/dashboard/demo" onClick={onComplete}>
+                {t("dashboard.onboarding.demo")}
+              </Link>
+              <Link className="rounded-2xl bg-[#d9b56d] px-5 py-3 text-sm font-black text-[#11100e] transition hover:bg-[#f2d899]" href="/studio?module=canvas&start=copilot" onClick={onComplete}>{t("dashboard.onboarding.enterStudio")}</Link>
+            </div>
           )}
         </footer>
       </section>
@@ -123,7 +133,8 @@ export function UserDashboard() {
       );
       setProjects(nextProjects);
       const completed = window.localStorage.getItem(onboardingKey) === "complete";
-      setShowOnboarding(shouldShowDashboardOnboarding({ completed, projectCount: nextProjects.length }));
+      const registrationWelcome = new URLSearchParams(window.location.search).get("welcome") === "1";
+      setShowOnboarding(registrationWelcome || shouldShowDashboardOnboarding({ completed, projectCount: nextProjects.length }));
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : t("dashboard.error.projects"));
     } finally {
@@ -157,6 +168,9 @@ export function UserDashboard() {
 
   const completeOnboarding = useCallback(() => {
     window.localStorage.setItem(onboardingKey, "complete");
+    if (new URLSearchParams(window.location.search).has("welcome")) {
+      window.history.replaceState(window.history.state, "", "/dashboard");
+    }
     setShowOnboarding(false);
   }, [onboardingKey]);
 

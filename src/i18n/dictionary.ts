@@ -1,4 +1,5 @@
 import { productPhase2En, productPhase2Zh } from "@/i18n/productPhase2Dictionary";
+import { commercialLaunchEn, commercialLaunchZh } from "@/i18n/commercialLaunchDictionary";
 
 export type Locale = "en" | "zh";
 
@@ -7,6 +8,7 @@ export type Locale = "en" | "zh";
 export const dictionary = {
   en: {
     ...productPhase2En,
+    ...commercialLaunchEn,
     videoWorkspace: "Video Workspace",
     workspace: "Workspace",
     image: "Image",
@@ -1935,6 +1937,7 @@ export const dictionary = {
   },
   zh: {
     ...productPhase2Zh,
+    ...commercialLaunchZh,
     "studio.common.close": "关闭",
     "studio.common.retry": "重试",
     "studio.common.checkAgain": "重新检查",
