@@ -51,8 +51,8 @@ test("Studio converges on Creative Canvas while preserving draft compatibility",
   assert.match(studioCanvasSource, /feature="creative_canvas"/);
   assert.match(studioCanvasSource, /Workflow Draft/);
   assert.match(studioCanvasSource, /Agent Tools/);
-  assert.match(legacyCanvasSource, /Legacy Canvas · preserved/);
-  assert.match(legacyCanvasSource, /Open Studio Creative Canvas/);
+  assert.match(legacyCanvasSource, /canvas\.legacyNoticeTitle/);
+  assert.match(legacyCanvasSource, /canvas\.openCreativeCanvas/);
 });
 
 test("Unified Canvas can only create and confirm a draft edit session", () => {

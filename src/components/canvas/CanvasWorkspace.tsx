@@ -13,6 +13,7 @@ import {
   saveCanvasWorkflow,
   withCanvasUpdatedAt,
 } from "@/lib/canvas/canvasStorage";
+import { CREATIVE_CANVAS_ENTRY } from "@/lib/canvas/canvasRoutes";
 import { useI18n, type DictionaryKey } from "@/i18n/useI18n";
 import { cn } from "@/lib/utils";
 
@@ -258,7 +259,11 @@ export function CanvasWorkspace() {
   }, [selectedNode, t]);
 
   return (
-    <div className="se-scrollbar h-full overflow-y-auto overflow-x-hidden">
+    <div
+      className="se-scrollbar h-full overflow-y-auto overflow-x-hidden"
+      data-canvas-product="legacy"
+      data-primary-product="false"
+    >
       <div className="mx-auto flex min-h-full w-full max-w-[1480px] flex-col gap-4 pb-5">
         <section className="se-card-quiet rounded-[30px] p-5 md:p-7">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
@@ -278,11 +283,11 @@ export function CanvasWorkspace() {
           </div>
           <div className="mt-5 flex flex-col gap-3 rounded-[20px] border border-[#6fd7d7]/20 bg-[#6fd7d7]/8 px-4 py-3 text-sm text-[#d6d0c4]/72 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <strong className="block text-[#9be7e7]">Legacy Canvas · preserved</strong>
-              <span>This local workflow remains editable and is not automatically migrated into a project.</span>
+              <strong className="block text-[#9be7e7]">{t("canvas.legacyNoticeTitle")}</strong>
+              <span>{t("canvas.legacyNoticeBody")}</span>
             </div>
-            <Link className="se-button-secondary shrink-0 justify-center rounded-2xl px-4 py-2 text-xs font-semibold" href="/studio?canvas=creative">
-              Open Studio Creative Canvas
+            <Link className="se-button-secondary shrink-0 justify-center rounded-2xl px-4 py-2 text-xs font-semibold" href={CREATIVE_CANVAS_ENTRY}>
+              {t("canvas.openCreativeCanvas")}
             </Link>
           </div>
         </section>

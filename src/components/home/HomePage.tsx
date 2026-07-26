@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { activeBrand } from "@/config/brand";
 import { useI18n, type DictionaryKey } from "@/i18n/useI18n";
+import { CREATIVE_CANVAS_ENTRY } from "@/lib/canvas/canvasRoutes";
 
 type CtaItem = {
   href: string;
@@ -197,7 +198,7 @@ const featureCards: FeatureCard[] = [
     bodyKey: "home.feature.remake.body",
   },
   {
-    href: "/workspace/canvas",
+    href: CREATIVE_CANVAS_ENTRY,
     kickerKey: "home.feature.canvas.kicker",
     titleKey: "home.feature.canvas.title",
     bodyKey: "home.feature.canvas.body",
@@ -380,7 +381,7 @@ function HeroMediaGrid({ tone = "default" }: { tone?: "default" | "gold" }) {
             ? "group relative overflow-hidden rounded-[24px] border border-[#d9b56d]/18 bg-[radial-gradient(circle_at_16%_18%,rgba(217,181,109,.13),transparent_34%),linear-gradient(135deg,#1b1813,#10100f)] p-6 transition hover:-translate-y-0.5 hover:border-[#d9b56d]/42 sm:col-span-2"
             : "group relative overflow-hidden rounded-[24px] border border-white/10 bg-[radial-gradient(circle_at_16%_18%,rgba(255,180,77,.10),transparent_34%),linear-gradient(135deg,#33323a,#1f2027)] p-6 transition hover:-translate-y-0.5 hover:border-[#ffb44d]/32 sm:col-span-2"
         }
-        href="/workspace/canvas"
+        href={CREATIVE_CANVAS_ENTRY}
       >
         <div className="grid gap-5 sm:grid-cols-[58px_1fr_auto] sm:items-center">
           <div className={`grid size-14 place-items-center rounded-[18px] border text-2xl font-black shadow-xl shadow-black/20 ${isGold ? "border-[#d9b56d]/24 bg-[#12110f] text-[#d9b56d]" : "border-[#ffb44d]/20 bg-[#20212a] text-[#ffb44d]"}`}>
@@ -677,7 +678,7 @@ export function HomePage() {
                       ]
                     : [
                         { href: "/workspace/video", key: "home.createVideo", primary: true },
-                        { href: "/workspace/canvas", key: "home.openCanvas" },
+                        { href: CREATIVE_CANVAS_ENTRY, key: "home.openCanvas" },
                         { href: "/history", key: "home.openHistory" },
                       ]
                 }

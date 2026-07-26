@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { activeBrand } from "@/config/brand";
 import { useI18n } from "@/i18n/useI18n";
+import { CREATIVE_CANVAS_ENTRY } from "@/lib/canvas/canvasRoutes";
 import { cn } from "@/lib/utils";
 
 export function AppShell({
@@ -27,7 +28,7 @@ export function AppShell({
   const isActiveRoute = (href: string) => {
     if (href === "/workspace/video") return pathname === href || pathname.startsWith(`${href}/`);
     if (href === "/workspace/image") return pathname === href || pathname.startsWith(`${href}/`);
-    if (href === "/workspace/canvas") return pathname === href || pathname.startsWith(`${href}/`);
+    if (href === CREATIVE_CANVAS_ENTRY) return pathname === "/studio";
     if (href === "/prompt-studio") return pathname === href || pathname.startsWith(`${href}/`);
     if (href === "/studio") return pathname === href || pathname.startsWith(`${href}/`);
     return pathname === href;
@@ -36,7 +37,7 @@ export function AppShell({
     { label: t("nav.video"), href: "/workspace/video", active: isActiveRoute("/workspace/video") },
     { label: t("nav.image"), href: "/workspace/image", active: isActiveRoute("/workspace/image") },
     { label: t("nav.promptStudio"), href: "/prompt-studio", active: isActiveRoute("/prompt-studio") },
-    { label: t("nav.canvas"), href: "/workspace/canvas", active: isActiveRoute("/workspace/canvas") },
+    { label: t("nav.canvas"), href: CREATIVE_CANVAS_ENTRY, active: isActiveRoute(CREATIVE_CANVAS_ENTRY) },
     { label: "Studio", href: "/studio", active: isActiveRoute("/studio") },
     { label: t("nav.history"), href: "/history", active: isActiveRoute("/history") },
     { label: t("nav.models"), href: "/models", active: isActiveRoute("/models") },

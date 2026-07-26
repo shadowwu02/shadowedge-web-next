@@ -54,6 +54,7 @@ import {
   createStudioCreativeCanvasEditSession,
   getStudioCreativeCanvas,
 } from "@/lib/studio-creative-canvas-api";
+import { LEGACY_CANVAS_ROUTE } from "@/lib/canvas/canvasRoutes";
 
 type CreativeNodeData = {
   source: StudioCreativeCanvasNode;
@@ -561,7 +562,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
       <section className="studio-creative-canvas-empty" aria-label="Unified Creative Canvas empty state">
         <strong>Open a saved Studio project</strong>
         <p>The unified canvas is derived from project, Timeline, Storyboard, Execution, Output, Asset, and Delivery data.</p>
-        <a href="/workspace/canvas">Open preserved Legacy Canvas</a>
+        <a href={LEGACY_CANVAS_ROUTE}>Open preserved Legacy Canvas</a>
       </section>
     );
   }
