@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
-import { BetaFeedbackCenter } from "@/components/feedback/BetaFeedbackCenter";
+import { BetaBadge, BetaFeedbackCenter } from "@/components/feedback/BetaFeedbackCenter";
+import { AccountWorkspaceSummary } from "@/components/account/AccountWorkspaceSummary";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useI18n } from "@/i18n/useI18n";
 import { getImageHistory } from "@/lib/image-api";
@@ -299,6 +300,7 @@ export function AccountCreditsPage() {
   ];
 
   const quickActions = [
+    { href: "/workspace", label: t("workspace.account.open") },
     { href: "/workspace/image", label: t("account.createImage") },
     { href: "/workspace/video", label: t("account.createVideo") },
     { href: "/history", label: t("account.viewHistory") },
@@ -323,9 +325,9 @@ export function AccountCreditsPage() {
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-4">
-            <section className="grid gap-4 md:grid-cols-3">
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <div className="se-card-quiet rounded-[26px] p-4">
-                <p className="se-eyebrow">{t("account.email")}</p>
+                <p className="se-eyebrow">{t("workspace.account.profile")}</p>
                 <p className="mt-3 break-all text-lg font-black text-[#f4f4f4]">{profile?.email || "--"}</p>
                 <p className="mt-2 text-xs text-[#b9b9b9]/52">{isSignedIn ? t("account.signedIn") : t("account.signIn")}</p>
               </div>
@@ -341,6 +343,11 @@ export function AccountCreditsPage() {
                 <p className="mt-2 text-xs text-[#b9b9b9]/52">
                   {maxConcurrency ? tf("account.maxConcurrencyValue", { count: maxConcurrency }) : t("account.maxConcurrencyUnknown")}
                 </p>
+              </div>
+              <div className="se-card-quiet rounded-[26px] p-4">
+                <p className="se-eyebrow">{t("workspace.account.betaStatus")}</p>
+                <div className="mt-3"><BetaBadge /></div>
+                <p className="mt-3 text-sm font-black text-[#f4f4f4]">{t("workspace.account.betaActive")}</p>
               </div>
             </section>
 
@@ -420,6 +427,8 @@ export function AccountCreditsPage() {
           </div>
 
           <aside className="space-y-4">
+            <AccountWorkspaceSummary />
+
             <section className="se-card-quiet rounded-[28px] p-4">
               <p className="se-eyebrow">{t("account.quickActions")}</p>
               <div className="mt-4 grid gap-2">
