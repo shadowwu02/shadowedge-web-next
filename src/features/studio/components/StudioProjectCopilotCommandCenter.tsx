@@ -7,6 +7,7 @@ import {
   type StudioProjectCopilotSnapshot,
 } from "@/features/studio/capabilities/studioProjectCopilotCenter";
 import { useStudioStore } from "@/features/studio/store/studioStore";
+import { useI18n } from "@/i18n/useI18n";
 import {
   confirmStudioProjectAction,
   getStudioProjectCopilotCenter,
@@ -18,6 +19,7 @@ function displayLabel(value: string) {
 }
 
 export function StudioProjectCopilotCommandCenter() {
+  const { t, tf } = useI18n();
   const projectId = useStudioStore((state) => state.projectId);
   const [state, setState] = useState<Readonly<{
     projectId: string;
@@ -38,11 +40,11 @@ export function StudioProjectCopilotCommandCenter() {
         setState({
           projectId,
           snapshot: null,
-          error: reason instanceof Error ? reason.message : "Project Copilot Center is unavailable.",
+          error: reason instanceof Error ? reason.message : t("studio.command.fallbackError"),
         });
       });
     return () => controller.abort();
-  }, [projectId]);
+  }, [projectId, t]);
 
   const snapshot = state?.projectId === projectId ? state.snapshot : null;
   const error = state?.projectId === projectId ? state.error : "";
@@ -61,9 +63,9 @@ export function StudioProjectCopilotCommandCenter() {
       const result = await previewStudioProjectAction(projectId, recommendationId);
       setPreviews((current) => ({ ...current, [recommendationId]: result }));
       await refresh(projectId);
-      setMessage("Project Action preview ready. Nothing changes until you confirm the Draft.");
+      setMessage(t("studio.command.previewReady"));
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Project Action preview failed.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.command.previewFailed"));
     } finally {
       setBusyId(null);
     }
@@ -76,72 +78,72 @@ export function StudioProjectCopilotCommandCenter() {
     try {
       const result = await confirmStudioProjectAction(projectId, recommendationId);
       await refresh(projectId);
-      setMessage(`Project Action Draft created: ${result.draft.draftId}. Review it before any workflow change.`);
+      setMessage(tf("studio.command.confirmed", { id: result.draft.draftId }));
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Project Action Draft could not be created.");
+      setMessage(reason instanceof Error ? reason.message : t("studio.command.confirmFailed"));
     } finally {
       setBusyId(null);
     }
   };
 
   return (
-    <section className="studio-project-command-center" aria-label="Project Copilot Center">
+    <section className="studio-project-command-center" aria-label={t("studio.command.title")}>
       <header>
         <div>
-          <span>Analysis → recommendation → draft</span>
-          <h2>Project Copilot Center</h2>
-          <p>Project health, risks, evidence, and human-controlled next actions in one command view.</p>
+          <span>{t("studio.command.flow")}</span>
+          <h2>{t("studio.command.title")}</h2>
+          <p>{t("studio.command.description")}</p>
         </div>
         <div className={`studio-project-command-health is-${snapshot?.health.status.toLowerCase() || "waiting"}`}>
           <strong>{snapshot?.health.score ?? "—"}</strong>
-          <span>{snapshot?.health.status || "WAITING"}</span>
-          <small>Project health</small>
+          <span>{snapshot?.health.status || t("studio.command.waiting")}</span>
+          <small>{t("studio.command.health")}</small>
         </div>
       </header>
 
       {!projectId ? (
-        <div className="studio-project-command-empty">Open a project to start project-level Copilot analysis.</div>
+        <div className="studio-project-command-empty">{t("studio.command.empty")}</div>
       ) : loading ? (
-        <div className="studio-project-command-empty">Connecting Intelligence, Insights, Risks, and Draft Actions…</div>
+        <div className="studio-project-command-empty">{t("studio.command.loading")}</div>
       ) : error ? (
-        <div className="studio-project-command-error" role="status"><strong>Copilot Center unavailable</strong><span>{error}</span></div>
+        <div className="studio-project-command-error" role="status"><strong>{t("studio.command.error")}</strong><span>{error}</span></div>
       ) : snapshot ? (
         <>
           <div className="studio-project-command-summary">
-            <div><span>Progress</span><strong>{snapshot.health.progress}%</strong></div>
-            <div><span>Quality</span><strong>{snapshot.health.qualityScore ?? "Unknown"}</strong></div>
-            <div><span>Completion</span><strong>{snapshot.health.completionRate}%</strong></div>
-            <div><span>Risks</span><strong>{snapshot.risks.length}</strong></div>
-            <div><span>Insights</span><strong>{snapshot.insights.length}</strong></div>
-            <div><span>Actions</span><strong>{snapshot.recommendations.length}</strong></div>
+            <div><span>{t("studio.command.progress")}</span><strong>{snapshot.health.progress}%</strong></div>
+            <div><span>{t("studio.command.quality")}</span><strong>{snapshot.health.qualityScore ?? t("studio.command.unknown")}</strong></div>
+            <div><span>{t("studio.command.completion")}</span><strong>{snapshot.health.completionRate}%</strong></div>
+            <div><span>{t("studio.command.risks")}</span><strong>{snapshot.risks.length}</strong></div>
+            <div><span>{t("studio.command.insights")}</span><strong>{snapshot.insights.length}</strong></div>
+            <div><span>{t("studio.command.actions")}</span><strong>{snapshot.recommendations.length}</strong></div>
           </div>
 
           <div className="studio-project-command-body">
             <aside>
               <section className="studio-project-command-risks">
-                <header><strong>Risk radar</strong><span>{snapshot.health.riskStatus}</span></header>
+                <header><strong>{t("studio.command.riskRadar")}</strong><span>{snapshot.health.riskStatus}</span></header>
                 {snapshot.risks.length ? snapshot.risks.map((risk) => (
                   <div key={`${risk.category}-${risk.type}`}>
                     <span>{risk.category}</span>
                     <strong>{displayLabel(risk.type)}</strong>
                     <small>{risk.severity} · {risk.evidence}</small>
                   </div>
-                )) : <p>No active project risk.</p>}
+                )) : <p>{t("studio.command.noRisk")}</p>}
               </section>
               <section className="studio-project-command-insights">
-                <header><strong>Evidence-backed insights</strong><span>Draft-only</span></header>
+                <header><strong>{t("studio.command.insightTitle")}</strong><span>{t("studio.copilot.draftOnly")}</span></header>
                 {snapshot.insights.length ? snapshot.insights.slice(0, 4).map((insight) => (
                   <article key={insight.insightId}>
                     <span>{displayLabel(insight.type)}</span>
                     <strong>{insight.summary}</strong>
-                    <small>{insight.confidence} confidence · {displayLabel(insight.evidence)}</small>
+                    <small>{tf("studio.command.confidence", { value: insight.confidence })} · {displayLabel(insight.evidence)}</small>
                   </article>
-                )) : <p>No project insight needs attention.</p>}
+                )) : <p>{t("studio.command.noInsight")}</p>}
               </section>
             </aside>
 
             <section className="studio-project-command-recommendations">
-              <header><strong>Recommended actions</strong><span>Preview → Confirm → Draft</span></header>
+              <header><strong>{t("studio.command.recommendations")}</strong><span>{t("studio.command.flowPreview")}</span></header>
               <div>
                 {snapshot.recommendations.map((recommendation) => {
                   const actionStatus = recommendation.action?.status || "SUGGESTED";
@@ -154,7 +156,7 @@ export function StudioProjectCopilotCommandCenter() {
                           <span>{studioProjectRecommendationLabel(recommendation.type)}</span>
                           <strong>{recommendation.title}</strong>
                         </div>
-                        <small>{recommendation.priority} priority</small>
+                        <small>{tf("studio.command.priority", { value: recommendation.priority })}</small>
                       </header>
                       <p>{recommendation.message}</p>
                       <div className="studio-project-command-evidence">
@@ -166,26 +168,26 @@ export function StudioProjectCopilotCommandCenter() {
                         ))}
                       </div>
                       <footer>
-                        <span>{recommendation.confidence} confidence</span>
+                        <span>{tf("studio.command.confidence", { value: recommendation.confidence })}</span>
                         <span>{actionStatus}</span>
                       </footer>
                       {activePreview && actionStatus !== "CONFIRMED" ? (
                         <div className="studio-project-command-preview">
-                          <strong>Draft impact preview</strong>
+                          <strong>{t("studio.command.previewTitle")}</strong>
                           <span>{displayLabel(activePreview.preview.impactScope)}</span>
-                          <small>No project mutation, execution, generation, publishing, or Credits.</small>
+                          <small>{t("studio.command.previewBoundary")}</small>
                         </div>
                       ) : null}
                       <div className="studio-project-command-actions">
                         {actionStatus === "CONFIRMED" ? (
-                          <button disabled type="button">Draft created</button>
+                          <button disabled type="button">{t("studio.command.draftCreated")}</button>
                         ) : actionStatus === "PREVIEWED" ? (
                           <button disabled={Boolean(busyId)} onClick={() => void confirm(recommendation.recommendationId)} type="button">
-                            {isBusy ? "Creating Draft…" : "Confirm Draft"}
+                            {isBusy ? t("studio.command.creatingDraft") : t("studio.command.confirmDraft")}
                           </button>
                         ) : (
                           <button disabled={Boolean(busyId)} onClick={() => void preview(recommendation.recommendationId)} type="button">
-                            {isBusy ? "Preparing Preview…" : "Preview Action"}
+                            {isBusy ? t("studio.command.preparingPreview") : t("studio.command.previewAction")}
                           </button>
                         )}
                       </div>
@@ -197,10 +199,10 @@ export function StudioProjectCopilotCommandCenter() {
           </div>
 
           <footer className="studio-project-command-boundary">
-            <span>Human-controlled Drafts only</span>
-            <span>No project or Workflow mutation</span>
-            <span>No generation, publish, or Credits deduction</span>
-            <time dateTime={snapshot.updatedAt}>Updated {new Date(snapshot.updatedAt).toLocaleString()}</time>
+            <span>{t("studio.command.boundary.drafts")}</span>
+            <span>{t("studio.command.boundary.mutation")}</span>
+            <span>{t("studio.command.boundary.execution")}</span>
+            <time dateTime={snapshot.updatedAt}>{tf("studio.common.updated", { time: new Date(snapshot.updatedAt).toLocaleString() })}</time>
           </footer>
           {message ? <div className="studio-project-command-message" role="status">{message}</div> : null}
         </>

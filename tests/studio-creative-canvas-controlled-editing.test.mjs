@@ -33,12 +33,12 @@ test("Canvas Edit Session exposes the controlled lifecycle and Graph changes", (
 
 test("Canvas editing provides View and Edit Draft modes with a visible Graph Diff", () => {
   assert.match(componentSource, /"VIEW" \| "EDIT_DRAFT"/);
-  assert.match(componentSource, /Edit Canvas/);
-  assert.match(componentSource, /Graph Diff/);
-  assert.match(componentSource, /Added nodes/);
-  assert.match(componentSource, /Removed nodes/);
-  assert.match(componentSource, /Changed edges/);
-  assert.match(componentSource, /Config changes/);
+  assert.match(componentSource, /studio\.creativeCanvas\.edit/);
+  assert.match(componentSource, /studio\.creativeCanvas\.diff\.title/);
+  assert.match(componentSource, /studio\.creativeCanvas\.diff\.added/);
+  assert.match(componentSource, /studio\.creativeCanvas\.diff\.removed/);
+  assert.match(componentSource, /studio\.creativeCanvas\.diff\.edges/);
+  assert.match(componentSource, /studio\.creativeCanvas\.diff\.config/);
 });
 
 test("Validation surfaces every fail-closed gate before human confirmation", () => {
@@ -48,7 +48,7 @@ test("Validation surfaces every fail-closed gate before human confirmation", () 
     assert.match(schemaSource, new RegExp(`"${check}"`));
   }
   assert.match(componentSource, /session\.validation\.status !== "READY"/);
-  assert.match(componentSource, /Confirm draft/);
+  assert.match(componentSource, /studio\.creativeCanvas\.diff\.confirmDraft/);
 });
 
 test("Edit API is version-gated and only writes append-only Draft state", () => {
@@ -57,5 +57,5 @@ test("Edit API is version-gated and only writes append-only Draft state", () => 
   assert.match(apiSource, /getStudioCreativeCanvasEditSession/);
   assert.match(apiSource, /confirmStudioCreativeCanvasEditSession/);
   assert.doesNotMatch(apiSource + componentSource, /executeNode|generateVideo|submitProvider|deductCredits|chargeCredits/);
-  assert.match(componentSource, /Production Graph, Runtime, Provider, Billing, and Credits remain unchanged/);
+  assert.match(componentSource, /studio\.creativeCanvas\.boundary\.message/);
 });

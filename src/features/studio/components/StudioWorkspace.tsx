@@ -25,6 +25,7 @@ import {
   useStudioStore,
 } from "@/features/studio/store/studioStore";
 import { getStudioProject } from "@/lib/studio-api";
+import { useI18n, type DictionaryKey } from "@/i18n/useI18n";
 
 const NodeInspector = lazy(() =>
   import("@/features/studio/components/NodeInspector").then((module) => ({
@@ -136,19 +137,19 @@ export type StudioWorkspaceStatus =
 
 const STUDIO_WORKSPACE_MODULES: ReadonlyArray<Readonly<{
   id: StudioWorkspaceModule;
-  group: "Studio" | "Story" | "Production" | "Intelligence";
-  label: string;
-  eyebrow: string;
-  description: string;
+  groupKey: DictionaryKey;
+  labelKey: DictionaryKey;
+  eyebrowKey: DictionaryKey;
+  descriptionKey: DictionaryKey;
 }>> = [
-  { id: "overview", group: "Studio", label: "Overview", eyebrow: "Project home", description: "Project health and next actions" },
-  { id: "canvas", group: "Studio", label: "Canvas", eyebrow: "Creative operating canvas", description: "Goals, agents, scenes, execution, and results" },
-  { id: "timeline", group: "Story", label: "Timeline", eyebrow: "Unified timeline", description: "Scenes, clips, assets, and output references" },
-  { id: "storyboard", group: "Story", label: "Storyboard", eyebrow: "Story workspace", description: "Shots, camera plans, and generation drafts" },
-  { id: "production", group: "Production", label: "Production", eyebrow: "Production workspace", description: "Run plan, gates, approvals, and status" },
-  { id: "review", group: "Production", label: "Review", eyebrow: "Quality and collaboration", description: "Quality gates, comments, and revision drafts" },
-  { id: "delivery", group: "Production", label: "Delivery", eyebrow: "Versioned delivery", description: "Approved outputs, assets, and package versions" },
-  { id: "intelligence", group: "Intelligence", label: "Intelligence", eyebrow: "Project intelligence", description: "Memory, roadmap, portfolio, risk, and evidence" },
+  { id: "overview", groupKey: "studio.workspace.group.studio", labelKey: "studio.workspace.overview.label", eyebrowKey: "studio.workspace.overview.eyebrow", descriptionKey: "studio.workspace.overview.description" },
+  { id: "canvas", groupKey: "studio.workspace.group.studio", labelKey: "studio.workspace.canvas.label", eyebrowKey: "studio.workspace.canvas.eyebrow", descriptionKey: "studio.workspace.canvas.description" },
+  { id: "timeline", groupKey: "studio.workspace.group.story", labelKey: "studio.workspace.timeline.label", eyebrowKey: "studio.workspace.timeline.eyebrow", descriptionKey: "studio.workspace.timeline.description" },
+  { id: "storyboard", groupKey: "studio.workspace.group.story", labelKey: "studio.workspace.storyboard.label", eyebrowKey: "studio.workspace.storyboard.eyebrow", descriptionKey: "studio.workspace.storyboard.description" },
+  { id: "production", groupKey: "studio.workspace.group.production", labelKey: "studio.workspace.production.label", eyebrowKey: "studio.workspace.production.eyebrow", descriptionKey: "studio.workspace.production.description" },
+  { id: "review", groupKey: "studio.workspace.group.production", labelKey: "studio.workspace.review.label", eyebrowKey: "studio.workspace.review.eyebrow", descriptionKey: "studio.workspace.review.description" },
+  { id: "delivery", groupKey: "studio.workspace.group.production", labelKey: "studio.workspace.delivery.label", eyebrowKey: "studio.workspace.delivery.eyebrow", descriptionKey: "studio.workspace.delivery.description" },
+  { id: "intelligence", groupKey: "studio.workspace.group.intelligence", labelKey: "studio.workspace.intelligence.label", eyebrowKey: "studio.workspace.intelligence.eyebrow", descriptionKey: "studio.workspace.intelligence.description" },
 ];
 
 function StudioWorkspaceState({
@@ -160,13 +161,21 @@ function StudioWorkspaceState({
   title: string;
   message: string;
 }>) {
+  const { t } = useI18n();
+  const statusKeys: Record<StudioWorkspaceStatus, DictionaryKey> = {
+    LOADING: "studio.status.loading",
+    READY: "studio.status.ready",
+    UNAVAILABLE: "studio.status.unavailable",
+    ERROR: "studio.status.error",
+    MAINTENANCE: "studio.status.maintenance",
+  };
   return (
     <section
       aria-live="polite"
       className={`studio-workspace-state is-${status.toLowerCase()}`}
       role={status === "ERROR" ? "alert" : "status"}
     >
-      <span>{status}</span>
+      <span>{t(statusKeys[status])}</span>
       <strong>{title}</strong>
       <p>{message}</p>
     </section>
@@ -191,24 +200,30 @@ class StudioModuleErrorBoundary extends Component<
 
   render() {
     if (this.state.failed) {
-      return (
-        <StudioWorkspaceState
-          message="This module could not be displayed. No project, execution, or billing data was changed."
-          status="ERROR"
-          title="Workspace module unavailable"
-        />
-      );
+      return <StudioModuleErrorState />;
     }
     return this.props.children;
   }
 }
 
-function StudioModuleLoading({ label }: Readonly<{ label: string }>) {
+function StudioModuleErrorState() {
+  const { t } = useI18n();
   return (
     <StudioWorkspaceState
-      message={`Preparing the ${label} workspace without blocking the rest of Studio.`}
+      message={t("studio.workspace.error.message")}
+      status="ERROR"
+      title={t("studio.workspace.error.title")}
+    />
+  );
+}
+
+function StudioModuleLoading({ label }: Readonly<{ label: string }>) {
+  const { tf } = useI18n();
+  return (
+    <StudioWorkspaceState
+      message={tf("studio.workspace.loading.message", { module: label })}
       status="LOADING"
-      title={`Loading ${label}`}
+      title={tf("studio.workspace.loading.title", { module: label })}
     />
   );
 }
@@ -220,18 +235,16 @@ function StudioNewProjectEmptyState({
   onNavigate: (module: StudioWorkspaceModule) => void;
   onAskCopilot: () => void;
 }>) {
+  const { t } = useI18n();
   return (
-    <section className="studio-workspace-empty" aria-label="New Project Canvas">
-      <span>NEW PROJECT</span>
-      <h2>Turn the first idea into a visible creative plan.</h2>
-      <p>
-        Start from the Creative Canvas, reuse a confirmed template, or ask Copilot for a
-        draft suggestion. Nothing runs until the existing confirmation gates are completed.
-      </p>
+    <section className="studio-workspace-empty" aria-label={t("studio.workspace.empty.aria")}>
+      <span>{t("studio.workspace.empty.eyebrow")}</span>
+      <h2>{t("studio.workspace.empty.title")}</h2>
+      <p>{t("studio.workspace.empty.message")}</p>
       <div>
-        <button onClick={() => onNavigate("canvas")} type="button">Create Workflow</button>
-        <button onClick={() => onNavigate("canvas")} type="button">Import Template</button>
-        <button onClick={onAskCopilot} type="button">Ask Copilot</button>
+        <button onClick={() => onNavigate("canvas")} type="button">{t("studio.workspace.empty.createWorkflow")}</button>
+        <button onClick={() => onNavigate("canvas")} type="button">{t("studio.workspace.empty.importTemplate")}</button>
+        <button onClick={onAskCopilot} type="button">{t("studio.workspace.empty.askCopilot")}</button>
       </div>
     </section>
   );
@@ -246,21 +259,22 @@ function StudioOverview({
   onNavigate: (module: StudioWorkspaceModule) => void;
   onAskCopilot: () => void;
 }>) {
+  const { t } = useI18n();
   if (!hasProject) {
     return <StudioNewProjectEmptyState onAskCopilot={onAskCopilot} onNavigate={onNavigate} />;
   }
 
   return (
     <div className="studio-overview-workspace">
-      <StudioCapabilityBoundary feature="project_intelligence" label="Project Intelligence">
+      <StudioCapabilityBoundary feature="project_intelligence" label={t("studio.capability.projectIntelligence")}>
         <StudioCreativeProjectIntelligenceDashboard />
       </StudioCapabilityBoundary>
-      <section className="studio-overview-shortcuts" aria-label="Studio workspace shortcuts">
+      <section className="studio-overview-shortcuts" aria-label={t("studio.workspace.shortcuts")}>
         {STUDIO_WORKSPACE_MODULES.filter((item) => item.id !== "overview").map((item) => (
           <button key={item.id} onClick={() => onNavigate(item.id)} type="button">
-            <span>{item.group}</span>
-            <strong>{item.label}</strong>
-            <small>{item.description}</small>
+            <span>{t(item.groupKey)}</span>
+            <strong>{t(item.labelKey)}</strong>
+            <small>{t(item.descriptionKey)}</small>
           </button>
         ))}
       </section>
@@ -269,6 +283,7 @@ function StudioOverview({
 }
 
 export function StudioWorkspace() {
+  const { t, tf } = useI18n();
   const searchParams = useSearchParams();
   const { isLoading: authLoading, isSignedIn } = useAuthSession();
   const setHasHydrated = useStudioStore((state) => state.setHasHydrated);
@@ -311,7 +326,7 @@ export function StudioWorkspace() {
       return;
     }
     if (dirty && projectId) {
-      setProjectError("Save the current project before opening another one from Dashboard.");
+      setProjectError(t("studio.workspace.saveBeforeOpen"));
       return;
     }
 
@@ -322,7 +337,7 @@ export function StudioWorkspace() {
       .then(loadProject)
       .catch((error) => {
         routeProjectRequest.current = "";
-        setProjectError(error instanceof Error ? error.message : "Dashboard project could not be opened.");
+        setProjectError(error instanceof Error ? error.message : t("studio.workspace.openFailed"));
       })
       .finally(() => setLoadingProject(false));
   }, [
@@ -335,6 +350,7 @@ export function StudioWorkspace() {
     searchParams,
     setLoadingProject,
     setProjectError,
+    t,
   ]);
 
   const studioTheme = {
@@ -379,7 +395,7 @@ export function StudioWorkspace() {
       case "timeline":
         return (
           <div className="studio-timeline-workspace">
-            <StudioCapabilityBoundary feature="timeline" label="Unified Timeline">
+            <StudioCapabilityBoundary feature="timeline" label={t("studio.capability.timeline")}>
               <StudioUnifiedTimeline />
             </StudioCapabilityBoundary>
             <StudioTimelinePanel />
@@ -387,50 +403,50 @@ export function StudioWorkspace() {
         );
       case "storyboard":
         return (
-          <StudioCapabilityBoundary feature="storyboard" label="Storyboard">
+          <StudioCapabilityBoundary feature="storyboard" label={t("studio.capability.storyboard")}>
             <StudioStoryboardPanel workspaceFocus="storyboard" />
           </StudioCapabilityBoundary>
         );
       case "production":
         return (
-          <StudioCapabilityBoundary feature="storyboard" label="Production">
+          <StudioCapabilityBoundary feature="storyboard" label={t("studio.capability.production")}>
             <StudioStoryboardPanel workspaceFocus="production" />
           </StudioCapabilityBoundary>
         );
       case "review":
         return (
-          <StudioCapabilityBoundary feature="storyboard" label="Review">
+          <StudioCapabilityBoundary feature="storyboard" label={t("studio.capability.review")}>
             <StudioStoryboardPanel workspaceFocus="review" />
           </StudioCapabilityBoundary>
         );
       case "delivery":
         return (
-          <StudioCapabilityBoundary feature="storyboard" label="Delivery">
+          <StudioCapabilityBoundary feature="storyboard" label={t("studio.capability.delivery")}>
             <StudioStoryboardPanel workspaceFocus="delivery" />
           </StudioCapabilityBoundary>
         );
       case "intelligence":
         return (
           <div className="studio-intelligence-workspace">
-            <StudioCapabilityBoundary feature="project_intelligence" label="Project Intelligence">
+            <StudioCapabilityBoundary feature="project_intelligence" label={t("studio.capability.projectIntelligence")}>
               <StudioCreativeProjectIntelligenceDashboard />
             </StudioCapabilityBoundary>
-            <StudioCapabilityBoundary feature="project_memory" label="Project Memory">
+            <StudioCapabilityBoundary feature="project_memory" label={t("studio.capability.projectMemory")}>
               <StudioProjectMemoryTimeline />
             </StudioCapabilityBoundary>
-            <StudioCapabilityBoundary feature="project_roadmap" label="Project Roadmap">
+            <StudioCapabilityBoundary feature="project_roadmap" label={t("studio.capability.projectRoadmap")}>
               <StudioProjectRoadmapTimeline />
             </StudioCapabilityBoundary>
-            <StudioCapabilityBoundary feature="portfolio_strategy" label="Portfolio Strategy">
+            <StudioCapabilityBoundary feature="portfolio_strategy" label={t("studio.capability.portfolioStrategy")}>
               <StudioPortfolioStrategyCenter />
             </StudioCapabilityBoundary>
-            <StudioCapabilityBoundary feature="portfolio_resources" label="Portfolio Resources">
+            <StudioCapabilityBoundary feature="portfolio_resources" label={t("studio.capability.portfolioResources")}>
               <StudioPortfolioResourceCenter />
             </StudioCapabilityBoundary>
-            <StudioCapabilityBoundary feature="portfolio_performance" label="Portfolio Performance">
+            <StudioCapabilityBoundary feature="portfolio_performance" label={t("studio.capability.portfolioPerformance")}>
               <StudioPortfolioPerformanceCenter />
             </StudioCapabilityBoundary>
-            <StudioCapabilityBoundary feature="portfolio_forecast" label="Portfolio Forecast">
+            <StudioCapabilityBoundary feature="portfolio_forecast" label={t("studio.capability.portfolioForecast")}>
               <StudioPortfolioForecastCenter />
             </StudioCapabilityBoundary>
           </div>
@@ -450,7 +466,7 @@ export function StudioWorkspace() {
             <StudioApiVersionStatus />
           </div>
 
-          <nav className="studio-workspace-navigation" aria-label="Studio modules">
+          <nav className="studio-workspace-navigation" aria-label={t("studio.workspace.navigation")}>
             {STUDIO_WORKSPACE_MODULES.map((item) => (
               <button
                 aria-current={activeModule === item.id ? "page" : undefined}
@@ -459,61 +475,60 @@ export function StudioWorkspace() {
                 onClick={() => setActiveModule(item.id)}
                 type="button"
               >
-                <span>{item.group}</span>
-                <strong>{item.label}</strong>
+                <span>{t(item.groupKey)}</span>
+                <strong>{t(item.labelKey)}</strong>
               </button>
             ))}
           </nav>
 
           <div className="studio-workspace-frame">
-            <main className="studio-main-workspace" aria-label={`${activeModuleDefinition.label} workspace`}>
+            <main className="studio-main-workspace" aria-label={tf("studio.workspace.mainAria", { module: t(activeModuleDefinition.labelKey) })}>
               <header className="studio-workspace-module-header">
                 <div>
-                  <span>{activeModuleDefinition.eyebrow}</span>
-                  <h2>{activeModuleDefinition.label}</h2>
-                  <p>{activeModuleDefinition.description}</p>
+                  <span>{t(activeModuleDefinition.eyebrowKey)}</span>
+                  <h2>{t(activeModuleDefinition.labelKey)}</h2>
+                  <p>{t(activeModuleDefinition.descriptionKey)}</p>
                 </div>
                 <div>
-                  <strong>READY</strong>
-                  <small>{projectName || "Local draft"}</small>
+                  <strong>{t("studio.status.ready")}</strong>
+                  <small>{projectName || t("studio.workspace.localDraft")}</small>
                 </div>
               </header>
               <StudioModuleErrorBoundary resetKey={`${activeModule}:${projectId || "local"}`}>
-                <Suspense fallback={<StudioModuleLoading label={activeModuleDefinition.label} />}>
+                <Suspense fallback={<StudioModuleLoading label={t(activeModuleDefinition.labelKey)} />}>
                   {renderActiveModule()}
                 </Suspense>
               </StudioModuleErrorBoundary>
             </main>
 
             <aside
-              aria-label="Copilot Context Panel"
+              aria-label={t("studio.copilot.contextAria")}
               className="studio-context-panel"
               ref={copilotPanelRef}
               tabIndex={-1}
             >
               <header>
                 <div>
-                  <span>CONTEXT PANEL</span>
-                  <h2>Creative Copilot</h2>
+                  <span>{t("studio.copilot.contextEyebrow")}</span>
+                  <h2>{t("studio.copilot.title")}</h2>
                 </div>
-                <strong>DRAFT ONLY</strong>
+                <strong>{t("studio.copilot.draftOnly")}</strong>
               </header>
               <p className="studio-context-panel-intro">
-                Insights, recommendations, evidence, and draft actions stay visible while you
-                move between Studio modules.
+                {t("studio.copilot.contextMessage")}
               </p>
               <StudioModuleErrorBoundary resetKey={`copilot:${projectId || "local"}`}>
-                <Suspense fallback={<StudioModuleLoading label="Copilot" />}>
-                  <StudioCapabilityBoundary feature="project_execution_concierge" label="Project Copilot Assistant">
+                <Suspense fallback={<StudioModuleLoading label={t("studio.copilot.title")} />}>
+                  <StudioCapabilityBoundary feature="project_execution_concierge" label={t("studio.capability.executionAssistant")}>
                     <StudioProjectExecutionConcierge projectId={projectId} />
                   </StudioCapabilityBoundary>
-                  <StudioCapabilityBoundary feature="project_collaboration" label="Project Members">
+                  <StudioCapabilityBoundary feature="project_collaboration" label={t("studio.capability.projectMembers")}>
                     <StudioProjectMembersPanel projectId={projectId} />
                   </StudioCapabilityBoundary>
-                  <StudioCapabilityBoundary feature="collaboration_activity" label="Collaboration Activity">
+                  <StudioCapabilityBoundary feature="collaboration_activity" label={t("studio.capability.collaborationActivity")}>
                     <StudioCollaborationActivityCenter projectId={projectId} />
                   </StudioCapabilityBoundary>
-                  <StudioCapabilityBoundary feature="copilot_center" label="Project Copilot Center">
+                  <StudioCapabilityBoundary feature="copilot_center" label={t("studio.capability.copilotCenter")}>
                     <StudioProjectCopilotCommandCenter />
                   </StudioCapabilityBoundary>
                 </Suspense>

@@ -73,6 +73,7 @@ import {
   type StudioCreativeCanvasDraftType,
 } from "@/lib/studio-creative-canvas-draft-recovery";
 import { LEGACY_CANVAS_ROUTE } from "@/lib/canvas/canvasRoutes";
+import { useI18n } from "@/i18n/useI18n";
 
 type CreativeNodeData = {
   source: StudioCreativeCanvasNode;
@@ -186,14 +187,14 @@ function defaultEdgeType(source: StudioCreativeCanvasNodeType, target: StudioCre
   return "PLANS";
 }
 
-function changeLabel(change: StudioCreativeCanvasGraphChange) {
+function changeLabel(change: StudioCreativeCanvasGraphChange, tf: ReturnType<typeof useI18n>["tf"]) {
   switch (change.type) {
-    case "ADD_NODE": return `Add ${change.node?.nodeType || "node"}`;
-    case "REMOVE_NODE": return `Remove ${change.nodeId}`;
-    case "MOVE_NODE": return `Move ${change.nodeId}`;
-    case "CONNECT_EDGE": return `Connect ${change.source} → ${change.target}`;
-    case "DISCONNECT_EDGE": return `Disconnect ${change.source} → ${change.target}`;
-    case "UPDATE_CONFIG": return `Update ${change.nodeId}`;
+    case "ADD_NODE": return tf("studio.creativeCanvas.change.add", { value: change.node?.nodeType || "node" });
+    case "REMOVE_NODE": return tf("studio.creativeCanvas.change.remove", { value: change.nodeId });
+    case "MOVE_NODE": return tf("studio.creativeCanvas.change.move", { value: change.nodeId });
+    case "CONNECT_EDGE": return tf("studio.creativeCanvas.change.connect", { source: change.source, target: change.target });
+    case "DISCONNECT_EDGE": return tf("studio.creativeCanvas.change.disconnect", { source: change.source, target: change.target });
+    case "UPDATE_CONFIG": return tf("studio.creativeCanvas.change.update", { value: change.nodeId });
   }
 }
 
@@ -204,6 +205,7 @@ export function StudioCreativeCanvas({
   projectId: string | null;
   authReady?: boolean;
 }) {
+  const { t, tf } = useI18n();
   const { featureStatus } = useStudioApiIntegration();
   const editingAvailability = featureStatus("creative_canvas_editing");
   const planningAvailability = featureStatus("creative_canvas_auto_planning");
@@ -312,8 +314,8 @@ export function StudioCreativeCanvas({
         setDraftRecovery({
           status: availability === "AVAILABLE" ? "RESTORING" : "UNAVAILABLE",
           message: availability === "AVAILABLE"
-            ? "Waiting for the Canvas Draft service before restoring Preview."
-            : "The saved Draft is retained, but its service is currently unavailable.",
+            ? t("studio.creativeCanvas.recovery.waiting")
+            : t("studio.creativeCanvas.recovery.unavailable"),
         });
       }, 0);
       return () => window.clearTimeout(stateTimer);
@@ -325,7 +327,7 @@ export function StudioCreativeCanvas({
     const controller = new AbortController();
     const stateTimer = window.setTimeout(() => {
       setActiveDraft(storedDraft);
-      setDraftRecovery({ status: "RESTORING", message: "Restoring the saved Draft Preview…" });
+      setDraftRecovery({ status: "RESTORING", message: t("studio.creativeCanvas.recovery.restoring") });
     }, 0);
 
     void recoverStudioCreativeCanvasDraft(async (attemptSignal) => {
@@ -386,7 +388,7 @@ export function StudioCreativeCanvas({
         setOptimizationOpen(false);
         setDraftRecovery({
           status: "RESTORED",
-          message: `${nextSession.status} Draft restored with Preview, Diff, and evidence.`,
+          message: tf("studio.creativeCanvas.recovery.complete", { status: nextSession.status }),
         });
       })
       .catch((reason: unknown) => {
@@ -413,6 +415,8 @@ export function StudioCreativeCanvas({
     optimizationAvailability,
     planningAvailability,
     projectId,
+    t,
+    tf,
   ]);
 
   useEffect(() => {
@@ -494,7 +498,7 @@ export function StudioCreativeCanvas({
     setSimulation(null);
     setOptimizationOpen(false);
     forgetActiveDraft();
-    setActionState({ busy: false, message: "Draft mode is local until you review the changes." });
+    setActionState({ busy: false, message: t("studio.creativeCanvas.action.localDraft") });
   }
 
   function cancelEditing() {
@@ -510,7 +514,7 @@ export function StudioCreativeCanvas({
     setCopilotOpen(false);
     setOptimizationOpen(false);
     forgetActiveDraft();
-    setActionState({ busy: false, message: "Draft discarded. The production Graph was unchanged." });
+    setActionState({ busy: false, message: t("studio.creativeCanvas.action.discarded") });
   }
 
   function addNode() {
@@ -607,7 +611,7 @@ export function StudioCreativeCanvas({
 
   async function reviewChanges() {
     if (!projectId || !changes.length) return;
-    setActionState({ busy: true, message: "Validating the Draft Graph…" });
+    setActionState({ busy: true, message: t("studio.creativeCanvas.action.validating") });
     try {
       const value = await createStudioCreativeCanvasEditSession(projectId, changes);
       setSession(value);
@@ -635,7 +639,7 @@ export function StudioCreativeCanvas({
       !["DRAFT", "REVIEW"].includes(session.status) ||
       session.validation.status !== "READY"
     ) return;
-    setActionState({ busy: true, message: "Confirming the Workflow Draft…" });
+    setActionState({ busy: true, message: t("studio.creativeCanvas.action.confirming") });
     try {
       const value = await confirmStudioCreativeCanvasEditSession(projectId, session.sessionId);
       setSession(value);
@@ -659,7 +663,7 @@ export function StudioCreativeCanvas({
 
   async function createWithCopilot() {
     if (!projectId || !copilotPrompt.trim() || planningAvailability !== "READY") return;
-    setActionState({ busy: true, message: "Copilot is building a reviewable Canvas Draft…" });
+    setActionState({ busy: true, message: t("studio.creativeCanvas.action.planning") });
     try {
       const value = await createStudioCreativeCanvasPlan(projectId, {
         prompt: copilotPrompt.trim(),
@@ -696,7 +700,7 @@ export function StudioCreativeCanvas({
 
   async function optimizeWithCopilot() {
     if (!projectId || !graph || optimizationAvailability !== "READY") return;
-    setActionState({ busy: true, message: "Copilot is analyzing the current Workflow…" });
+    setActionState({ busy: true, message: t("studio.creativeCanvas.action.optimizing") });
     try {
       const value = await createStudioCreativeCanvasOptimization(projectId, {
         graphVersion: graph.graphId,
@@ -737,7 +741,7 @@ export function StudioCreativeCanvas({
       !simulationDraftId ||
       simulationAvailability !== "READY"
     ) return;
-    setActionState({ busy: true, message: "Simulating Draft impact without applying changes…" });
+    setActionState({ busy: true, message: t("studio.creativeCanvas.action.simulating") });
     try {
       const value = await createStudioCreativeCanvasSimulation(projectId, simulationDraftId);
       setSimulation(value);
@@ -760,7 +764,7 @@ export function StudioCreativeCanvas({
       !decisionReason.trim() ||
       decisionAvailability !== "READY"
     ) return;
-    setActionState({ busy: true, message: "Recording your Canvas decision without applying the Draft…" });
+    setActionState({ busy: true, message: t("studio.creativeCanvas.action.recording") });
     try {
       await recordStudioCreativeCanvasDecision(projectId, {
         simulationId: simulation.simulationId,
@@ -783,95 +787,95 @@ export function StudioCreativeCanvas({
 
   if (!projectId) {
     return (
-      <section className="studio-creative-canvas-empty" aria-label="Unified Creative Canvas empty state">
-        <strong>Open a saved Studio project</strong>
-        <p>The unified canvas is derived from project, Timeline, Storyboard, Execution, Output, Asset, and Delivery data.</p>
-        <a href={LEGACY_CANVAS_ROUTE}>Open preserved Legacy Canvas</a>
+      <section className="studio-creative-canvas-empty" aria-label={t("studio.creativeCanvas.empty.aria")}>
+        <strong>{t("studio.creativeCanvas.empty.title")}</strong>
+        <p>{t("studio.creativeCanvas.empty.message")}</p>
+        <a href={LEGACY_CANVAS_ROUTE}>{t("studio.creativeCanvas.legacy.open")}</a>
       </section>
     );
   }
   if (error) {
     return (
       <section className="studio-creative-canvas-empty is-error" role="alert">
-        <strong>Creative Canvas unavailable</strong>
+        <strong>{t("studio.creativeCanvas.error.title")}</strong>
         <p>{error}</p>
-        <small>No project data, workflow, execution, or legacy Canvas was changed.</small>
+        <small>{t("studio.creativeCanvas.error.boundary")}</small>
       </section>
     );
   }
-  if (!graph) return <div className="studio-agent-canvas-empty">Building the unified Creative Operating Canvas…</div>;
+  if (!graph) return <div className="studio-agent-canvas-empty">{t("studio.creativeCanvas.loading")}</div>;
   if (!graph.nodes.length && mode === "VIEW") {
     return (
       <section className="studio-creative-canvas-empty">
-        <strong>Project graph is ready</strong>
-        <p>Add project goals, scenes, Storyboards, or completed Outputs through their existing confirmed workflows.</p>
+        <strong>{t("studio.creativeCanvas.ready.title")}</strong>
+        <p>{t("studio.creativeCanvas.ready.message")}</p>
         <div className="studio-creative-canvas-empty-actions">
-          <button disabled={planningAvailability !== "READY"} onClick={() => setCopilotOpen(true)} type="button">Create with Copilot</button>
-          <button disabled={editingAvailability !== "READY"} onClick={startEditing} type="button">Edit Canvas</button>
+          <button disabled={planningAvailability !== "READY"} onClick={() => setCopilotOpen(true)} type="button">{t("studio.creativeCanvas.createWithCopilot")}</button>
+          <button disabled={editingAvailability !== "READY"} onClick={startEditing} type="button">{t("studio.creativeCanvas.edit")}</button>
         </div>
         {copilotOpen ? (
-          <section className="studio-creative-canvas-copilot-form" aria-label="Create Canvas with Copilot">
-            <textarea onChange={(event) => setCopilotPrompt(event.target.value)} placeholder="What do you want to create?" value={copilotPrompt} />
-            <button disabled={!copilotPrompt.trim() || actionState.busy} onClick={() => void createWithCopilot()} type="button">Generate Draft Canvas</button>
+          <section className="studio-creative-canvas-copilot-form" aria-label={t("studio.creativeCanvas.planner.aria")}>
+            <textarea onChange={(event) => setCopilotPrompt(event.target.value)} placeholder={t("studio.creativeCanvas.prompt.placeholder")} value={copilotPrompt} />
+            <button disabled={!copilotPrompt.trim() || actionState.busy} onClick={() => void createWithCopilot()} type="button">{t("studio.creativeCanvas.generateDraft")}</button>
           </section>
         ) : null}
-        <small>This view never creates or migrates project data.</small>
+        <small>{t("studio.creativeCanvas.ready.boundary")}</small>
       </section>
     );
   }
 
   return (
-    <section className={`studio-creative-canvas-layout is-${mode.toLowerCase()}`} aria-label="Unified Creative Operating Canvas">
+    <section className={`studio-creative-canvas-layout is-${mode.toLowerCase()}`} aria-label={t("studio.creativeCanvas.layoutAria")}>
       <div className="studio-creative-canvas-summary">
         <div>
-          <span>Creative Operating Canvas</span>
+          <span>{t("studio.creativeCanvas.title")}</span>
           <strong>{flowNodes.length} nodes · {flowEdges.length} relationships</strong>
         </div>
         <div className="studio-creative-canvas-mode">
           <span>{graph.schemaVersion}</span>
-          <b>{mode === "VIEW" ? "VIEW" : "EDIT DRAFT"}</b>
+          <b>{mode === "VIEW" ? t("studio.creativeCanvas.mode.view") : t("studio.creativeCanvas.mode.edit")}</b>
           {mode === "VIEW" ? (
             <div className="studio-creative-canvas-mode-actions">
               <button disabled={planningAvailability !== "READY"} onClick={() => {
                 setCopilotOpen((value) => !value);
                 setOptimizationOpen(false);
               }} type="button">
-                {planningAvailability === "READY" ? "Create with Copilot" : "Copilot unavailable"}
+                {planningAvailability === "READY" ? t("studio.creativeCanvas.createWithCopilot") : t("studio.creativeCanvas.copilotUnavailable")}
               </button>
               <button disabled={optimizationAvailability !== "READY"} onClick={() => {
                 setOptimizationOpen((value) => !value);
                 setCopilotOpen(false);
               }} type="button">
-                {optimizationAvailability === "READY" ? "Optimize with Copilot" : "Optimization unavailable"}
+                {optimizationAvailability === "READY" ? t("studio.creativeCanvas.optimize") : t("studio.creativeCanvas.optimizationUnavailable")}
               </button>
               <button disabled={editingAvailability !== "READY"} onClick={startEditing} type="button">
-                {editingAvailability === "READY" ? "Edit Canvas" : "Editing unavailable"}
+                {editingAvailability === "READY" ? t("studio.creativeCanvas.edit") : t("studio.creativeCanvas.editingUnavailable")}
               </button>
             </div>
           ) : (
-            <button onClick={cancelEditing} type="button">Exit draft</button>
+            <button onClick={cancelEditing} type="button">{t("studio.creativeCanvas.exitDraft")}</button>
           )}
         </div>
       </div>
       {activeDraft ? (
         <section
           className={`studio-creative-canvas-draft-banner is-${activeDraft.status.toLowerCase()}`}
-          aria-label="Recovered Canvas Draft"
+          aria-label={t("studio.creativeCanvas.recovery.aria")}
         >
           <header>
             <div>
-              <span>{draftRecovery.status === "RESTORED" ? "DRAFT RESTORED" : "ACTIVE DRAFT"}</span>
+              <span>{draftRecovery.status === "RESTORED" ? t("studio.creativeCanvas.recovery.restored") : t("studio.creativeCanvas.recovery.active")}</span>
               <strong>{activeDraft.draftType.replaceAll("_", " ")}</strong>
             </div>
             <b>{activeDraft.status}</b>
           </header>
           <div>
-            <span>Draft <b>{activeDraft.draftId}</b></span>
-            <span>Graph <b>{activeDraft.graphVersion}</b></span>
-            <span>Changes <b>{session?.changes.length || changes.length}</b></span>
-            <span>Evidence <b>{draftEvidenceCount}</b></span>
-            <span>Confidence <b>{draftConfidence}</b></span>
-            <span>Confirm <b>{session?.status || activeDraft.status}</b></span>
+            <span>{t("studio.creativeCanvas.recovery.draft")} <b>{activeDraft.draftId}</b></span>
+            <span>{t("studio.creativeCanvas.recovery.graph")} <b>{activeDraft.graphVersion}</b></span>
+            <span>{t("studio.common.changes")} <b>{session?.changes.length || changes.length}</b></span>
+            <span>{t("studio.common.evidence")} <b>{draftEvidenceCount}</b></span>
+            <span>{t("studio.common.confidence")} <b>{draftConfidence}</b></span>
+            <span>{t("studio.common.confirm")} <b>{session?.status || activeDraft.status}</b></span>
           </div>
           <footer>
             <small>{draftRecovery.message}</small>
@@ -880,33 +884,33 @@ export function StudioCreativeCanvas({
                 draftRestoreAttemptRef.current = "";
                 setDraftRestoreVersion((value) => value + 1);
               }} type="button">
-                Retry restore
+                {t("studio.creativeCanvas.recovery.retry")}
               </button>
             ) : null}
           </footer>
         </section>
       ) : null}
       {copilotOpen ? (
-        <section className="studio-creative-canvas-copilot-form" aria-label="Create Canvas with Copilot">
+        <section className="studio-creative-canvas-copilot-form" aria-label={t("studio.creativeCanvas.planner.aria")}>
           <header>
-            <div><span>Creative Copilot</span><strong>AI Canvas Draft Planner</strong></div>
-            <b>PREVIEW ONLY</b>
+            <div><span>{t("studio.copilot.title")}</span><strong>{t("studio.creativeCanvas.planner.title")}</strong></div>
+            <b>{t("studio.creativeCanvas.previewOnly")}</b>
           </header>
           <label>
-            <span>Prompt</span>
+            <span>{t("studio.creativeCanvas.prompt")}</span>
             <textarea onChange={(event) => setCopilotPrompt(event.target.value)} placeholder="Describe what you want to create…" value={copilotPrompt} />
           </label>
           <label>
-            <span>Creative goal</span>
+            <span>{t("studio.creativeCanvas.goal")}</span>
             <input onChange={(event) => setCopilotGoal(event.target.value)} placeholder="Optional — defaults to your Prompt" value={copilotGoal} />
           </label>
           <div>
             <label>
-              <span>Duration</span>
-              <input onChange={(event) => setCopilotDuration(event.target.value)} placeholder="e.g. 15s" value={copilotDuration} />
+              <span>{t("studio.creativeCanvas.duration")}</span>
+              <input onChange={(event) => setCopilotDuration(event.target.value)} placeholder={t("studio.creativeCanvas.duration.placeholder")} value={copilotDuration} />
             </label>
             <label>
-              <span>Ratio</span>
+              <span>{t("studio.creativeCanvas.ratio")}</span>
               <select onChange={(event) => setCopilotRatio(event.target.value)} value={copilotRatio}>
                 <option value="16:9">16:9</option>
                 <option value="9:16">9:16</option>
@@ -915,19 +919,19 @@ export function StudioCreativeCanvas({
             </label>
           </div>
           <footer>
-            <small>Uses this project’s Goal, Strategy, Memory, successful Workflow Templates, and qualified past success patterns.</small>
-            <button disabled={!copilotPrompt.trim() || actionState.busy} onClick={() => void createWithCopilot()} type="button">Generate Draft Canvas</button>
+            <small>{t("studio.creativeCanvas.planner.sources")}</small>
+            <button disabled={!copilotPrompt.trim() || actionState.busy} onClick={() => void createWithCopilot()} type="button">{t("studio.creativeCanvas.generateDraft")}</button>
           </footer>
         </section>
       ) : null}
       {optimizationOpen ? (
-        <section className="studio-creative-canvas-copilot-form" aria-label="Optimize Canvas with Copilot">
+        <section className="studio-creative-canvas-copilot-form" aria-label={t("studio.creativeCanvas.optimization.aria")}>
           <header>
-            <div><span>Creative Copilot</span><strong>Workflow Optimization</strong></div>
-            <b>PREVIEW ONLY</b>
+            <div><span>{t("studio.copilot.title")}</span><strong>{t("studio.creativeCanvas.optimization.title")}</strong></div>
+            <b>{t("studio.creativeCanvas.previewOnly")}</b>
           </header>
           <label>
-            <span>Optimization target</span>
+            <span>{t("studio.creativeCanvas.optimization.target")}</span>
             <select
               onChange={(event) => setOptimizationTarget(event.target.value as StudioCanvasOptimizationType)}
               value={optimizationTarget}
@@ -938,35 +942,35 @@ export function StudioCreativeCanvas({
             </select>
           </label>
           <label>
-            <span>Constraints</span>
+            <span>{t("studio.creativeCanvas.optimization.constraints")}</span>
             <textarea
               onChange={(event) => setOptimizationConstraint(event.target.value)}
-              placeholder="Optional constraints, such as preserve approved Storyboard nodes"
+              placeholder={t("studio.creativeCanvas.optimization.placeholder")}
               value={optimizationConstraint}
             />
           </label>
           <footer>
-            <small>Analyzes Production, Quality, Revision, Cost, Historical Success, Governance Knowledge, and Project Memory.</small>
+            <small>{t("studio.creativeCanvas.optimization.sources")}</small>
             <button disabled={actionState.busy} onClick={() => void optimizeWithCopilot()} type="button">
-              Create Optimization Draft
+              {t("studio.creativeCanvas.optimization.createDraft")}
             </button>
           </footer>
         </section>
       ) : null}
       {mode === "EDIT_DRAFT" ? (
-        <section className="studio-creative-canvas-edit-toolbar" aria-label="Canvas Edit Mode">
+        <section className="studio-creative-canvas-edit-toolbar" aria-label={t("studio.creativeCanvas.edit.aria")}>
           <div>
             <select onChange={(event) => setNewNodeType(event.target.value as StudioCreativeCanvasNodeType)} value={newNodeType}>
               {editableNodeTypes.map((type) => <option key={type} value={type}>{studioCreativeCanvasNodeLabel(type)}</option>)}
             </select>
-            <input onChange={(event) => setNewNodeTitle(event.target.value)} placeholder="New node title" value={newNodeTitle} />
-            <button disabled={!newNodeTitle.trim()} onClick={addNode} type="button">Add node</button>
+            <input onChange={(event) => setNewNodeTitle(event.target.value)} placeholder={t("studio.creativeCanvas.edit.newNode")} value={newNodeTitle} />
+            <button disabled={!newNodeTitle.trim()} onClick={addNode} type="button">{t("studio.creativeCanvas.edit.addNode")}</button>
           </div>
           <div>
-            <button disabled={!selectedId} onClick={removeSelected} type="button">Remove selected</button>
-            <button disabled={!changes.length || actionState.busy} onClick={() => void reviewChanges()} type="button">Review changes</button>
+            <button disabled={!selectedId} onClick={removeSelected} type="button">{t("studio.creativeCanvas.edit.removeSelected")}</button>
+            <button disabled={!changes.length || actionState.busy} onClick={() => void reviewChanges()} type="button">{t("studio.creativeCanvas.edit.reviewChanges")}</button>
           </div>
-          <small>Drag nodes or connect handles. Every change remains a Draft until review and explicit confirmation.</small>
+          <small>{t("studio.creativeCanvas.edit.message")}</small>
         </section>
       ) : null}
       <div className="studio-creative-canvas-counts" aria-label="Creative Canvas node counts">
@@ -1021,39 +1025,39 @@ export function StudioCreativeCanvas({
             <MiniMap className="studio-minimap" maskColor="rgba(5, 7, 11, 0.7)" nodeColor="#38bdf8" pannable zoomable />
           </ReactFlow>
         </div>
-        <aside className="studio-creative-canvas-details" aria-label="Creative Canvas node details">
+        <aside className="studio-creative-canvas-details" aria-label={t("studio.creativeCanvas.details.aria")}>
           {selected ? (
             <>
               <span>{studioCreativeCanvasNodeLabel(selected.nodeType)}</span>
               <h3>{String(selected.metadata.title || selected.referenceId)}</h3>
               <dl>
-                <div><dt>Status</dt><dd>{selected.status}</dd></div>
-                <div><dt>Source</dt><dd>{String(selected.metadata.source || selected.metadata.sourceCanvas || "Project data")}</dd></div>
-                <div><dt>Reference</dt><dd>{selected.referenceId}</dd></div>
-                <div><dt>Updated</dt><dd>{selected.createdAt || "Unknown"}</dd></div>
-                {selected.metadata.timelineRef ? <div><dt>Timeline</dt><dd>{selected.metadata.timelineRef}</dd></div> : null}
-                {selected.metadata.version ? <div><dt>Version</dt><dd>{selected.metadata.version}</dd></div> : null}
+                <div><dt>{t("studio.creativeCanvas.details.status")}</dt><dd>{selected.status}</dd></div>
+                <div><dt>{t("studio.creativeCanvas.details.source")}</dt><dd>{String(selected.metadata.source || selected.metadata.sourceCanvas || t("studio.creativeCanvas.details.projectData"))}</dd></div>
+                <div><dt>{t("studio.creativeCanvas.details.reference")}</dt><dd>{selected.referenceId}</dd></div>
+                <div><dt>{t("studio.creativeCanvas.details.updated")}</dt><dd>{selected.createdAt || t("studio.creativeCanvas.details.unknown")}</dd></div>
+                {selected.metadata.timelineRef ? <div><dt>{t("studio.creativeCanvas.details.timeline")}</dt><dd>{selected.metadata.timelineRef}</dd></div> : null}
+                {selected.metadata.version ? <div><dt>{t("studio.creativeCanvas.details.version")}</dt><dd>{selected.metadata.version}</dd></div> : null}
               </dl>
               {mode === "EDIT_DRAFT" ? (
                 <div className="studio-creative-canvas-config">
-                  <input onChange={(event) => setConfigValue(event.target.value)} placeholder="Draft configuration note" value={configValue} />
-                  <button disabled={!configValue.trim()} onClick={updateSelectedConfig} type="button">Update config</button>
+                  <input onChange={(event) => setConfigValue(event.target.value)} placeholder={t("studio.creativeCanvas.details.configPlaceholder")} value={configValue} />
+                  <button disabled={!configValue.trim()} onClick={updateSelectedConfig} type="button">{t("studio.creativeCanvas.details.updateConfig")}</button>
                 </div>
               ) : (
-                <small>Reference-only detail. Enter Edit Draft to propose graph changes.</small>
+                <small>{t("studio.creativeCanvas.details.readOnly")}</small>
               )}
             </>
-          ) : <p>Select a node to inspect its source and references.</p>}
+          ) : <p>{t("studio.creativeCanvas.details.select")}</p>}
           {mode === "EDIT_DRAFT" ? (
-            <section className="studio-creative-canvas-change-list" aria-label="Graph changes">
-              <header><span>Graph changes</span><b>{changes.length}</b></header>
-              {changes.length ? changes.map((change) => <small key={change.changeId}>{changeLabel(change)}</small>) : <small>No changes yet.</small>}
+            <section className="studio-creative-canvas-change-list" aria-label={t("studio.creativeCanvas.diff.title")}>
+              <header><span>{t("studio.creativeCanvas.diff.title")}</span><b>{changes.length}</b></header>
+              {changes.length ? changes.map((change) => <small key={change.changeId}>{changeLabel(change, tf)}</small>) : <small>{t("studio.creativeCanvas.diff.empty")}</small>}
             </section>
           ) : null}
         </aside>
       </div>
       {plannedDraft ? (
-        <section className="studio-creative-canvas-ai-plan" aria-label="AI Planned Canvas Draft">
+        <section className="studio-creative-canvas-ai-plan" aria-label={t("studio.creativeCanvas.plan.aria")}>
           <header>
             <div>
               <span>CANVAS_AUTO_PLAN_DRAFT</span>
@@ -1064,7 +1068,7 @@ export function StudioCreativeCanvas({
           <p>{plannedDraft.planningRequest.goal}</p>
           <div className="studio-creative-canvas-ai-grid">
             <section>
-              <header><strong>Why these nodes</strong><span>{plannedDraft.reasoning.length}</span></header>
+              <header><strong>{t("studio.creativeCanvas.plan.reasoning")}</strong><span>{plannedDraft.reasoning.length}</span></header>
               <div>
                 {plannedDraft.reasoning.map((item) => (
                   <article key={item.nodeId}>
@@ -1076,7 +1080,7 @@ export function StudioCreativeCanvas({
               </div>
             </section>
             <section>
-              <header><strong>Evidence used</strong><span>{plannedDraft.evidence.length}</span></header>
+              <header><strong>{t("studio.creativeCanvas.plan.evidence")}</strong><span>{plannedDraft.evidence.length}</span></header>
               <div>
                 {plannedDraft.evidence.map((item) => (
                   <article key={item.evidenceId}>
@@ -1089,13 +1093,13 @@ export function StudioCreativeCanvas({
             </section>
           </div>
           <footer>
-            <span>Preview → Diff Review → Human Confirm</span>
-            <small>Copilot created only a Draft. It did not modify the production Graph or start Execution.</small>
+            <span>{t("studio.creativeCanvas.plan.flow")}</span>
+            <small>{t("studio.creativeCanvas.plan.boundary")}</small>
           </footer>
         </section>
       ) : null}
       {optimizedDraft ? (
-        <section className="studio-creative-canvas-ai-plan is-optimization" aria-label="AI Optimized Canvas Draft">
+        <section className="studio-creative-canvas-ai-plan is-optimization" aria-label={t("studio.creativeCanvas.optimized.aria")}>
           <header>
             <div>
               <span>CANVAS_WORKFLOW_OPTIMIZATION_DRAFT</span>
@@ -1106,7 +1110,7 @@ export function StudioCreativeCanvas({
           <p>Current Graph {optimizedDraft.optimizationRequest.graphVersion} remains unchanged while this Draft is reviewed.</p>
           <div className="studio-creative-canvas-ai-grid">
             <section>
-              <header><strong>Why this refinement</strong><span>{optimizedDraft.reasons.length}</span></header>
+              <header><strong>{t("studio.creativeCanvas.optimized.reasoning")}</strong><span>{optimizedDraft.reasons.length}</span></header>
               <div>
                 {optimizedDraft.reasons.map((item) => (
                   <article key={item.reasonId}>
@@ -1118,7 +1122,7 @@ export function StudioCreativeCanvas({
               </div>
             </section>
             <section>
-              <header><strong>Evidence used</strong><span>{optimizedDraft.evidence.length}</span></header>
+              <header><strong>{t("studio.creativeCanvas.plan.evidence")}</strong><span>{optimizedDraft.evidence.length}</span></header>
               <div>
                 {optimizedDraft.evidence.map((item) => (
                   <article key={item.evidenceId}>
@@ -1131,32 +1135,32 @@ export function StudioCreativeCanvas({
             </section>
           </div>
           <footer>
-            <span>Existing Canvas → Optimization Analysis → Draft Graph → Diff Review → Human Confirm</span>
-            <small>No production Graph mutation, task creation, Provider call, execution, or Credits action occurred.</small>
+            <span>{t("studio.creativeCanvas.optimized.flow")}</span>
+            <small>{t("studio.creativeCanvas.optimized.boundary")}</small>
           </footer>
         </section>
       ) : null}
       {session ? (
-        <section className="studio-creative-canvas-review" aria-label="Canvas Graph Diff">
+        <section className="studio-creative-canvas-review" aria-label={t("studio.creativeCanvas.diff.aria")}>
           <header>
-            <div><span>Graph Diff</span><strong>{session.status}</strong></div>
+            <div><span>{t("studio.creativeCanvas.diff.title")}</span><strong>{session.status}</strong></div>
             <div className="studio-creative-canvas-review-actions">
               <button
                 disabled={!simulationDraftId || simulationAvailability !== "READY" || actionState.busy}
                 onClick={() => void simulateChange()}
                 type="button"
               >
-                {simulationAvailability === "READY" ? "Simulate Change" : "Simulation unavailable"}
+                {simulationAvailability === "READY" ? t("studio.creativeCanvas.simulation.action") : t("studio.creativeCanvas.simulation.unavailable")}
               </button>
               <b className={session.validation.status === "READY" ? "is-ready" : "is-blocked"}>{session.validation.status}</b>
             </div>
           </header>
           <div className="studio-creative-canvas-diff">
-            <span>Added nodes <b>{session.diff.summary.addedNodes}</b></span>
-            <span>Removed nodes <b>{session.diff.summary.removedNodes}</b></span>
-            <span>Moved nodes <b>{session.diff.summary.movedNodes}</b></span>
-            <span>Changed edges <b>{session.diff.summary.changedEdges}</b></span>
-            <span>Config changes <b>{session.diff.summary.configChanges}</b></span>
+            <span>{t("studio.creativeCanvas.diff.added")} <b>{session.diff.summary.addedNodes}</b></span>
+            <span>{t("studio.creativeCanvas.diff.removed")} <b>{session.diff.summary.removedNodes}</b></span>
+            <span>{t("studio.creativeCanvas.diff.moved")} <b>{session.diff.summary.movedNodes}</b></span>
+            <span>{t("studio.creativeCanvas.diff.edges")} <b>{session.diff.summary.changedEdges}</b></span>
+            <span>{t("studio.creativeCanvas.diff.config")} <b>{session.diff.summary.configChanges}</b></span>
           </div>
           <div className="studio-creative-canvas-validation">
             {session.validation.checks.map((check) => (
@@ -1168,56 +1172,54 @@ export function StudioCreativeCanvas({
             ))}
           </div>
           {session.status === "CONFIRMED" ? (
-            <p>Confirmed as Workflow Draft <b>{session.confirmedDraft?.draftId}</b>. No production Graph, Execution, Provider, or Credits action occurred.</p>
+            <p>{tf("studio.creativeCanvas.diff.confirmed", { id: session.confirmedDraft?.draftId })}</p>
           ) : session.status === "REJECTED" || session.status === "EXPIRED" ? (
-            <p>
-              This Draft is <b>{session.status}</b> and cannot be confirmed. Create a new Draft to continue; the production Graph remains unchanged.
-            </p>
+            <p>{tf("studio.creativeCanvas.diff.terminal", { status: session.status })}</p>
           ) : (
             <button disabled={session.validation.status !== "READY" || actionState.busy} onClick={() => void confirmDraft()} type="button">
-              Confirm draft
+              {t("studio.creativeCanvas.diff.confirmDraft")}
             </button>
           )}
         </section>
       ) : null}
       {simulation ? (
-        <section className="studio-creative-canvas-simulation" aria-label="Canvas Change Simulation">
+        <section className="studio-creative-canvas-simulation" aria-label={t("studio.creativeCanvas.simulation.aria")}>
           <header>
             <div>
-              <span>CHANGE SIMULATION</span>
+              <span>{t("studio.creativeCanvas.simulation.title")}</span>
               <strong>{simulation.draftSource.replaceAll("_", " ")}</strong>
             </div>
             <b className={`is-${simulation.confidence.toLowerCase()}`}>{simulation.confidence} CONFIDENCE</b>
           </header>
           <div className="studio-creative-canvas-simulation-comparison">
             <article>
-              <span>Before</span>
+              <span>{t("studio.creativeCanvas.simulation.before")}</span>
               <strong>{simulation.beforeState.agentCount} Agents</strong>
               <small>{simulation.beforeState.nodeCount} nodes · {simulation.beforeState.edgeCount} edges</small>
             </article>
             <em>→</em>
             <article>
-              <span>After</span>
+              <span>{t("studio.creativeCanvas.simulation.after")}</span>
               <strong>{simulation.afterState.agentCount} Agents</strong>
               <small>{simulation.afterState.nodeCount} nodes · {simulation.afterState.edgeCount} edges</small>
             </article>
             <article>
-              <span>Agent changes</span>
+              <span>{t("studio.creativeCanvas.simulation.agentChanges")}</span>
               <strong>
                 {simulation.comparison.addedAgents.length
                   ? `+ ${simulation.comparison.addedAgents.join(", ")}`
-                  : "No additions"}
+                  : t("studio.creativeCanvas.simulation.noAdditions")}
               </strong>
               <small>
                 {simulation.comparison.removedAgents.length
                   ? `− ${simulation.comparison.removedAgents.join(", ")}`
-                  : "No removals"}
+                  : t("studio.creativeCanvas.simulation.noRemovals")}
               </small>
             </article>
           </div>
           <div className="studio-creative-canvas-simulation-grid">
             <section>
-              <header><strong>Impact</strong><span>{simulation.impact.length} metrics</span></header>
+              <header><strong>{t("studio.creativeCanvas.simulation.impact")}</strong><span>{tf("studio.creativeCanvas.simulation.metrics", { count: simulation.impact.length })}</span></header>
               {simulation.impact.map((item) => (
                 <article key={item.metric}>
                   <div><strong>{studioCanvasImpactLabel(item.metric)}</strong><b>{item.assessment.replaceAll("_", " ")}</b></div>
@@ -1226,7 +1228,7 @@ export function StudioCreativeCanvas({
               ))}
             </section>
             <section>
-              <header><strong>Risk analysis</strong><span>{simulation.risks.length} checks</span></header>
+              <header><strong>{t("studio.creativeCanvas.simulation.risk")}</strong><span>{tf("studio.creativeCanvas.simulation.checks", { count: simulation.risks.length })}</span></header>
               {simulation.risks.map((risk) => (
                 <article className={`is-${risk.severity.toLowerCase()}`} key={risk.riskId}>
                   <div><strong>{risk.type.replaceAll("_", " ")}</strong><b>{risk.severity}</b></div>
@@ -1236,13 +1238,13 @@ export function StudioCreativeCanvas({
             </section>
           </div>
           <footer>
-            <span>Comparison Preview only</span>
-            <small>No change was applied. Cost values are estimates and Credits remain unchanged.</small>
+            <span>{t("studio.creativeCanvas.simulation.previewOnly")}</span>
+            <small>{t("studio.creativeCanvas.simulation.boundary")}</small>
           </footer>
-          <section className="studio-creative-canvas-decision-form" aria-label="Record Canvas decision">
+          <section className="studio-creative-canvas-decision-form" aria-label={t("studio.creativeCanvas.decision.aria")}>
             <header>
-              <strong>Record your choice</strong>
-              <small>This records a human decision; it does not confirm or apply the Draft.</small>
+              <strong>{t("studio.creativeCanvas.decision.title")}</strong>
+              <small>{t("studio.creativeCanvas.decision.message")}</small>
             </header>
             <div>
               <button
@@ -1250,19 +1252,19 @@ export function StudioCreativeCanvas({
                 onClick={() => setDecisionChoice("SELECT_DRAFT")}
                 type="button"
               >
-                Select Draft
+                {t("studio.creativeCanvas.decision.selectDraft")}
               </button>
               <button
                 className={decisionChoice === "KEEP_CURRENT" ? "is-selected" : ""}
                 onClick={() => setDecisionChoice("KEEP_CURRENT")}
                 type="button"
               >
-                Keep current
+                {t("studio.creativeCanvas.decision.keepCurrent")}
               </button>
             </div>
             <textarea
               onChange={(event) => setDecisionReason(event.target.value)}
-              placeholder="Why did you choose this option?"
+              placeholder={t("studio.creativeCanvas.decision.reasonPlaceholder")}
               value={decisionReason}
             />
             <button
@@ -1270,14 +1272,14 @@ export function StudioCreativeCanvas({
               onClick={() => void recordDecision()}
               type="button"
             >
-              Record decision
+              {t("studio.creativeCanvas.decision.record")}
             </button>
           </section>
         </section>
       ) : null}
-      <section className="studio-creative-canvas-decision-history" aria-label="Decision History">
+      <section className="studio-creative-canvas-decision-history" aria-label={t("studio.creativeCanvas.decision.history")}>
         <header>
-          <div><span>DECISION MEMORY</span><strong>Decision History</strong></div>
+          <div><span>{t("studio.creativeCanvas.decision.memory")}</span><strong>{t("studio.creativeCanvas.decision.history")}</strong></div>
           <small>
             Project-scoped · {decisionHistory?.outcomeAnalysis.recorded || 0} outcomes · future suggestions only
           </small>
@@ -1296,7 +1298,7 @@ export function StudioCreativeCanvas({
             {decisionHistory.decisions.map((decision) => (
               <article key={decision.decisionId}>
                 <header>
-                  <strong>{decision.selectedOption === "SELECT_DRAFT" ? "Selected Draft" : "Kept current Canvas"}</strong>
+                  <strong>{decision.selectedOption === "SELECT_DRAFT" ? t("studio.creativeCanvas.decision.selected") : t("studio.creativeCanvas.decision.kept")}</strong>
                   <small>{new Date(decision.createdAt).toLocaleDateString()}</small>
                 </header>
                 <p>{decision.reason}</p>
@@ -1310,17 +1312,17 @@ export function StudioCreativeCanvas({
             ))}
           </div>
         ) : (
-          <p>No Canvas decisions recorded for this project.</p>
+          <p>{t("studio.creativeCanvas.decision.empty")}</p>
         )}
-        <footer>No cross-user learning, automatic preference changes, execution, Provider calls, or Credits actions.</footer>
+        <footer>{t("studio.creativeCanvas.decision.boundary")}</footer>
       </section>
       {actionState.message ? <p className="studio-creative-canvas-message" role="status">{actionState.message}</p> : null}
       <footer className="studio-creative-canvas-migration">
         <div>
-          <strong>Controlled Draft boundary</strong>
-          <span>Confirmation creates a new Workflow Draft only. Production Graph, Runtime, Provider, Billing, and Credits remain unchanged.</span>
+          <strong>{t("studio.creativeCanvas.boundary.title")}</strong>
+          <span>{t("studio.creativeCanvas.boundary.message")}</span>
         </div>
-        <a href={graph.migrationPlan.legacyRoute}>Open Legacy Canvas</a>
+        <a href={graph.migrationPlan.legacyRoute}>{t("studio.creativeCanvas.legacy.open")}</a>
       </footer>
     </section>
   );

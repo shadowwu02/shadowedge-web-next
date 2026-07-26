@@ -7,13 +7,14 @@ import {
   STUDIO_REMAKE_EXECUTION_ENABLED,
   STUDIO_VIDEO_EXECUTION_ENABLED,
 } from "@/config/studioFeatures";
-import { useStudioProjects } from "@/features/studio/hooks/useStudioProjects";
 import { StudioTemplateControls } from "@/features/studio/components/StudioTemplateControls";
+import { useStudioProjects } from "@/features/studio/hooks/useStudioProjects";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import {
   STUDIO_NODE_DEFINITIONS,
   type StudioNodeType,
 } from "@/features/studio/types/studioTypes";
+import { useI18n } from "@/i18n/useI18n";
 
 export function StudioToolbar({
   brandName,
@@ -22,6 +23,7 @@ export function StudioToolbar({
   brandName: string;
   storageKey: string;
 }) {
+  const { t, tf } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
   const addNode = useStudioStore((state) => state.addNode);
   const undo = useStudioStore((state) => state.undo);
@@ -62,49 +64,46 @@ export function StudioToolbar({
     setMenuOpen(false);
   };
 
-  const projectBusy =
-    saving ||
-    loadingProject ||
-    authLoading ||
-    runtimeRunning ||
-    generationQueue.running;
-  const saveLabel = saving ? "Saving..." : projectId ? "Save Project" : "Create & Save";
+  const projectBusy = saving || loadingProject || authLoading || runtimeRunning || generationQueue.running;
+  const saveLabel = saving
+    ? t("studio.toolbar.saving")
+    : projectId
+      ? t("studio.toolbar.saveProject")
+      : t("studio.toolbar.createAndSave");
+  const toggleLabel = (enabled: boolean) => t(enabled ? "studio.toolbar.runtimeOn" : "studio.toolbar.runtimeOff");
+  const runtimeSummary = tf("studio.toolbar.runtimeSummary", {
+    image: toggleLabel(STUDIO_IMAGE_EXECUTION_ENABLED),
+    video: toggleLabel(STUDIO_VIDEO_EXECUTION_ENABLED),
+    remake: toggleLabel(STUDIO_REMAKE_EXECUTION_ENABLED),
+    lock: runLockState,
+    orchestrator: toggleLabel(STUDIO_GENERATION_ORCHESTRATOR_ENABLED),
+  });
 
   return (
     <header className="studio-toolbar">
       <div className="studio-toolbar-title">
         <p>{brandName}</p>
-        <h1>AI Studio</h1>
-        <span>
-          Node runtime · image {STUDIO_IMAGE_EXECUTION_ENABLED ? "on" : "off"} · video{" "}
-          {STUDIO_VIDEO_EXECUTION_ENABLED ? "on" : "off"} · remake{" "}
-          {STUDIO_REMAKE_EXECUTION_ENABLED ? "on" : "off"} · lock {runLockState}
-          {` · orchestrator ${STUDIO_GENERATION_ORCHESTRATOR_ENABLED ? "on" : "off"}`}
-          {generationQueue.running ? " · generation queue running (max 1)" : ""}
-        </span>
+        <h1>{t("studio.toolbar.title")}</h1>
+        <span>{runtimeSummary}{generationQueue.running ? ` · ${t("studio.toolbar.queueRunning")}` : ""}</span>
       </div>
 
       <div className="studio-project-controls">
         <input
-          aria-label="Project name"
+          aria-label={t("studio.toolbar.projectName")}
           disabled={projectBusy}
           maxLength={180}
           onChange={(event) => setProjectName(event.target.value)}
-          placeholder="Untitled Project"
+          placeholder={t("studio.toolbar.untitledProject")}
           value={projectName}
         />
         <select
-          aria-label="Open studio project"
+          aria-label={t("studio.toolbar.openProject")}
           disabled={!isSignedIn || projectBusy}
           onChange={(event) => void openProject(event.target.value)}
           value={projectId || ""}
         >
-          <option value="">Local draft</option>
-          {projects.map((project) => (
-            <option key={project.id} value={project.id}>
-              {project.name}
-            </option>
-          ))}
+          <option value="">{t("studio.toolbar.localDraft")}</option>
+          {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
         </select>
       </div>
 
@@ -113,17 +112,17 @@ export function StudioToolbar({
           className="studio-button studio-button-run"
           disabled={projectBusy || runtimeRunning || nodeCount === 0}
           onClick={() => void runNodes()}
-          title="Paid Video Nodes create a Generation Plan before Queue execution; Image execution is fail-closed until its queue is available"
+          title={t("studio.toolbar.runTitle")}
           type="button"
         >
           <span className="studio-run-icon" aria-hidden="true">▶</span>
           {runLockState === "locked"
-            ? "Locked"
+            ? t("studio.toolbar.locked")
             : runtimeRunning
-              ? "Running..."
+              ? t("studio.toolbar.running")
               : hasDraftGenerationPlan
-                ? "Review Plan"
-                : "Run"}
+                ? t("studio.toolbar.reviewPlan")
+                : t("studio.toolbar.run")}
         </button>
         <div className="studio-new-node-wrap">
           <button
@@ -134,17 +133,12 @@ export function StudioToolbar({
             type="button"
           >
             <span aria-hidden="true">+</span>
-            New Node
+            {t("studio.toolbar.newNode")}
           </button>
           {menuOpen ? (
             <div className="studio-new-node-menu" role="menu">
               {STUDIO_NODE_DEFINITIONS.map((item) => (
-                <button
-                  key={item.type}
-                  onClick={() => handleAddNode(item.type)}
-                  role="menuitem"
-                  type="button"
-                >
+                <button key={item.type} onClick={() => handleAddNode(item.type)} role="menuitem" type="button">
                   <strong>{item.label}</strong>
                   <span>{item.description}</span>
                 </button>
@@ -153,54 +147,40 @@ export function StudioToolbar({
           ) : null}
         </div>
 
-        <button
-          className="studio-button"
-          disabled={!isSignedIn || projectBusy}
-          onClick={() => void createProject()}
-          type="button"
-        >
-          New Project
+        <button className="studio-button" disabled={!isSignedIn || projectBusy} onClick={() => void createProject()} type="button">
+          {t("studio.toolbar.newProject")}
         </button>
-        <button
-          className="studio-button"
-          disabled={!isSignedIn || projectBusy || Boolean(projectId && !dirty)}
-          onClick={() => void saveProject()}
-          type="button"
-        >
+        <button className="studio-button" disabled={!isSignedIn || projectBusy || Boolean(projectId && !dirty)} onClick={() => void saveProject()} type="button">
           {saveLabel}
         </button>
         <StudioTemplateControls disabled={projectBusy} />
-        <button className="studio-button" disabled={!canUndo} onClick={undo} type="button">
-          Undo
-        </button>
-        <button className="studio-button" disabled={!canRedo} onClick={redo} type="button">
-          Redo
-        </button>
+        <button className="studio-button" disabled={!canUndo} onClick={undo} type="button">{t("studio.toolbar.undo")}</button>
+        <button className="studio-button" disabled={!canRedo} onClick={redo} type="button">{t("studio.toolbar.redo")}</button>
       </div>
 
       <div className="studio-save-state" aria-live="polite">
         <span title={storageKey}>
-          {isSignedIn ? (projectId ? "Cloud project" : "Local fallback") : "Sign in for cloud save"}
-          {dirty ? " · Unsaved" : ""}
+          {isSignedIn
+            ? projectId ? t("studio.toolbar.cloudProject") : t("studio.toolbar.localFallback")
+            : t("studio.toolbar.signInForCloud")}
+          {dirty ? ` · ${t("studio.toolbar.unsaved")}` : ""}
         </span>
         <span>
           {loadingProject
-            ? "Loading project..."
+            ? t("studio.toolbar.loadingProject")
             : runtimeRunning
-              ? "Workflow running..."
+              ? t("studio.toolbar.workflowRunning")
               : updatedAt
-              ? "Updated " +
-                new Date(updatedAt).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })
-              : "Local draft ready"}
+                ? tf("studio.common.updated", {
+                    time: new Date(updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                  })
+                : t("studio.toolbar.localReady")}
         </span>
       </div>
 
       {notice || projectError || runtimeError ? (
         <button
-          className={"studio-toast studio-toast-" + (notice?.kind || "error")}
+          className={`studio-toast studio-toast-${notice?.kind || "error"}`}
           onClick={() => {
             clearNotice();
             clearRuntimeError();

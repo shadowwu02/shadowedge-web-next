@@ -18,16 +18,16 @@ const styles = fs.readFileSync("src/features/studio/studio.css", "utf8");
 
 test("Studio has one project workspace with the complete module navigation", () => {
   for (const moduleName of [
-    "Overview",
-    "Canvas",
-    "Timeline",
-    "Storyboard",
-    "Production",
-    "Review",
-    "Delivery",
-    "Intelligence",
+    "overview",
+    "canvas",
+    "timeline",
+    "storyboard",
+    "production",
+    "review",
+    "delivery",
+    "intelligence",
   ]) {
-    assert.match(workspace, new RegExp(`label: "${moduleName}"`));
+    assert.match(workspace, new RegExp(`labelKey: "studio\\.workspace\\.${moduleName}\\.label"`));
   }
   assert.match(
     workspace,
@@ -35,7 +35,7 @@ test("Studio has one project workspace with the complete module navigation", () 
   );
   assert.match(workspace, /studio-project-header/);
   assert.match(workspace, /studio-main-workspace/);
-  assert.match(workspace, /Copilot Context Panel/);
+  assert.match(workspace, /studio\.copilot\.contextAria/);
 });
 
 test("Heavy Studio modules are loaded on demand and isolated by a module boundary", () => {
@@ -51,10 +51,10 @@ test("Workspace status and new-project recovery states are explicit", () => {
   for (const status of ["LOADING", "READY", "UNAVAILABLE", "ERROR", "MAINTENANCE"]) {
     assert.match(workspace + integration, new RegExp(`"${status}"`));
   }
-  for (const action of ["Create Workflow", "Import Template", "Ask Copilot"]) {
-    assert.match(workspace, new RegExp(action));
+  for (const action of ["createWorkflow", "importTemplate", "askCopilot"]) {
+    assert.match(workspace, new RegExp(`studio\\.workspace\\.empty\\.${action}`));
   }
-  assert.match(integration, /status === "NOT_DEPLOYED"\s*\?\s*"UNAVAILABLE"/);
+  assert.match(integration, /status === "NOT_DEPLOYED"[\s\S]*studio\.status\.unavailable/);
 });
 
 test("Storyboard, Production, Review, and Delivery share existing logic with visual focus only", () => {

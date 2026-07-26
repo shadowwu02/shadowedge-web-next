@@ -53,12 +53,12 @@ test("Canvas Optimization uses exact authenticated project APIs and capability h
 });
 
 test("Optimize with Copilot exposes targets, analysis evidence, confidence, and Diff Review", () => {
-  assert.match(componentSource, /Optimize with Copilot/);
-  assert.match(componentSource, /Workflow Optimization/);
-  assert.match(componentSource, /Production, Quality, Revision, Cost, Historical Success, Governance Knowledge, and Project Memory/);
-  assert.match(componentSource, /Why this refinement/);
-  assert.match(componentSource, /Evidence used/);
-  assert.match(componentSource, /CONFIDENCE/);
+  assert.match(componentSource, /studio\.creativeCanvas\.optimize/);
+  assert.match(componentSource, /studio\.creativeCanvas\.optimization\.title/);
+  assert.match(componentSource, /studio\.creativeCanvas\.optimization\.sources/);
+  assert.match(componentSource, /studio\.creativeCanvas\.optimized\.reasoning/);
+  assert.match(componentSource, /studio\.creativeCanvas\.plan\.evidence/);
+  assert.match(componentSource, /studio\.common\.confidence/);
   assert.match(componentSource, /Optimization Draft is ready for Diff Review and human confirmation/);
 });
 
@@ -68,7 +68,7 @@ test("Optimization remains in the existing Edit Session and Action Center Draft 
   assert.match(actionCenterSource, /CANVAS_WORKFLOW_OPTIMIZATION_DRAFT/);
   assert.match(componentSource, /setSession\(value\.editSession\)/);
   assert.match(componentSource, /confirmStudioCreativeCanvasEditSession/);
-  assert.match(componentSource, /No production Graph mutation, task creation, Provider call, execution, or Credits action occurred/);
+  assert.match(componentSource, /studio\.creativeCanvas\.optimized\.boundary/);
   assert.doesNotMatch(
     apiSource + componentSource,
     /executeNode|generateVideo|submitProvider|deductCredits|chargeCredits|startQueue|createJob/,

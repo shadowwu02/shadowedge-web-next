@@ -26,7 +26,7 @@ test("Header and Studio controls use the same verified isSignedIn boundary", () 
   assert.match(topBar, /const \{ isSignedIn, profile \} = useAuthSession\(\)/);
   assert.match(topBar, /isSignedIn && profile\?\.email/);
   assert.match(toolbar, /disabled=\{!isSignedIn \|\| projectBusy\}/);
-  assert.match(toolbar, /isSignedIn \? \(projectId \? "Cloud project" : "Local fallback"\)/);
+  assert.match(toolbar, /isSignedIn[\s\S]*projectId \? t\("studio\.toolbar\.cloudProject"\) : t\("studio\.toolbar\.localFallback"\)/);
 });
 
 test("cross-tab storage changes revalidate an unverified stored token", () => {

@@ -25,6 +25,7 @@ import { StudioAgentCanvas } from "@/features/studio/components/StudioAgentCanva
 import { StudioCreativeCanvas } from "@/features/studio/components/StudioCreativeCanvas";
 import { StudioProjectInitializationAssistant } from "@/features/studio/components/StudioProjectInitializationAssistant";
 import { StudioCapabilityBoundary } from "@/features/studio/components/StudioApiIntegration";
+import { useI18n } from "@/i18n/useI18n";
 import {
   getCurrentStudioSnapshot,
   useStudioStore,
@@ -51,6 +52,7 @@ const nodeTypes = {
 } satisfies NodeTypes;
 
 export function StudioCanvas({ authReady = true }: { authReady?: boolean }) {
+  const { t } = useI18n();
   const [canvasView, setCanvasView] = useState<"creative" | "workflow" | "agent">("creative");
   const nodes = useStudioStore((state) => state.nodes);
   const edges = useStudioStore((state) => state.edges);
@@ -67,40 +69,40 @@ export function StudioCanvas({ authReady = true }: { authReady?: boolean }) {
   const dragStartSnapshot = useRef<StudioCanvasSnapshot | null>(null);
 
   return (
-    <section className="studio-canvas-panel" aria-label="Studio workflow canvas">
+    <section className="studio-canvas-panel" aria-label={t("studio.canvas.aria")}>
       <div className="studio-canvas-heading">
         <div>
-          <p>{canvasView === "creative" ? "Creative Operating Canvas" : canvasView === "workflow" ? "Workflow Draft" : "Agent Draft Tools"}</p>
+          <p>{canvasView === "creative" ? t("studio.canvas.creative.title") : canvasView === "workflow" ? t("studio.canvas.workflow.title") : t("studio.canvas.agent.title")}</p>
           <span>
             {canvasView === "creative"
-              ? "Goals, agents, scenes, shots, execution, outputs, assets, and delivery in one read-only graph."
+              ? t("studio.canvas.creative.description")
               : canvasView === "workflow"
-                ? "Legacy-compatible editable workflow draft. It remains separate from confirmed execution."
-                : "Existing Agent draft actions and execution previews remain available behind their confirmation gates."}
+                ? t("studio.canvas.workflow.description")
+                : t("studio.canvas.agent.description")}
           </span>
         </div>
-        <div className="studio-canvas-view-switcher" aria-label="Canvas view">
-          <button className={canvasView === "creative" ? "is-active" : ""} onClick={() => setCanvasView("creative")} type="button">Creative Canvas</button>
-          <button className={canvasView === "workflow" ? "is-active" : ""} onClick={() => setCanvasView("workflow")} type="button">Workflow Draft</button>
-          <button className={canvasView === "agent" ? "is-active" : ""} onClick={() => setCanvasView("agent")} type="button">Agent Tools</button>
+        <div className="studio-canvas-view-switcher" aria-label={t("studio.canvas.viewAria")}>
+          <button className={canvasView === "creative" ? "is-active" : ""} onClick={() => setCanvasView("creative")} type="button">{t("studio.canvas.switch.creative")}</button>
+          <button className={canvasView === "workflow" ? "is-active" : ""} onClick={() => setCanvasView("workflow")} type="button">{t("studio.canvas.switch.workflow")}</button>
+          <button className={canvasView === "agent" ? "is-active" : ""} onClick={() => setCanvasView("agent")} type="button">{t("studio.canvas.switch.agent")}</button>
           <span className="studio-local-badge">
             {canvasView === "creative"
-              ? "Unified read model"
+              ? t("studio.canvas.badge.unified")
               : canvasView === "agent"
-                ? "Draft compatibility"
+                ? t("studio.canvas.badge.compatibility")
               : loadingProject
-                ? "Loading cloud project"
+                ? t("studio.canvas.badge.loadingProject")
                 : projectId
-                  ? "Cloud project loaded"
+                  ? t("studio.canvas.badge.cloudLoaded")
                   : hasHydrated
-                    ? "Local fallback restored"
-                    : "Restoring local fallback"}
+                    ? t("studio.canvas.badge.localRestored")
+                    : t("studio.canvas.badge.restoringLocal")}
           </span>
         </div>
       </div>
 
       {canvasView === "creative" ? (
-        <StudioCapabilityBoundary feature="creative_canvas" label="Creative Canvas">
+        <StudioCapabilityBoundary feature="creative_canvas" label={t("studio.capability.creativeCanvas")}>
           {projectId ? (
             <StudioCreativeCanvas authReady={authReady} projectId={projectId} />
           ) : (
@@ -108,7 +110,7 @@ export function StudioCanvas({ authReady = true }: { authReady?: boolean }) {
           )}
         </StudioCapabilityBoundary>
       ) : canvasView === "agent" ? (
-        <StudioCapabilityBoundary feature="agent_canvas" label="Agent Canvas">
+        <StudioCapabilityBoundary feature="agent_canvas" label={t("studio.capability.agentCanvas")}>
           <StudioAgentCanvas projectId={projectId} />
         </StudioCapabilityBoundary>
       ) : <div className="studio-flow-stage">

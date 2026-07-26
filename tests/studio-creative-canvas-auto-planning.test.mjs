@@ -51,11 +51,11 @@ test("Canvas Auto Planning uses exact authenticated project APIs", () => {
 });
 
 test("Create with Copilot renders Prompt, Explanation, Evidence, Confidence, and Diff Review", () => {
-  assert.match(componentSource, /Create with Copilot/);
-  assert.match(componentSource, /What do you want to create/);
-  assert.match(componentSource, /Why these nodes/);
-  assert.match(componentSource, /Evidence used/);
-  assert.match(componentSource, /CONFIDENCE/);
+  assert.match(componentSource, /studio\.creativeCanvas\.createWithCopilot/);
+  assert.match(componentSource, /studio\.creativeCanvas\.prompt\.placeholder/);
+  assert.match(componentSource, /studio\.creativeCanvas\.plan\.reasoning/);
+  assert.match(componentSource, /studio\.creativeCanvas\.plan\.evidence/);
+  assert.match(componentSource, /studio\.common\.confidence/);
   assert.match(componentSource, /AI Canvas Draft is ready for Diff Review and human confirmation/);
   assert.match(componentSource, /CANVAS_AUTO_PLAN_DRAFT/);
   assert.match(actionCenterSource, /CANVAS_AUTO_PLAN_DRAFT/);
@@ -65,7 +65,7 @@ test("AI planning delegates to the existing Edit Session human-confirm boundary"
   assert.match(schemaSource, /confirmationTarget: "CREATIVE_CANVAS_EDIT_SESSION"/);
   assert.match(componentSource, /setSession\(value\.editSession\)/);
   assert.match(componentSource, /confirmStudioCreativeCanvasEditSession/);
-  assert.match(componentSource, /Copilot created only a Draft/);
+  assert.match(componentSource, /studio\.creativeCanvas\.plan\.boundary/);
   assert.doesNotMatch(
     apiSource + componentSource,
     /executeNode|generateVideo|submitProvider|deductCredits|chargeCredits|startQueue/,

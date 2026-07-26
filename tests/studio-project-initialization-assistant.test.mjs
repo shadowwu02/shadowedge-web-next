@@ -38,19 +38,19 @@ test("Project Initialization uses exact Preview and Confirm APIs", () => {
 
 test("Studio Entry exposes Start with Copilot and complete Preview", () => {
   assert.match(canvas, /StudioProjectInitializationAssistant/);
-  assert.match(component, /Start with Copilot/);
-  assert.match(component, /Project Goal/);
-  assert.match(component, /Strategy/);
-  assert.match(component, /Canvas/);
-  assert.match(component, /Timeline/);
-  assert.match(component, /Copilot Evidence/);
-  assert.match(component, /Confirm Project Draft/);
+  assert.match(component, /studio\.init\.title/);
+  assert.match(component, /studio\.init\.projectGoal/);
+  assert.match(component, /studio\.init\.strategy/);
+  assert.match(component, /studio\.init\.canvas/);
+  assert.match(component, /studio\.init\.timeline/);
+  assert.match(component, /studio\.init\.copilotEvidence/);
+  assert.match(component, /studio\.init\.confirmDraft/);
 });
 
 test("Confirm boundary never creates a formal project or runs production", () => {
-  assert.match(component, /No formal Studio project was created/);
-  assert.match(component, /formal project not created/);
-  assert.match(component, /No Workflow execution, generation, Provider call, or Credits action/);
+  assert.match(component, /studio\.init\.previewReady/);
+  assert.match(component, /studio\.init\.confirmed/);
+  assert.match(component, /studio\.init\.boundary/);
   assert.doesNotMatch(
     api,
     /\/api\/studio\/projects|createStudioProject|executeNode|generateVideo|submitProvider|deductCredits|chargeCredits|startQueue/,

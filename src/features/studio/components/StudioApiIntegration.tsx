@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useI18n, type DictionaryKey } from "@/i18n/useI18n";
 import {
   getStudioApiVersion,
   studioFeatureAvailability,
@@ -27,6 +28,13 @@ type StudioApiIntegrationContextValue = Readonly<{
 }>;
 
 const StudioApiIntegrationContext = createContext<StudioApiIntegrationContextValue | null>(null);
+
+const STATUS_KEYS: Record<StudioApiAvailability, DictionaryKey> = {
+  AVAILABLE: "studio.status.available",
+  READY: "studio.status.ready",
+  NOT_DEPLOYED: "studio.status.notDeployed",
+  ERROR: "studio.status.error",
+};
 
 export function StudioApiIntegrationProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [requestVersion, setRequestVersion] = useState(0);
@@ -50,7 +58,7 @@ export function StudioApiIntegrationProvider({ children }: Readonly<{ children: 
         setState({
           status: notDeployed ? "NOT_DEPLOYED" : "ERROR",
           version: null,
-          error: reason instanceof Error ? reason.message : "Studio API is temporarily unavailable.",
+          error: reason instanceof Error ? reason.message : "",
         });
       });
     return () => controller.abort();
@@ -81,19 +89,20 @@ export function useStudioApiIntegration() {
 
 export function StudioApiVersionStatus() {
   const { status, version, error, refresh } = useStudioApiIntegration();
+  const { t, tf } = useI18n();
   return (
-    <section className={`studio-api-version-status is-${status.toLowerCase()}`} aria-label="Studio API version">
+    <section className={`studio-api-version-status is-${status.toLowerCase()}`} aria-label={t("studio.api.aria")}>
       <div>
-        <span>Studio API</span>
-        <strong>{status}</strong>
+        <span>{t("studio.api.label")}</span>
+        <strong>{t(STATUS_KEYS[status])}</strong>
         {version ? (
-          <small>{version.version} · {version.commit.slice(0, 8)} · {version.features.length} capabilities</small>
+          <small>{version.version} · {version.commit.slice(0, 8)} · {tf("studio.api.capabilities", { count: version.features.length })}</small>
         ) : (
-          <small>{status === "AVAILABLE" ? "Checking production capabilities…" : error}</small>
+          <small>{status === "AVAILABLE" ? t("studio.api.checking") : error || t("studio.api.fallbackError")}</small>
         )}
       </div>
       {status === "ERROR" || status === "NOT_DEPLOYED" ? (
-        <button onClick={refresh} type="button">Check again</button>
+        <button onClick={refresh} type="button">{t("studio.common.checkAgain")}</button>
       ) : null}
     </section>
   );
@@ -109,28 +118,28 @@ export function StudioCapabilityBoundary({
   children: ReactNode;
 }>) {
   const { featureStatus, refresh } = useStudioApiIntegration();
+  const { t, tf } = useI18n();
   const status = featureStatus(feature);
   if (status === "READY") return children;
-  const displayStatus =
-    status === "AVAILABLE"
-      ? "LOADING"
-      : status === "NOT_DEPLOYED"
-        ? "UNAVAILABLE"
-        : status;
+  const displayStatus = status === "AVAILABLE"
+    ? t("studio.status.loading")
+    : status === "NOT_DEPLOYED"
+      ? t("studio.status.unavailable")
+      : t(STATUS_KEYS[status]);
 
   const message = status === "AVAILABLE"
-    ? `Checking ${label} service availability…`
+    ? tf("studio.api.checkingService", { label })
     : status === "NOT_DEPLOYED"
-      ? `${label} service version unavailable. This module is not deployed on the current API version.`
-      : `${label} is temporarily unavailable. Your project data was not changed.`;
+      ? tf("studio.api.notDeployed", { label })
+      : tf("studio.api.temporarilyUnavailable", { label });
 
   return (
-    <section className={`studio-capability-state is-${status.toLowerCase()}`} aria-label={`${label} availability`}>
+    <section className={`studio-capability-state is-${status.toLowerCase()}`} aria-label={tf("studio.api.availabilityAria", { label })}>
       <span>{label}</span>
       <strong>{displayStatus}</strong>
       <p>{message}</p>
       {status === "ERROR" || status === "NOT_DEPLOYED" ? (
-        <button onClick={refresh} type="button">Check availability</button>
+        <button onClick={refresh} type="button">{t("studio.api.checkAvailability")}</button>
       ) : null}
     </section>
   );

@@ -30,7 +30,7 @@ test("Capability state supports READY, AVAILABLE, NOT_DEPLOYED, and ERROR", () =
     assert.match(apiSource + integrationSource, new RegExp(`"${status}"`));
   }
   assert.match(apiSource, /response\.status === 404/);
-  assert.match(integrationSource, /service version unavailable/);
+  assert.match(integrationSource, /studio\.api\.notDeployed/);
   assert.match(sharedApiSource, /STUDIO_SERVICE_NOT_DEPLOYED/);
 });
 

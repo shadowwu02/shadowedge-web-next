@@ -2,30 +2,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const schema = fs.readFileSync(
-  "src/features/studio/capabilities/studioProjectCopilotCenter.ts",
-  "utf8",
-);
-const api = fs.readFileSync(
-  "src/lib/studio-project-copilot-center-api.ts",
-  "utf8",
-);
-const center = fs.readFileSync(
-  "src/features/studio/components/StudioProjectCopilotCommandCenter.tsx",
-  "utf8",
-);
-const workspace = fs.readFileSync(
-  "src/features/studio/components/StudioWorkspace.tsx",
-  "utf8",
-);
-const projectCopilot = fs.readFileSync(
-  "src/features/studio/capabilities/studioProjectCopilot.ts",
-  "utf8",
-);
-const styles = fs.readFileSync(
-  "src/features/studio/studio.css",
-  "utf8",
-);
+const schema = fs.readFileSync("src/features/studio/capabilities/studioProjectCopilotCenter.ts", "utf8");
+const api = fs.readFileSync("src/lib/studio-project-copilot-center-api.ts", "utf8");
+const center = fs.readFileSync("src/features/studio/components/StudioProjectCopilotCommandCenter.tsx", "utf8");
+const workspace = fs.readFileSync("src/features/studio/components/StudioWorkspace.tsx", "utf8");
+const projectCopilot = fs.readFileSync("src/features/studio/capabilities/studioProjectCopilot.ts", "utf8");
+const styles = fs.readFileSync("src/features/studio/studio.css", "utf8");
 
 test("Project Copilot Snapshot covers health, insights, risks, recommendations and evidence", () => {
   for (const field of ["projectId", "health", "insights", "risks", "recommendations", "updatedAt"]) {
@@ -46,18 +28,19 @@ test("Copilot Center API preserves GET, Preview and explicit Confirm boundaries"
   assert.doesNotMatch(api, /execute|generate|publish|deductCredits|provider/i);
 });
 
-test("Project Copilot Center renders health, risks, evidence, confidence and recommendations", () => {
-  for (const label of [
-    "Project Copilot Center",
-    "Project health",
-    "Risk radar",
-    "Evidence-backed insights",
-    "Recommended actions",
-    "Preview → Confirm → Draft",
-    "Draft impact preview",
+test("Project Copilot Center renders localized health, risks, evidence, confidence and recommendations", () => {
+  for (const key of [
+    "studio.command.title",
+    "studio.command.health",
+    "studio.command.riskRadar",
+    "studio.command.insightTitle",
+    "studio.command.recommendations",
+    "studio.command.flowPreview",
+    "studio.command.previewTitle",
   ]) {
-    assert.match(center, new RegExp(label));
+    assert.match(center, new RegExp(key.replaceAll(".", "\\.")));
   }
+  assert.match(center, /useI18n\(\)/);
   assert.match(workspace, /<StudioProjectCopilotCommandCenter \/>/);
   assert.match(styles, /\.studio-project-command-center/);
   assert.match(styles, /\.studio-project-command-recommendations/);
@@ -65,9 +48,9 @@ test("Project Copilot Center renders health, risks, evidence, confidence and rec
 
 test("PROJECT_ACTION_DRAFT is shared with the existing Draft System and cannot execute", () => {
   assert.match(projectCopilot, /"PROJECT_ACTION_DRAFT"/);
-  assert.match(center, /Human-controlled Drafts only/);
-  assert.match(center, /No project or Workflow mutation/);
-  assert.match(center, /No generation, publish, or Credits deduction/);
+  assert.match(center, /studio\.command\.boundary\.drafts/);
+  assert.match(center, /studio\.command\.boundary\.mutation/);
+  assert.match(center, /studio\.command\.boundary\.execution/);
   assert.doesNotMatch(center, />Execute</);
   assert.doesNotMatch(center, />Generate</);
   assert.doesNotMatch(center, />Publish</);

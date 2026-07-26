@@ -41,16 +41,16 @@ test("Creative Canvas reads the authenticated project graph and renders every la
   assert.match(componentSource, /ReactFlow/);
   assert.match(componentSource, /nodesDraggable=\{mode === "EDIT_DRAFT"\}/);
   assert.match(componentSource, /nodesConnectable=\{mode === "EDIT_DRAFT"\}/);
-  assert.match(componentSource, /Creative Operating Canvas/);
+  assert.match(componentSource, /studio\.creativeCanvas\.title/);
   assert.match(componentSource, /Timeline/);
-  assert.match(componentSource, /Delivery/);
+  assert.match(componentSource, /STUDIO_CREATIVE_CANVAS_NODE_TYPES\.map/);
 });
 
 test("Studio converges on Creative Canvas while preserving draft compatibility", () => {
   assert.match(studioCanvasSource, /StudioCreativeCanvas/);
   assert.match(studioCanvasSource, /feature="creative_canvas"/);
-  assert.match(studioCanvasSource, /Workflow Draft/);
-  assert.match(studioCanvasSource, /Agent Tools/);
+  assert.match(studioCanvasSource, /studio\.canvas\.switch\.workflow/);
+  assert.match(studioCanvasSource, /studio\.canvas\.switch\.agent/);
   assert.match(legacyCanvasSource, /canvas\.legacyNoticeTitle/);
   assert.match(legacyCanvasSource, /canvas\.openCreativeCanvas/);
 });
@@ -61,5 +61,5 @@ test("Unified Canvas can only create and confirm a draft edit session", () => {
   assert.match(apiSource, /creative-canvas\/edit-session/);
   assert.match(apiSource, /JSON\.stringify\(\{ confirm: true \}\)/);
   assert.match(componentSource, /Production Graph and Execution Runtime remain unchanged/);
-  assert.match(componentSource, /No production Graph, Execution, Provider, or Credits action occurred/);
+  assert.match(componentSource, /studio\.creativeCanvas\.diff\.confirmed/);
 });

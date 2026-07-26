@@ -25,7 +25,7 @@ test("Studio restores the active project Draft through the existing read APIs", 
   assert.match(component, /getStudioCreativeCanvasOptimization/);
   assert.match(component, /getStudioCreativeCanvasEditSession/);
   assert.match(component, /setMode\("EDIT_DRAFT"\)/);
-  assert.match(component, /DRAFT RESTORED/);
+  assert.match(component, /studio\.creativeCanvas\.recovery\.restored/);
 });
 
 test("Draft recovery metadata includes the required stable fields", () => {
@@ -38,18 +38,18 @@ test("Draft recovery metadata includes the required stable fields", () => {
 });
 
 test("Recovered Preview renders Diff, Evidence, Confidence, and confirmation state", () => {
-  assert.match(component, /aria-label="Recovered Canvas Draft"/);
-  assert.match(component, /Changes <b>/);
-  assert.match(component, /Evidence <b>/);
-  assert.match(component, /Confidence <b>/);
-  assert.match(component, /Confirm <b>/);
-  assert.match(component, /aria-label="Canvas Graph Diff"/);
+  assert.match(component, /studio\.creativeCanvas\.recovery\.aria/);
+  assert.match(component, /studio\.common\.changes/);
+  assert.match(component, /studio\.common\.evidence/);
+  assert.match(component, /studio\.common\.confidence/);
+  assert.match(component, /studio\.common\.confirm/);
+  assert.match(component, /studio\.creativeCanvas\.diff\.aria/);
 });
 
 test("terminal Draft states cannot cross the human confirmation boundary", () => {
   assert.match(component, /!\["DRAFT", "REVIEW"\]\.includes\(session\.status\)/);
   assert.match(component, /session\.status === "REJECTED" \|\| session\.status === "EXPIRED"/);
-  assert.match(component, /cannot be confirmed/);
+  assert.match(component, /studio\.creativeCanvas\.diff\.terminal/);
   assert.doesNotMatch(
     recovery + component,
     /executeNode|generateVideo|submitProvider|deductCredits|chargeCredits|startQueue|createJob/,
