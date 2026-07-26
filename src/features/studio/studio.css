@@ -146,6 +146,34 @@
   gap: 7px;
 }
 
+.studio-experience-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: 1px solid rgba(244, 244, 244, 0.1);
+  border-radius: 12px;
+  background: rgba(12, 15, 21, 0.88);
+  padding: 3px;
+}
+
+.studio-experience-mode button {
+  min-height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 0 9px;
+  color: rgba(214, 214, 214, 0.5);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.studio-experience-mode button.is-active {
+  background: color-mix(in srgb, var(--studio-accent) 16%, rgba(24, 27, 34, 0.96));
+  color: var(--studio-accent-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--studio-accent) 28%, transparent);
+}
+
 .studio-project-controls {
   display: grid;
   min-width: 0;
@@ -4508,6 +4536,8 @@
 .studio-creative-canvas-node span,
 .studio-creative-canvas-node small,
 .studio-creative-canvas-node em { color: #94a3b8; font-size: 8px; font-style: normal; text-transform: uppercase; letter-spacing: 0.05em; }
+.studio-creative-canvas-layout.is-creator .studio-creative-canvas-node > small,
+.studio-creative-canvas-layout.is-creator .studio-creative-canvas-node > em { display: none; }
 .studio-creative-canvas-node b { border-radius: 999px; background: rgba(52, 211, 153, 0.12); color: #86efac; padding: 3px 5px; font-size: 7px; }
 .studio-creative-canvas-node strong { color: #f1f5f9; font-size: 12px; line-height: 1.35; }
 .studio-creative-canvas-node.is-scene,
@@ -6626,6 +6656,12 @@
   line-height: 1.6;
 }
 
+.studio-workspace-empty > small {
+  color: color-mix(in srgb, var(--studio-accent-soft) 74%, #94a3b8);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
 .studio-workspace-empty > div {
   display: flex;
   justify-content: center;
@@ -6688,6 +6724,10 @@
 .studio-workspace-canvas-layout {
   min-height: 660px;
   flex: none;
+}
+
+.studio-workspace-canvas-layout.is-creator {
+  grid-template-columns: 260px minmax(520px, 1fr);
 }
 
 .studio-workspace-canvas-layout .studio-canvas-panel,

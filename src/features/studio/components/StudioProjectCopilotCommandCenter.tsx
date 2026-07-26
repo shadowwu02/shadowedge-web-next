@@ -8,6 +8,7 @@ import {
 } from "@/features/studio/capabilities/studioProjectCopilotCenter";
 import { useStudioStore } from "@/features/studio/store/studioStore";
 import { useI18n } from "@/i18n/useI18n";
+import type { StudioExperienceMode } from "@/features/studio/lib/studioExperienceMode";
 import {
   confirmStudioProjectAction,
   getStudioProjectCopilotCenter,
@@ -18,7 +19,11 @@ function displayLabel(value: string) {
   return value.replaceAll("_", " ").toLowerCase().replace(/^\w/, (letter) => letter.toUpperCase());
 }
 
-export function StudioProjectCopilotCommandCenter() {
+export function StudioProjectCopilotCommandCenter({
+  experienceMode = "CREATOR",
+}: {
+  experienceMode?: StudioExperienceMode;
+}) {
   const { t, tf } = useI18n();
   const projectId = useStudioStore((state) => state.projectId);
   const [state, setState] = useState<Readonly<{
@@ -113,15 +118,15 @@ export function StudioProjectCopilotCommandCenter() {
             <div><span>{t("studio.command.progress")}</span><strong>{snapshot.health.progress}%</strong></div>
             <div><span>{t("studio.command.quality")}</span><strong>{snapshot.health.qualityScore ?? t("studio.command.unknown")}</strong></div>
             <div><span>{t("studio.command.completion")}</span><strong>{snapshot.health.completionRate}%</strong></div>
-            <div><span>{t("studio.command.risks")}</span><strong>{snapshot.risks.length}</strong></div>
-            <div><span>{t("studio.command.insights")}</span><strong>{snapshot.insights.length}</strong></div>
-            <div><span>{t("studio.command.actions")}</span><strong>{snapshot.recommendations.length}</strong></div>
+            <div><span>{t(experienceMode === "CREATOR" ? "studio.creator.copilot.attention" : "studio.command.risks")}</span><strong>{snapshot.risks.length}</strong></div>
+            <div><span>{t(experienceMode === "CREATOR" ? "studio.creator.copilot.reasons" : "studio.command.insights")}</span><strong>{snapshot.insights.length}</strong></div>
+            <div><span>{t(experienceMode === "CREATOR" ? "studio.creator.copilot.nextStep" : "studio.command.actions")}</span><strong>{snapshot.recommendations.length}</strong></div>
           </div>
 
           <div className="studio-project-command-body">
             <aside>
               <section className="studio-project-command-risks">
-                <header><strong>{t("studio.command.riskRadar")}</strong><span>{snapshot.health.riskStatus}</span></header>
+                <header><strong>{t(experienceMode === "CREATOR" ? "studio.creator.copilot.attention" : "studio.command.riskRadar")}</strong><span>{snapshot.health.riskStatus}</span></header>
                 {snapshot.risks.length ? snapshot.risks.map((risk) => (
                   <div key={`${risk.category}-${risk.type}`}>
                     <span>{risk.category}</span>
@@ -131,19 +136,19 @@ export function StudioProjectCopilotCommandCenter() {
                 )) : <p>{t("studio.command.noRisk")}</p>}
               </section>
               <section className="studio-project-command-insights">
-                <header><strong>{t("studio.command.insightTitle")}</strong><span>{t("studio.copilot.draftOnly")}</span></header>
+                <header><strong>{t(experienceMode === "CREATOR" ? "studio.creator.copilot.reasons" : "studio.command.insightTitle")}</strong><span>{t("studio.copilot.draftOnly")}</span></header>
                 {snapshot.insights.length ? snapshot.insights.slice(0, 4).map((insight) => (
                   <article key={insight.insightId}>
                     <span>{displayLabel(insight.type)}</span>
                     <strong>{insight.summary}</strong>
-                    <small>{tf("studio.command.confidence", { value: insight.confidence })} · {displayLabel(insight.evidence)}</small>
+                    <small>{tf(experienceMode === "CREATOR" ? "studio.creator.copilot.guidanceValue" : "studio.command.confidence", { value: insight.confidence })} · {displayLabel(insight.evidence)}</small>
                   </article>
                 )) : <p>{t("studio.command.noInsight")}</p>}
               </section>
             </aside>
 
             <section className="studio-project-command-recommendations">
-              <header><strong>{t("studio.command.recommendations")}</strong><span>{t("studio.command.flowPreview")}</span></header>
+              <header><strong>{t(experienceMode === "CREATOR" ? "studio.creator.copilot.nextStep" : "studio.command.recommendations")}</strong><span>{t("studio.command.flowPreview")}</span></header>
               <div>
                 {snapshot.recommendations.map((recommendation) => {
                   const actionStatus = recommendation.action?.status || "SUGGESTED";
@@ -168,7 +173,7 @@ export function StudioProjectCopilotCommandCenter() {
                         ))}
                       </div>
                       <footer>
-                        <span>{tf("studio.command.confidence", { value: recommendation.confidence })}</span>
+                        <span>{tf(experienceMode === "CREATOR" ? "studio.creator.copilot.guidanceValue" : "studio.command.confidence", { value: recommendation.confidence })}</span>
                         <span>{actionStatus}</span>
                       </footer>
                       {activePreview && actionStatus !== "CONFIRMED" ? (

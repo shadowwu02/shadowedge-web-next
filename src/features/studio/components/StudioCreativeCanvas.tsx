@@ -72,6 +72,7 @@ import {
   type StudioCreativeCanvasActiveDraft,
   type StudioCreativeCanvasDraftType,
 } from "@/lib/studio-creative-canvas-draft-recovery";
+import type { StudioExperienceMode } from "@/features/studio/lib/studioExperienceMode";
 import { useI18n } from "@/i18n/useI18n";
 
 type CreativeNodeData = {
@@ -154,7 +155,7 @@ function toFlowNodes(graph: Pick<StudioCreativeCanvasGraph, "nodes">, editable: 
       position: nodePosition(source, index),
       data: {
         source,
-        label: String(source.metadata.title || source.referenceId),
+        label: String(source.metadata.title || studioCreativeCanvasNodeLabel(source.nodeType)),
         editable,
       },
       draggable: editable,
@@ -200,9 +201,11 @@ function changeLabel(change: StudioCreativeCanvasGraphChange, tf: ReturnType<typ
 export function StudioCreativeCanvas({
   projectId,
   authReady = true,
+  experienceMode = "CREATOR",
 }: {
   projectId: string | null;
   authReady?: boolean;
+  experienceMode?: StudioExperienceMode;
 }) {
   const { t, tf } = useI18n();
   const { featureStatus } = useStudioApiIntegration();
@@ -823,14 +826,17 @@ export function StudioCreativeCanvas({
   }
 
   return (
-    <section className={`studio-creative-canvas-layout is-${mode.toLowerCase()}`} aria-label={t("studio.creativeCanvas.layoutAria")}>
+    <section
+      className={`studio-creative-canvas-layout is-${mode.toLowerCase()} is-${experienceMode.toLowerCase()}`}
+      aria-label={t("studio.creativeCanvas.layoutAria")}
+    >
       <div className="studio-creative-canvas-summary">
         <div>
           <span>{t("studio.creativeCanvas.title")}</span>
-          <strong>{flowNodes.length} nodes · {flowEdges.length} relationships</strong>
+          <strong>{tf("studio.creativeCanvas.relationships", { nodes: flowNodes.length, edges: flowEdges.length })}</strong>
         </div>
         <div className="studio-creative-canvas-mode">
-          <span>{graph.schemaVersion}</span>
+          {experienceMode === "ADVANCED" ? <span>{graph.schemaVersion}</span> : null}
           <b>{mode === "VIEW" ? t("studio.creativeCanvas.mode.view") : t("studio.creativeCanvas.mode.edit")}</b>
           {mode === "VIEW" ? (
             <div className="studio-creative-canvas-mode-actions">
@@ -863,17 +869,21 @@ export function StudioCreativeCanvas({
           <header>
             <div>
               <span>{draftRecovery.status === "RESTORED" ? t("studio.creativeCanvas.recovery.restored") : t("studio.creativeCanvas.recovery.active")}</span>
-              <strong>{activeDraft.draftType.replaceAll("_", " ")}</strong>
+              <strong>{experienceMode === "CREATOR" ? t("studio.creator.copilot.suggestion") : activeDraft.draftType.replaceAll("_", " ")}</strong>
             </div>
             <b>{activeDraft.status}</b>
           </header>
           <div>
-            <span>{t("studio.creativeCanvas.recovery.draft")} <b>{activeDraft.draftId}</b></span>
-            <span>{t("studio.creativeCanvas.recovery.graph")} <b>{activeDraft.graphVersion}</b></span>
+            {experienceMode === "ADVANCED" ? (
+              <>
+                <span>{t("studio.creativeCanvas.recovery.draft")} <b>{activeDraft.draftId}</b></span>
+                <span>{t("studio.creativeCanvas.recovery.graph")} <b>{activeDraft.graphVersion}</b></span>
+              </>
+            ) : null}
             <span>{t("studio.common.changes")} <b>{session?.changes.length || changes.length}</b></span>
-            <span>{t("studio.common.evidence")} <b>{draftEvidenceCount}</b></span>
-            <span>{t("studio.common.confidence")} <b>{draftConfidence}</b></span>
-            <span>{t("studio.common.confirm")} <b>{session?.status || activeDraft.status}</b></span>
+            <span>{t(experienceMode === "CREATOR" ? "studio.creator.copilot.reasons" : "studio.common.evidence")} <b>{draftEvidenceCount}</b></span>
+            <span>{t(experienceMode === "CREATOR" ? "studio.creator.copilot.guidance" : "studio.common.confidence")} <b>{draftConfidence}</b></span>
+            <span>{t(experienceMode === "CREATOR" ? "studio.creator.copilot.nextStep" : "studio.common.confirm")} <b>{session?.status || activeDraft.status}</b></span>
           </div>
           <footer>
             <small>{draftRecovery.message}</small>
@@ -1027,14 +1037,18 @@ export function StudioCreativeCanvas({
           {selected ? (
             <>
               <span>{studioCreativeCanvasNodeLabel(selected.nodeType)}</span>
-              <h3>{String(selected.metadata.title || selected.referenceId)}</h3>
+              <h3>{String(selected.metadata.title || studioCreativeCanvasNodeLabel(selected.nodeType))}</h3>
               <dl>
                 <div><dt>{t("studio.creativeCanvas.details.status")}</dt><dd>{selected.status}</dd></div>
-                <div><dt>{t("studio.creativeCanvas.details.source")}</dt><dd>{String(selected.metadata.source || selected.metadata.sourceCanvas || t("studio.creativeCanvas.details.projectData"))}</dd></div>
-                <div><dt>{t("studio.creativeCanvas.details.reference")}</dt><dd>{selected.referenceId}</dd></div>
                 <div><dt>{t("studio.creativeCanvas.details.updated")}</dt><dd>{selected.createdAt || t("studio.creativeCanvas.details.unknown")}</dd></div>
-                {selected.metadata.timelineRef ? <div><dt>{t("studio.creativeCanvas.details.timeline")}</dt><dd>{selected.metadata.timelineRef}</dd></div> : null}
-                {selected.metadata.version ? <div><dt>{t("studio.creativeCanvas.details.version")}</dt><dd>{selected.metadata.version}</dd></div> : null}
+                {experienceMode === "ADVANCED" ? (
+                  <>
+                    <div><dt>{t("studio.creativeCanvas.details.source")}</dt><dd>{String(selected.metadata.source || selected.metadata.sourceCanvas || t("studio.creativeCanvas.details.projectData"))}</dd></div>
+                    <div><dt>{t("studio.creativeCanvas.details.reference")}</dt><dd>{selected.referenceId}</dd></div>
+                    {selected.metadata.timelineRef ? <div><dt>{t("studio.creativeCanvas.details.timeline")}</dt><dd>{selected.metadata.timelineRef}</dd></div> : null}
+                    {selected.metadata.version ? <div><dt>{t("studio.creativeCanvas.details.version")}</dt><dd>{selected.metadata.version}</dd></div> : null}
+                  </>
+                ) : null}
               </dl>
               {mode === "EDIT_DRAFT" ? (
                 <div className="studio-creative-canvas-config">
@@ -1058,10 +1072,12 @@ export function StudioCreativeCanvas({
         <section className="studio-creative-canvas-ai-plan" aria-label={t("studio.creativeCanvas.plan.aria")}>
           <header>
             <div>
-              <span>CANVAS_AUTO_PLAN_DRAFT</span>
+              <span>{experienceMode === "CREATOR" ? t("studio.creator.copilot.suggestion") : "CANVAS_AUTO_PLAN_DRAFT"}</span>
               <strong>{plannedDraft.planningRequest.intent.replaceAll("_", " ")}</strong>
             </div>
-            <b className={`is-${plannedDraft.confidence.toLowerCase()}`}>{plannedDraft.confidence} CONFIDENCE</b>
+            <b className={`is-${plannedDraft.confidence.toLowerCase()}`}>
+              {experienceMode === "CREATOR" ? `${t("studio.creator.copilot.guidance")} · ${plannedDraft.confidence}` : `${plannedDraft.confidence} CONFIDENCE`}
+            </b>
           </header>
           <p>{plannedDraft.planningRequest.goal}</p>
           <div className="studio-creative-canvas-ai-grid">
@@ -1078,7 +1094,7 @@ export function StudioCreativeCanvas({
               </div>
             </section>
             <section>
-              <header><strong>{t("studio.creativeCanvas.plan.evidence")}</strong><span>{plannedDraft.evidence.length}</span></header>
+              <header><strong>{t(experienceMode === "CREATOR" ? "studio.creator.copilot.reasons" : "studio.creativeCanvas.plan.evidence")}</strong><span>{plannedDraft.evidence.length}</span></header>
               <div>
                 {plannedDraft.evidence.map((item) => (
                   <article key={item.evidenceId}>
@@ -1100,12 +1116,18 @@ export function StudioCreativeCanvas({
         <section className="studio-creative-canvas-ai-plan is-optimization" aria-label={t("studio.creativeCanvas.optimized.aria")}>
           <header>
             <div>
-              <span>CANVAS_WORKFLOW_OPTIMIZATION_DRAFT</span>
+              <span>{experienceMode === "CREATOR" ? t("studio.creator.copilot.suggestion") : "CANVAS_WORKFLOW_OPTIMIZATION_DRAFT"}</span>
               <strong>{studioCanvasOptimizationLabel(optimizedDraft.optimizationRequest.target)}</strong>
             </div>
-            <b className={`is-${optimizedDraft.confidence.toLowerCase()}`}>{optimizedDraft.confidence} CONFIDENCE</b>
+            <b className={`is-${optimizedDraft.confidence.toLowerCase()}`}>
+              {experienceMode === "CREATOR" ? `${t("studio.creator.copilot.guidance")} · ${optimizedDraft.confidence}` : `${optimizedDraft.confidence} CONFIDENCE`}
+            </b>
           </header>
-          <p>Current Graph {optimizedDraft.optimizationRequest.graphVersion} remains unchanged while this Draft is reviewed.</p>
+          <p>
+            {experienceMode === "CREATOR"
+              ? t("studio.creativeCanvas.optimized.boundary")
+              : `Current Graph ${optimizedDraft.optimizationRequest.graphVersion} remains unchanged while this Draft is reviewed.`}
+          </p>
           <div className="studio-creative-canvas-ai-grid">
             <section>
               <header><strong>{t("studio.creativeCanvas.optimized.reasoning")}</strong><span>{optimizedDraft.reasons.length}</span></header>
@@ -1120,7 +1142,7 @@ export function StudioCreativeCanvas({
               </div>
             </section>
             <section>
-              <header><strong>{t("studio.creativeCanvas.plan.evidence")}</strong><span>{optimizedDraft.evidence.length}</span></header>
+              <header><strong>{t(experienceMode === "CREATOR" ? "studio.creator.copilot.reasons" : "studio.creativeCanvas.plan.evidence")}</strong><span>{optimizedDraft.evidence.length}</span></header>
               <div>
                 {optimizedDraft.evidence.map((item) => (
                   <article key={item.evidenceId}>

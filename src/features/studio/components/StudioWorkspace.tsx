@@ -24,6 +24,11 @@ import {
   STUDIO_CANVAS_STORAGE_KEY,
   useStudioStore,
 } from "@/features/studio/store/studioStore";
+import {
+  readStudioExperienceMode,
+  saveStudioExperienceMode,
+  type StudioExperienceMode,
+} from "@/features/studio/lib/studioExperienceMode";
 import { getStudioProject } from "@/lib/studio-api";
 import { useI18n, type DictionaryKey } from "@/i18n/useI18n";
 
@@ -241,6 +246,7 @@ function StudioNewProjectEmptyState({
       <span>{t("studio.workspace.empty.eyebrow")}</span>
       <h2>{t("studio.workspace.empty.title")}</h2>
       <p>{t("studio.workspace.empty.message")}</p>
+      <small>{t("studio.creator.empty.steps")}</small>
       <div>
         <button onClick={() => onNavigate("canvas")} type="button">{t("studio.workspace.empty.createWorkflow")}</button>
         <button onClick={() => onNavigate("canvas")} type="button">{t("studio.workspace.empty.importTemplate")}</button>
@@ -300,8 +306,14 @@ export function StudioWorkspace() {
       ? requestedModule as StudioWorkspaceModule
       : "canvas";
   });
+  const [experienceMode, setExperienceMode] = useState<StudioExperienceMode>("CREATOR");
   const copilotPanelRef = useRef<HTMLElement>(null);
   const routeProjectRequest = useRef("");
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setExperienceMode(readStudioExperienceMode()), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const finishHydration = () => setHasHydrated(true);
@@ -366,6 +378,11 @@ export function StudioWorkspace() {
     copilotPanelRef.current?.focus();
   };
 
+  const changeExperienceMode = (mode: StudioExperienceMode) => {
+    setExperienceMode(mode);
+    saveStudioExperienceMode(mode);
+  };
+
   const renderActiveModule = () => {
     switch (activeModule) {
       case "overview":
@@ -382,13 +399,15 @@ export function StudioWorkspace() {
             {!projectId ? (
               <StudioNewProjectEmptyState onAskCopilot={askCopilot} onNavigate={setActiveModule} />
             ) : null}
-            <div className="studio-layout studio-workspace-canvas-layout">
+            <div className={`studio-layout studio-workspace-canvas-layout is-${experienceMode.toLowerCase()}`}>
               <StudioAssetPanel />
-              <StudioCanvas authReady={!authLoading && isSignedIn} />
-              <div className="studio-runtime-sidebar">
-                <NodeInspector />
-                <StudioRunHistoryPanel />
-              </div>
+              <StudioCanvas authReady={!authLoading && isSignedIn} experienceMode={experienceMode} />
+              {experienceMode === "ADVANCED" ? (
+                <div className="studio-runtime-sidebar">
+                  <NodeInspector />
+                  <StudioRunHistoryPanel />
+                </div>
+              ) : null}
             </div>
           </>
         );
@@ -457,10 +476,16 @@ export function StudioWorkspace() {
   return (
     <AppShell hideSidebar workspaceNav>
       <StudioApiIntegrationProvider>
-        <div className="studio-shell studio-workspace-shell" style={studioTheme}>
+        <div
+          className="studio-shell studio-workspace-shell"
+          data-studio-experience={experienceMode.toLowerCase()}
+          style={studioTheme}
+        >
           <div className="studio-project-header">
             <StudioToolbar
               brandName={activeBrand.shortName}
+              experienceMode={experienceMode}
+              onExperienceModeChange={changeExperienceMode}
               storageKey={STUDIO_CANVAS_STORAGE_KEY}
             />
             <StudioApiVersionStatus />

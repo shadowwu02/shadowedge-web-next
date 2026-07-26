@@ -25,6 +25,7 @@ import { StudioAgentCanvas } from "@/features/studio/components/StudioAgentCanva
 import { StudioCreativeCanvas } from "@/features/studio/components/StudioCreativeCanvas";
 import { StudioProjectInitializationAssistant } from "@/features/studio/components/StudioProjectInitializationAssistant";
 import { StudioCapabilityBoundary } from "@/features/studio/components/StudioApiIntegration";
+import type { StudioExperienceMode } from "@/features/studio/lib/studioExperienceMode";
 import { useI18n } from "@/i18n/useI18n";
 import {
   getCurrentStudioSnapshot,
@@ -51,7 +52,13 @@ const nodeTypes = {
   output: OutputNode,
 } satisfies NodeTypes;
 
-export function StudioCanvas({ authReady = true }: { authReady?: boolean }) {
+export function StudioCanvas({
+  authReady = true,
+  experienceMode = "CREATOR",
+}: {
+  authReady?: boolean;
+  experienceMode?: StudioExperienceMode;
+}) {
   const { t } = useI18n();
   const [canvasView, setCanvasView] = useState<"creative" | "workflow" | "agent">("creative");
   const nodes = useStudioStore((state) => state.nodes);
@@ -67,28 +74,33 @@ export function StudioCanvas({ authReady = true }: { authReady?: boolean }) {
   const setViewport = useStudioStore((state) => state.setViewport);
   const rememberSnapshot = useStudioStore((state) => state.rememberSnapshot);
   const dragStartSnapshot = useRef<StudioCanvasSnapshot | null>(null);
+  const activeCanvasView = experienceMode === "CREATOR" ? "creative" : canvasView;
 
   return (
     <section className="studio-canvas-panel" aria-label={t("studio.canvas.aria")}>
       <div className="studio-canvas-heading">
         <div>
-          <p>{canvasView === "creative" ? t("studio.canvas.creative.title") : canvasView === "workflow" ? t("studio.canvas.workflow.title") : t("studio.canvas.agent.title")}</p>
+          <p>{activeCanvasView === "creative" ? t("studio.canvas.creative.title") : activeCanvasView === "workflow" ? t("studio.canvas.workflow.title") : t("studio.canvas.agent.title")}</p>
           <span>
-            {canvasView === "creative"
+            {activeCanvasView === "creative"
               ? t("studio.canvas.creative.description")
-              : canvasView === "workflow"
+              : activeCanvasView === "workflow"
                 ? t("studio.canvas.workflow.description")
                 : t("studio.canvas.agent.description")}
           </span>
         </div>
         <div className="studio-canvas-view-switcher" aria-label={t("studio.canvas.viewAria")}>
-          <button className={canvasView === "creative" ? "is-active" : ""} onClick={() => setCanvasView("creative")} type="button">{t("studio.canvas.switch.creative")}</button>
-          <button className={canvasView === "workflow" ? "is-active" : ""} onClick={() => setCanvasView("workflow")} type="button">{t("studio.canvas.switch.workflow")}</button>
-          <button className={canvasView === "agent" ? "is-active" : ""} onClick={() => setCanvasView("agent")} type="button">{t("studio.canvas.switch.agent")}</button>
+          <button className={activeCanvasView === "creative" ? "is-active" : ""} onClick={() => setCanvasView("creative")} type="button">{t("studio.canvas.switch.creative")}</button>
+          {experienceMode === "ADVANCED" ? (
+            <>
+              <button className={activeCanvasView === "workflow" ? "is-active" : ""} onClick={() => setCanvasView("workflow")} type="button">{t("studio.canvas.switch.workflow")}</button>
+              <button className={activeCanvasView === "agent" ? "is-active" : ""} onClick={() => setCanvasView("agent")} type="button">{t("studio.canvas.switch.agent")}</button>
+            </>
+          ) : null}
           <span className="studio-local-badge">
-            {canvasView === "creative"
+            {activeCanvasView === "creative"
               ? t("studio.canvas.badge.unified")
-              : canvasView === "agent"
+              : activeCanvasView === "agent"
                 ? t("studio.canvas.badge.compatibility")
               : loadingProject
                 ? t("studio.canvas.badge.loadingProject")
@@ -101,15 +113,15 @@ export function StudioCanvas({ authReady = true }: { authReady?: boolean }) {
         </div>
       </div>
 
-      {canvasView === "creative" ? (
+      {activeCanvasView === "creative" ? (
         <StudioCapabilityBoundary feature="creative_canvas" label={t("studio.capability.creativeCanvas")}>
           {projectId ? (
-            <StudioCreativeCanvas authReady={authReady} projectId={projectId} />
+            <StudioCreativeCanvas authReady={authReady} projectId={projectId} experienceMode={experienceMode} />
           ) : (
             <StudioProjectInitializationAssistant />
           )}
         </StudioCapabilityBoundary>
-      ) : canvasView === "agent" ? (
+      ) : activeCanvasView === "agent" ? (
         <StudioCapabilityBoundary feature="agent_canvas" label={t("studio.capability.agentCanvas")}>
           <StudioAgentCanvas projectId={projectId} />
         </StudioCapabilityBoundary>

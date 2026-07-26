@@ -14,14 +14,19 @@ import {
   STUDIO_NODE_DEFINITIONS,
   type StudioNodeType,
 } from "@/features/studio/types/studioTypes";
+import type { StudioExperienceMode } from "@/features/studio/lib/studioExperienceMode";
 import { useI18n } from "@/i18n/useI18n";
 
 export function StudioToolbar({
   brandName,
   storageKey,
+  experienceMode,
+  onExperienceModeChange,
 }: {
   brandName: string;
   storageKey: string;
+  experienceMode: StudioExperienceMode;
+  onExperienceModeChange: (mode: StudioExperienceMode) => void;
 }) {
   const { t, tf } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -80,11 +85,15 @@ export function StudioToolbar({
   });
 
   return (
-    <header className="studio-toolbar">
+    <header className={`studio-toolbar is-${experienceMode.toLowerCase()}`}>
       <div className="studio-toolbar-title">
         <p>{brandName}</p>
         <h1>{t("studio.toolbar.title")}</h1>
-        <span>{runtimeSummary}{generationQueue.running ? ` · ${t("studio.toolbar.queueRunning")}` : ""}</span>
+        <span>
+          {experienceMode === "CREATOR"
+            ? t("studio.creator.toolbar.summary")
+            : `${runtimeSummary}${generationQueue.running ? ` · ${t("studio.toolbar.queueRunning")}` : ""}`}
+        </span>
       </div>
 
       <div className="studio-project-controls">
@@ -108,44 +117,48 @@ export function StudioToolbar({
       </div>
 
       <div className="studio-toolbar-actions">
-        <button
-          className="studio-button studio-button-run"
-          disabled={projectBusy || runtimeRunning || nodeCount === 0}
-          onClick={() => void runNodes()}
-          title={t("studio.toolbar.runTitle")}
-          type="button"
-        >
-          <span className="studio-run-icon" aria-hidden="true">▶</span>
-          {runLockState === "locked"
-            ? t("studio.toolbar.locked")
-            : runtimeRunning
-              ? t("studio.toolbar.running")
-              : hasDraftGenerationPlan
-                ? t("studio.toolbar.reviewPlan")
-                : t("studio.toolbar.run")}
-        </button>
-        <div className="studio-new-node-wrap">
-          <button
-            aria-expanded={menuOpen}
-            aria-haspopup="menu"
-            className="studio-button studio-button-primary"
-            onClick={() => setMenuOpen((open) => !open)}
-            type="button"
-          >
-            <span aria-hidden="true">+</span>
-            {t("studio.toolbar.newNode")}
-          </button>
-          {menuOpen ? (
-            <div className="studio-new-node-menu" role="menu">
-              {STUDIO_NODE_DEFINITIONS.map((item) => (
-                <button key={item.type} onClick={() => handleAddNode(item.type)} role="menuitem" type="button">
-                  <strong>{item.label}</strong>
-                  <span>{item.description}</span>
-                </button>
-              ))}
+        {experienceMode === "ADVANCED" ? (
+          <>
+            <button
+              className="studio-button studio-button-run"
+              disabled={projectBusy || runtimeRunning || nodeCount === 0}
+              onClick={() => void runNodes()}
+              title={t("studio.toolbar.runTitle")}
+              type="button"
+            >
+              <span className="studio-run-icon" aria-hidden="true">▶</span>
+              {runLockState === "locked"
+                ? t("studio.toolbar.locked")
+                : runtimeRunning
+                  ? t("studio.toolbar.running")
+                  : hasDraftGenerationPlan
+                    ? t("studio.toolbar.reviewPlan")
+                    : t("studio.toolbar.run")}
+            </button>
+            <div className="studio-new-node-wrap">
+              <button
+                aria-expanded={menuOpen}
+                aria-haspopup="menu"
+                className="studio-button studio-button-primary"
+                onClick={() => setMenuOpen((open) => !open)}
+                type="button"
+              >
+                <span aria-hidden="true">+</span>
+                {t("studio.toolbar.newNode")}
+              </button>
+              {menuOpen ? (
+                <div className="studio-new-node-menu" role="menu">
+                  {STUDIO_NODE_DEFINITIONS.map((item) => (
+                    <button key={item.type} onClick={() => handleAddNode(item.type)} role="menuitem" type="button">
+                      <strong>{item.label}</strong>
+                      <span>{item.description}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
-          ) : null}
-        </div>
+          </>
+        ) : null}
 
         <button className="studio-button" disabled={!isSignedIn || projectBusy} onClick={() => void createProject()} type="button">
           {t("studio.toolbar.newProject")}
@@ -153,9 +166,33 @@ export function StudioToolbar({
         <button className="studio-button" disabled={!isSignedIn || projectBusy || Boolean(projectId && !dirty)} onClick={() => void saveProject()} type="button">
           {saveLabel}
         </button>
-        <StudioTemplateControls disabled={projectBusy} />
-        <button className="studio-button" disabled={!canUndo} onClick={undo} type="button">{t("studio.toolbar.undo")}</button>
-        <button className="studio-button" disabled={!canRedo} onClick={redo} type="button">{t("studio.toolbar.redo")}</button>
+        {experienceMode === "ADVANCED" ? (
+          <>
+            <StudioTemplateControls disabled={projectBusy} />
+            <button className="studio-button" disabled={!canUndo} onClick={undo} type="button">{t("studio.toolbar.undo")}</button>
+            <button className="studio-button" disabled={!canRedo} onClick={redo} type="button">{t("studio.toolbar.redo")}</button>
+          </>
+        ) : null}
+        <div className="studio-experience-mode" aria-label={t("studio.mode.aria")} role="group">
+          <button
+            aria-pressed={experienceMode === "CREATOR"}
+            className={experienceMode === "CREATOR" ? "is-active" : ""}
+            onClick={() => onExperienceModeChange("CREATOR")}
+            title={t("studio.mode.creator.description")}
+            type="button"
+          >
+            {t("studio.mode.creator")}
+          </button>
+          <button
+            aria-pressed={experienceMode === "ADVANCED"}
+            className={experienceMode === "ADVANCED" ? "is-active" : ""}
+            onClick={() => onExperienceModeChange("ADVANCED")}
+            title={t("studio.mode.advanced.description")}
+            type="button"
+          >
+            {t("studio.mode.advanced")}
+          </button>
+        </div>
       </div>
 
       <div className="studio-save-state" aria-live="polite">
