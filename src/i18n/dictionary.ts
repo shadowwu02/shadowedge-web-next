@@ -2,6 +2,7 @@ import { productPhase2En, productPhase2Zh } from "@/i18n/productPhase2Dictionary
 import { commercialLaunchEn, commercialLaunchZh } from "@/i18n/commercialLaunchDictionary";
 import { betaFeedbackEn, betaFeedbackZh } from "@/i18n/betaFeedbackDictionary";
 import { workspaceExperienceEn, workspaceExperienceZh } from "@/i18n/workspaceExperienceDictionary";
+import { subscriptionFoundationEn, subscriptionFoundationZh } from "@/i18n/subscriptionFoundationDictionary";
 
 export type Locale = "en" | "zh";
 
@@ -13,6 +14,7 @@ export const dictionary = {
     ...commercialLaunchEn,
     ...betaFeedbackEn,
     ...workspaceExperienceEn,
+    ...subscriptionFoundationEn,
     videoWorkspace: "Video Workspace",
     workspace: "Workspace",
     image: "Image",
@@ -1957,6 +1959,7 @@ export const dictionary = {
     ...commercialLaunchZh,
     ...betaFeedbackZh,
     ...workspaceExperienceZh,
+    ...subscriptionFoundationZh,
     "studio.common.close": "关闭",
     "studio.common.retry": "重试",
     "studio.common.checkAgain": "重新检查",

@@ -19,7 +19,8 @@ test("Account exposes Profile, status, Beta, current plan, usage, Workspace, and
   assert.match(account, /AccountWorkspaceSummary/);
   assert.match(account, /account\.creditsSummary/);
   assert.match(account, /BetaFeedbackCenter appearance="card" entry="account"/);
-  assert.match(accountSummary, /getEnterpriseOrganizationPlan/);
+  assert.match(accountSummary, /getEnterpriseOrganizationEntitlements/);
+  assert.match(accountSummary, /PlanEntitlementDetails/);
 });
 
 test("Workspace is a first-class authenticated product route and navigation entry", () => {
@@ -52,7 +53,7 @@ test("Member, usage, and plan reads stay behind the server-aligned permission bo
   assert.match(center, /workspace\.plan\.restricted/);
 });
 
-test("Enterprise experience consumes only the existing authenticated read APIs", () => {
+test("Enterprise experience keeps reads scoped and exposes only the manual Beta request write", () => {
   for (const path of [
     "/api/organizations",
     "/api/workspaces/",
@@ -62,7 +63,12 @@ test("Enterprise experience consumes only the existing authenticated read APIs",
   ]) {
     assert.ok(api.includes(path), `missing ${path}`);
   }
-  assert.doesNotMatch(api, /method:\s*["']POST|method:\s*["']PUT|method:\s*["']PATCH|method:\s*["']DELETE/);
+  assert.deepEqual(
+    [...api.matchAll(/method:\s*["'](POST|PUT|PATCH|DELETE)["']/g)].map((match) => match[1]),
+    ["POST"],
+  );
+  assert.match(api, /\/upgrade-requests/);
+  assert.doesNotMatch(api, /assignPlan|subscription\/change|checkout|paymentIntent/i);
   assert.doesNotMatch(`${center}\n${accountSummary}`, /stripe|checkoutSession|paymentIntent|providerRequest|startRuntime|deductCredits/i);
 });
 

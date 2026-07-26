@@ -57,6 +57,7 @@ export type EnterpriseOrganizationResponse = {
   currentAccess: {
     role: WorkspaceRole;
     permissions: WorkspacePermission[];
+    organizationWide: boolean;
   };
   compatibility: {
     source: string;
@@ -166,8 +167,64 @@ export type EnterprisePlanResponse = {
   };
 };
 
-async function requireData<T>(path: string) {
-  const response = await apiRequest<T>(path);
+export type EnterpriseEntitlementLimit = {
+  current: number;
+  limit: number | null;
+  available: number | null;
+  allowed: boolean | null;
+  status: "AVAILABLE" | "NEAR_LIMIT" | "LIMIT_REACHED" | "UNLIMITED" | "SCOPE_INCOMPLETE";
+};
+
+export type EnterpriseEntitlementsResponse = {
+  organizationId: string;
+  plan: EnterprisePlan;
+  subscription: EnterprisePlanResponse["subscription"];
+  entitlements: {
+    featureAccess: Array<{ feature: string; allowed: boolean }>;
+    usageLimit: EnterpriseEntitlementLimit;
+    memberLimit: EnterpriseEntitlementLimit;
+    storageLimit: EnterpriseEntitlementLimit;
+  };
+  usage: {
+    totalQuantity: number;
+    storageQuantity: number;
+    eventCount: number;
+    compatibility: Record<string, unknown>;
+  };
+  scope: {
+    organizationWide: boolean;
+    status: "COMPLETE" | "PARTIAL";
+  };
+  decisionMode: "DISPLAY_ONLY_NO_RUNTIME_ENFORCEMENT";
+  checkedAt: string;
+};
+
+export type EnterpriseBetaUpgradeRequest = {
+  requestId: string;
+  organizationId: string;
+  currentPlanId: EnterprisePlan["planId"];
+  targetPlanId: Exclude<EnterprisePlan["planId"], "FREE">;
+  requestedBy: string;
+  reason: string;
+  status: "REQUESTED";
+  createdAt: string;
+};
+
+export type EnterpriseBetaUpgradeResponse = {
+  request: EnterpriseBetaUpgradeRequest;
+  created: boolean;
+  boundary: {
+    paymentIntegration: false;
+    subscriptionChanged: false;
+    entitlementChanged: false;
+    automaticPlanUpgrade: false;
+    automaticCharge: false;
+    billingMutation: false;
+  };
+};
+
+async function requireData<T>(path: string, options: Parameters<typeof apiRequest>[1] = {}) {
+  const response = await apiRequest<T>(path, options);
   if (!response.data) throw new Error("Enterprise Workspace response is unavailable.");
   return response.data;
 }
@@ -209,5 +266,24 @@ export function getEnterpriseOrganizationUsage(organizationId: string) {
 export function getEnterpriseOrganizationPlan(organizationId: string) {
   return requireData<EnterprisePlanResponse>(
     `/api/organizations/${encodeURIComponent(organizationId)}/plan`,
+  );
+}
+
+export function getEnterpriseOrganizationEntitlements(organizationId: string) {
+  return requireData<EnterpriseEntitlementsResponse>(
+    `/api/organizations/${encodeURIComponent(organizationId)}/entitlements`,
+  );
+}
+
+export function createEnterpriseBetaUpgradeRequest(
+  organizationId: string,
+  input: { targetPlanId: EnterpriseBetaUpgradeRequest["targetPlanId"]; reason: string },
+) {
+  return requireData<EnterpriseBetaUpgradeResponse>(
+    `/api/organizations/${encodeURIComponent(organizationId)}/upgrade-requests`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
   );
 }

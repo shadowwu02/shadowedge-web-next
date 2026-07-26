@@ -3,18 +3,20 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BetaBadge } from "@/components/feedback/BetaFeedbackCenter";
+import { PlanEntitlementDetails } from "@/components/subscription/PlanEntitlementDetails";
 import { useI18n } from "@/i18n/useI18n";
 import {
   getEnterpriseOrganization,
-  getEnterpriseOrganizationPlan,
+  getEnterpriseOrganizationEntitlements,
   listEnterpriseOrganizations,
+  type EnterpriseEntitlementsResponse,
 } from "@/lib/enterprise-workspace-api";
 
 type AccountWorkspaceState = {
   organizationCount: number;
   workspaceCount: number;
   role: string;
-  plan: string;
+  entitlements: EnterpriseEntitlementsResponse | null;
 };
 
 export function AccountWorkspaceSummary() {
@@ -30,26 +32,26 @@ export function AccountWorkspaceSummary() {
           const organizations = await listEnterpriseOrganizations();
           if (controller.signal.aborted) return;
           if (!organizations.organizations.length) {
-            setState({ organizationCount: 0, workspaceCount: 0, role: "", plan: "" });
+            setState({ organizationCount: 0, workspaceCount: 0, role: "", entitlements: null });
             return;
           }
           const primary = organizations.organizations[0];
           const detail = await getEnterpriseOrganization(primary.organizationId);
-          let plan = "";
+          let entitlements: EnterpriseEntitlementsResponse | null = null;
           if (detail.currentAccess.permissions.includes("PLAN_VIEW")) {
-            plan = (await getEnterpriseOrganizationPlan(primary.organizationId)).plan.name;
+            entitlements = await getEnterpriseOrganizationEntitlements(primary.organizationId);
           }
           if (!controller.signal.aborted) {
             setState({
               organizationCount: organizations.organizations.length,
               workspaceCount: detail.workspaces.length,
               role: detail.currentAccess.role,
-              plan,
+              entitlements,
             });
           }
         } catch {
           if (!controller.signal.aborted) {
-            setState({ organizationCount: 0, workspaceCount: 0, role: "", plan: "" });
+            setState({ organizationCount: 0, workspaceCount: 0, role: "", entitlements: null });
           }
         } finally {
           if (!controller.signal.aborted) setLoading(false);
@@ -89,10 +91,15 @@ export function AccountWorkspaceSummary() {
         <div className="rounded-2xl border border-white/8 bg-black/20 p-3">
           <span className="text-white/38">{t("workspace.plan")}</span>
           <strong className="mt-1 block text-white">
-            {state?.organizationCount ? state.plan || t("workspace.account.planRestricted") : t("workspace.plan.freeCompatibility")}
+            {state?.organizationCount ? state.entitlements?.plan.name || t("workspace.account.planRestricted") : t("workspace.plan.freeCompatibility")}
           </strong>
         </div>
       </div>
+      {state?.entitlements ? (
+        <div className="mt-4 rounded-[22px] border border-amber-300/14 bg-amber-300/[.035] p-4">
+          <PlanEntitlementDetails compact data={state.entitlements} />
+        </div>
+      ) : null}
       {!loading && !state?.organizationCount ? (
         <p className="mt-3 text-xs leading-5 text-white/40">{t("workspace.account.noOrganization")}</p>
       ) : null}

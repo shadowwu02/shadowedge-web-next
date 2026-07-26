@@ -4,18 +4,20 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { BetaBadge } from "@/components/feedback/BetaFeedbackCenter";
+import { BetaUpgradeRequestCard, canManageBetaUpgrade } from "@/components/subscription/BetaUpgradeRequestCard";
+import { PlanEntitlementDetails } from "@/components/subscription/PlanEntitlementDetails";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useI18n, type DictionaryKey } from "@/i18n/useI18n";
 import {
   getEnterpriseOrganization,
-  getEnterpriseOrganizationPlan,
+  getEnterpriseOrganizationEntitlements,
   getEnterpriseWorkspace,
   getEnterpriseWorkspaceMembers,
   getEnterpriseWorkspaceUsage,
   listEnterpriseOrganizations,
   type EnterpriseOrganization,
   type EnterpriseOrganizationResponse,
-  type EnterprisePlanResponse,
+  type EnterpriseEntitlementsResponse,
   type EnterpriseUsageResponse,
   type EnterpriseWorkspaceMembersResponse,
   type EnterpriseWorkspaceResponse,
@@ -58,17 +60,6 @@ const permissionKeys: Record<WorkspacePermission, DictionaryKey> = {
   PLAN_MANAGE: "workspace.permission.planManage",
 };
 
-const featureKeys: Record<string, DictionaryKey> = {
-  USAGE_METERING: "workspace.feature.usageMetering",
-  PROJECT_WORKSPACE: "workspace.feature.projectWorkspace",
-  TEAM_COLLABORATION: "workspace.feature.teamCollaboration",
-  CLIENT_REVIEW: "workspace.feature.clientReview",
-  OPERATIONS_INTELLIGENCE: "workspace.feature.operationsIntelligence",
-  GOVERNANCE_REPORTS: "workspace.feature.governanceReports",
-  ENTERPRISE_POLICY: "workspace.feature.enterprisePolicy",
-  DEDICATED_WORKSPACES: "workspace.feature.dedicatedWorkspaces",
-};
-
 function maskedMemberId(value: string) {
   const clean = String(value || "");
   return clean.length > 8 ? `…${clean.slice(-8)}` : clean;
@@ -76,10 +67,6 @@ function maskedMemberId(value: string) {
 
 function usageValue(usage: EnterpriseUsageResponse | null, type: string) {
   return usage?.byType.find((item) => item.type === type)?.quantity ?? 0;
-}
-
-function formatLimit(value: number | null, unlimited: string) {
-  return value === null ? unlimited : new Intl.NumberFormat().format(value);
 }
 
 export function WorkspaceCenter() {
@@ -93,7 +80,7 @@ export function WorkspaceCenter() {
   const [workspace, setWorkspace] = useState<EnterpriseWorkspaceResponse | null>(null);
   const [members, setMembers] = useState<EnterpriseWorkspaceMembersResponse | null>(null);
   const [usage, setUsage] = useState<EnterpriseUsageResponse | null>(null);
-  const [plan, setPlan] = useState<EnterprisePlanResponse | null>(null);
+  const [entitlements, setEntitlements] = useState<EnterpriseEntitlementsResponse | null>(null);
   const [loadingOrganizations, setLoadingOrganizations] = useState(true);
   const [loadingScope, setLoadingScope] = useState(false);
   const [error, setError] = useState("");
@@ -140,7 +127,7 @@ export function WorkspaceCenter() {
       setWorkspace(null);
       setMembers(null);
       setUsage(null);
-      setPlan(null);
+      setEntitlements(null);
       void getEnterpriseOrganization(selectedOrganizationId)
         .then((result) => {
           if (!active) return;
@@ -173,14 +160,14 @@ export function WorkspaceCenter() {
       setWorkspace(null);
       setMembers(null);
       setUsage(null);
-      setPlan(null);
+      setEntitlements(null);
       void getEnterpriseWorkspace(selectedWorkspaceId)
         .then(async (workspaceResult) => {
           if (!active) return;
           setWorkspace(workspaceResult);
           const membershipPermissions = workspaceResult.currentMembership.permissions;
           const organizationPermissions = organization.currentAccess.permissions;
-          const [memberResult, usageResult, planResult] = await Promise.allSettled([
+          const [memberResult, usageResult, entitlementResult] = await Promise.allSettled([
             hasWorkspacePermission(membershipPermissions, "MEMBER_VIEW")
               ? getEnterpriseWorkspaceMembers(selectedWorkspaceId)
               : Promise.resolve(null),
@@ -188,13 +175,13 @@ export function WorkspaceCenter() {
               ? getEnterpriseWorkspaceUsage(selectedWorkspaceId)
               : Promise.resolve(null),
             hasWorkspacePermission(organizationPermissions, "PLAN_VIEW")
-              ? getEnterpriseOrganizationPlan(organization.organization.organizationId)
+              ? getEnterpriseOrganizationEntitlements(organization.organization.organizationId)
               : Promise.resolve(null),
           ]);
           if (!active) return;
           setMembers(memberResult.status === "fulfilled" ? memberResult.value : null);
           setUsage(usageResult.status === "fulfilled" ? usageResult.value : null);
-          setPlan(planResult.status === "fulfilled" ? planResult.value : null);
+          setEntitlements(entitlementResult.status === "fulfilled" ? entitlementResult.value : null);
         })
         .catch(() => {
           if (active) setError(t("workspace.error.workspace"));
@@ -216,6 +203,11 @@ export function WorkspaceCenter() {
   const canViewMembers = hasWorkspacePermission(currentPermissions, "MEMBER_VIEW");
   const canViewUsage = hasWorkspacePermission(currentPermissions, "USAGE_VIEW");
   const canViewPlan = hasWorkspacePermission(organization?.currentAccess.permissions, "PLAN_VIEW");
+  const canManagePlan = canManageBetaUpgrade(
+    organization?.currentAccess.role,
+    organization?.currentAccess.permissions,
+    organization?.currentAccess.organizationWide,
+  );
   const visiblePermissionLabels = useMemo(
     () => currentPermissions.map((permission) => t(permissionKeys[permission])),
     [currentPermissions, t],
@@ -339,11 +331,19 @@ export function WorkspaceCenter() {
                 {canViewUsage && usage ? <><div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3"><div className="rounded-2xl border border-white/8 bg-black/20 p-3"><span className="text-[10px] text-white/35">{t("workspace.usage.credits")}</span><strong className="mt-1 block text-xl text-white">{usage.summary.shadowCredits}</strong></div><div className="rounded-2xl border border-white/8 bg-black/20 p-3"><span className="text-[10px] text-white/35">{t("workspace.usage.images")}</span><strong className="mt-1 block text-xl text-white">{usageValue(usage, "IMAGE_GENERATION")}</strong></div><div className="rounded-2xl border border-white/8 bg-black/20 p-3"><span className="text-[10px] text-white/35">{t("workspace.usage.videos")}</span><strong className="mt-1 block text-xl text-white">{usageValue(usage, "VIDEO_GENERATION")}</strong></div><div className="rounded-2xl border border-white/8 bg-black/20 p-3"><span className="text-[10px] text-white/35">{t("workspace.usage.events")}</span><strong className="mt-1 block text-xl text-white">{usage.summary.totalEvents}</strong></div><div className="rounded-2xl border border-white/8 bg-black/20 p-3"><span className="text-[10px] text-white/35">{t("workspace.usage.projects")}</span><strong className="mt-1 block text-xl text-white">{usage.summary.projects}</strong></div><div className="rounded-2xl border border-white/8 bg-black/20 p-3"><span className="text-[10px] text-white/35">{t("workspace.usage.users")}</span><strong className="mt-1 block text-xl text-white">{usage.summary.users}</strong></div></div><div className="mt-5"><strong className="text-xs text-white/60">{t("workspace.usage.projectBreakdown")}</strong>{usage.byProject.length ? <div className="mt-2 space-y-2">{usage.byProject.slice(0, 6).map((item) => <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-black/20 px-4 py-3" key={item.projectId}><span className="truncate text-xs text-white/55">{tf("workspace.usage.project", { id: maskedMemberId(item.projectId || "") })}</span><strong className="text-xs text-white">{tf("workspace.usage.quantity", { quantity: item.quantity, credits: item.shadowCredits })}</strong></div>)}</div> : <p className="mt-2 text-sm text-white/38">{t("workspace.usage.empty")}</p>}</div></> : <div className="mt-5 rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-white/40">{t("workspace.usage.restricted")}</div>}
               </article>
 
-              <article className="rounded-[26px] border border-amber-300/18 bg-amber-300/[.04] p-5">
-                <span className="text-[10px] font-black uppercase tracking-[.17em] text-amber-200">{t("workspace.plan")}</span>
-                {canViewPlan && plan ? <><h2 className="mt-3 text-2xl font-black text-white">{plan.plan.name}</h2><div className="mt-4 grid grid-cols-2 gap-2"><div className="rounded-2xl border border-white/8 bg-black/15 p-3"><span className="text-[10px] text-white/35">{t("workspace.plan.usageLimit")}</span><strong className="mt-1 block text-white">{formatLimit(plan.plan.limits.usage, t("workspace.plan.unlimited"))}</strong></div><div className="rounded-2xl border border-white/8 bg-black/15 p-3"><span className="text-[10px] text-white/35">{t("workspace.plan.memberLimit")}</span><strong className="mt-1 block text-white">{formatLimit(plan.plan.limits.members, t("workspace.plan.unlimited"))}</strong></div></div><strong className="mt-5 block text-xs text-white/60">{t("workspace.plan.features")}</strong><div className="mt-2 flex flex-wrap gap-2">{plan.plan.features.map((feature) => <span className="rounded-full border border-amber-300/15 bg-amber-300/[.06] px-2.5 py-1 text-[9px] font-bold text-amber-100" key={feature}>{featureKeys[feature] ? t(featureKeys[feature]) : feature.replaceAll("_", " ")}</span>)}</div></> : <div className="mt-5 rounded-2xl border border-dashed border-amber-300/15 p-6 text-center text-sm text-amber-100/45">{t("workspace.plan.restricted")}</div>}
-                <p className="mt-5 text-xs leading-5 text-amber-100/45">{t("workspace.plan.noPayment")}</p>
-              </article>
+              <div className="space-y-4">
+                <article className="rounded-[26px] border border-amber-300/18 bg-amber-300/[.04] p-5">
+                  {canViewPlan && entitlements ? <PlanEntitlementDetails data={entitlements} /> : <div className="rounded-2xl border border-dashed border-amber-300/15 p-6 text-center text-sm text-amber-100/45">{t("workspace.plan.restricted")}</div>}
+                  <p className="mt-5 text-xs leading-5 text-amber-100/45">{t("workspace.plan.noPayment")}</p>
+                </article>
+                {canManagePlan && entitlements ? (
+                  <BetaUpgradeRequestCard
+                    currentPlan={entitlements.plan.planId}
+                    key={entitlements.organizationId}
+                    organizationId={entitlements.organizationId}
+                  />
+                ) : null}
+              </div>
             </section>
           </>
         ) : null}

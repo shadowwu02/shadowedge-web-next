@@ -37,7 +37,7 @@ const pricingPlans = [
     annualCreditsKey: "pricing.plan.pro.annualCredits",
     recommendedKey: "pricing.plan.pro.recommended",
     ctaKey: "pricing.beta.request",
-    ctaHref: "/contact",
+    ctaHref: "/workspace?upgrade=1",
     parallelKey: "pricing.plan.pro.parallel",
     featured: true,
     features: [
@@ -232,6 +232,23 @@ export function PricingBillingPage() {
             <span className="w-fit rounded-full border border-white/10 bg-[#05070b]/42 px-3 py-1.5 text-[11px] font-black text-[#f4f4f4]/70">
               {billingLabel}
             </span>
+          </div>
+        </section>
+
+        <section className="rounded-[28px] border border-violet-300/16 bg-violet-300/[.045] p-4 md:p-5">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="max-w-3xl">
+              <p className="text-sm font-black text-violet-100">{t("subscription.pricing.title")}</p>
+              <p className="mt-1 text-sm leading-6 text-white/55">{t("subscription.pricing.description")}</p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <Link className="rounded-2xl bg-violet-200 px-4 py-3 text-xs font-black text-[#17131e]" href="/workspace?upgrade=1">
+                {t("subscription.pricing.workspace")}
+              </Link>
+              <Link className="rounded-2xl border border-white/10 px-4 py-3 text-xs font-black text-white/65" href="/contact">
+                {t("subscription.pricing.contact")}
+              </Link>
+            </div>
           </div>
         </section>
 
