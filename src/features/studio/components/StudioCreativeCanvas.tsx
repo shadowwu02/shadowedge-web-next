@@ -72,7 +72,6 @@ import {
   type StudioCreativeCanvasActiveDraft,
   type StudioCreativeCanvasDraftType,
 } from "@/lib/studio-creative-canvas-draft-recovery";
-import { LEGACY_CANVAS_ROUTE } from "@/lib/canvas/canvasRoutes";
 import { useI18n } from "@/i18n/useI18n";
 
 type CreativeNodeData = {
@@ -790,7 +789,6 @@ export function StudioCreativeCanvas({
       <section className="studio-creative-canvas-empty" aria-label={t("studio.creativeCanvas.empty.aria")}>
         <strong>{t("studio.creativeCanvas.empty.title")}</strong>
         <p>{t("studio.creativeCanvas.empty.message")}</p>
-        <a href={LEGACY_CANVAS_ROUTE}>{t("studio.creativeCanvas.legacy.open")}</a>
       </section>
     );
   }
@@ -1322,7 +1320,6 @@ export function StudioCreativeCanvas({
           <strong>{t("studio.creativeCanvas.boundary.title")}</strong>
           <span>{t("studio.creativeCanvas.boundary.message")}</span>
         </div>
-        <a href={graph.migrationPlan.legacyRoute}>{t("studio.creativeCanvas.legacy.open")}</a>
       </footer>
     </section>
   );

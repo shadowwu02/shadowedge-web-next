@@ -31,7 +31,6 @@ export function AppShell({
     if (href === "/workspace/image") return pathname === href || pathname.startsWith(`${href}/`);
     if (href === CREATIVE_CANVAS_ENTRY) return pathname === "/studio";
     if (href === "/prompt-studio") return pathname === href || pathname.startsWith(`${href}/`);
-    if (href === "/studio") return pathname === href || pathname.startsWith(`${href}/`);
     return pathname === href;
   };
   const workspaceLinks = [
@@ -39,8 +38,7 @@ export function AppShell({
     { label: t("nav.video"), href: "/workspace/video", active: isActiveRoute("/workspace/video") },
     { label: t("nav.image"), href: "/workspace/image", active: isActiveRoute("/workspace/image") },
     { label: t("nav.promptStudio"), href: "/prompt-studio", active: isActiveRoute("/prompt-studio") },
-    { label: t("nav.canvas"), href: CREATIVE_CANVAS_ENTRY, active: isActiveRoute(CREATIVE_CANVAS_ENTRY) },
-    { label: "Studio", href: "/studio", active: isActiveRoute("/studio") },
+    { label: "Studio", href: CREATIVE_CANVAS_ENTRY, active: isActiveRoute(CREATIVE_CANVAS_ENTRY) },
     { label: t("nav.history"), href: "/history", active: isActiveRoute("/history") },
     { label: t("nav.models"), href: "/models", active: isActiveRoute("/models") },
     { label: t("nav.pricing"), href: "/pricing", active: isActiveRoute("/pricing") },

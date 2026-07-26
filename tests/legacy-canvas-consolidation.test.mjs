@@ -9,27 +9,40 @@ const legacyPage = fs.readFileSync("src/app/workspace/canvas/page.tsx", "utf8");
 const canvasStorage = fs.readFileSync("src/lib/canvas/canvasStorage.ts", "utf8");
 const canvasRoutes = fs.readFileSync("src/lib/canvas/canvasRoutes.ts", "utf8");
 const dictionary = fs.readFileSync("src/i18n/dictionary.ts", "utf8");
+const commercialDictionary = fs.readFileSync("src/i18n/commercialLaunchDictionary.ts", "utf8");
+const studioCanvas = fs.readFileSync("src/features/studio/components/StudioCreativeCanvas.tsx", "utf8");
 const studioWorkspace = fs.readFileSync("src/features/studio/components/StudioWorkspace.tsx", "utf8");
 
-test("recommended Canvas entry points converge on Studio Creative Canvas", () => {
+test("Studio is the only recommended creative workspace entry", () => {
   assert.match(canvasRoutes, /CREATIVE_CANVAS_ENTRY = "\/studio\?canvas=creative"/);
-  assert.match(appShell, /label: t\("nav\.canvas"\), href: CREATIVE_CANVAS_ENTRY/);
+  assert.match(appShell, /label: "Studio", href: CREATIVE_CANVAS_ENTRY/);
+  assert.doesNotMatch(appShell, /label: t\("nav\.canvas"\)/);
   assert.doesNotMatch(appShell, /href: "\/workspace\/canvas"/);
   assert.doesNotMatch(homePage, /href[:=]\s*["']\/workspace\/canvas/);
+  assert.doesNotMatch(studioCanvas, /LEGACY_CANVAS_ROUTE|migrationPlan\.legacyRoute/);
   assert.match(
     studioWorkspace,
     /useState<StudioWorkspaceModule>\(\(\) => \{[\s\S]*?: "canvas";[\s\S]*?\}\)/,
   );
 });
 
-test("legacy Canvas remains available with a clear migration banner", () => {
+test("Home and legacy migration CTAs enter Studio", () => {
+  assert.match(homePage, /href: CREATIVE_CANVAS_ENTRY, key: "home\.launch\.canvas"/);
+  assert.match(homePage, /href: CREATIVE_CANVAS_ENTRY, key: "home\.openCanvas"/);
+  assert.match(commercialDictionary, /"home\.launch\.canvas": "Enter Studio"/);
+  assert.match(dictionary, /"home\.openCanvas": "Enter Studio"/);
+  const migrationLabels = [...dictionary.matchAll(/"canvas\.openCreativeCanvas": "([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(migrationLabels, ["Enter Studio", "进入 Studio"]);
+});
+
+test("legacy Canvas remains available with a clear one-way migration banner", () => {
   assert.match(legacyPage, /CanvasWorkspace/);
   assert.match(legacyCanvas, /data-canvas-product="legacy"/);
   assert.match(legacyCanvas, /data-primary-product="false"/);
+  assert.match(legacyCanvas, /canvas\.legacyNoticeTitle/);
+  assert.match(legacyCanvas, /canvas\.legacyNoticeBody/);
   assert.match(legacyCanvas, /href=\{CREATIVE_CANVAS_ENTRY\}/);
-  assert.match(dictionary, /"canvas\.legacyNoticeTitle": "这是旧版 Canvas。"/);
-  assert.match(dictionary, /"canvas\.legacyNoticeBody": "Creative Canvas 已迁移到 Studio。"/);
-  assert.match(dictionary, /"canvas\.openCreativeCanvas": "打开 Creative Canvas"/);
+  assert.match(dictionary, /"canvas\.legacyNoticeBody": "Creative Canvas has moved to Studio\."/);
 });
 
 test("legacy workflow persistence remains unchanged and local", () => {
@@ -39,8 +52,9 @@ test("legacy workflow persistence remains unchanged and local", () => {
   assert.doesNotMatch(legacyCanvas, /removeItem|clear\(\)|migrat/i);
 });
 
-test("consolidation does not introduce primary-product analytics or auth divergence", () => {
+test("legacy Canvas is excluded from primary-product analytics and keeps shared auth", () => {
   assert.doesNotMatch(legacyCanvas, /trackEvent|analytics\.track|gtag\(/);
+  assert.match(legacyCanvas, /data-primary-product="false"/);
   assert.match(legacyPage, /<AppShell hideSidebar workspaceNav>/);
   assert.match(appShell, /<TopBar/);
 });
