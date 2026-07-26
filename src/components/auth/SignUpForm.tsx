@@ -17,7 +17,7 @@ export function SignUpForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t } = useI18n();
-  const nextPath = useMemo(() => getSafeAuthNext(searchParams.get("next"), "/workspace/image"), [searchParams]);
+  const nextPath = useMemo(() => getSafeAuthNext(searchParams.get("next"), "/dashboard"), [searchParams]);
   const signInHref = `/sign-in?next=${encodeURIComponent(nextPath)}`;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

@@ -12,7 +12,7 @@ export function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t } = useI18n();
-  const nextPath = useMemo(() => getSafeAuthNext(searchParams.get("next"), "/workspace/video"), [searchParams]);
+  const nextPath = useMemo(() => getSafeAuthNext(searchParams.get("next"), "/dashboard"), [searchParams]);
   const signUpHref = `/sign-up?next=${encodeURIComponent(nextPath)}`;
   const initialStatus = searchParams.get("reset") === "1"
     ? t("auth.passwordResetSuccess")

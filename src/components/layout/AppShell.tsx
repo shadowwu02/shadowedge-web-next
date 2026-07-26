@@ -22,7 +22,8 @@ export function AppShell({
   const pathname = usePathname() || "/workspace/video";
   const isGoldTideWorkspace =
     activeBrand.id === "newbrand" &&
-    (pathname.startsWith("/workspace") ||
+    (pathname.startsWith("/dashboard") ||
+      pathname.startsWith("/workspace") ||
       pathname.startsWith("/prompt-studio") ||
       pathname.startsWith("/studio"));
   const isActiveRoute = (href: string) => {
@@ -34,6 +35,7 @@ export function AppShell({
     return pathname === href;
   };
   const workspaceLinks = [
+    { label: "Dashboard", href: "/dashboard", active: isActiveRoute("/dashboard") },
     { label: t("nav.video"), href: "/workspace/video", active: isActiveRoute("/workspace/video") },
     { label: t("nav.image"), href: "/workspace/image", active: isActiveRoute("/workspace/image") },
     { label: t("nav.promptStudio"), href: "/prompt-studio", active: isActiveRoute("/prompt-studio") },

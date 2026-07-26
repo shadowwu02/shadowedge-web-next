@@ -10,8 +10,10 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
+import { useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { activeBrand } from "@/config/brand";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { StudioToolbar } from "@/features/studio/components/StudioToolbar";
 import {
   StudioApiIntegrationProvider,
@@ -22,6 +24,7 @@ import {
   STUDIO_CANVAS_STORAGE_KEY,
   useStudioStore,
 } from "@/features/studio/store/studioStore";
+import { getStudioProject } from "@/lib/studio-api";
 
 const NodeInspector = lazy(() =>
   import("@/features/studio/components/NodeInspector").then((module) => ({
@@ -266,11 +269,24 @@ function StudioOverview({
 }
 
 export function StudioWorkspace() {
+  const searchParams = useSearchParams();
+  const { isLoading: authLoading, isSignedIn } = useAuthSession();
   const setHasHydrated = useStudioStore((state) => state.setHasHydrated);
+  const hasHydrated = useStudioStore((state) => state.hasHydrated);
   const projectId = useStudioStore((state) => state.projectId);
   const projectName = useStudioStore((state) => state.projectName);
-  const [activeModule, setActiveModule] = useState<StudioWorkspaceModule>("canvas");
+  const dirty = useStudioStore((state) => state.dirty);
+  const loadProject = useStudioStore((state) => state.loadProject);
+  const setLoadingProject = useStudioStore((state) => state.setLoadingProject);
+  const setProjectError = useStudioStore((state) => state.setProjectError);
+  const [activeModule, setActiveModule] = useState<StudioWorkspaceModule>(() => {
+    const requestedModule = searchParams.get("module");
+    return STUDIO_WORKSPACE_MODULES.some((item) => item.id === requestedModule)
+      ? requestedModule as StudioWorkspaceModule
+      : "canvas";
+  });
   const copilotPanelRef = useRef<HTMLElement>(null);
+  const routeProjectRequest = useRef("");
 
   useEffect(() => {
     const finishHydration = () => setHasHydrated(true);
@@ -281,6 +297,45 @@ export function StudioWorkspace() {
       window.queueMicrotask(finishHydration);
     }
   }, [setHasHydrated]);
+
+  useEffect(() => {
+    const requestedProjectId = searchParams.get("project") || "";
+    if (
+      !requestedProjectId ||
+      requestedProjectId === projectId ||
+      requestedProjectId === routeProjectRequest.current ||
+      !hasHydrated ||
+      authLoading ||
+      !isSignedIn
+    ) {
+      return;
+    }
+    if (dirty && projectId) {
+      setProjectError("Save the current project before opening another one from Dashboard.");
+      return;
+    }
+
+    routeProjectRequest.current = requestedProjectId;
+    setLoadingProject(true);
+    setProjectError("");
+    void getStudioProject(requestedProjectId)
+      .then(loadProject)
+      .catch((error) => {
+        routeProjectRequest.current = "";
+        setProjectError(error instanceof Error ? error.message : "Dashboard project could not be opened.");
+      })
+      .finally(() => setLoadingProject(false));
+  }, [
+    authLoading,
+    dirty,
+    hasHydrated,
+    isSignedIn,
+    loadProject,
+    projectId,
+    searchParams,
+    setLoadingProject,
+    setProjectError,
+  ]);
 
   const studioTheme = {
     "--studio-accent": activeBrand.theme.accent,
