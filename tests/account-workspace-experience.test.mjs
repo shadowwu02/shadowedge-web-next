@@ -11,6 +11,7 @@ const account = read("src/components/account/AccountCreditsPage.tsx");
 const accountSummary = read("src/components/account/AccountWorkspaceSummary.tsx");
 const shell = read("src/components/layout/AppShell.tsx");
 const dictionary = read("src/i18n/workspaceExperienceDictionary.ts");
+const authSession = read("src/hooks/useAuthSession.ts");
 
 test("Account exposes Profile, status, Beta, current plan, usage, Workspace, and feedback", () => {
   assert.match(account, /workspace\.account\.profile/);
@@ -29,6 +30,12 @@ test("Workspace is a first-class authenticated product route and navigation entr
   assert.match(shell, /label: t\("workspace\.nav"\), href: "\/workspace"/);
   assert.match(center, /useAuthSession/);
   assert.match(center, /router\.replace\("\/sign-in\?next=%2Fworkspace"\)/);
+});
+
+test("Workspace waits for auth hydration before deciding to redirect", () => {
+  assert.match(authSession, /const \[isLoading, setIsLoading\] = useState\(true\)/);
+  assert.match(center, /if \(authLoading\) return;/);
+  assert.match(center, /if \(!isSignedIn\) router\.replace/);
 });
 
 test("Workspace shows the current scope, members, all roles, permissions, usage, and plan", () => {

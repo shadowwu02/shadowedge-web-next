@@ -8,7 +8,10 @@ import type { ShadowEdgeProfile } from "@/types/user";
 export function useAuthSession() {
   const [profile, setProfile] = useState<ShadowEdgeProfile | null>(null);
   const [token, setToken] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  // Authentication is unresolved until the cached session has been hydrated
+  // and, when present, verified with /api/auth/me. Starting in a signed-out
+  // state lets protected pages redirect before that first check completes.
+  const [isLoading, setIsLoading] = useState(true);
   const [isProfileVerified, setIsProfileVerified] = useState(false);
   const [error, setError] = useState("");
 
