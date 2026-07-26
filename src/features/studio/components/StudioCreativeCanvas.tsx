@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -18,6 +18,7 @@ import {
 import {
   STUDIO_CREATIVE_CANVAS_NODE_TYPES,
   studioCreativeCanvasNodeLabel,
+  type StudioCreativeCanvasEditStatus,
   type StudioCreativeCanvasEditSession,
   type StudioCreativeCanvasEdgeType,
   type StudioCreativeCanvasGraph,
@@ -46,14 +47,29 @@ import {
   getStudioCreativeCanvasDecisionHistory,
   recordStudioCreativeCanvasDecision,
 } from "@/lib/studio-creative-canvas-decision-api";
-import { createStudioCreativeCanvasOptimization } from "@/lib/studio-creative-canvas-optimization-api";
-import { createStudioCreativeCanvasPlan } from "@/lib/studio-creative-canvas-planning-api";
+import {
+  createStudioCreativeCanvasOptimization,
+  getStudioCreativeCanvasOptimization,
+} from "@/lib/studio-creative-canvas-optimization-api";
+import {
+  createStudioCreativeCanvasPlan,
+  getStudioCreativeCanvasPlan,
+} from "@/lib/studio-creative-canvas-planning-api";
 import { createStudioCreativeCanvasSimulation } from "@/lib/studio-creative-canvas-simulation-api";
 import {
   confirmStudioCreativeCanvasEditSession,
   createStudioCreativeCanvasEditSession,
   getStudioCreativeCanvas,
+  getStudioCreativeCanvasEditSession,
 } from "@/lib/studio-creative-canvas-api";
+import {
+  STUDIO_CREATIVE_CANVAS_ACTIVE_DRAFTS_STORAGE_KEY,
+  clearActiveStudioCreativeCanvasDraft,
+  getActiveStudioCreativeCanvasDraft,
+  saveActiveStudioCreativeCanvasDraft,
+  type StudioCreativeCanvasActiveDraft,
+  type StudioCreativeCanvasDraftType,
+} from "@/lib/studio-creative-canvas-draft-recovery";
 import { LEGACY_CANVAS_ROUTE } from "@/lib/canvas/canvasRoutes";
 
 type CreativeNodeData = {
@@ -63,6 +79,7 @@ type CreativeNodeData = {
 };
 type CreativeFlowNode = Node<CreativeNodeData, "creativeCanvas">;
 type CanvasMode = "VIEW" | "EDIT_DRAFT";
+type DraftRecoveryStatus = "IDLE" | "RESTORING" | "SAVED" | "RESTORED" | "UNAVAILABLE" | "UNSAVED";
 
 const laneX: Record<StudioCreativeCanvasNodeType, number> = {
   GOAL: 20,
@@ -197,6 +214,13 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
   const [session, setSession] = useState<StudioCreativeCanvasEditSession | null>(null);
   const [plannedDraft, setPlannedDraft] = useState<StudioAIPlannedCanvasDraft | null>(null);
   const [optimizedDraft, setOptimizedDraft] = useState<StudioAIOptimizedCanvasDraft | null>(null);
+  const [activeDraft, setActiveDraft] = useState<StudioCreativeCanvasActiveDraft | null>(null);
+  const [draftRecovery, setDraftRecovery] = useState<{
+    status: DraftRecoveryStatus;
+    message: string;
+  }>({ status: "IDLE", message: "" });
+  const [draftRestoreVersion, setDraftRestoreVersion] = useState(0);
+  const draftRestoreAttemptRef = useRef("");
   const [simulation, setSimulation] = useState<StudioCanvasChangeSimulation | null>(null);
   const [decisionHistory, setDecisionHistory] = useState<StudioCanvasDecisionHistory | null>(null);
   const [decisionChoice, setDecisionChoice] = useState<StudioCanvasDecisionOptionId>("SELECT_DRAFT");
@@ -229,6 +253,9 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
         setSession(null);
         setPlannedDraft(null);
         setOptimizedDraft(null);
+        setActiveDraft(null);
+        setDraftRecovery({ status: "IDLE", message: "" });
+        draftRestoreAttemptRef.current = "";
         setSimulation(null);
         setDecisionHistory(null);
         setDecisionChoice("SELECT_DRAFT");
@@ -246,6 +273,140 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
       });
     return () => controller.abort();
   }, [projectId]);
+
+  useEffect(() => {
+    const handleDraftStorage = (event: StorageEvent) => {
+      if (event.key !== STUDIO_CREATIVE_CANVAS_ACTIVE_DRAFTS_STORAGE_KEY) return;
+      draftRestoreAttemptRef.current = "";
+      if (projectId && !getActiveStudioCreativeCanvasDraft(projectId)) {
+        setActiveDraft(null);
+        setDraftRecovery({ status: "IDLE", message: "" });
+      }
+      setDraftRestoreVersion((value) => value + 1);
+    };
+    window.addEventListener("storage", handleDraftStorage);
+    return () => window.removeEventListener("storage", handleDraftStorage);
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId || loadState.projectId !== projectId || !loadState.graph) return;
+    const storedDraft = getActiveStudioCreativeCanvasDraft(projectId);
+    if (!storedDraft) return;
+
+    const availability = storedDraft.draftType === "AI_PLAN"
+      ? planningAvailability
+      : storedDraft.draftType === "AI_OPTIMIZATION"
+        ? optimizationAvailability
+        : editingAvailability;
+    if (availability !== "READY") {
+      const stateTimer = window.setTimeout(() => {
+        setActiveDraft(storedDraft);
+        setDraftRecovery({
+          status: availability === "AVAILABLE" ? "RESTORING" : "UNAVAILABLE",
+          message: availability === "AVAILABLE"
+            ? "Waiting for the Canvas Draft service before restoring Preview."
+            : "The saved Draft is retained, but its service is currently unavailable.",
+        });
+      }, 0);
+      return () => window.clearTimeout(stateTimer);
+    }
+
+    const attemptKey = `${projectId}:${storedDraft.draftType}:${storedDraft.draftId}:${draftRestoreVersion}`;
+    if (draftRestoreAttemptRef.current === attemptKey) return;
+    draftRestoreAttemptRef.current = attemptKey;
+    const controller = new AbortController();
+    const stateTimer = window.setTimeout(() => {
+      setActiveDraft(storedDraft);
+      setDraftRecovery({ status: "RESTORING", message: "Restoring the saved Draft Preview…" });
+    }, 0);
+
+    void (async () => {
+      let nextPlannedDraft: StudioAIPlannedCanvasDraft | null = null;
+      let nextOptimizedDraft: StudioAIOptimizedCanvasDraft | null = null;
+      let editSessionId = storedDraft.editSessionId;
+
+      if (storedDraft.draftType === "AI_PLAN") {
+        nextPlannedDraft = await getStudioCreativeCanvasPlan(
+          projectId,
+          storedDraft.draftId,
+          controller.signal,
+        );
+        editSessionId = nextPlannedDraft.editSession.sessionId;
+      } else if (storedDraft.draftType === "AI_OPTIMIZATION") {
+        nextOptimizedDraft = await getStudioCreativeCanvasOptimization(
+          projectId,
+          storedDraft.draftId,
+          controller.signal,
+        );
+        editSessionId = nextOptimizedDraft.editSession.sessionId;
+      }
+
+      const nextSession = await getStudioCreativeCanvasEditSession(
+        projectId,
+        editSessionId,
+        controller.signal,
+      );
+      return { nextOptimizedDraft, nextPlannedDraft, nextSession };
+    })()
+      .then(({ nextOptimizedDraft, nextPlannedDraft, nextSession }) => {
+        if (controller.signal.aborted) return;
+        const currentPointer = getActiveStudioCreativeCanvasDraft(projectId);
+        if (
+          !currentPointer ||
+          currentPointer.draftId !== storedDraft.draftId ||
+          currentPointer.draftType !== storedDraft.draftType
+        ) return;
+
+        const draftGraph = nextPlannedDraft?.graph || nextOptimizedDraft?.optimizedGraph || nextSession.draftGraph;
+        const refreshedDraft: StudioCreativeCanvasActiveDraft = {
+          ...storedDraft,
+          editSessionId: nextSession.sessionId,
+          graphVersion: nextSession.baseGraphVersion,
+          status: nextSession.status,
+        };
+        saveActiveStudioCreativeCanvasDraft(refreshedDraft);
+        setActiveDraft(refreshedDraft);
+        setPlannedDraft(nextPlannedDraft);
+        setOptimizedDraft(nextOptimizedDraft);
+        setSession(nextSession);
+        setChanges([...nextSession.changes]);
+        setFlowNodes(toFlowNodes(draftGraph, true));
+        setFlowEdges(toFlowEdges(draftGraph, true));
+        setSelectedId(draftGraph.nodes[0]?.nodeId || null);
+        setMode("EDIT_DRAFT");
+        setCopilotOpen(false);
+        setOptimizationOpen(false);
+        setDraftRecovery({
+          status: "RESTORED",
+          message: `${nextSession.status} Draft restored with Preview, Diff, and evidence.`,
+        });
+      })
+      .catch((reason: unknown) => {
+        if (controller.signal.aborted) return;
+        setDraftRecovery({
+          status: "UNAVAILABLE",
+          message: reason instanceof Error
+            ? reason.message
+            : "The saved Canvas Draft could not be restored.",
+        });
+      });
+
+    return () => {
+      window.clearTimeout(stateTimer);
+      controller.abort();
+      if (draftRestoreAttemptRef.current === attemptKey) {
+        draftRestoreAttemptRef.current = "";
+      }
+    };
+  }, [
+    draftRestoreVersion,
+    editingAvailability,
+    loadState.graph,
+    loadState.projectId,
+    optimizationAvailability,
+    planningAvailability,
+    projectId,
+  ]);
 
   useEffect(() => {
     if (!projectId || decisionAvailability !== "READY") return;
@@ -269,6 +430,50 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
     ]),
   ), [flowNodes]);
   const simulationDraftId = optimizedDraft?.draftId || plannedDraft?.draftId || session?.sessionId || null;
+  const draftConfidence = plannedDraft?.confidence || optimizedDraft?.confidence || "NOT_RATED";
+  const draftEvidenceCount = plannedDraft?.evidence.length || optimizedDraft?.evidence.length || 0;
+
+  function rememberDraft(
+    draftType: StudioCreativeCanvasDraftType,
+    draftId: string,
+    editSession: StudioCreativeCanvasEditSession,
+    createdAt = editSession.createdAt,
+    status: StudioCreativeCanvasEditStatus = editSession.status,
+  ) {
+    if (!projectId) return;
+    const record: StudioCreativeCanvasActiveDraft = {
+      draftId,
+      projectId,
+      graphVersion: editSession.baseGraphVersion,
+      status,
+      createdAt,
+      draftType,
+      editSessionId: editSession.sessionId,
+    };
+    const saved = saveActiveStudioCreativeCanvasDraft(record);
+    setActiveDraft(record);
+    setDraftRecovery({
+      status: saved ? "SAVED" : "UNSAVED",
+      message: saved
+        ? "Draft recovery is enabled for refresh, new tabs, and the next authenticated session."
+        : "Draft Preview is available now, but browser storage could not save its recovery pointer.",
+    });
+  }
+
+  function forgetActiveDraft() {
+    if (projectId) clearActiveStudioCreativeCanvasDraft(projectId);
+    setActiveDraft(null);
+    setDraftRecovery({ status: "IDLE", message: "" });
+    draftRestoreAttemptRef.current = "";
+  }
+
+  function invalidateReviewedDraft() {
+    setSession(null);
+    setPlannedDraft(null);
+    setOptimizedDraft(null);
+    setSimulation(null);
+    forgetActiveDraft();
+  }
 
   function startEditing() {
     if (!graph || editingAvailability !== "READY") return;
@@ -281,6 +486,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
     setOptimizedDraft(null);
     setSimulation(null);
     setOptimizationOpen(false);
+    forgetActiveDraft();
     setActionState({ busy: false, message: "Draft mode is local until you review the changes." });
   }
 
@@ -296,6 +502,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
     setSimulation(null);
     setCopilotOpen(false);
     setOptimizationOpen(false);
+    forgetActiveDraft();
     setActionState({ busy: false, message: "Draft discarded. The production Graph was unchanged." });
   }
 
@@ -338,8 +545,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
     }]);
     setSelectedId(nodeId);
     setNewNodeTitle("");
-    setSession(null);
-    setSimulation(null);
+    invalidateReviewedDraft();
   }
 
   function removeSelected() {
@@ -352,8 +558,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
       nodeId: selectedId,
     }]);
     setSelectedId(null);
-    setSession(null);
-    setSimulation(null);
+    invalidateReviewedDraft();
   }
 
   function updateSelectedConfig() {
@@ -365,8 +570,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
       config: { note: configValue.trim() },
     }]);
     setConfigValue("");
-    setSession(null);
-    setSimulation(null);
+    invalidateReviewedDraft();
   }
 
   function handleConnect(connection: Connection) {
@@ -391,8 +595,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
       target: connection.target,
       edgeType,
     }]);
-    setSession(null);
-    setSimulation(null);
+    invalidateReviewedDraft();
   }
 
   async function reviewChanges() {
@@ -403,6 +606,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
       setSession(value);
       setFlowNodes(toFlowNodes(value.draftGraph, true));
       setFlowEdges(toFlowEdges(value.draftGraph, true));
+      rememberDraft("EDIT_SESSION", value.sessionId, value);
       setActionState({
         busy: false,
         message: value.validation.status === "READY"
@@ -418,11 +622,22 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
   }
 
   async function confirmDraft() {
-    if (!projectId || !session || session.validation.status !== "READY") return;
+    if (
+      !projectId ||
+      !session ||
+      !["DRAFT", "REVIEW"].includes(session.status) ||
+      session.validation.status !== "READY"
+    ) return;
     setActionState({ busy: true, message: "Confirming the Workflow Draft…" });
     try {
       const value = await confirmStudioCreativeCanvasEditSession(projectId, session.sessionId);
       setSession(value);
+      rememberDraft(
+        activeDraft?.draftType || "EDIT_SESSION",
+        activeDraft?.draftId || value.sessionId,
+        value,
+        activeDraft?.createdAt || value.createdAt,
+      );
       setActionState({
         busy: false,
         message: "Draft confirmed. Production Graph and Execution Runtime remain unchanged.",
@@ -457,6 +672,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
       setSelectedId(value.graph.nodes[0]?.nodeId || null);
       setMode("EDIT_DRAFT");
       setCopilotOpen(false);
+      rememberDraft("AI_PLAN", value.draftId, value.editSession, value.createdAt);
       setActionState({
         busy: false,
         message: value.validation.status === "READY"
@@ -493,6 +709,7 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
       setMode("EDIT_DRAFT");
       setOptimizationOpen(false);
       setCopilotOpen(false);
+      rememberDraft("AI_OPTIMIZATION", value.draftId, value.editSession, value.createdAt);
       setActionState({
         busy: false,
         message: value.validation.status === "READY"
@@ -629,6 +846,39 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
           )}
         </div>
       </div>
+      {activeDraft ? (
+        <section
+          className={`studio-creative-canvas-draft-banner is-${activeDraft.status.toLowerCase()}`}
+          aria-label="Recovered Canvas Draft"
+        >
+          <header>
+            <div>
+              <span>{draftRecovery.status === "RESTORED" ? "DRAFT RESTORED" : "ACTIVE DRAFT"}</span>
+              <strong>{activeDraft.draftType.replaceAll("_", " ")}</strong>
+            </div>
+            <b>{activeDraft.status}</b>
+          </header>
+          <div>
+            <span>Draft <b>{activeDraft.draftId}</b></span>
+            <span>Graph <b>{activeDraft.graphVersion}</b></span>
+            <span>Changes <b>{session?.changes.length || changes.length}</b></span>
+            <span>Evidence <b>{draftEvidenceCount}</b></span>
+            <span>Confidence <b>{draftConfidence}</b></span>
+            <span>Confirm <b>{session?.status || activeDraft.status}</b></span>
+          </div>
+          <footer>
+            <small>{draftRecovery.message}</small>
+            {draftRecovery.status === "UNAVAILABLE" ? (
+              <button onClick={() => {
+                draftRestoreAttemptRef.current = "";
+                setDraftRestoreVersion((value) => value + 1);
+              }} type="button">
+                Retry restore
+              </button>
+            ) : null}
+          </footer>
+        </section>
+      ) : null}
       {copilotOpen ? (
         <section className="studio-creative-canvas-copilot-form" aria-label="Create Canvas with Copilot">
           <header>
@@ -912,6 +1162,10 @@ export function StudioCreativeCanvas({ projectId }: { projectId: string | null }
           </div>
           {session.status === "CONFIRMED" ? (
             <p>Confirmed as Workflow Draft <b>{session.confirmedDraft?.draftId}</b>. No production Graph, Execution, Provider, or Credits action occurred.</p>
+          ) : session.status === "REJECTED" || session.status === "EXPIRED" ? (
+            <p>
+              This Draft is <b>{session.status}</b> and cannot be confirmed. Create a new Draft to continue; the production Graph remains unchanged.
+            </p>
           ) : (
             <button disabled={session.validation.status !== "READY" || actionState.busy} onClick={() => void confirmDraft()} type="button">
               Confirm draft

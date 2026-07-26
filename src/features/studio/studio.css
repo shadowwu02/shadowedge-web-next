@@ -4443,6 +4443,21 @@
 .studio-creative-canvas-summary strong,
 .studio-creative-canvas-migration strong { color: #e2e8f0; font-size: 12px; }
 .studio-creative-canvas-summary b { border-radius: 999px; background: rgba(45, 212, 191, 0.12); color: #99f6e4; padding: 4px 7px; font-size: 8px; }
+.studio-creative-canvas-draft-banner { display: grid; gap: 8px; border: 1px solid rgba(167, 139, 250, 0.3); border-radius: 14px; background: linear-gradient(135deg, rgba(76, 29, 149, 0.2), rgba(8, 15, 28, 0.88)); padding: 11px 13px; }
+.studio-creative-canvas-draft-banner > header,
+.studio-creative-canvas-draft-banner > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.studio-creative-canvas-draft-banner > header > div { display: grid; gap: 3px; }
+.studio-creative-canvas-draft-banner > header span { color: #a78bfa; font-size: 8px; font-weight: 700; letter-spacing: 0.08em; }
+.studio-creative-canvas-draft-banner > header strong { color: #ede9fe; font-size: 11px; }
+.studio-creative-canvas-draft-banner > header > b { border-radius: 999px; background: rgba(139, 92, 246, 0.16); color: #c4b5fd; padding: 4px 8px; font-size: 8px; }
+.studio-creative-canvas-draft-banner.is-confirmed > header > b { background: rgba(16, 185, 129, 0.14); color: #6ee7b7; }
+.studio-creative-canvas-draft-banner.is-rejected > header > b,
+.studio-creative-canvas-draft-banner.is-expired > header > b { background: rgba(239, 68, 68, 0.13); color: #fca5a5; }
+.studio-creative-canvas-draft-banner > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.studio-creative-canvas-draft-banner > div span { border-radius: 999px; background: rgba(15, 23, 42, 0.7); color: #94a3b8; padding: 5px 8px; font-size: 8px; }
+.studio-creative-canvas-draft-banner > div b { color: #e2e8f0; }
+.studio-creative-canvas-draft-banner > footer small { color: #a5b4fc; font-size: 8px; line-height: 1.45; }
+.studio-creative-canvas-draft-banner > footer button { border: 1px solid rgba(167, 139, 250, 0.35); border-radius: 8px; background: rgba(109, 40, 217, 0.2); color: #ede9fe; padding: 6px 9px; cursor: pointer; font-size: 8px; }
 .studio-creative-canvas-mode { justify-items: end; }
 .studio-creative-canvas-mode-actions,
 .studio-creative-canvas-empty-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
