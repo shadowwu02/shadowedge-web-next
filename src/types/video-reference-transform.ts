@@ -20,7 +20,9 @@ export type VideoReferenceTransformParams = {
 export type VideoReferenceTransformSource = {
   sourceAssetId: string;
   sourceJobId: string | null;
-  sourceProviderMediaId: string | null;
+  sourceProviderMediaInputId: string | null;
+  providerMediaType: "video";
+  providerBindingStatus: "AVAILABLE";
   url: string;
   displayName: string;
   duration: number | null;
@@ -56,7 +58,8 @@ export type VideoReferenceTransformOperation = {
   outboxId: string | null;
   providerTrackingId: string | null;
   providerJobId: string | null;
-  providerMediaId: string | null;
+  providerMediaInputId: string | null;
+  resultProviderMediaInputId: string | null;
   resultUrl: string | null;
   resultAssetId: string | null;
   errorCode?: string;
@@ -67,7 +70,7 @@ export type VideoReferenceTransformOperation = {
     sourceAssetId: string;
     sourceJobId: string | null;
     operationId: string;
-    providerMediaId: string | null;
+    providerMediaInputId: string | null;
     providerJobId: string | null;
     resultAssetId: string | null;
     operation: "VIDEO_REFERENCE_TRANSFORM";

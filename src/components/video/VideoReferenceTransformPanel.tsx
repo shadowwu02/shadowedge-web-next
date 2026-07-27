@@ -25,16 +25,25 @@ const DEFAULT_PARAMS: VideoReferenceTransformParams = {
   generateAudio: true,
 };
 
-function providerMediaId(asset: MediaAssetRecord | undefined) {
+function providerMediaInputId(asset: MediaAssetRecord | undefined) {
   const metadata = asset?.metadata || {};
+  const binding = metadata.providerBinding && typeof metadata.providerBinding === "object"
+    ? metadata.providerBinding as Record<string, unknown>
+    : {};
   const candidate = String(
-    metadata.providerMediaId || metadata.higgsfieldMediaId || metadata.provider_media_id || metadata.higgsfield_media_id || metadata.providerJobId || "",
+    binding.providerMediaInputId || metadata.providerMediaInputId || metadata.provider_media_input_id || "",
   ).trim();
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidate) ? candidate : "";
 }
 
 function providerMediaAvailable(asset: MediaAssetRecord | undefined) {
-  return Boolean(providerMediaId(asset)) && asset?.metadata?.providerBindingStatus === "AVAILABLE";
+  const metadata = asset?.metadata || {};
+  const binding = metadata.providerBinding && typeof metadata.providerBinding === "object"
+    ? metadata.providerBinding as Record<string, unknown>
+    : {};
+  return Boolean(providerMediaInputId(asset)) &&
+    String(binding.bindingStatus || binding.status || metadata.providerBindingStatus || "") === "AVAILABLE" &&
+    String(binding.providerMediaType || metadata.providerMediaType || "video") === "video";
 }
 
 function isTerminal(status?: string) {
@@ -93,7 +102,7 @@ export function VideoReferenceTransformPanel() {
     try {
       setPreview(await createVideoReferenceTransformPreview({
         sourceAssetId: source.id,
-        sourceProviderMediaId: providerMediaId(source),
+        sourceProviderMediaInputId: providerMediaInputId(source),
         prompt,
         params,
       }));
@@ -130,7 +139,7 @@ export function VideoReferenceTransformPanel() {
         {source?.publicUrl || source?.url ? (
           <video className="mt-3 aspect-video w-full rounded-xl bg-black object-contain" controls preload="metadata" src={source.publicUrl || source.url || ""} />
         ) : null}
-        {source && !providerMediaAvailable(source) ? <p className="mt-2 text-xs text-[#ffd08a]">{t("provider.mediaOwnershipMismatch")}</p> : null}
+        {source && !providerMediaAvailable(source) ? <p className="mt-2 text-xs text-[#ffd08a]">{t("provider.mediaInputRequired")}</p> : null}
       </label>
 
       <label className="block">

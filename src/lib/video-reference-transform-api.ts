@@ -7,7 +7,7 @@ import type {
 
 export async function createVideoReferenceTransformPreview(input: {
   sourceAssetId: string;
-  sourceProviderMediaId?: string;
+  sourceProviderMediaInputId?: string;
   prompt: string;
   params: VideoReferenceTransformParams;
 }) {
@@ -15,7 +15,7 @@ export async function createVideoReferenceTransformPreview(input: {
     method: "POST",
     body: JSON.stringify({
       sourceAssetId: input.sourceAssetId,
-      sourceProviderMediaId: input.sourceProviderMediaId || "",
+      sourceProviderMediaInputId: input.sourceProviderMediaInputId || "",
       prompt: input.prompt,
       ...input.params,
     }),
