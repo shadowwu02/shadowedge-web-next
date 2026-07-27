@@ -23,6 +23,7 @@ export type VideoReferenceTransformSource = {
   sourceProviderMediaInputId: string | null;
   providerMediaType: "video";
   providerBindingStatus: "AVAILABLE";
+  providerMediaInputVerificationStatus: "VERIFIED";
   url: string;
   displayName: string;
   duration: number | null;

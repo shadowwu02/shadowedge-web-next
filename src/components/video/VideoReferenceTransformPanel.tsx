@@ -43,7 +43,12 @@ function providerMediaAvailable(asset: MediaAssetRecord | undefined) {
     : {};
   return Boolean(providerMediaInputId(asset)) &&
     String(binding.bindingStatus || binding.status || metadata.providerBindingStatus || "") === "AVAILABLE" &&
+    String(binding.providerMediaInputVerificationStatus || metadata.providerMediaInputVerificationStatus || "") === "VERIFIED" &&
     String(binding.providerMediaType || metadata.providerMediaType || "video") === "video";
+}
+
+function operationErrorKey(operation: VideoReferenceTransformOperation) {
+  return providerMediaErrorKey({ code: operation.errorCode, message: operation.errorMessage });
 }
 
 function isTerminal(status?: string) {
@@ -83,10 +88,10 @@ export function VideoReferenceTransformPanel() {
     const timer = window.setInterval(() => {
       void getVideoReferenceTransformStatus(operation.operationId)
         .then((next) => setOperation(next))
-        .catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)));
+        .catch((reason) => { const key = providerMediaErrorKey(reason); setError(key ? t(key) : reason instanceof Error ? reason.message : String(reason)); });
     }, 3000);
     return () => window.clearInterval(timer);
-  }, [operation]);
+  }, [operation, t]);
 
   useEffect(() => {
     if (!operation || !isTerminal(operation.status)) return;
@@ -139,7 +144,7 @@ export function VideoReferenceTransformPanel() {
         {source?.publicUrl || source?.url ? (
           <video className="mt-3 aspect-video w-full rounded-xl bg-black object-contain" controls preload="metadata" src={source.publicUrl || source.url || ""} />
         ) : null}
-        {source && !providerMediaAvailable(source) ? <p className="mt-2 text-xs text-[#ffd08a]">{t("provider.mediaInputRequired")}</p> : null}
+        {source && !providerMediaAvailable(source) ? <p className="mt-2 text-xs text-[#ffd08a]">{t("provider.mediaInputUnavailable")}</p> : null}
       </label>
 
       <label className="block">
@@ -180,7 +185,7 @@ export function VideoReferenceTransformPanel() {
         <div className="rounded-[20px] border border-[#8fcbd4]/20 bg-[#8fcbd4]/[.06] p-4">
           <p className="text-xs font-black text-[#b8e7ee]">{tf("video.transform.operationStatus", { status: operation.status })}</p>
           {operation.resultUrl ? <a className="se-button-secondary mt-3 inline-flex rounded-full px-4 py-2 text-xs font-bold" href={operation.resultUrl} rel="noreferrer" target="_blank">{t("video.transform.openResult")}</a> : null}
-          {operation.errorMessage ? <p className="mt-2 text-xs text-red-200">{operation.errorMessage}</p> : null}
+          {operation.errorMessage ? <p className="mt-2 text-xs text-red-200">{operationErrorKey(operation) ? t(operationErrorKey(operation)!) : operation.errorMessage}</p> : null}
         </div>
       ) : null}
       {error ? <p className="rounded-xl border border-red-300/20 bg-red-400/10 p-3 text-xs text-red-100">{error}</p> : null}

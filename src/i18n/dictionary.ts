@@ -12,6 +12,7 @@ export const dictionary = {
   en: {
     "provider.mediaOwnershipMismatch": "This media was created under another Provider account. Upload it again or generate a new version before using it for AI editing.",
     "provider.mediaInputRequired": "This legacy asset has no reusable Provider media input. Upload it again or generate a new version before using it for AI editing.",
+    "provider.mediaInputUnavailable": "This video reference is unavailable. Generate or upload the source again before using it for AI editing.",
     ...productPhase2En,
     ...commercialLaunchEn,
     ...betaFeedbackEn,
@@ -2030,6 +2031,7 @@ export const dictionary = {
   },
   zh: {
     "provider.mediaInputRequired": "该旧版素材没有可复用的 Provider 媒体输入标识，请重新上传或重新生成后再用于 AI 编辑。",
+    "provider.mediaInputUnavailable": "该视频参考素材不可用，请重新生成或重新上传素材后再试。",
     "provider.mediaOwnershipMismatch": "该素材来自其他账号生成，需要重新上传或重新生成后才能用于当前 AI 编辑。",
     ...productPhase2Zh,
     ...commercialLaunchZh,

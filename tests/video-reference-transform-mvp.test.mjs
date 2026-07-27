@@ -19,9 +19,18 @@ test("Video Workspace exposes Video Reference Transform without replacing Create
 test("MVP accepts one owned Asset and no external URL field", () => {
   assert.match(panel, /listMediaAssets\(\{ type: "video", status: "ready"/);
   assert.match(panel, /sourceAssetId: source\.id/);
-  assert.match(panel, /providerMediaId\(source\)/);
+  assert.match(panel, /providerMediaInputId\(source\)/);
   assert.doesNotMatch(panel, /type="url"|externalUrl|sourceUrl/);
   assert.match(panel, /assets\.find\(\(asset\) => asset\.id === sourceAssetId\)/);
+});
+
+test("Transform only enables verified Provider media and renders a localized safe error", () => {
+  assert.match(panel, /providerMediaInputVerificationStatus/);
+  assert.match(panel, /=== "VERIFIED"/);
+  assert.match(panel, /provider\.mediaInputUnavailable/);
+  assert.match(dictionary, /This video reference is unavailable/);
+  assert.match(dictionary, /该视频参考素材不可用/);
+  assert.doesNotMatch(panel, />\{operation\.errorMessage\}<\/p>/);
 });
 
 test("Preview and Confirm use the dedicated controlled API", () => {
@@ -39,7 +48,7 @@ test("Operation and lineage contracts remain separate from Video Generate", () =
   for (const status of ["PENDING", "SUBMITTING", "SUBMITTED", "PROCESSING", "COMPLETED", "FAILED", "UNCERTAIN"]) {
     assert.match(types, new RegExp(`"${status}"`));
   }
-  for (const field of ["sourceAssetId", "sourceJobId", "operationId", "providerMediaId", "providerJobId", "resultAssetId", "promptSnapshot", "paramsSnapshot"]) {
+  for (const field of ["sourceAssetId", "sourceJobId", "operationId", "providerMediaInputId", "providerJobId", "resultAssetId", "promptSnapshot", "paramsSnapshot"]) {
     assert.match(types, new RegExp(field));
   }
 });
