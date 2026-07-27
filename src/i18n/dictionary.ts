@@ -10,6 +10,7 @@ export type Locale = "en" | "zh";
 // until the UI is migrated to a nested i18n dictionary in F6.
 export const dictionary = {
   en: {
+    "provider.mediaOwnershipMismatch": "This media was created under another Provider account. Upload it again or generate a new version before using it for AI editing.",
     ...productPhase2En,
     ...commercialLaunchEn,
     ...betaFeedbackEn,
@@ -2027,6 +2028,7 @@ export const dictionary = {
     "image.errors.withDetails": "{message}: {details}",
   },
   zh: {
+    "provider.mediaOwnershipMismatch": "该素材来自其他账号生成，需要重新上传或重新生成后才能用于当前 AI 编辑。",
     ...productPhase2Zh,
     ...commercialLaunchZh,
     ...betaFeedbackZh,

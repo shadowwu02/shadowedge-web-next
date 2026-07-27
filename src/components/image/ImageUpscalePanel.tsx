@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useI18n } from "@/i18n/useI18n";
 import { confirmImageUpscale, createImageUpscalePreview, getImageUpscaleHistory, getImageUpscaleStatus } from "@/lib/image-upscale-api";
 import type { ImageUpscaleJob, ImageUpscalePreview, ImageUpscaleSource } from "@/types/image-upscale";
+import { providerMediaErrorKey } from "@/lib/provider-media-error";
 
 function dimensions(width?: number | null, height?: number | null) {
   return width && height ? `${width} × ${height}` : "—";
@@ -34,10 +35,10 @@ export function ImageUpscalePanel({ source, onClose }: { source: ImageUpscaleSou
     let active = true;
     void createImageUpscalePreview(source, scale)
       .then((next) => { if (active) setPreview(next); })
-      .catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : String(reason)); })
+      .catch((reason) => { if (active) { const key = providerMediaErrorKey(reason); setError(key ? t(key) : reason instanceof Error ? reason.message : String(reason)); } })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [scale, source]);
+  }, [scale, source, t]);
 
   const changeScale = (nextScale: 2 | 4) => {
     setLoading(true);
@@ -72,7 +73,8 @@ export function ImageUpscalePanel({ source, onClose }: { source: ImageUpscaleSou
     try {
       setJob(await confirmImageUpscale(preview.previewId));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      const key = providerMediaErrorKey(reason);
+      setError(key ? t(key) : reason instanceof Error ? reason.message : String(reason));
     } finally {
       setConfirming(false);
     }

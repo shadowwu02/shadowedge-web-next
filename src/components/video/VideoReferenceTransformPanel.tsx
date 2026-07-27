@@ -9,6 +9,7 @@ import {
   getVideoReferenceTransformStatus,
 } from "@/lib/video-reference-transform-api";
 import { useI18n } from "@/i18n/useI18n";
+import { providerMediaErrorKey } from "@/lib/provider-media-error";
 import type {
   VideoReferenceTransformOperation,
   VideoReferenceTransformParams,
@@ -30,6 +31,10 @@ function providerMediaId(asset: MediaAssetRecord | undefined) {
     metadata.providerMediaId || metadata.higgsfieldMediaId || metadata.provider_media_id || metadata.higgsfield_media_id || metadata.providerJobId || "",
   ).trim();
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidate) ? candidate : "";
+}
+
+function providerMediaAvailable(asset: MediaAssetRecord | undefined) {
+  return Boolean(providerMediaId(asset)) && asset?.metadata?.providerBindingStatus === "AVAILABLE";
 }
 
 function isTerminal(status?: string) {
@@ -59,10 +64,10 @@ export function VideoReferenceTransformPanel() {
         setHistory(historyItems);
         setSourceAssetId((current) => current || assetResult.assets[0]?.id || "");
       })
-      .catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : String(reason)); })
+      .catch((reason) => { if (active) { const key = providerMediaErrorKey(reason); setError(key ? t(key) : reason instanceof Error ? reason.message : String(reason)); } })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!operation || isTerminal(operation.status)) return;
@@ -93,7 +98,8 @@ export function VideoReferenceTransformPanel() {
         params,
       }));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      const key = providerMediaErrorKey(reason);
+      setError(key ? t(key) : reason instanceof Error ? reason.message : String(reason));
     } finally { setWorking(false); }
   };
 
@@ -102,7 +108,7 @@ export function VideoReferenceTransformPanel() {
     setWorking(true);
     setError("");
     try { setOperation(await confirmVideoReferenceTransform(preview.previewId)); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    catch (reason) { const key = providerMediaErrorKey(reason); setError(key ? t(key) : reason instanceof Error ? reason.message : String(reason)); }
     finally { setWorking(false); }
   };
 
@@ -124,7 +130,7 @@ export function VideoReferenceTransformPanel() {
         {source?.publicUrl || source?.url ? (
           <video className="mt-3 aspect-video w-full rounded-xl bg-black object-contain" controls preload="metadata" src={source.publicUrl || source.url || ""} />
         ) : null}
-        {source && !providerMediaId(source) ? <p className="mt-2 text-xs text-[#ffd08a]">{t("video.transform.providerMediaMissing")}</p> : null}
+        {source && !providerMediaAvailable(source) ? <p className="mt-2 text-xs text-[#ffd08a]">{t("provider.mediaOwnershipMismatch")}</p> : null}
       </label>
 
       <label className="block">
@@ -143,7 +149,7 @@ export function VideoReferenceTransformPanel() {
         {t("video.transform.generateAudio")}
       </label>
 
-      <button className="se-button-secondary w-full rounded-full px-4 py-3 text-sm font-black disabled:opacity-40" disabled={working || !source || !prompt.trim() || !providerMediaId(source)} onClick={() => void buildPreview()} type="button">
+      <button className="se-button-secondary w-full rounded-full px-4 py-3 text-sm font-black disabled:opacity-40" disabled={working || !source || !prompt.trim() || !providerMediaAvailable(source)} onClick={() => void buildPreview()} type="button">
         {working && !preview ? t("video.transform.preparing") : t("video.transform.preview")}
       </button>
 
