@@ -13,6 +13,7 @@ import { ReferenceMediaTray } from "@/components/video/ReferenceMediaTray";
 import { UploadBox } from "@/components/video/UploadBox";
 import { VideoGenerationStream, type VideoHistoryFilter } from "@/components/video/VideoGenerationStream";
 import { VideoHowItWorks } from "@/components/video/VideoHowItWorks";
+import { VideoReferenceTransformPanel } from "@/components/video/VideoReferenceTransformPanel";
 import { type VideoParams, VideoParamsPanel } from "@/components/video/VideoParamsPanel";
 import { RemakeStoryboardPanel, type RemakeOutputItem, type RemakeOutputScope } from "@/components/video/remake/RemakeStoryboardPanel";
 import { VideoRemakeWorkspace } from "@/components/video/remake/VideoRemakeWorkspace";
@@ -540,8 +541,8 @@ function waitForLongVideoPollDelay(ms: number) {
 }
 
 type MainPanel = "history" | "guide";
-type WorkspaceMode = "create" | "edit" | "motion" | "remake";
-type VideoWorkspaceTabQuery = "create" | "history" | "remake";
+type WorkspaceMode = "create" | "transform" | "edit" | "motion" | "remake";
+type VideoWorkspaceTabQuery = "create" | "history" | "remake" | "transform";
 type RemakeShotQueueMeta = {
   queueIndex?: number;
   queueMode?: RemakeShotQueueMode;
@@ -608,7 +609,7 @@ function createRemakeRetryQueueRunId() {
 
 function getVideoWorkspaceTabQuery(value: string | null): VideoWorkspaceTabQuery | null {
   const normalized = String(value || "").trim().toLowerCase();
-  if (normalized === "create" || normalized === "history" || normalized === "remake") return normalized;
+  if (normalized === "create" || normalized === "history" || normalized === "remake" || normalized === "transform") return normalized;
   return null;
 }
 
@@ -1190,7 +1191,7 @@ export function VideoWorkspace() {
   const [draftReady, setDraftReady] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<VideoHistoryFilter>("all");
   const [mainPanel, setMainPanel] = useState<MainPanel>("history");
-  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>(tabQuery === "remake" ? "remake" : "create");
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>(tabQuery === "remake" ? "remake" : tabQuery === "transform" ? "transform" : "create");
   const [remakeMode, setRemakeMode] = useState<RemakeMode>("single_clip");
   const [remakeSourceVideo, setRemakeSourceVideo] = useState<RemakeSourceVideo | null>(null);
   const [remakeTargetRegion, setRemakeTargetRegion] = useState<RemakeTargetRegion>("US");
@@ -1469,6 +1470,10 @@ export function VideoWorkspace() {
     const timer = window.setTimeout(() => {
       if (tabQuery === "remake") {
         setWorkspaceMode("remake");
+        return;
+      }
+      if (tabQuery === "transform") {
+        setWorkspaceMode("transform");
         return;
       }
 
@@ -3812,6 +3817,7 @@ export function VideoWorkspace() {
     preview?: boolean;
   }> = [
     { key: "create", label: t("video.workspace.createVideo") },
+    { key: "transform", label: t("video.transform.title") },
     { key: "edit", label: t("video.workspace.editVideo"), preview: true },
     { key: "motion", label: t("video.workspace.motionControl"), preview: true },
     { key: "remake", label: t("video.remake.tab") },
@@ -3980,6 +3986,8 @@ export function VideoWorkspace() {
                 {t("video.workspace.backToCreate")}
               </button>
             </section>
+          ) : workspaceMode === "transform" ? (
+            <VideoReferenceTransformPanel />
           ) : workspaceMode === "remake" ? (
             <VideoRemakeWorkspace
               analysisError={remakeAnalysisError}
@@ -4147,7 +4155,7 @@ export function VideoWorkspace() {
           <ErrorState message={displayNotice} />
         </div>
 
-        {workspaceMode === "remake" ? null : (
+        {workspaceMode !== "create" ? null : (
           <div className="shrink-0 border-t border-[rgba(244,244,244,0.08)] p-3.5">
             {visibleActiveTaskCount > 0 ? (
               <p className="mb-2 text-xs font-semibold text-[#b9b9b9]/64">{concurrencyLabel}</p>
