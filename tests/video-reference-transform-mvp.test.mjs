@@ -61,3 +61,22 @@ test("Video Reference Transform copy is bilingual", () => {
   assert.match(dictionary, /"video\.transform\.title": "Video Reference Transform"/);
   assert.match(dictionary, /"video\.transform\.title": "视频参考转换"/);
 });
+
+test("Video Reference Transform Beta explains the safe user boundary", () => {
+  assert.match(panel, /data-testid="video-reference-transform-beta"/);
+  assert.match(panel, /data-testid="video-reference-transform-safety"/);
+  for (const key of [
+    "video.transform.betaBadge",
+    "video.transform.betaDescription",
+    "video.transform.safetyNoOverwrite",
+    "video.transform.safetyNewAsset",
+    "video.transform.safetyPreview",
+    "video.transform.safetyConfirm",
+  ]) assert.match(panel, new RegExp(key.replaceAll(".", "\\.")));
+  assert.match(dictionary, /Create new video variations using an existing video as reference\./);
+  assert.match(dictionary, /Your original video is never overwritten\./);
+  assert.match(dictionary, /Credits are used only after Confirm\./);
+  assert.match(dictionary, /使用已有视频作为参考生成新的创作版本。/);
+  assert.match(dictionary, /原视频不会被覆盖。/);
+  assert.match(dictionary, /确认后才会消耗积分。/);
+});

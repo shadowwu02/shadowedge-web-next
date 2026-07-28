@@ -129,9 +129,24 @@ export function VideoReferenceTransformPanel() {
   return (
     <section className="space-y-4" data-testid="video-reference-transform-panel">
       <div className="rounded-[24px] border border-[#8fcbd4]/20 bg-[#8fcbd4]/[.06] p-4">
-        <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#b8e7ee]">{t("video.transform.eyebrow")}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#b8e7ee]">{t("video.transform.eyebrow")}</p>
+          <span className="rounded-full border border-[#ffb44d]/35 bg-[#ffb44d]/12 px-2 py-1 text-[9px] font-black uppercase tracking-[.14em] text-[#ffd08a]" data-testid="video-reference-transform-beta">
+            {t("video.transform.betaBadge")}
+          </span>
+        </div>
         <h2 className="mt-2 text-xl font-black text-white">{t("video.transform.title")}</h2>
-        <p className="mt-2 text-xs leading-5 text-white/55">{t("video.transform.description")}</p>
+        <p className="mt-2 text-sm font-semibold leading-6 text-white/78">{t("video.transform.betaDescription")}</p>
+        <p className="mt-1 text-xs leading-5 text-white/50">{t("video.transform.description")}</p>
+        <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-3" data-testid="video-reference-transform-safety">
+          <p className="text-[10px] font-black uppercase tracking-[.14em] text-white/45">{t("video.transform.safetyTitle")}</p>
+          <ul className="mt-2 grid gap-2 text-xs leading-5 text-white/62 sm:grid-cols-2">
+            <li>{t("video.transform.safetyNoOverwrite")}</li>
+            <li>{t("video.transform.safetyNewAsset")}</li>
+            <li>{t("video.transform.safetyPreview")}</li>
+            <li>{t("video.transform.safetyConfirm")}</li>
+          </ul>
+        </div>
       </div>
 
       <label className="block rounded-[20px] border border-white/10 bg-white/[.03] p-3">
