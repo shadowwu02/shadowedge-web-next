@@ -44,3 +44,13 @@ test("resolution UI remains capability-driven instead of hard-coded", () => {
   assert.match(rules, /pickResolutionOptions/);
   assert.doesNotMatch(panel, /\[\s*["']1k["']\s*,\s*["']2k["']\s*,\s*["']4k["']\s*\]/i);
 });
+
+test("Image detail separates requested tier from actual materialized dimensions", () => {
+  const detail = source("src", "components", "image", "ImageOutputDetailPanel.tsx");
+  assert.match(detail, /requestedSize/);
+  assert.match(detail, /actualWidth/);
+  assert.match(detail, /actualHeight/);
+  assert.match(detail, /actualSizeBytes/);
+  assert.match(detail, /image\.detail\.requestedSize/);
+  assert.match(detail, /image\.detail\.actualSize/);
+});

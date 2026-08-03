@@ -54,6 +54,22 @@ function DetailRow({ label, value }: { label: string; value?: string | number })
   );
 }
 
+function readMetaString(meta: Record<string, unknown> | undefined, key: string) {
+  const value = meta?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function readMetaNumber(meta: Record<string, unknown> | undefined, key: string) {
+  const value = Number(meta?.[key]);
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function formatFileSize(bytes: number) {
+  if (!bytes) return "--";
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
 export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }) {
   const { locale, t, tf } = useI18n();
 
@@ -75,6 +91,12 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
   const isFailed = isImageFailedStatus(status);
   const isCompleted = isImageCompletedStatus(status);
   const chargedCredits = job.cost || job.creditsCharged || 0;
+  const requestedSize = readMetaString(job.meta, "requestedSize");
+  const actualWidth = readMetaNumber(job.meta, "actualWidth");
+  const actualHeight = readMetaNumber(job.meta, "actualHeight");
+  const actualSizeBytes = readMetaNumber(job.meta, "actualSizeBytes") || readMetaNumber(job.meta, "sizeBytes");
+  const requestedResolution = [job.resolution ? job.resolution.toUpperCase() : "", requestedSize].filter(Boolean).join(" · ") || "--";
+  const actualResolution = actualWidth && actualHeight ? `${actualWidth} × ${actualHeight}` : "--";
   const modelLogoLookup = getImageHistoryModelLogoLookup(job);
   const failureDisplay = getImageUserFacingErrorDisplay(job.errorMessage, t, {
     classificationMessage: job.errorClassificationMessage,
@@ -122,7 +144,9 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
           <DetailRow label={t("image.detail.status")} value={statusLabel} />
           <DetailRow label={t("image.detail.created")} value={formatTime(job.createdAt)} />
           <DetailRow label={t("image.detail.ratio")} value={job.ratio || "auto"} />
-          <DetailRow label={t("image.detail.resolution")} value={job.resolution || job.quality || "--"} />
+          <DetailRow label={t("image.detail.requestedSize")} value={requestedResolution} />
+          <DetailRow label={t("image.detail.actualSize")} value={actualResolution} />
+          <DetailRow label={t("image.detail.fileSize")} value={formatFileSize(actualSizeBytes)} />
           <DetailRow label={t("image.detail.batch")} value={job.batchCount} />
           <DetailRow label={t("image.detail.cost")} value={chargedCredits ? tf("image.failure.cost", { credits: chargedCredits }) : "--"} />
           <DetailRow label={t("image.detail.references")} value={job.referenceCount} />
