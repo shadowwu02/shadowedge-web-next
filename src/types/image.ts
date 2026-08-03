@@ -15,6 +15,7 @@ export type ImageJobStatusValue =
   | "error"
   | "canceled"
   | "cancelled"
+  | "uncertain"
   | "unknown";
 
 export type ImageCreditRules = {
@@ -111,6 +112,10 @@ export type ImageGenerateResponse = {
   cost: number;
   creditsBalance?: number;
   estimatedOutputCount: number;
+  outputUrl: string;
+  outputUrls: string[];
+  asyncRuntime?: string;
+  outboxId?: string;
   params: ImageGenerationParams;
   raw?: unknown;
 };

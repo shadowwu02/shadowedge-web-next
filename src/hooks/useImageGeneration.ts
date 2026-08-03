@@ -82,6 +82,8 @@ function buildCurrentJobFromGenerateResponse(response: Awaited<ReturnType<typeof
     batchCount: response.params.batchCount,
     cost: response.cost,
     creditsCharged: response.cost,
+    outputUrl: response.outputUrl,
+    outputUrls: response.outputUrls,
     createdAt: Date.now(),
     updatedAt: Date.now(),
     meta: {
@@ -90,6 +92,8 @@ function buildCurrentJobFromGenerateResponse(response: Awaited<ReturnType<typeof
       resolution: response.params.resolution,
       quality: response.params.quality,
       batchCount: response.params.batchCount,
+      asyncRuntime: response.asyncRuntime,
+      outboxId: response.outboxId,
     },
   });
 }

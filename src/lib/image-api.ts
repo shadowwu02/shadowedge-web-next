@@ -83,6 +83,10 @@ function normalizeGenerateResponse(payload: unknown): ImageGenerateResponse {
   const data = asRecord(payload);
   const params = asRecord(data.params);
   const jobId = pickString(data.jobId, data.dbJobId, data.id);
+  const outputUrls = pickArray(data.outputUrls, data.output_urls)
+    .map((value) => typeof value === "string" ? value.trim() : "")
+    .filter(Boolean);
+  const outputUrl = pickString(data.outputUrl, data.output_url, outputUrls[0]) || "";
 
   if (!jobId) {
     throw new Error("Image generate API returned no jobId.");
@@ -98,6 +102,10 @@ function normalizeGenerateResponse(payload: unknown): ImageGenerateResponse {
     cost: Number(data.cost || data.creditsCharged || 0) || 0,
     creditsBalance: Number(data.creditsBalance || 0) || undefined,
     estimatedOutputCount: Number(data.estimatedOutputCount || data.batchCount || 1) || 1,
+    outputUrl,
+    outputUrls: Array.from(new Set([outputUrl, ...outputUrls].filter(Boolean))),
+    asyncRuntime: pickString(data.asyncRuntime, data.async_runtime),
+    outboxId: pickString(data.outboxId, data.outbox_id),
     params: {
       ratio: String(params.ratio || data.ratio || ""),
       resolution: String(params.resolution || data.resolution || ""),
