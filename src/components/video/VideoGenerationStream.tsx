@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { SaveToAssetsButton } from "@/components/assets/SaveToAssetsButton";
 import { VideoOutputDetailPanel } from "@/components/video/VideoOutputDetailPanel";
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
@@ -197,6 +197,8 @@ function VideoGenerationCard({
 }) {
   const { locale, t, tf } = useI18n();
   const view = getSafeVideoHistoryView(record);
+  const [failedPlaybackUrl, setFailedPlaybackUrl] = useState("");
+  const playbackFailed = Boolean(view.outputUrl) && failedPlaybackUrl === view.outputUrl;
   const hasOutput = Boolean(view.outputUrl);
   const isSuccess = isVideoCompletedStatus(view.status) && hasOutput;
   const isFailed = isVideoFailedStatus(view.status);
@@ -247,9 +249,15 @@ function VideoGenerationCard({
         </div>
 
         <div className="relative grid min-h-[460px] place-items-center overflow-hidden rounded-[28px] border border-[rgba(244,244,244,0.08)] bg-[#05070b] shadow-inner shadow-black/35 transition-colors xl:min-h-[520px] 2xl:min-h-[600px]">
-          {view.outputUrl ? (
+          {view.outputUrl && !playbackFailed ? (
             <>
-              <video className="max-h-[74vh] min-h-[460px] w-full object-contain xl:min-h-[520px] 2xl:min-h-[600px]" controls playsInline src={view.outputUrl} />
+              <video
+                className="max-h-[74vh] min-h-[460px] w-full object-contain xl:min-h-[520px] 2xl:min-h-[600px]"
+                controls
+                onError={() => setFailedPlaybackUrl(view.outputUrl)}
+                playsInline
+                src={view.outputUrl}
+              />
               <div className="absolute right-4 top-4 flex flex-col gap-2 opacity-0 transition group-hover:opacity-100">
                 {onUseResultAsReference ? (
                   <button
@@ -294,6 +302,17 @@ function VideoGenerationCard({
                 </a>
               </div>
             </>
+          ) : playbackFailed ? (
+            <div className="grid min-h-[460px] w-full place-items-center bg-[#05070b] px-6 text-center xl:min-h-[520px] 2xl:min-h-[600px]">
+              <div className="max-w-lg">
+                <div className="mx-auto mb-4 grid size-14 place-items-center rounded-[20px] border border-[#8c4632]/42 bg-[#2a1012] text-xl font-semibold text-[#f2b3a1]">!</div>
+                <p className="text-lg font-semibold text-[#f2b3a1]">{t("video.result.playbackFailedTitle")}</p>
+                <p className="mt-2 text-sm leading-6 text-[#f2b3a1]/62">{t("video.result.playbackFailedBody")}</p>
+                <button className={`${outputActionClass("primary")} mt-5`} onClick={() => setFailedPlaybackUrl("")} type="button">
+                  {t("video.result.retryPlayback")}
+                </button>
+              </div>
+            </div>
           ) : view.thumbnailUrl && !isFailed && !isStaleActive ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img alt="" className="max-h-[74vh] min-h-[460px] w-full object-contain xl:min-h-[520px] 2xl:min-h-[600px]" src={view.thumbnailUrl} />
