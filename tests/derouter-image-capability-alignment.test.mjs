@@ -36,7 +36,11 @@ test("batch UI is rendered only when Provider capability supports more than one 
 
 test("resolution UI remains capability-driven instead of hard-coded", () => {
   const panel = source("src", "components", "image", "ImagePromptPanel.tsx");
+  const rules = source("src", "lib", "image", "imageModelRules.ts");
   assert.match(panel, /selectedModel\?\.capabilities\.resolutions/);
+  assert.match(panel, /selectedModel\?\.capabilities\.resolutionOptions/);
   assert.match(panel, /resolutions\.map\(\(resolution\)/);
+  assert.match(panel, /resolutionLabel\(resolution\)/);
+  assert.match(rules, /pickResolutionOptions/);
   assert.doesNotMatch(panel, /\[\s*["']1k["']\s*,\s*["']2k["']\s*,\s*["']4k["']\s*\]/i);
 });

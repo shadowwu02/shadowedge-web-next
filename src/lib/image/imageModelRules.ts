@@ -38,6 +38,16 @@ function pickArray(value: unknown) {
   return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
 }
 
+function pickResolutionOptions(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.map(asRecord).map((entry) => ({
+    id: String(entry.id || ""),
+    label: String(entry.label || entry.id || ""),
+    providerSize: String(entry.providerSize || entry.provider_size || ""),
+    costTier: String(entry.costTier || entry.cost_tier || ""),
+  })).filter((entry) => entry.id && entry.providerSize);
+}
+
 function pickBoolean(value: unknown, fallback = false) {
   return typeof value === "boolean" ? value : fallback;
 }
@@ -78,6 +88,7 @@ export function normalizeImageModel(rawModel: unknown): ImageModel {
       maxBatchCount,
       ratios: pickArray(capabilities.ratios ?? raw.ratios),
       resolutions: pickArray(capabilities.resolutions ?? raw.resolutions),
+      resolutionOptions: pickResolutionOptions(capabilities.resolutionOptions ?? raw.resolutionOptions),
       qualities: pickArray(capabilities.qualities ?? raw.qualities),
       supportsSeed: pickBoolean(capabilities.supportsSeed ?? raw.supportsSeed, false),
     },

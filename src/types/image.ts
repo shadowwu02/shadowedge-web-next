@@ -27,6 +27,13 @@ export type ImageCreditRules = {
   qualityCredits?: Record<string, number>;
 };
 
+export type ImageResolutionCapability = {
+  id: string;
+  label: string;
+  providerSize: string;
+  costTier: string;
+};
+
 export type ImageModelCapabilities = {
   textToImage: boolean;
   imageToImage: boolean;
@@ -34,6 +41,7 @@ export type ImageModelCapabilities = {
   maxBatchCount: number;
   ratios: string[];
   resolutions: string[];
+  resolutionOptions?: ImageResolutionCapability[];
   qualities: string[];
   supportsSeed?: boolean;
 };

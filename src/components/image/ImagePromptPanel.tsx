@@ -68,6 +68,7 @@ export function ImagePromptPanel({
   const isZh = getPromptStudioDraftLocale(locale) === "zh";
   const ratios = selectedModel?.capabilities.ratios || [];
   const resolutions = selectedModel?.capabilities.resolutions || [];
+  const resolutionOptions = selectedModel?.capabilities.resolutionOptions || [];
   const qualities = selectedModel?.capabilities.qualities || [];
   const maxBatchCount = selectedModel?.capabilities.maxBatchCount || 1;
   const hasUploadingReferences = references.some((reference) => reference.uploadStatus === "uploading");
@@ -78,6 +79,8 @@ export function ImagePromptPanel({
   const hasExistingDraft = hasPrompt || references.length > 0;
   const disabled = isGenerating || loadingModels || hasUploadingReferences || isPolling || isActiveJob || !hasPrompt || isPromptTooLong;
   const optionLabel = (value: string) => value || t("image.params.default");
+  const resolutionLabel = (value: string) =>
+    resolutionOptions.find((option) => option.id.toLowerCase() === value.toLowerCase())?.label || optionLabel(value);
   const generateLabel = hasUploadingReferences
     ? t("image.workspace.uploadingReferences")
     : isGenerating
@@ -242,7 +245,7 @@ export function ImagePromptPanel({
                 >
                   {resolutions.map((resolution) => (
                     <option key={resolution} value={resolution}>
-                      {optionLabel(resolution)}
+                      {resolutionLabel(resolution)}
                     </option>
                   ))}
                 </select>
