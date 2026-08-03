@@ -27,5 +27,7 @@ test("Image hook retains create outputs and polls processing jobs", () => {
   assert.match(hook, /isImageActiveStatus\(currentJob\.status\)/);
   assert.match(hook, /const status = await refreshStatus\(jobId\)/);
   assert.match(history, /"processing"/);
+  assert.match(history, /"materialization_pending"/);
+  assert.match(fs.readFileSync(path.join(root, "src", "types", "image.ts"), "utf8"), /"materialization_pending"/);
   assert.match(history, /const completedStatuses = new Set\(\["completed"/);
 });

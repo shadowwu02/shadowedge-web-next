@@ -5,6 +5,7 @@ export type ImageJobStatusValue =
   | "submitted"
   | "submitting"
   | "processing"
+  | "materialization_pending"
   | "running"
   | "generating"
   | "completed"
