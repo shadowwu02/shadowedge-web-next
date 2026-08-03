@@ -1,6 +1,8 @@
 import {
   buildMediaAwarePrompt,
+  findPromptMentions,
   getReadyMentionableMediaItems,
+  getReferencePromptBindings,
   toGenerationMediaList,
 } from "@/lib/video-mentions";
 import { estimateVideoCreditsForParams } from "@/lib/video/videoModelRules";
@@ -32,7 +34,17 @@ export function buildVideoGenerationRequest(
   options: BuildVideoGenerationRequestInput,
 ): VideoGenerationRequest {
   const mentionMediaItems = getReadyMentionableMediaItems(options.media);
-  const mediaList = toGenerationMediaList(mentionMediaItems);
+  const mentionBindings = sanitizeVideoMentionBindings(
+    options.prompt,
+    serializeMentionBindings(options.mentionBindings || []),
+    options.media,
+  ).mentionBindings;
+  // Reference transport is opt-in: ready attachments are sent only when the
+  // prompt explicitly binds them through @Image/@Video/@Audio mentions.
+  const referencedMediaItems = findPromptMentions(options.prompt).length
+    ? getReferencePromptBindings(options.prompt, mentionMediaItems, mentionBindings)
+    : [];
+  const mediaList = toGenerationMediaList(referencedMediaItems);
   const images = mediaList
     .filter((item) => item.type === "image")
     .map((item) => item.url);
@@ -42,14 +54,9 @@ export function buildVideoGenerationRequest(
   const audios = mediaList
     .filter((item) => item.type === "audio")
     .map((item) => item.url);
-  const mentionBindings = sanitizeVideoMentionBindings(
-    options.prompt,
-    serializeMentionBindings(options.mentionBindings || []),
-    options.media,
-  ).mentionBindings;
   const enhancedPrompt = buildMediaAwarePrompt(
     options.prompt,
-    mentionMediaItems,
+    referencedMediaItems,
     mentionBindings,
     { aspectRatio: options.ratio },
   );
