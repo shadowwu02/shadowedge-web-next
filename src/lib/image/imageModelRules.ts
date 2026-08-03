@@ -109,8 +109,8 @@ export function getImageModelById(models: ImageModel[], modelId?: string) {
 }
 
 function normalizeOption(value: unknown, allowed: string[], fallback: string) {
+  if (!allowed.length) return "";
   const raw = String(value || fallback || "").trim();
-  if (!allowed.length) return raw;
   const lower = raw.toLowerCase();
   return allowed.find((item) => item.toLowerCase() === lower) || fallback || allowed[0] || "";
 }
@@ -121,7 +121,7 @@ export function getDefaultImageParams(model: ImageModel): ImageGenerationParams 
   const qualities = model.capabilities.qualities;
 
   return {
-    ratio: normalizeOption(model.defaults.ratio, ratios, ratios[0] || "auto"),
+    ratio: normalizeOption(model.defaults.ratio, ratios, ratios[0] || ""),
     resolution: normalizeOption(model.defaults.resolution, resolutions, resolutions[0] || ""),
     quality: normalizeOption(model.defaults.quality, qualities, qualities[0] || ""),
     batchCount: Math.max(1, Math.min(model.capabilities.maxBatchCount || 1, Number(model.defaults.batchCount || 1))),

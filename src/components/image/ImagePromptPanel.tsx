@@ -209,23 +209,25 @@ export function ImagePromptPanel({
           </div>
 
           <div className="grid gap-2">
-            <label className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
-              <span className="flex items-center justify-between gap-2">
-                {t("image.params.ratio")}
-                <span className="text-[10px] font-medium text-[#b9b9b9]/38">{ratios.length ? tf("image.params.options", { count: ratios.length }) : t("image.params.default")}</span>
-              </span>
-              <select
-                className="se-control h-10 rounded-[15px] px-3 text-sm text-[#f4f4f4] outline-none"
-                onChange={(event) => onUpdateParams({ ratio: event.target.value })}
-                value={params.ratio}
-              >
-                {(ratios.length ? ratios : [params.ratio]).map((ratio) => (
-                  <option key={ratio} value={ratio}>
-                    {optionLabel(ratio)}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {ratios.length ? (
+              <label className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
+                <span className="flex items-center justify-between gap-2">
+                  {t("image.params.ratio")}
+                  <span className="text-[10px] font-medium text-[#b9b9b9]/38">{tf("image.params.options", { count: ratios.length })}</span>
+                </span>
+                <select
+                  className="se-control h-10 rounded-[15px] px-3 text-sm text-[#f4f4f4] outline-none"
+                  onChange={(event) => onUpdateParams({ ratio: event.target.value })}
+                  value={params.ratio}
+                >
+                  {ratios.map((ratio) => (
+                    <option key={ratio} value={ratio}>
+                      {optionLabel(ratio)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
 
             {resolutions.length ? (
               <label className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
