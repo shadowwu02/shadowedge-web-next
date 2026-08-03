@@ -91,11 +91,11 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
   const isFailed = isImageFailedStatus(status);
   const isCompleted = isImageCompletedStatus(status);
   const chargedCredits = job.cost || job.creditsCharged || 0;
-  const requestedSize = readMetaString(job.meta, "requestedSize");
+  const resolutionTier = readMetaString(job.meta, "resolutionTier") || job.resolution;
   const actualWidth = readMetaNumber(job.meta, "actualWidth");
   const actualHeight = readMetaNumber(job.meta, "actualHeight");
   const actualSizeBytes = readMetaNumber(job.meta, "actualSizeBytes") || readMetaNumber(job.meta, "sizeBytes");
-  const requestedResolution = [job.resolution ? job.resolution.toUpperCase() : "", requestedSize].filter(Boolean).join(" · ") || "--";
+  const requestedTier = resolutionTier ? resolutionTier.toUpperCase() : "--";
   const actualResolution = actualWidth && actualHeight ? `${actualWidth} × ${actualHeight}` : "--";
   const modelLogoLookup = getImageHistoryModelLogoLookup(job);
   const failureDisplay = getImageUserFacingErrorDisplay(job.errorMessage, t, {
@@ -144,7 +144,7 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
           <DetailRow label={t("image.detail.status")} value={statusLabel} />
           <DetailRow label={t("image.detail.created")} value={formatTime(job.createdAt)} />
           <DetailRow label={t("image.detail.ratio")} value={job.ratio || "auto"} />
-          <DetailRow label={t("image.detail.requestedSize")} value={requestedResolution} />
+          <DetailRow label={t("image.detail.requestedTier")} value={requestedTier} />
           <DetailRow label={t("image.detail.actualSize")} value={actualResolution} />
           <DetailRow label={t("image.detail.fileSize")} value={formatFileSize(actualSizeBytes)} />
           <DetailRow label={t("image.detail.batch")} value={job.batchCount} />

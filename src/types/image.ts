@@ -42,6 +42,8 @@ export type ImageModelCapabilities = {
   ratios: string[];
   resolutions: string[];
   resolutionOptions?: ImageResolutionCapability[];
+  resolutionSemantics?: "exact_pixels" | "generation_cost_tier" | string;
+  exactPixelsGuaranteed?: boolean;
   qualities: string[];
   supportsSeed?: boolean;
 };

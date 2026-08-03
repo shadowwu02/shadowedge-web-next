@@ -89,6 +89,8 @@ export function normalizeImageModel(rawModel: unknown): ImageModel {
       ratios: pickArray(capabilities.ratios ?? raw.ratios),
       resolutions: pickArray(capabilities.resolutions ?? raw.resolutions),
       resolutionOptions: pickResolutionOptions(capabilities.resolutionOptions ?? raw.resolutionOptions),
+      resolutionSemantics: String(capabilities.resolutionSemantics ?? raw.resolutionSemantics ?? "exact_pixels"),
+      exactPixelsGuaranteed: pickBoolean(capabilities.exactPixelsGuaranteed ?? raw.exactPixelsGuaranteed, true),
       qualities: pickArray(capabilities.qualities ?? raw.qualities),
       supportsSeed: pickBoolean(capabilities.supportsSeed ?? raw.supportsSeed, false),
     },

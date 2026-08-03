@@ -69,6 +69,8 @@ export function ImagePromptPanel({
   const ratios = selectedModel?.capabilities.ratios || [];
   const resolutions = selectedModel?.capabilities.resolutions || [];
   const resolutionOptions = selectedModel?.capabilities.resolutionOptions || [];
+  const usesGenerationTiers = selectedModel?.capabilities.resolutionSemantics === "generation_cost_tier" ||
+    selectedModel?.capabilities.exactPixelsGuaranteed === false;
   const qualities = selectedModel?.capabilities.qualities || [];
   const maxBatchCount = selectedModel?.capabilities.maxBatchCount || 1;
   const hasUploadingReferences = references.some((reference) => reference.uploadStatus === "uploading");
@@ -79,8 +81,9 @@ export function ImagePromptPanel({
   const hasExistingDraft = hasPrompt || references.length > 0;
   const disabled = isGenerating || loadingModels || hasUploadingReferences || isPolling || isActiveJob || !hasPrompt || isPromptTooLong;
   const optionLabel = (value: string) => value || t("image.params.default");
-  const resolutionLabel = (value: string) =>
-    resolutionOptions.find((option) => option.id.toLowerCase() === value.toLowerCase())?.label || optionLabel(value);
+  const resolutionLabel = (value: string) => usesGenerationTiers
+    ? value.toUpperCase()
+    : resolutionOptions.find((option) => option.id.toLowerCase() === value.toLowerCase())?.label || optionLabel(value);
   const generateLabel = hasUploadingReferences
     ? t("image.workspace.uploadingReferences")
     : isGenerating
@@ -235,7 +238,7 @@ export function ImagePromptPanel({
             {resolutions.length ? (
               <label className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
                 <span className="flex items-center justify-between gap-2">
-                  {t("image.params.resolution")}
+                  {t(usesGenerationTiers ? "image.params.generationTier" : "image.params.resolution")}
                   <span className="text-[10px] font-medium text-[#b9b9b9]/38">{resolutions.join(" / ")}</span>
                 </span>
                 <select
@@ -249,6 +252,9 @@ export function ImagePromptPanel({
                     </option>
                   ))}
                 </select>
+                {usesGenerationTiers ? (
+                  <span className="text-[10px] font-medium leading-4 text-[#b9b9b9]/42">{t("image.params.generationTierHint")}</span>
+                ) : null}
               </label>
             ) : null}
 
