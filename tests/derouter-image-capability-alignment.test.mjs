@@ -57,4 +57,5 @@ test("Image detail presents requested tier separately from actual materialized d
   assert.match(detail, /image\.detail\.requestedTier/);
   assert.match(detail, /image\.detail\.actualSize/);
   assert.doesNotMatch(detail, /requestedSize\.toUpperCase/);
+  assert.match(detail, /!isCompleted\s*&&\s*job\.errorMessage/);
 });
