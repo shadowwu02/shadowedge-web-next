@@ -37,6 +37,7 @@ export type LongVideoRemakeSafeEstimate = {
   chargeCreditsNow: number;
   estimatedCredits: number;
   estimateId: string;
+  requestFingerprint: string;
   requiresConfirmation: boolean;
 };
 
@@ -279,6 +280,7 @@ export function useLongVideoRemakeAnalysis({
       try {
         const estimate = await estimateLongVideoRemakeAnalysisCost({
           analysisEngine: "real_vlm",
+          clientRequestId: nextClientRequestId,
           sourceAssetId: request.sourceAssetId,
           sourceVideoUrl: request.sourceVideoUrl,
           targetRatio: request.targetRatio,
@@ -287,7 +289,7 @@ export function useLongVideoRemakeAnalysis({
           markFailed("insufficient_credits");
           return null;
         }
-        if (!estimate.estimateId) {
+        if (!estimate.estimateId || !estimate.requestFingerprint) {
           markFailed("result_unavailable");
           return null;
         }
@@ -298,6 +300,7 @@ export function useLongVideoRemakeAnalysis({
           chargeCreditsNow: estimate.chargeCreditsNow,
           estimatedCredits: estimate.estimatedCredits,
           estimateId: estimate.estimateId,
+          requestFingerprint: estimate.requestFingerprint,
           requiresConfirmation: estimate.requiresConfirmation,
         };
         setPendingEstimate({ clientRequestId: nextClientRequestId, request, safeEstimate });
@@ -343,6 +346,7 @@ export function useLongVideoRemakeAnalysis({
         clientRequestId: pendingEstimate.clientRequestId,
         confirmCost: true,
         estimateId: pendingEstimate.safeEstimate.estimateId,
+        requestFingerprint: pendingEstimate.safeEstimate.requestFingerprint,
         sourceAssetId: pendingEstimate.request.sourceAssetId,
         sourceVideoUrl: pendingEstimate.request.sourceVideoUrl,
         targetRatio: pendingEstimate.request.targetRatio,

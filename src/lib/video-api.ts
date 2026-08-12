@@ -125,6 +125,7 @@ export type VideoRemakeLongAnalysisCreateInput = {
   clientRequestId?: string;
   confirmCost?: boolean;
   estimateId?: string;
+  requestFingerprint?: string;
   sourceAssetId?: string;
   sourceVideoUrl: string;
   targetRatio?: string;
@@ -133,6 +134,7 @@ export type VideoRemakeLongAnalysisCreateInput = {
 export type VideoRemakeLongAnalysisCostEstimateInput = {
   analysisEngine?: "mock" | "real_vlm" | "sandbox_vlm";
   aspectRatio?: string;
+  clientRequestId?: string;
   provider?: string;
   sourceAssetId?: string;
   sourceVideoUrl: string;
@@ -166,6 +168,7 @@ export type VideoRemakeLongAnalysisCostEstimate = {
   hasEnoughCredits: boolean;
   message: string;
   mode: "long_video";
+  requestFingerprint: string | null;
   requiresConfirmation: boolean;
   requiresMetadataProbe: boolean;
   requiresRealVlmEnabled: boolean;
@@ -708,6 +711,14 @@ function normalizeLongAnalysisCostEstimate(payload: unknown): VideoRemakeLongAna
     hasEnoughCredits: estimate.hasEnoughCredits !== false,
     message: pickString(estimate.message) || "",
     mode: "long_video",
+    requestFingerprint: pickString(
+      estimate.requestFingerprint,
+      estimate.request_fingerprint,
+      record.requestFingerprint,
+      record.request_fingerprint,
+      data.requestFingerprint,
+      data.request_fingerprint,
+    ) || null,
     requiresConfirmation: estimate.requiresConfirmation === true,
     requiresMetadataProbe: estimate.requiresMetadataProbe === true,
     requiresRealVlmEnabled: estimate.requiresRealVlmEnabled === true,
@@ -731,6 +742,7 @@ export async function estimateLongVideoRemakeAnalysisCost(input: VideoRemakeLong
     body: JSON.stringify({
       analysisEngine: input.analysisEngine || "mock",
       aspectRatio: targetRatio,
+      clientRequestId: input.clientRequestId,
       mode: "long_video",
       provider: input.provider,
       sourceAssetId,
@@ -755,6 +767,7 @@ export async function createLongVideoRemakeAnalysis(input: VideoRemakeLongAnalys
       confirmCost: input.confirmCost,
       estimateId: input.estimateId,
       mode: "long_video",
+      requestFingerprint: input.requestFingerprint,
       sourceAssetId,
       sourceVideoUrl: sourceAssetId ? undefined : input.sourceVideoUrl,
       targetRatio,
