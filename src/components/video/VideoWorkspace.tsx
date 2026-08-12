@@ -1230,7 +1230,7 @@ export function VideoWorkspace() {
   } | null>(null);
 
   const { isLoading: isAuthLoading, isProfileVerified, isSignedIn, profile, token } = useAuthSession();
-  const guardedLongVideoUxEnabled =
+  const authenticatedLongVideoUxEnabled =
     remakeFeatures.longVideoUxEnabled &&
     isSignedIn &&
     !isAuthLoading &&
@@ -1958,13 +1958,13 @@ export function VideoWorkspace() {
     reset: resetLongVideoAnalysis,
     state: longVideoAnalysisState,
   } = useLongVideoRemakeAnalysis({
-    enabled: guardedLongVideoUxEnabled,
+    enabled: authenticatedLongVideoUxEnabled,
     onCompleted: applyCompletedLongVideoAnalysisJob,
     onRestored: handleLongVideoJobRestored,
     restoreOnMount: !isAuthLoading && isSignedIn,
   });
   const guardedLongVideoUxVisible =
-    guardedLongVideoUxEnabled || Boolean(activeLongVideoAnalysisJob || longVideoAnalysisState || pendingLongVideoEstimate);
+    authenticatedLongVideoUxEnabled || Boolean(activeLongVideoAnalysisJob || longVideoAnalysisState || pendingLongVideoEstimate);
 
   const resetRemakeDerivedSourceState = useCallback((workspaceMessage = "") => {
     resetLongVideoAnalysis();
@@ -2108,7 +2108,7 @@ export function VideoWorkspace() {
       }
 
       if (remakeSourceRevisionRef.current !== analysisRevision) return;
-      if (remakeMode === "long_video" && guardedLongVideoUxEnabled) {
+      if (remakeMode === "long_video" && authenticatedLongVideoUxEnabled) {
         setRemakeStoryboard(null);
         setRemakeAnalysisNotice("");
         await requestLongVideoAnalysisEstimate({
@@ -2444,7 +2444,7 @@ export function VideoWorkspace() {
     }
   }, [
     applyCompletedFullEpisodeAnalysisJob,
-    guardedLongVideoUxEnabled,
+    authenticatedLongVideoUxEnabled,
     params.ratio,
     remakeCharacterRules,
     remakeMode,

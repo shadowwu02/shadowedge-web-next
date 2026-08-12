@@ -73,6 +73,10 @@ export async function getCurrentUserProfile(): Promise<AuthMeResult> {
   const profile: ShadowEdgeProfile = {
     ...(data.profile || {}),
     canUseLongVideoRealAnalysis: data.profile?.canUseLongVideoRealAnalysis === true,
+    longVideoRealAnalysisAccessMode:
+      data.profile?.longVideoRealAnalysisAccessMode === "authenticated"
+        ? "authenticated"
+        : "allowlist",
     email: data.profile?.email || user.email,
     name: data.profile?.name || user.name || user.email,
     credits: data.profile?.credits ?? data.credits,
