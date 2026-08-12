@@ -76,10 +76,18 @@ export type VideoRemakeLongAnalysisStage =
   | "analyzing"
   | "building_storyboard"
   | "merging_storyboard"
+  | "review_required"
+  | "uncertain"
   | "completed"
   | "failed";
 
-export type VideoRemakeLongAnalysisStatus = "queued" | "processing" | "completed" | "failed";
+export type VideoRemakeLongAnalysisStatus =
+  | "queued"
+  | "processing"
+  | "uncertain"
+  | "review_required"
+  | "completed"
+  | "failed";
 
 export type VideoRemakeLongAnalysisJob = {
   analysisJobId: string;

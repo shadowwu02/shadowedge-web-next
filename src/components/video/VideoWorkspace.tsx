@@ -1235,7 +1235,8 @@ export function VideoWorkspace() {
     isSignedIn &&
     !isAuthLoading &&
     isProfileVerified &&
-    profile?.canUseLongVideoRealAnalysis === true;
+    profile?.status?.trim().toLowerCase() === "active" &&
+    profile?.longVideoRealAnalysisAccessMode === "authenticated";
   const { credits, maxConcurrency } = useCredits();
   const {
     activeTaskCount,

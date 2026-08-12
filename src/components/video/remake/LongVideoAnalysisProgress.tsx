@@ -44,6 +44,14 @@ const stateCopy: Record<LongVideoAnalysisState, { body: DictionaryKey; title: Di
     body: "video.remake.longVideo.progress.queued.body",
     title: "video.remake.longVideo.progress.queued.title",
   },
+  review_required: {
+    body: "video.remake.longVideo.progress.reviewRequired.body",
+    title: "video.remake.longVideo.progress.reviewRequired.title",
+  },
+  uncertain: {
+    body: "video.remake.longVideo.progress.uncertain.body",
+    title: "video.remake.longVideo.progress.uncertain.title",
+  },
 };
 
 const errorCopy: Record<LongVideoAnalysisErrorCategory, DictionaryKey> = {

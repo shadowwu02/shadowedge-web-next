@@ -77,11 +77,6 @@ export function RemakeSettingsPanel({
               >
                 <span className="flex flex-wrap items-center justify-between gap-2">
                   <span className="block text-sm font-semibold">{t(modeLabelKey(item))}</span>
-                  {item === "long_video" ? (
-                    <span className="rounded-full border border-[#ffb44d]/22 bg-[#ffb44d]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#ffd08a]/84">
-                      {t("video.remake.longVideo.beta")}
-                    </span>
-                  ) : null}
                 </span>
                 <span className="mt-1 block text-xs leading-5 text-[#b9b9b9]/62">{t(modeHintKey(item))}</span>
                 {item === "full_film" ? (

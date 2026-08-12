@@ -4,6 +4,8 @@ export const LONG_VIDEO_ANALYSIS_STATES = [
   "extracting_frames",
   "analyzing",
   "building_storyboard",
+  "uncertain",
+  "review_required",
   "completed",
   "failed",
 ] as const;
@@ -33,6 +35,8 @@ const activeStateRanks: Record<Exclude<LongVideoAnalysisState, "completed" | "fa
   extracting_frames: 2,
   analyzing: 3,
   building_storyboard: 4,
+  uncertain: 5,
+  review_required: 6,
 };
 
 const stageStateMap: Record<string, LongVideoAnalysisState> = {
@@ -47,6 +51,8 @@ const stageStateMap: Record<string, LongVideoAnalysisState> = {
   preparing: "preparing",
   queued: "queued",
   reading_metadata: "preparing",
+  review_required: "review_required",
+  uncertain: "uncertain",
 };
 
 function normalizeToken(value: unknown) {
@@ -72,6 +78,8 @@ export function mapLongVideoAnalysisState({
   if (normalizedStatus === "completed" || normalizedStage === "completed") {
     return hasUsableResult === false ? "failed" : "completed";
   }
+  if (normalizedStatus === "review_required") return "review_required";
+  if (normalizedStatus === "uncertain") return "uncertain";
 
   const mappedStage = stageStateMap[normalizedStage];
   if (mappedStage && mappedStage !== "completed" && mappedStage !== "failed") return mappedStage;
