@@ -56,6 +56,7 @@ import {
   createLongVideoRemakeAnalysis,
   estimateLongVideoRemakeAnalysisCost,
   getFullEpisodeRemakeAnalysisStatus,
+  getInternalSmokeVideoModels,
   getLongVideoRemakeAnalysisStatus,
   getVideoModels,
   getVideoStatus,
@@ -110,8 +111,8 @@ import { isVideoActiveStatus, isVideoFailedStatus } from "@/lib/utils";
 import { ApiError } from "@/types/api";
 import type { UploadMediaItem, UploadMediaRole, VideoModel, VideoStatusResponse, VideoTaskRecord } from "@/types/video";
 
-const artsdanceProductionEnabled = process.env.NEXT_PUBLIC_XINHANKR_ARTSDANCE_PRODUCTION_ENABLED === "true";
-const artsdanceModelAliases = new Set(["seedance_2_0_mini", "seedance_2_0_fast", "seedance_2_0", "seedance_2_5", "seedance_2_5_pro"]);
+const artsdanceInternalSmokeEnabled = process.env.NEXT_PUBLIC_XINHANKR_ARTSDANCE_INTERNAL_SMOKE_ENABLED === "true";
+const artsdanceInternalOnlyAliases = new Set(["seedance_2_0_mini", "seedance_2_0_fast", "seedance_2_5", "seedance_2_5_pro"]);
 
 const legacySeedanceFallbackModels: VideoModel[] = [
   {
@@ -130,67 +131,8 @@ const legacySeedanceFallbackModels: VideoModel[] = [
   },
 ];
 
-const artsdanceFallbackModels: VideoModel[] = [
-  {
-    id: "seedance_2_0_mini",
-    label: "Seedance 2.0 Mini",
-    provider: "auto",
-    providerModel: "seedance_2_0_mini",
-    desc: "Video generation",
-    credits: 23,
-    durations: [5],
-    durationDefault: 5,
-    ratios: ["16:9"],
-    qualities: ["720p"],
-    supportsAudio: false,
-    uploadSlots: [],
-  },
-  {
-    id: "seedance_2_0_fast",
-    label: "Seedance 2.0 Fast",
-    provider: "auto",
-    providerModel: "seedance_2_0_fast",
-    desc: "Video generation",
-    credits: 12,
-    durations: [5],
-    durationDefault: 5,
-    ratios: ["16:9"],
-    qualities: ["720p"],
-    supportsAudio: false,
-    uploadSlots: [],
-  },
-  {
-    id: "seedance_2_0",
-    label: "Seedance 2.0",
-    provider: "auto",
-    providerModel: "seedance_2_0",
-    desc: "Video generation",
-    credits: 23,
-    durations: [5],
-    durationDefault: 5,
-    ratios: ["16:9"],
-    qualities: ["720p"],
-    supportsAudio: false,
-    uploadSlots: [],
-  },
-  {
-    id: "seedance_2_5",
-    label: "Seedance 2.5",
-    provider: "auto",
-    providerModel: "seedance_2_5",
-    desc: "Video generation",
-    credits: 12,
-    durations: [5],
-    durationDefault: 5,
-    ratios: ["16:9"],
-    qualities: ["720p"],
-    supportsAudio: false,
-    uploadSlots: [],
-  },
-];
-
 const fallbackModels: VideoModel[] = [
-  ...(artsdanceProductionEnabled ? artsdanceFallbackModels : legacySeedanceFallbackModels),
+  ...legacySeedanceFallbackModels,
   {
     id: "veo3_1",
     label: "Veo 3.1",
@@ -1366,9 +1308,20 @@ export function VideoWorkspace() {
 
       try {
         const loadedModels = await getVideoModels();
-        const nextModels = artsdanceProductionEnabled
-          ? loadedModels
-          : loadedModels.filter((model) => !artsdanceModelAliases.has(model.id.trim().toLowerCase()));
+        const publicModels = loadedModels.filter(
+          (model) => !artsdanceInternalOnlyAliases.has(model.id.trim().toLowerCase()),
+        );
+        let internalModels: VideoModel[] = [];
+        if (artsdanceInternalSmokeEnabled) {
+          try {
+            internalModels = await getInternalSmokeVideoModels();
+          } catch {
+            internalModels = [];
+          }
+        }
+        const nextModels = [...publicModels, ...internalModels].filter(
+          (model, index, models) => models.findIndex((candidate) => candidate.id === model.id) === index,
+        );
         if (cancelled) return;
         applyModelRegistry(nextModels, draft);
       } catch (loadError) {
