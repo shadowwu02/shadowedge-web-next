@@ -2,7 +2,7 @@ import type { ImageHistoryItem, ImageJobStatus, ImageJobStatusValue } from "@/ty
 
 type RawRecord = Record<string, unknown>;
 
-const activeStatuses = new Set(["created", "queued", "pending", "submitted", "submitting", "processing", "materialization_pending", "running", "generating"]);
+const activeStatuses = new Set(["created", "queued", "pending", "submitted", "submitting", "processing", "materialization_pending", "running", "generating", "uncertain"]);
 const completedStatuses = new Set(["completed", "success", "succeeded", "done"]);
 const failedStatuses = new Set(["failed", "error", "canceled", "cancelled"]);
 const recoverableActiveJobMaxAgeMs = 2 * 60 * 60 * 1000;

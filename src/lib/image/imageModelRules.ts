@@ -81,6 +81,7 @@ export function normalizeImageModel(rawModel: unknown): ImageModel {
     label: name,
     provider: String(raw.provider || fallbackModel.provider),
     providerModel: String(raw.providerModel || raw.provider_model || id),
+    description: String(raw.description || ""),
     capabilities: {
       textToImage: pickBoolean(capabilities.textToImage ?? raw.textToImage, true),
       imageToImage: pickBoolean(capabilities.imageToImage ?? raw.imageToImage, true),

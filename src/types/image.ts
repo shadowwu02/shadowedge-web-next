@@ -61,6 +61,7 @@ export type ImageModel = {
   label: string;
   provider: string;
   providerModel: string;
+  description?: string;
   capabilities: ImageModelCapabilities;
   creditRules: ImageCreditRules;
   defaults: ImageModelDefaults;
@@ -110,6 +111,7 @@ export type ImageGenerateRequest = {
   count?: number;
   referenceImages?: string[];
   reference_images?: string[];
+  idempotencyKey?: string;
   meta?: Record<string, unknown>;
 };
 

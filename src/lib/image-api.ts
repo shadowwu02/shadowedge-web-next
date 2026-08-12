@@ -117,6 +117,7 @@ function normalizeGenerateResponse(payload: unknown): ImageGenerateResponse {
 }
 
 export async function generateImage(payload: ImageGenerateRequest) {
+  const idempotencyKey = payload.idempotencyKey || crypto.randomUUID();
   const request = {
     ...payload,
     prompt: String(payload.prompt || "").trim(),
@@ -129,6 +130,7 @@ export async function generateImage(payload: ImageGenerateRequest) {
 
   const envelope = await apiRequest<ImageGenerateResponse>("/api/image/generate", {
     method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey },
     body: JSON.stringify(request),
   });
 
@@ -167,6 +169,7 @@ export function buildImageGenerateRequest(input: {
   });
 
   return {
+    idempotencyKey: crypto.randomUUID(),
     prompt: input.prompt.trim(),
     model: input.model.id,
     modelId: input.model.id,

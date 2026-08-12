@@ -97,11 +97,13 @@ export function ImageOutputStage({
   });
   const localizedStatus = (() => {
     if (!status) return t("image.status.unknown");
+    if (status.toLowerCase() === "uncertain") return t("image.status.uncertain");
     if (isImageFailedStatus(status)) return t("image.status.failed");
     if (isImageCompletedStatus(status)) return t("image.status.completed");
     if (isImageActiveStatus(status)) return t("image.status.processing");
     return status;
   })();
+  const isUncertain = status.toLowerCase() === "uncertain";
   const handleSendToVideoDraft = (outputUrl: string, outputIndex: number) => {
     if (!job) return;
     setActionError("");
@@ -161,6 +163,7 @@ export function ImageOutputStage({
             {job ? `${job.model || t("image.model.label")} - ${formatTime(job.createdAt)}` : t("image.workspace.generatedImagesHint")}
           </p>
           {actionError ? <p className="mt-1 text-xs font-semibold text-[#f2b3a1]/78">{actionError}</p> : null}
+          {isUncertain ? <p className="mt-2 text-xs font-semibold text-[#ffd08a]/82">{t("image.status.uncertainHint")}</p> : null}
         </div>
         {job ? (
           <div className="flex items-center gap-2">

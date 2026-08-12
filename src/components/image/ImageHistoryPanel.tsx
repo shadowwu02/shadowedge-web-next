@@ -69,6 +69,7 @@ export function ImageHistoryPanel({
     return history;
   }, [filter, history]);
   const getStatusLabel = (status: string) => {
+    if (status.toLowerCase() === "uncertain") return t("image.status.uncertain");
     if (isImageFailedStatus(status)) return t("image.status.failed");
     if (isImageCompletedStatus(status)) return t("image.status.completed");
     if (isImageActiveStatus(status)) return t("image.status.processing");

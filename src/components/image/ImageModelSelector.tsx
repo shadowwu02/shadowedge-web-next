@@ -90,6 +90,9 @@ export function ImageModelSelector({
                   <VideoModelLogo label={model.label} lookup={getImageModelLogoLookup(model)} size="lg" />
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold text-[#f4f4f4]">{model.label}</span>
+                    {model.description ? (
+                      <span className="mt-0.5 block truncate text-[11px] text-[#b9b9b9]/52">{model.description}</span>
+                    ) : null}
                     <span className="mt-1 flex flex-wrap gap-1.5">
                       {tags.map((tag) => (
                         <span className="rounded-full border border-white/8 bg-white/[.035] px-2 py-0.5 text-[10px] font-semibold text-[#b9b9b9]/58" key={tag}>
