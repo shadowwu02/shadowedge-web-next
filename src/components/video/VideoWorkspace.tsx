@@ -110,7 +110,10 @@ import { isVideoActiveStatus, isVideoFailedStatus } from "@/lib/utils";
 import { ApiError } from "@/types/api";
 import type { UploadMediaItem, UploadMediaRole, VideoModel, VideoStatusResponse, VideoTaskRecord } from "@/types/video";
 
-const fallbackModels: VideoModel[] = [
+const artsdanceProductionEnabled = process.env.NEXT_PUBLIC_XINHANKR_ARTSDANCE_PRODUCTION_ENABLED === "true";
+const artsdanceModelAliases = new Set(["seedance_2_0_mini", "seedance_2_0_fast", "seedance_2_0", "seedance_2_5", "seedance_2_5_pro"]);
+
+const legacySeedanceFallbackModels: VideoModel[] = [
   {
     id: "seedance_2_0",
     label: "Seedance 2.0",
@@ -125,6 +128,69 @@ const fallbackModels: VideoModel[] = [
     supportsAudio: true,
     uploadSlots: ["media"],
   },
+];
+
+const artsdanceFallbackModels: VideoModel[] = [
+  {
+    id: "seedance_2_0_mini",
+    label: "Seedance 2.0 Mini",
+    provider: "auto",
+    providerModel: "seedance_2_0_mini",
+    desc: "Video generation",
+    credits: 23,
+    durations: [5],
+    durationDefault: 5,
+    ratios: ["16:9"],
+    qualities: ["720p"],
+    supportsAudio: false,
+    uploadSlots: [],
+  },
+  {
+    id: "seedance_2_0_fast",
+    label: "Seedance 2.0 Fast",
+    provider: "auto",
+    providerModel: "seedance_2_0_fast",
+    desc: "Video generation",
+    credits: 12,
+    durations: [5],
+    durationDefault: 5,
+    ratios: ["16:9"],
+    qualities: ["720p"],
+    supportsAudio: false,
+    uploadSlots: [],
+  },
+  {
+    id: "seedance_2_0",
+    label: "Seedance 2.0",
+    provider: "auto",
+    providerModel: "seedance_2_0",
+    desc: "Video generation",
+    credits: 23,
+    durations: [5],
+    durationDefault: 5,
+    ratios: ["16:9"],
+    qualities: ["720p"],
+    supportsAudio: false,
+    uploadSlots: [],
+  },
+  {
+    id: "seedance_2_5",
+    label: "Seedance 2.5",
+    provider: "auto",
+    providerModel: "seedance_2_5",
+    desc: "Video generation",
+    credits: 12,
+    durations: [5],
+    durationDefault: 5,
+    ratios: ["16:9"],
+    qualities: ["720p"],
+    supportsAudio: false,
+    uploadSlots: [],
+  },
+];
+
+const fallbackModels: VideoModel[] = [
+  ...(artsdanceProductionEnabled ? artsdanceFallbackModels : legacySeedanceFallbackModels),
   {
     id: "veo3_1",
     label: "Veo 3.1",
@@ -1299,7 +1365,10 @@ export function VideoWorkspace() {
       const draft = readVideoDraft();
 
       try {
-        const nextModels = await getVideoModels();
+        const loadedModels = await getVideoModels();
+        const nextModels = artsdanceProductionEnabled
+          ? loadedModels
+          : loadedModels.filter((model) => !artsdanceModelAliases.has(model.id.trim().toLowerCase()));
         if (cancelled) return;
         applyModelRegistry(nextModels, draft);
       } catch (loadError) {
@@ -4037,20 +4106,24 @@ export function VideoWorkspace() {
                 ref={promptStudioImportTargetRef}
               >
                 {modelLoading ? <LoadingState label={t("video.model.loading")} /> : null}
-                <UploadBox
-                  media={media}
-                  modelRule={selectedModelRule}
-                  onBusyChange={setIsAssetPickerUploading}
-                  onChange={setMedia}
-                  reusableMedia={reusableMedia}
-                />
-                <ReferenceMediaTray
-                  media={media}
-                  modelRule={selectedModelRule}
-                  onRemove={removeMedia}
-                  onReorder={reorderReferenceMedia}
-                  onRoleChange={updateMediaRole}
-                />
+                {selectedModelRule.uploadSlots.length > 0 ? (
+                  <>
+                    <UploadBox
+                      media={media}
+                      modelRule={selectedModelRule}
+                      onBusyChange={setIsAssetPickerUploading}
+                      onChange={setMedia}
+                      reusableMedia={reusableMedia}
+                    />
+                    <ReferenceMediaTray
+                      media={media}
+                      modelRule={selectedModelRule}
+                      onRemove={removeMedia}
+                      onReorder={reorderReferenceMedia}
+                      onRoleChange={updateMediaRole}
+                    />
+                  </>
+                ) : null}
                 <PromptBox
                   media={media}
                   mentionBindings={reconciledMentionBindings}
