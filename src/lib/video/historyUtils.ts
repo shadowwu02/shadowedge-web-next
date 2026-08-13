@@ -55,6 +55,12 @@ function pickString(...values: unknown[]) {
   return values.find((value) => typeof value === "string" && value.trim()) as string | undefined;
 }
 
+export function getPublicVideoJobLabel(...values: unknown[]) {
+  const label = String(pickString(...values) || "").trim();
+  if (!label) return "--";
+  return label.replace(/^[a-z][a-z0-9_-]{1,48}:/i, "") || "--";
+}
+
 function pickNumber(...values: unknown[]) {
   const numberValue = values.map((value) => Number(value)).find((value) => Number.isFinite(value) && value > 0);
   return numberValue;
@@ -553,7 +559,16 @@ export function getSafeVideoHistoryView(record: VideoTaskRecord, fallbackKey = "
   const outputUrl = getSafeHistoryOutputUrl(raw);
   const status = String(pickString(raw.status, meta.status) || (outputUrl ? "completed" : "unknown")).toLowerCase();
   const createdAt = pickString(raw.createdAt, raw.created_at, meta.createdAt, meta.created_at) || pickNumber(raw.createdAt, meta.createdAt) || "";
-  const jobLabel = pickString(raw.jobId, raw.providerJobId, raw.dbJobId, meta.jobId, meta.providerJobId) || "--";
+  const jobLabel = getPublicVideoJobLabel(
+    raw.dbJobId,
+    raw.db_job_id,
+    meta.databaseJobId,
+    meta.database_job_id,
+    raw.jobId,
+    raw.providerJobId,
+    meta.jobId,
+    meta.providerJobId,
+  );
   const publicErrorMessages = getSafeVideoHistoryPublicErrorMessages(raw);
 
   return {
