@@ -432,12 +432,32 @@ function normalizeCanonicalShot(value: unknown, index: number): VideoAnalysisCan
   const start = Number(range.start ?? record.start ?? index * 5) || 0;
   const end = Number(range.end ?? record.end ?? start + 5) || start;
   const shotIndex = Number(record.shotIndex ?? record.globalShotIndex ?? record.shot ?? index + 1) || index + 1;
+  const keyframes = (Array.isArray(record.keyframes) ? record.keyframes : []).map((value) => {
+    const frame = asRecord(value);
+    return {
+      analysisJobId: pickString(frame.analysisJobId) || undefined,
+      assetId: pickString(frame.assetId, frame.id) || undefined,
+      height: Number.isFinite(Number(frame.height)) ? Number(frame.height) : undefined,
+      mimeType: pickString(frame.mimeType, frame.mime) || undefined,
+      mock: frame.mock === true,
+      sourceAssetId: pickString(frame.sourceAssetId) || undefined,
+      status: pickString(frame.status) || undefined,
+      tenantId: pickString(frame.tenantId) || undefined,
+      time: Number(frame.time ?? frame.timestamp ?? 0),
+      url: pickString(frame.url, frame.publicUrl) || "",
+      userId: pickString(frame.userId) || undefined,
+      width: Number.isFinite(Number(frame.width)) ? Number(frame.width) : undefined,
+    };
+  }).filter((frame) => frame.url && Number.isFinite(frame.time));
   return {
     action: pickString(record.action, record.summary),
     cameraMotion: pickString(record.cameraMotion, record.camera, record.motion),
     composition: pickString(record.composition, record.position),
     end,
+    id: pickString(record.id) || undefined,
+    keyframes,
     prompt: pickString(record.prompt, record.summary),
+    readyForGeneration: record.readyForGeneration === true,
     shotIndex,
     start,
     timestamp: pickString(record.timestamp) || `${start}-${end}s`,

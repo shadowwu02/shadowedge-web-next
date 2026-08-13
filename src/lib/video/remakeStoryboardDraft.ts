@@ -115,9 +115,17 @@ function sanitizeKeyframe(value: unknown): RemakeKeyframe | null {
   if (!url || time === undefined) return null;
 
   return {
+    analysisJobId: pickString(raw.analysisJobId) || undefined,
+    assetId: pickString(raw.assetId, raw.id) || undefined,
     height: pickNumber(raw.height),
+    mimeType: pickString(raw.mimeType, raw.mime) || undefined,
+    mock: raw.mock === true,
+    sourceAssetId: pickString(raw.sourceAssetId) || undefined,
+    status: pickString(raw.status) || undefined,
+    tenantId: pickString(raw.tenantId) || undefined,
     time,
     url,
+    userId: pickString(raw.userId) || undefined,
     width: pickNumber(raw.width),
     ...(pickString(raw.segmentId, raw.segment_id) ? { segmentId: pickString(raw.segmentId, raw.segment_id) } : {}),
   } as RemakeKeyframe;
@@ -170,6 +178,7 @@ function sanitizeShot(value: unknown): RemakeShot | null {
     motion: pickString(raw.motion) || "",
     position: pickString(raw.position) || "",
     prompt: pickString(raw.prompt) || "",
+    readyForGeneration: raw.readyForGeneration === true,
     referenceHints: sanitizeReferenceHints(raw.referenceHints),
     shot: shotNumber,
     shotGroupId,

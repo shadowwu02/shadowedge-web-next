@@ -88,7 +88,9 @@ import {
   saveRemakeShotQueueDraft,
 } from "@/lib/video/remakeShotQueueDraft";
 import {
+  buildRemakeShotArtsDancePreview,
   consumeRemakeShotVideoHandoff,
+  getRemakeShotHandoffReadiness,
   remakeShotHandoffReferenceToUploadMediaItem,
   saveRemakeShotVideoHandoff,
   type RemakeShotVideoHandoffReference,
@@ -544,14 +546,14 @@ function buildLongVideoStoryboardFromCanonical(input: {
   const targetRatio = normalizeRemakeTargetRatio(input.targetRatio);
 
   const shots: RemakeShot[] = canonicalResult.shots.map((shot, index) => {
-    const start = Number.isFinite(shot.start) ? shot.start : index * 5;
-    const end = Number.isFinite(shot.end) && shot.end > start ? shot.end : start + 5;
+    const start = Number(shot.start);
+    const end = Number(shot.end);
     const duration = clampRemakeShotDuration(end - start);
 
     return {
-      action: shot.action || `Review structural shot ${shot.shotIndex || index + 1}.`,
+      action: shot.action || "",
       audio: "Use source rhythm only as a structural reference.",
-      camera: shot.cameraMotion || "source-matched camera language",
+      camera: shot.cameraMotion || "",
       dialogue: "Draft localized dialogue after reviewing the source segment.",
       duration,
       emotion: "Preserve the emotional rhythm implied by the source timing.",
@@ -561,18 +563,19 @@ function buildLongVideoStoryboardFromCanonical(input: {
         quality: "720p",
         ratio: targetRatio,
       },
-      keyframes: [],
-      motion: shot.cameraMotion || "Keep continuity with adjacent beats.",
-      position: shot.composition || "Maintain clear spatial continuity.",
-      prompt: shot.prompt || shot.action || `Long video structural remake shot ${shot.shotIndex || index + 1}.`,
+      keyframes: shot.keyframes || [],
+      motion: shot.cameraMotion || "",
+      position: shot.composition || "",
+      prompt: shot.prompt || "",
+      readyForGeneration: shot.readyForGeneration === true,
       referenceHints: {
         audios: ["source rhythm"],
-        characters: ["review source manually before generation"],
-        images: ["no real visual model was called"],
+        characters: [],
+        images: [],
         videos: [input.sourceTitle],
       },
       shot: shot.shotIndex || index + 1,
-      shotGroupId: `canonical_shot_${shot.shotIndex || index + 1}`,
+      shotGroupId: shot.id || `canonical_shot_${shot.shotIndex || index + 1}`,
       sourceTimeRange: {
         end,
         start,
@@ -865,32 +868,8 @@ function findRemakeShotModel(shot: RemakeShot, modelList: VideoModel[], fallback
   return storyboardModelId ? findVideoModelByLookup(modelList, storyboardModelId) : fallbackModel;
 }
 
-function appendPromptPart(parts: string[], value: string | undefined) {
-  const normalizedValue = String(value || "").trim();
-  if (!normalizedValue) return;
-
-  const existing = parts.join(" ").toLowerCase();
-  if (!existing.includes(normalizedValue.toLowerCase())) {
-    parts.push(normalizedValue);
-  }
-}
-
-function buildRemakeShotPrompt(shot: RemakeShot) {
-  const parts: string[] = [];
-  appendPromptPart(parts, shot.prompt);
-  appendPromptPart(parts, shot.camera ? `Camera: ${shot.camera}` : "");
-  appendPromptPart(parts, shot.motion ? `Camera movement: ${shot.motion}` : "");
-  appendPromptPart(parts, shot.position ? `Blocking: ${shot.position}` : "");
-  appendPromptPart(parts, shot.action ? `Action: ${shot.action}` : "");
-  appendPromptPart(parts, shot.emotion ? `Emotion: ${shot.emotion}` : "");
-  appendPromptPart(parts, shot.dialogue ? `Dialogue cue: ${shot.dialogue}` : "");
-  appendPromptPart(parts, shot.audio ? `Audio cue: ${shot.audio}` : "");
-
-  return parts.join("\n").trim();
-}
-
 function getRemoteRemakeKeyframes(shot: RemakeShot): RemakeKeyframe[] {
-  return (shot.keyframes || []).filter((frame) => /^https?:\/\//i.test(String(frame.url || "")));
+  return getRemakeShotHandoffReadiness(shot).keyframes;
 }
 
 function buildRemakeShotReferenceMedia(shot: RemakeShot, model: VideoModel): UploadMediaItem[] {
@@ -901,6 +880,7 @@ function buildRemakeShotReferenceMedia(shot: RemakeShot, model: VideoModel): Upl
   if (!rule.supportsImageReference || !keyframes.length) return [];
 
   return keyframes.map((frame, index) => ({
+    assetId: frame.assetId,
     id: `remake-keyframe-${shot.shotGroupId}-${shot.shot}-${index + 1}`,
     mimeType: "image/jpeg",
     name: `Shot ${shot.shot} keyframe ${index + 1}`,
@@ -2654,17 +2634,18 @@ export function VideoWorkspace() {
 
   const handleUseRemakeShotInVideoWorkspace = useCallback(
     (shot: RemakeShot) => {
-      const shotPrompt = buildRemakeShotPrompt(shot);
-      if (!shotPrompt) {
-        setWorkspaceNotice(t("video.remake.videoDraftInvalidHandoff"));
+      const preview = buildRemakeShotArtsDancePreview(shot);
+      if (!preview) {
+        setWorkspaceNotice(t("video.remake.shotIncomplete"));
         return;
       }
 
-      const shotModel = findRemakeShotModel(shot, models, selectedModel);
-      const referenceMedia: RemakeShotVideoHandoffReference[] = getRemoteRemakeKeyframes(shot).map((frame, index) => ({
+      const shotModel = findVideoModelByLookup(models, preview.modelId);
+      const referenceMedia: RemakeShotVideoHandoffReference[] = preview.referenceImages.map((frame, index) => ({
+        assetId: frame.assetId,
         height: frame.height,
         label: `Shot ${shot.shot} keyframe ${index + 1}`,
-        mimeType: "image/jpeg",
+        mimeType: frame.mimeType || "image/jpeg",
         source: "remake-keyframe",
         type: "image",
         url: frame.url,
@@ -2674,21 +2655,21 @@ export function VideoWorkspace() {
       const result = saveRemakeShotVideoHandoff({
         analysisId: remakeStoryboard?.id,
         duration: shot.generationParams.duration,
-        modelId: shotModel?.id || shot.generationParams.modelId,
+        modelId: preview.modelId,
         notes: {
           camera: [shot.camera, shot.motion].filter(Boolean).join(" "),
           characters: shot.referenceHints.characters.join(", "),
           scene: [shot.position, shot.action, shot.emotion].filter(Boolean).join(" "),
           style: remakeSceneStyle,
         },
-        prompt: shotPrompt,
+        prompt: preview.prompt,
         providerModel: shotModel?.providerModel,
         quality: shot.generationParams.quality,
         ratio: normalizeRemakeTargetRatio(shot.generationParams.ratio || params.ratio),
         referenceMedia,
         shotGroupId: shot.shotGroupId,
         shotNumber: shot.shot,
-        sourceTimeRange: shot.sourceTimeRange,
+        sourceTimeRange: preview.sourceTimeRange,
       });
 
       if (!result.ok) {
@@ -2702,7 +2683,7 @@ export function VideoWorkspace() {
       setWorkspaceNotice(t("video.remake.videoDraftSaved"));
       router.push("/workspace/video?from=remake-shot");
     },
-    [models, params.ratio, remakeSceneStyle, remakeStoryboard?.id, router, selectedModel, t],
+    [models, params.ratio, remakeSceneStyle, remakeStoryboard?.id, router, t],
   );
 
   const handleImportPromptStudioDraft = useCallback(() => {
@@ -2879,11 +2860,14 @@ export function VideoWorkspace() {
         }));
       };
 
-      const shotPrompt = buildRemakeShotPrompt(shot);
-      if (!shotPrompt) {
-        failShot(t("video.errors.promptRequired"));
+      const preview = buildRemakeShotArtsDancePreview(shot);
+      if (!preview) {
+        const message = t("video.remake.shotIncomplete");
+        setWorkspaceNotice(message);
+        failShot(message);
         return;
       }
+      const shotPrompt = preview.prompt;
 
       const shotModel = findRemakeShotModel(shot, models, selectedModel);
       if (!shotModel) {

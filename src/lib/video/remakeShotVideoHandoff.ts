@@ -1,4 +1,5 @@
 import { normalizeMediaAssetUrl } from "@/lib/media-assets";
+import type { RemakeKeyframe, RemakeShot } from "@/components/video/remake/remakeTypes";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
 
 export const REMAKE_SHOT_VIDEO_HANDOFF_KEY = "shadowedge_remake_video_handoff_v1";
@@ -41,6 +42,7 @@ const SENSITIVE_URL_PARAM_NAMES = new Set([
 ]);
 
 export type RemakeShotVideoHandoffReference = {
+  assetId?: string;
   duration?: number;
   height?: number;
   label?: string;
@@ -89,6 +91,31 @@ export type SaveRemakeShotVideoHandoffResult = {
   reason?: "invalid_payload" | "missing_prompt" | "storage_unavailable" | "storage_write_failed";
 };
 
+export type RemakeShotHandoffReadiness = {
+  keyframes: RemakeKeyframe[];
+  ok: boolean;
+  prompt: string;
+  reason?: "not_ready" | "invalid_prompt" | "invalid_time_range" | "missing_canonical_keyframe";
+};
+
+export type RemakeShotArtsDancePreview = {
+  modelId: "seedance_2_0";
+  prompt: string;
+  referenceImages: Array<{
+    analysisJobId: string;
+    assetId: string;
+    height?: number;
+    mimeType?: string;
+    sourceAssetId: string;
+    tenantId: string;
+    time: number;
+    url: string;
+    userId: string;
+    width?: number;
+  }>;
+  sourceTimeRange: { end: number; start: number };
+};
+
 function safeLocalStorage() {
   if (typeof window === "undefined") return null;
   try {
@@ -110,6 +137,19 @@ function cleanPrompt(value: unknown) {
   if (!text) return "";
   if (SENSITIVE_TEXT_PATTERNS.some((pattern) => pattern.test(text))) return "";
   return text.slice(0, 12000);
+}
+
+const PLACEHOLDER_PROMPT_PATTERNS = [
+  /^unknown\b/i,
+  /^\[object Object\]$/i,
+  /^real\s+vlm\s+remake\s+shot\s+\d+$/i,
+  /^long\s+video\s+structural\s+remake\s+shot\s+\d+\.?$/i,
+  /^shot\s+\d+$/i,
+];
+
+function isPlaceholderPrompt(value: unknown) {
+  const prompt = cleanPrompt(value);
+  return !prompt || PLACEHOLDER_PROMPT_PATTERNS.some((pattern) => pattern.test(prompt));
 }
 
 function cleanPositiveNumber(value: unknown) {
@@ -181,6 +221,7 @@ function normalizeReferenceMedia(raw: unknown): RemakeShotVideoHandoffReference 
   if (!url) return null;
 
   return {
+    assetId: cleanText(record.assetId, 160) || undefined,
     duration: cleanPositiveNumber(record.duration),
     height: cleanPositiveNumber(record.height),
     label: cleanText(record.label, 180) || undefined,
@@ -189,6 +230,60 @@ function normalizeReferenceMedia(raw: unknown): RemakeShotVideoHandoffReference 
     type,
     url,
     width: cleanPositiveNumber(record.width),
+  };
+}
+
+function isCanonicalKeyframe(frame: RemakeKeyframe, shot: RemakeShot) {
+  const time = Number(frame.time);
+  const start = Number(shot.sourceTimeRange?.start);
+  const end = Number(shot.sourceTimeRange?.end);
+  const url = normalizeSafeHandoffUrl(frame.url);
+  if (!frame.assetId || !frame.analysisJobId || !frame.sourceAssetId || !frame.userId || !frame.tenantId) return false;
+  if (frame.mock === true || String(frame.status || "").toLowerCase() !== "ready") return false;
+  if (!url || !/^https:\/\//i.test(url)) return false;
+  if (!Number.isFinite(time) || time < start || time > end) return false;
+  if (frame.mimeType && !frame.mimeType.startsWith("image/")) return false;
+  return true;
+}
+
+export function getRemakeShotHandoffReadiness(shot: RemakeShot): RemakeShotHandoffReadiness {
+  const prompt = cleanPrompt(shot.prompt);
+  const start = Number(shot.sourceTimeRange?.start);
+  const end = Number(shot.sourceTimeRange?.end);
+  if (shot.readyForGeneration !== true) return { keyframes: [], ok: false, prompt, reason: "not_ready" };
+  if (isPlaceholderPrompt(prompt)) return { keyframes: [], ok: false, prompt, reason: "invalid_prompt" };
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start) {
+    return { keyframes: [], ok: false, prompt, reason: "invalid_time_range" };
+  }
+  const keyframes = (shot.keyframes || []).filter((frame) => isCanonicalKeyframe(frame, shot)).slice(0, 9);
+  if (!keyframes.length) return { keyframes, ok: false, prompt, reason: "missing_canonical_keyframe" };
+  const identities = new Set(keyframes.map((frame) => `${frame.userId}:${frame.tenantId}:${frame.analysisJobId}:${frame.sourceAssetId}`));
+  if (identities.size !== 1) return { keyframes: [], ok: false, prompt, reason: "missing_canonical_keyframe" };
+  return { keyframes, ok: true, prompt };
+}
+
+export function buildRemakeShotArtsDancePreview(shot: RemakeShot): RemakeShotArtsDancePreview | null {
+  const readiness = getRemakeShotHandoffReadiness(shot);
+  if (!readiness.ok) return null;
+  return {
+    modelId: "seedance_2_0",
+    prompt: readiness.prompt,
+    referenceImages: readiness.keyframes.map((frame) => ({
+      analysisJobId: String(frame.analysisJobId),
+      assetId: String(frame.assetId),
+      height: frame.height,
+      mimeType: frame.mimeType,
+      sourceAssetId: String(frame.sourceAssetId),
+      tenantId: String(frame.tenantId),
+      time: Number(frame.time),
+      url: normalizeSafeHandoffUrl(frame.url),
+      userId: String(frame.userId),
+      width: frame.width,
+    })),
+    sourceTimeRange: {
+      end: Number(shot.sourceTimeRange.end),
+      start: Number(shot.sourceTimeRange.start),
+    },
   };
 }
 
@@ -299,6 +394,7 @@ export function remakeShotHandoffReferenceToUploadMediaItem(
     .filter(Boolean);
 
   return {
+    assetId: reference.assetId,
     duration: reference.duration,
     id: idParts.join(":") || `remake:${reference.type}:${index + 1}`,
     mimeType: reference.mimeType || (reference.type === "image" ? "image/jpeg" : "video/mp4"),

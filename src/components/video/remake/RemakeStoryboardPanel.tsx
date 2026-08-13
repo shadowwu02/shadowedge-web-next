@@ -4,6 +4,7 @@ import { useI18n } from "@/i18n/useI18n";
 import { LongVideoAnalysisProgress } from "@/components/video/remake/LongVideoAnalysisProgress";
 import { getRemakeShotGenerationKey } from "@/components/video/remake/remakeTypes";
 import { getVideoUserFacingError } from "@/lib/video/videoErrorDisplay";
+import { getRemakeShotHandoffReadiness } from "@/lib/video/remakeShotVideoHandoff";
 import type {
   LongVideoAnalysisErrorCategory,
   LongVideoAnalysisState,
@@ -610,11 +611,7 @@ export function RemakeStoryboardPanel({
             const isQueued = generation?.status === "queued";
             const isSkipped = generation?.status === "skipped";
             const hasGeneratedOutput = generation?.status === "success" && Boolean(generation.outputUrl);
-            const hasVideoWorkspaceDraftPayload = Boolean(
-              [shot.prompt, shot.camera, shot.motion, shot.position, shot.action, shot.emotion, shot.dialogue, shot.audio].some((value) =>
-                String(value || "").trim(),
-              ) || keyframes.some((frame) => /^https?:\/\//i.test(String(frame.url || ""))),
-            );
+            const handoffReadiness = getRemakeShotHandoffReadiness(shot);
 
             return (
             <article
@@ -691,19 +688,25 @@ export function RemakeStoryboardPanel({
                 <div className="grid gap-2 pt-1">
                   <button
                     className="se-button-secondary min-h-10 rounded-[16px] px-3 text-sm font-semibold"
-                    onClick={() => onUsePrompt(shot.prompt)}
+                    disabled={!handoffReadiness.ok}
+                    onClick={() => handoffReadiness.ok && onUsePrompt(shot.prompt)}
                     type="button"
                   >
                     {t("video.remake.usePrompt")}
                   </button>
                   <button
                     className="se-button-secondary min-h-10 rounded-[16px] px-3 text-sm font-semibold"
-                    disabled={!onUseInVideoWorkspace || !hasVideoWorkspaceDraftPayload}
+                    disabled={!onUseInVideoWorkspace || !handoffReadiness.ok}
                     onClick={() => onUseInVideoWorkspace?.(shot)}
                     type="button"
                   >
                     {t("video.remake.useInVideoWorkspace")}
                   </button>
+                  {!handoffReadiness.ok ? (
+                    <p className="se-status se-status-neutral rounded-[16px] p-2 text-xs leading-5">
+                      {t("video.remake.shotIncomplete")}
+                    </p>
+                  ) : null}
                   {hasGeneratedOutput ? (
                     <a
                       className="se-button-secondary inline-flex min-h-10 items-center justify-center rounded-[16px] px-3 text-sm font-semibold"

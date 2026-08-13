@@ -29,9 +29,17 @@ export type RemakeSourceVideoMetadata = {
 };
 
 export type RemakeKeyframe = {
+  analysisJobId?: string;
+  assetId?: string;
   height?: number;
+  mimeType?: string;
+  mock?: boolean;
+  sourceAssetId?: string;
+  status?: string;
+  tenantId?: string;
   time: number;
   url: string;
+  userId?: string;
   width?: number;
 };
 
@@ -128,7 +136,10 @@ export type VideoAnalysisShot = {
   cameraMotion?: string;
   composition?: string;
   end: number;
+  id?: string;
+  keyframes?: RemakeKeyframe[];
   prompt?: string;
+  readyForGeneration?: boolean;
   shotIndex: number;
   start: number;
   timestamp?: string;
@@ -188,6 +199,7 @@ export type RemakeShot = {
   dialogue: string;
   audio: string;
   prompt: string;
+  readyForGeneration?: boolean;
   referenceHints: {
     images: string[];
     videos: string[];
