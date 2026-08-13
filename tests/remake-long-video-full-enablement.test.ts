@@ -66,6 +66,7 @@ describe("Long Video Real VLM frontend full enablement", () => {
 
     expect(panelSource).toContain('t("video.remake.summary")');
     expect(panelSource).toContain('t("video.remake.remakePrompt")');
+    expect(panelSource).toContain("getVideoModelRule(shot.generationParams.modelId).label");
     expect(dictionarySource).not.toContain("Long video analysis uses Real VLM");
     expect(dictionarySource).not.toContain("长视频分析会使用 Real VLM");
   });

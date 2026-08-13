@@ -5,6 +5,7 @@ import { LongVideoAnalysisProgress } from "@/components/video/remake/LongVideoAn
 import { getRemakeShotGenerationKey } from "@/components/video/remake/remakeTypes";
 import { getVideoUserFacingError } from "@/lib/video/videoErrorDisplay";
 import { getRemakeShotHandoffReadiness } from "@/lib/video/remakeShotVideoHandoff";
+import { getVideoModelRule } from "@/lib/video/videoModelRules";
 import type {
   LongVideoAnalysisErrorCategory,
   LongVideoAnalysisState,
@@ -695,7 +696,7 @@ export function RemakeStoryboardPanel({
                 <div>
                   <p className="se-eyebrow">{t("video.remake.generationParams")}</p>
                   <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-medium text-[#f4f4f4]/80">
-                    <span className="se-pill rounded-[13px] px-2.5 py-1.5">{shot.generationParams.modelId}</span>
+                    <span className="se-pill rounded-[13px] px-2.5 py-1.5">{getVideoModelRule(shot.generationParams.modelId).label}</span>
                     <span className="se-pill rounded-[13px] px-2.5 py-1.5">{shot.generationParams.quality}</span>
                     <span className="se-pill rounded-[13px] px-2.5 py-1.5">{formatTime(shot.generationParams.duration)}</span>
                     <span className="se-pill rounded-[13px] px-2.5 py-1.5">{shot.generationParams.ratio}</span>
