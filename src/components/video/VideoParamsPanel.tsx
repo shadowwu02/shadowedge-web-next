@@ -3,7 +3,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useI18n } from "@/i18n/useI18n";
-import { getDefaultVideoModelRule, getVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
+import { getDefaultVideoModelRule, getVideoModelRule, normalizeVideoParamsForRule } from "@/lib/video/videoModelRules";
+import type { VideoModelRule } from "@/lib/video/videoModelRules";
 
 export type VideoParams = {
   duration: number;
@@ -93,10 +94,12 @@ export function VideoParamsPanel({
   value,
   onChange,
   modelId,
+  modelRule: providedModelRule,
 }: {
   value: VideoParams;
   onChange: (value: VideoParams) => void;
   modelId: string;
+  modelRule?: VideoModelRule;
 }) {
   const { t, tf } = useI18n();
   const [openKey, setOpenKey] = useState<ParamKey | null>(null);
@@ -105,7 +108,7 @@ export function VideoParamsPanel({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
   const defaultRule = getDefaultVideoModelRule();
-  const modelRule = useMemo(() => getVideoModelRule(modelId), [modelId]);
+  const modelRule = useMemo(() => providedModelRule || getVideoModelRule(modelId), [modelId, providedModelRule]);
   const ratioOptions = useMemo(
     () => (modelRule.ratios.length ? modelRule.ratios : defaultRule.ratios).map(String),
     [defaultRule.ratios, modelRule.ratios],
@@ -212,7 +215,7 @@ export function VideoParamsPanel({
     durationOptions.length > 1 ? Math.round((durationIndex / (durationOptions.length - 1)) * 100) : 100;
 
   useEffect(() => {
-    const normalized = normalizeVideoParamsForModel(modelId, value);
+    const normalized = normalizeVideoParamsForRule(modelRule, value);
     const nextValue: VideoParams = {
       duration: normalized.duration,
       generateAudio: value.generateAudio,
@@ -227,7 +230,7 @@ export function VideoParamsPanel({
     ) {
       onChange(nextValue);
     }
-  }, [modelId, onChange, value]);
+  }, [modelRule, onChange, value]);
 
   return (
     <section className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3" ref={rootRef}>

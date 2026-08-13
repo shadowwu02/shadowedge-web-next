@@ -207,6 +207,7 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
     .replace(/\s*HF\s*$/i, "")
     .trim();
 
+  const mixedReference = asRecord(model.mixedReference);
   return {
     id: String(model.id || label),
     label,
@@ -225,6 +226,19 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
         : ["720p"],
     supportsAudio: Boolean(model.supportsAudio),
     uploadSlots: Array.isArray(model.uploadSlots) ? model.uploadSlots.map(String) : ["media"],
+    referenceImages: model.referenceImages === true,
+    maxReferenceImages: Math.max(0, Number(model.maxReferenceImages || 0)),
+    referenceVideos: model.referenceVideos === true,
+    maxReferenceVideos: Math.max(0, Number(model.maxReferenceVideos || 0)),
+    referenceAudios: model.referenceAudios === true,
+    maxReferenceAudios: Math.max(0, Number(model.maxReferenceAudios || 0)),
+    mixedReference: {
+      imageVideo: mixedReference.imageVideo === true,
+      imageAudio: mixedReference.imageAudio === true,
+      videoAudio: mixedReference.videoAudio === true,
+      imageVideoAudio: mixedReference.imageVideoAudio === true,
+    },
+    imagePlusGenerateAudio: model.imagePlusGenerateAudio === true,
     raw: model,
   };
 }

@@ -96,7 +96,7 @@ import {
 import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/video/videoDraft";
 import { getReusableVideoOutputUrl, readVideoDraftNotice, sendVideoFailedJobToVideoDraft, sendVideoResultToVideoDraft } from "@/lib/video/videoResultDrafts";
 import { getVideoUserFacingErrorDisplay } from "@/lib/video/videoErrorDisplay";
-import { estimateVideoCreditsForParams, getVideoModelRule, hasVideoModelRule, normalizeVideoParamsForModel } from "@/lib/video/videoModelRules";
+import { estimateVideoCreditsForParams, getVideoModelRule, getVideoModelRuleFromRegistry, hasVideoModelRule, normalizeVideoParamsForRule } from "@/lib/video/videoModelRules";
 import { VIDEO_PROMPT_FRONTEND_LIMIT, VIDEO_PROMPT_FRONTEND_LIMIT_LABEL } from "@/lib/video/videoPromptLimits";
 import {
   parseMentionBindings,
@@ -707,7 +707,7 @@ function getVideoModelRuleId(model: VideoModel) {
 }
 
 function buildParamsForModel(model: VideoModel, current?: Partial<VideoParams>): VideoParams {
-  const normalized = normalizeVideoParamsForModel(getVideoModelRuleId(model), {
+  const normalized = normalizeVideoParamsForRule(getVideoModelRuleFromRegistry(model), {
     duration: current?.duration ?? model.durationDefault,
     ratio: current?.ratio ?? model.ratios[0],
     quality: current?.quality ?? model.qualities[0],
@@ -2755,7 +2755,7 @@ export function VideoWorkspace() {
   });
   const concurrencyLimitNotice = `${t("generation.errors.concurrencyLimitReached")} ${concurrencyLabel}`;
   const selectedModelRuleId = getVideoModelRuleId(selectedModel);
-  const selectedModelRule = useMemo(() => getVideoModelRule(selectedModelRuleId), [selectedModelRuleId]);
+  const selectedModelRule = useMemo(() => getVideoModelRuleFromRegistry(selectedModel), [selectedModel]);
   const isAudioSupported = selectedModel.supportsAudio !== false;
   const effectiveGenerateAudio = isAudioSupported && params.generateAudio;
   const estimatedCredits = useMemo(
@@ -4209,6 +4209,7 @@ export function VideoWorkspace() {
               <ModelSelector models={models} onChange={handleModelChange} selectedModelId={selectedModel.id} />
               <VideoParamsPanel
                 modelId={selectedModelRuleId}
+                modelRule={selectedModelRule}
                 onChange={setParams}
                 value={params}
               />

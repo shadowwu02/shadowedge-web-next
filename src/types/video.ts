@@ -81,6 +81,19 @@ export type VideoModel = {
   qualities: string[];
   supportsAudio?: boolean;
   uploadSlots?: string[];
+  referenceImages?: boolean;
+  maxReferenceImages?: number;
+  referenceVideos?: boolean;
+  maxReferenceVideos?: number;
+  referenceAudios?: boolean;
+  maxReferenceAudios?: number;
+  mixedReference?: {
+    imageVideo?: boolean;
+    imageAudio?: boolean;
+    videoAudio?: boolean;
+    imageVideoAudio?: boolean;
+  };
+  imagePlusGenerateAudio?: boolean;
   raw?: unknown;
 };
 
@@ -106,6 +119,9 @@ export type VideoGenerationRequest = {
   reference_images: string[];
   reference_videos: string[];
   reference_audios: string[];
+  reference_image_asset_ids: string[];
+  reference_video_asset_ids: string[];
+  reference_audio_asset_ids: string[];
   mediaList: Array<{
     id?: string;
     type: UploadMediaType;

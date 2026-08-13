@@ -107,6 +107,15 @@ export function validateReferenceSelectionForRule(
   }
 
   const counts = countMediaTypes(combined);
+  if (counts.image > 0 && counts.video > 0) {
+    if (rule.mixedReference?.imageVideo !== true) return "This model does not support mixed image and video references.";
+    if (counts.image !== 1 || counts.video !== 1 || counts.audio > 0) {
+      return "This model supports exactly one image plus one video in mixed reference mode.";
+    }
+  }
+  if (counts.audio > 0 && (counts.image > 0 || counts.video > 0)) {
+    return "This model does not support mixed audio references.";
+  }
   const overLimitType = (["image", "video", "audio"] as UploadMediaType[]).find((type) => {
     const limit = getTypeLimit(rule, type);
     return counts[type] > limit;
@@ -146,6 +155,14 @@ export function getReferenceMediaIssues(rule: VideoModelRule, items: UploadMedia
 
     if (itemIssues.length) issues.set(item.id, itemIssues);
   });
+
+  const unique = uniqueReferenceItems(items);
+  const combinedCounts = countMediaTypes(unique);
+  if (combinedCounts.image > 0 && combinedCounts.video > 0 && (
+    rule.mixedReference?.imageVideo !== true || combinedCounts.image !== 1 || combinedCounts.video !== 1 || combinedCounts.audio > 0
+  )) {
+    unique.forEach((item) => issues.set(item.id, [...(issues.get(item.id) || []), "Unsupported mixed reference combination."]));
+  }
 
   return issues;
 }

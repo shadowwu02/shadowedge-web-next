@@ -1,4 +1,4 @@
-import type { UploadMediaType } from "@/types/video";
+import type { UploadMediaType, VideoModel } from "@/types/video";
 
 export type VideoModelProvider =
   | "seedance"
@@ -68,6 +68,12 @@ export type VideoModelRule = {
   supportsVideoReference: boolean;
   supportsImageReference: boolean;
   supportsGeneratedResultAsReference: boolean;
+  mixedReference?: {
+    imageVideo: boolean;
+    imageAudio: boolean;
+    videoAudio: boolean;
+    imageVideoAudio: boolean;
+  };
   creditRules: VideoCreditRules;
   credits?: number;
   modes?: string[];
@@ -885,29 +891,73 @@ export function getVideoModelRule(modelId: string): VideoModelRule {
   return rulesById.get(resolveRuleId(modelId)) || defaultRule;
 }
 
-export function normalizeVideoParamsForModel(
-  modelId: string,
+export function getVideoModelRuleFromRegistry(model: VideoModel): VideoModelRule {
+  const base = getVideoModelRule(model.id || model.providerModel || model.label);
+  const imageLimit = Math.max(0, Number(model.maxReferenceImages || 0));
+  const videoLimit = Math.max(0, Number(model.maxReferenceVideos || 0));
+  const audioLimit = Math.max(0, Number(model.maxReferenceAudios || 0));
+  const uploadSlots = (model.uploadSlots || base.uploadSlots).map(String) as VideoUploadSlot[];
+  const supportedMediaTypes = ([
+    model.referenceImages && imageLimit > 0 ? "image" : null,
+    model.referenceVideos && videoLimit > 0 ? "video" : null,
+    model.referenceAudios && audioLimit > 0 ? "audio" : null,
+  ].filter(Boolean)) as UploadMediaType[];
+  const ratios = model.ratios.length ? model.ratios : base.ratios;
+  const durations = model.durations.length ? model.durations : base.durations;
+  const qualities = model.qualities.length ? model.qualities : base.qualities;
+  return {
+    ...base,
+    modelId: model.id,
+    label: model.label,
+    uploadSlots,
+    supportedMediaTypes,
+    maxReferences: {
+      image: imageLimit,
+      video: videoLimit,
+      audio: audioLimit,
+      total: imageLimit + videoLimit + audioLimit,
+    },
+    ratios,
+    durations,
+    qualities,
+    resolutions: qualities,
+    defaultRatio: ratios.includes(base.defaultRatio) ? base.defaultRatio : ratios[0],
+    defaultDuration: durations.includes(base.defaultDuration) ? base.defaultDuration : durations[0],
+    defaultQuality: qualities.includes(base.defaultQuality) ? base.defaultQuality : qualities[0],
+    supportsImageReference: model.referenceImages === true && imageLimit > 0,
+    supportsVideoReference: model.referenceVideos === true && videoLimit > 0,
+    supportsAudioReference: model.referenceAudios === true && audioLimit > 0,
+    supportsStartFrame: model.referenceImages === true && imageLimit > 0,
+    supportsEndFrame: model.referenceImages === true && imageLimit >= 2,
+    mixedReference: {
+      imageVideo: model.mixedReference?.imageVideo === true,
+      imageAudio: model.mixedReference?.imageAudio === true,
+      videoAudio: model.mixedReference?.videoAudio === true,
+      imageVideoAudio: model.mixedReference?.imageVideoAudio === true,
+    },
+  };
+}
+
+export function normalizeVideoParamsForRule(
+  rule: VideoModelRule,
   params: VideoModelParamInput,
 ): NormalizedVideoModelParams {
-  const rule = getVideoModelRule(modelId);
   const ratios = safeList(rule.ratios, defaultRule.ratios).map(String);
   const durations = safeList(rule.durations, defaultRule.durations);
   const qualities = safeList(rule.qualities.length ? rule.qualities : rule.resolutions, defaultRule.qualities).map(String);
   const incomingDuration = coerceDuration(params.duration);
   const incomingQuality = String(params.quality || params.resolution || "");
-
   const ratio = ratios.includes(String(params.ratio || "")) ? String(params.ratio) : String(rule.defaultRatio);
-  const duration =
-    incomingDuration !== undefined && durations.includes(incomingDuration) ? incomingDuration : rule.defaultDuration;
+  const duration = incomingDuration !== undefined && durations.includes(incomingDuration) ? incomingDuration : rule.defaultDuration;
   const quality = qualities.includes(incomingQuality) ? incomingQuality : String(rule.defaultQuality);
+  return { ratio, duration, quality, resolution: quality, generateAudio: params.generateAudio };
+}
 
-  return {
-    ratio,
-    duration,
-    quality,
-    resolution: quality,
-    generateAudio: params.generateAudio,
-  };
+export function normalizeVideoParamsForModel(
+  modelId: string,
+  params: VideoModelParamInput,
+): NormalizedVideoModelParams {
+  return normalizeVideoParamsForRule(getVideoModelRule(modelId), params);
 }
 
 export function estimateVideoCreditsForParams(

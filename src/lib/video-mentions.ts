@@ -4,6 +4,7 @@ import { normalizeMediaAssetUrl } from "@/lib/media-assets";
 
 export type MentionableMediaItem = {
   id: string;
+  assetId?: string;
   type: UploadMediaType;
   index: number;
   display: string;
@@ -139,6 +140,7 @@ export function getReadyMentionableMediaItems(media: UploadMediaItem[]): Mention
 
       return {
         id: item.id,
+        assetId: item.assetId,
         type: item.type,
         index,
         display: getMentionDisplay(item.type, index),

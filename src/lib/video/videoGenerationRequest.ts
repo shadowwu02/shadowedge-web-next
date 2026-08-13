@@ -54,6 +54,9 @@ export function buildVideoGenerationRequest(
   const audios = mediaList
     .filter((item) => item.type === "audio")
     .map((item) => item.url);
+  const imageAssetIds = referencedMediaItems.filter((item) => item.type === "image").map((item) => item.assetId || item.id).filter(Boolean);
+  const videoAssetIds = referencedMediaItems.filter((item) => item.type === "video").map((item) => item.assetId || item.id).filter(Boolean);
+  const audioAssetIds = referencedMediaItems.filter((item) => item.type === "audio").map((item) => item.assetId || item.id).filter(Boolean);
   const enhancedPrompt = buildMediaAwarePrompt(
     options.prompt,
     referencedMediaItems,
@@ -95,6 +98,9 @@ export function buildVideoGenerationRequest(
     reference_images: images,
     reference_videos: videos,
     reference_audios: audios,
+    reference_image_asset_ids: imageAssetIds,
+    reference_video_asset_ids: videoAssetIds,
+    reference_audio_asset_ids: audioAssetIds,
     mediaList,
     mode: mediaList.length ? "media-to-video" : "text-to-video",
     image: primaryImageUrl,

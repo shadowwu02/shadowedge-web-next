@@ -359,6 +359,11 @@ export function ReferenceMediaTray({
   const unsupportedMedia = media.filter((item) => (mediaIssues.get(item.id) || []).length > 0);
   const unsupportedItems = unsupportedMedia.slice(0, 1);
   const hiddenUnsupportedCount = Math.max(0, unsupportedMedia.length - unsupportedItems.length);
+  const mediaCounts = useMemo(() => ({
+    image: media.filter((item) => item.type === "image").length,
+    video: media.filter((item) => item.type === "video").length,
+    audio: media.filter((item) => item.type === "audio").length,
+  }), [media]);
 
   return (
     <section className="se-card min-w-0 max-w-full overflow-hidden rounded-[24px] p-3.5" ref={rootRef}>
@@ -389,7 +394,19 @@ export function ReferenceMediaTray({
             </span>
           )}
         </div>
+        {allowedTypes.length ? (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {allowedTypes.map((type) => (
+              <span className="rounded-full border border-white/8 bg-white/[.035] px-2 py-1 text-[10px] font-semibold text-white/58" key={`count-${type}`}>
+                {allowedTypeLabel(type)} {mediaCounts[type]} / {limitSummary[type]}
+              </span>
+            ))}
+          </div>
+        ) : null}
         <p className="mt-2 text-xs leading-5 text-[#b9b9b9]/55">{uploadSubtitle}</p>
+        {modelRule.modelId === "seedance_2_0" && limitSummary.image > 0 ? (
+          <p className="mt-1 text-[11px] leading-4 text-[#ffd08a]/68">{t("video.references.seedanceImageSemantics")}</p>
+        ) : null}
         <p className="mt-1 text-[11px] leading-4 text-[#b9b9b9]/45">
           {t("video.references.tokenHelper")} {media.length > 1 ? t("video.references.reorderHint") : ""}
         </p>
