@@ -405,7 +405,11 @@ export function ReferenceMediaTray({
         ) : null}
         <p className="mt-2 text-xs leading-5 text-[#b9b9b9]/55">{uploadSubtitle}</p>
         {modelRule.modelId === "seedance_2_0" && limitSummary.image > 0 ? (
-          <p className="mt-1 text-[11px] leading-4 text-[#ffd08a]/68">{t("video.references.seedanceImageSemantics")}</p>
+          <p className="mt-1 text-[11px] leading-4 text-[#ffd08a]/68">
+            {mediaCounts.image > 0 && mediaCounts.video > 0
+              ? t("video.references.seedanceMixedSemantics")
+              : t("video.references.seedanceImageSemantics")}
+          </p>
         ) : null}
         <p className="mt-1 text-[11px] leading-4 text-[#b9b9b9]/45">
           {t("video.references.tokenHelper")} {media.length > 1 ? t("video.references.reorderHint") : ""}

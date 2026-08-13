@@ -70,6 +70,8 @@ export type VideoModelRule = {
   supportsGeneratedResultAsReference: boolean;
   mixedReference?: {
     imageVideo: boolean;
+    maxImages?: number;
+    maxVideos?: number;
     imageAudio: boolean;
     videoAudio: boolean;
     imageVideoAudio: boolean;
@@ -915,7 +917,7 @@ export function getVideoModelRuleFromRegistry(model: VideoModel): VideoModelRule
       image: imageLimit,
       video: videoLimit,
       audio: audioLimit,
-      total: imageLimit + videoLimit + audioLimit,
+      total: Math.max(0, Number(model.maxTotalReferences || imageLimit + videoLimit + audioLimit)),
     },
     ratios,
     durations,
@@ -931,6 +933,8 @@ export function getVideoModelRuleFromRegistry(model: VideoModel): VideoModelRule
     supportsEndFrame: model.referenceImages === true && imageLimit >= 2,
     mixedReference: {
       imageVideo: model.mixedReference?.imageVideo === true,
+      maxImages: Math.max(0, Number(model.mixedReference?.maxImages || 0)) || undefined,
+      maxVideos: Math.max(0, Number(model.mixedReference?.maxVideos || 0)) || undefined,
       imageAudio: model.mixedReference?.imageAudio === true,
       videoAudio: model.mixedReference?.videoAudio === true,
       imageVideoAudio: model.mixedReference?.imageVideoAudio === true,

@@ -232,8 +232,11 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
     maxReferenceVideos: Math.max(0, Number(model.maxReferenceVideos || 0)),
     referenceAudios: model.referenceAudios === true,
     maxReferenceAudios: Math.max(0, Number(model.maxReferenceAudios || 0)),
+    maxTotalReferences: Math.max(0, Number(model.maxTotalReferences || 0)),
     mixedReference: {
       imageVideo: mixedReference.imageVideo === true,
+      maxImages: Math.max(0, Number(mixedReference.maxImages || 0)),
+      maxVideos: Math.max(0, Number(mixedReference.maxVideos || 0)),
       imageAudio: mixedReference.imageAudio === true,
       videoAudio: mixedReference.videoAudio === true,
       imageVideoAudio: mixedReference.imageVideoAudio === true,

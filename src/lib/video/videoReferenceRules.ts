@@ -28,6 +28,21 @@ function countMediaTypes(items: Array<Pick<UploadMediaItem, "type">>): Reference
   );
 }
 
+function getMixedImageVideoIssue(rule: VideoModelRule, counts: ReferenceCountMap) {
+  if (counts.image <= 0 || counts.video <= 0) return "";
+  if (rule.mixedReference?.imageVideo !== true || counts.audio > 0) {
+    return "This model does not support mixed image and video references.";
+  }
+
+  // Models without explicit mixed limits retain the legacy verified 1+1 behavior.
+  const imageLimit = Math.max(1, Number(rule.mixedReference.maxImages || 1));
+  const videoLimit = Math.max(1, Number(rule.mixedReference.maxVideos || 1));
+  if (counts.image > imageLimit || counts.video > videoLimit) {
+    return `Reference limit reached for mixed media. This model supports up to ${imageLimit} images and ${videoLimit} videos.`;
+  }
+  return "";
+}
+
 function uniqueReferenceItems(items: UploadMediaItem[]) {
   const seen = new Set<string>();
   return items.filter((item) => {
@@ -107,12 +122,8 @@ export function validateReferenceSelectionForRule(
   }
 
   const counts = countMediaTypes(combined);
-  if (counts.image > 0 && counts.video > 0) {
-    if (rule.mixedReference?.imageVideo !== true) return "This model does not support mixed image and video references.";
-    if (counts.image !== 1 || counts.video !== 1 || counts.audio > 0) {
-      return "This model supports exactly one image plus one video in mixed reference mode.";
-    }
-  }
+  const mixedIssue = getMixedImageVideoIssue(rule, counts);
+  if (mixedIssue) return mixedIssue;
   if (counts.audio > 0 && (counts.image > 0 || counts.video > 0)) {
     return "This model does not support mixed audio references.";
   }
@@ -158,10 +169,9 @@ export function getReferenceMediaIssues(rule: VideoModelRule, items: UploadMedia
 
   const unique = uniqueReferenceItems(items);
   const combinedCounts = countMediaTypes(unique);
-  if (combinedCounts.image > 0 && combinedCounts.video > 0 && (
-    rule.mixedReference?.imageVideo !== true || combinedCounts.image !== 1 || combinedCounts.video !== 1 || combinedCounts.audio > 0
-  )) {
-    unique.forEach((item) => issues.set(item.id, [...(issues.get(item.id) || []), "Unsupported mixed reference combination."]));
+  const mixedIssue = getMixedImageVideoIssue(rule, combinedCounts);
+  if (mixedIssue) {
+    unique.forEach((item) => issues.set(item.id, [...(issues.get(item.id) || []), mixedIssue]));
   }
 
   return issues;

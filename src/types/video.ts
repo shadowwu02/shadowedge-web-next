@@ -87,8 +87,11 @@ export type VideoModel = {
   maxReferenceVideos?: number;
   referenceAudios?: boolean;
   maxReferenceAudios?: number;
+  maxTotalReferences?: number;
   mixedReference?: {
     imageVideo?: boolean;
+    maxImages?: number;
+    maxVideos?: number;
     imageAudio?: boolean;
     videoAudio?: boolean;
     imageVideoAudio?: boolean;
