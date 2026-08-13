@@ -2782,13 +2782,17 @@ export function VideoWorkspace() {
   const hasEnoughCredits = credits === null || estimatedCredits <= credits;
   const isPromptTooLong = prompt.length > VIDEO_PROMPT_FRONTEND_LIMIT;
   const hasPromptForGenerate = Boolean(prompt.trim());
-  const canGenerate = Boolean(selectedModel) && hasPromptForGenerate && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits && !isPromptTooLong;
+  const referenceSelectionIssue = useMemo(
+    () => validateReferenceSelectionForRule(selectedModelRule, [], media),
+    [media, selectedModelRule],
+  );
+  const canGenerate = Boolean(selectedModel) && hasPromptForGenerate && !referenceSelectionIssue && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits && !isPromptTooLong;
   const reusableMedia = useMemo(
     () => collectReusableVideoAssets(task ? [task, ...history] : history),
     [history, task],
   );
   const displayNotice = useMemo(() => {
-    const message = workspaceNotice || error || modelError;
+    const message = workspaceNotice || error || modelError || (referenceSelectionIssue ? t("video.errors.unsupportedReferenceCombination") : "");
     if (!message) return "";
 
     const exactMessages: Record<string, string> = {
@@ -2823,7 +2827,7 @@ export function VideoWorkspace() {
     }
 
     return message;
-  }, [error, modelError, t, tf, workspaceNotice]);
+  }, [error, modelError, referenceSelectionIssue, t, tf, workspaceNotice]);
 
   const generateButtonLabel = useMemo(() => {
     if (isUploadingMedia) return t("video.actions.uploadingMedia");
@@ -2834,13 +2838,14 @@ export function VideoWorkspace() {
   }, [estimatedCredits, hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, t, tf, token]);
   const generateButtonHelper = useMemo(() => {
     if (!hasPromptForGenerate) return t("video.errors.promptRequired");
+    if (referenceSelectionIssue) return t("video.errors.unsupportedReferenceCombination");
     if (isUploadingMedia) return t("video.errors.mediaUploading");
     if (isProcessing) return concurrencyLimitNotice;
     if (!token && !isSignedIn) return t("video.errors.signInRequired");
     if (!hasEnoughCredits) return t("video.credits.notEnough");
     if (isPromptTooLong) return tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT_LABEL });
     return t("video.credits.beforeSubmit");
-  }, [concurrencyLimitNotice, hasEnoughCredits, hasPromptForGenerate, isProcessing, isPromptTooLong, isSignedIn, isUploadingMedia, t, tf, token]);
+  }, [concurrencyLimitNotice, hasEnoughCredits, hasPromptForGenerate, isProcessing, isPromptTooLong, isSignedIn, isUploadingMedia, referenceSelectionIssue, t, tf, token]);
 
   const handleGenerateRemakeShot = useCallback(
     async (shot: RemakeShot, queueMeta?: RemakeShotQueueMeta) => {

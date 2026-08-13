@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { normalizeVideoModel } from "@/lib/video-api";
 import { getVideoModelRuleFromRegistry, normalizeVideoParamsForRule } from "@/lib/video/videoModelRules";
@@ -43,5 +45,19 @@ describe("ArtsDance registry-driven capabilities", () => {
     const video = (id: string): UploadMediaItem => ({ id, assetId: id, type: "video", name: id, url: `https://assets.shadowedgeai.com/${id}.mp4`, uploadStatus: "ready" });
     expect(validateReferenceSelectionForRule(rule, [], [image("i1"), video("v1")])).toBe("");
     expect(validateReferenceSelectionForRule(rule, [], [image("i1"), image("i2"), video("v1")])).toContain("exactly one image plus one video");
+  });
+
+  it("disables Generate when a restored draft contains an unsupported mixed combination", () => {
+    const rule = getVideoModelRuleFromRegistry(model);
+    const restoredDraft: UploadMediaItem[] = [
+      { id: "i1", assetId: "i1", type: "image", name: "i1", url: "https://assets.shadowedgeai.com/i1.png", uploadStatus: "ready" },
+      { id: "i2", assetId: "i2", type: "image", name: "i2", url: "https://assets.shadowedgeai.com/i2.png", uploadStatus: "ready" },
+      { id: "v1", assetId: "v1", type: "video", name: "v1", url: "https://assets.shadowedgeai.com/v1.mp4", uploadStatus: "ready" },
+    ];
+    expect(validateReferenceSelectionForRule(rule, [], restoredDraft)).toContain("exactly one image plus one video");
+
+    const workspaceSource = readFileSync(join(process.cwd(), "src/components/video/VideoWorkspace.tsx"), "utf8");
+    expect(workspaceSource).toContain("!referenceSelectionIssue");
+    expect(workspaceSource).toContain('t("video.errors.unsupportedReferenceCombination")');
   });
 });
