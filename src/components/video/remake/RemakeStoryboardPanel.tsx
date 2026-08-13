@@ -595,6 +595,23 @@ export function RemakeStoryboardPanel({
         </div>
       ) : null}
 
+      {storyboard?.summary || storyboard?.remakePrompt ? (
+        <div className="mb-5 grid gap-3 lg:grid-cols-2">
+          {storyboard.summary ? (
+            <div className="rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/58 p-4">
+              <p className="se-eyebrow">{t("video.remake.summary")}</p>
+              <p className="mt-2 text-sm leading-6 text-[#f4f4f4]/82">{storyboard.summary}</p>
+            </div>
+          ) : null}
+          {storyboard.remakePrompt ? (
+            <div className="rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/58 p-4">
+              <p className="se-eyebrow">{t("video.remake.remakePrompt")}</p>
+              <p className="mt-2 text-sm leading-6 text-[#f4f4f4]/82">{storyboard.remakePrompt}</p>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {analysisNotice ? (
         <p className="mb-5 rounded-[20px] border border-[#ffb44d]/24 bg-[#ffb44d]/10 p-3 text-sm leading-6 text-[#ffd08a]/86">
           {analysisNotice}

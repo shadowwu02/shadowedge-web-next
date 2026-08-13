@@ -593,10 +593,12 @@ function buildLongVideoStoryboardFromCanonical(input: {
     mock: canonicalResult.visualUnderstanding.mock,
     mode: "long_video",
     providerCallMade: canonicalResult.visualUnderstanding.providerCallMade,
+    remakePrompt: canonicalResult.remakePlan.map((item) => item.prompt).filter(Boolean).join("\n"),
     sandboxVlm: canonicalResult.visualUnderstanding.sandbox,
     sceneStyle: "canonical video analysis remake draft",
     shots,
     sourceTitle: input.sourceTitle,
+    summary: canonicalResult.storyboard.summary,
     targetRatio,
     targetRegion: "US",
     translateDialogue: true,
@@ -1874,6 +1876,7 @@ export function VideoWorkspace() {
         fallbackReason: undefined,
         mock: false,
         providerCallMade,
+        remakePrompt: longVideoJob.result?.remakePrompt || storyboard.remakePrompt,
         sandboxVlm: false,
         shots: storyboard.shots.map((shot) => {
           const imageHints = shot.referenceHints.images.filter(
@@ -1888,6 +1891,7 @@ export function VideoWorkspace() {
           };
         }),
         targetRatio: storyboard.targetRatio || targetRatio,
+        summary: longVideoJob.result?.summary || canonicalResult?.storyboard.summary || storyboard.summary,
         vlmCalled,
       };
       const sourceVideoMetadata = longVideoJob.sourceVideo || longVideoJob.result?.sourceVideo;

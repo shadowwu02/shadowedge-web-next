@@ -59,4 +59,14 @@ describe("Long Video Real VLM frontend full enablement", () => {
 
     expect(source).not.toContain('t("video.remake.longVideo.beta")');
   });
+
+  it("renders canonical summary and remake prompt without internal provider branding", () => {
+    const panelSource = readSource("src/components/video/remake/RemakeStoryboardPanel.tsx");
+    const dictionarySource = readSource("src/i18n/dictionary.ts");
+
+    expect(panelSource).toContain('t("video.remake.summary")');
+    expect(panelSource).toContain('t("video.remake.remakePrompt")');
+    expect(dictionarySource).not.toContain("Long video analysis uses Real VLM");
+    expect(dictionarySource).not.toContain("长视频分析会使用 Real VLM");
+  });
 });

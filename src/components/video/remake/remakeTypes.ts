@@ -245,8 +245,10 @@ export type RemakeStoryboard = {
   fallbackReason?: string;
   mock?: boolean;
   providerCallMade?: boolean;
+  remakePrompt?: string;
   sandboxVlm?: boolean;
   sourceTitle?: string;
+  summary?: string;
   targetRatio?: string;
   targetRegion: RemakeTargetRegion;
   characterRules: string;
