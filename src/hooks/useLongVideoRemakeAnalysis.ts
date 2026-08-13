@@ -84,10 +84,11 @@ function createClientRequestId() {
   return `long-video-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
-function classifyError(error: unknown): LongVideoAnalysisErrorCategory {
+export function classifyLongVideoAnalysisError(error: unknown): LongVideoAnalysisErrorCategory {
   const apiError = error instanceof ApiError ? error : null;
   const token = `${apiError?.code || ""} ${error instanceof Error ? error.message : ""}`.toLowerCase();
 
+  if (token.includes("real_vlm_result_review_required") || token.includes("quality validation")) return "quality_review_required";
   if (apiError?.kind === "auth" || apiError?.status === 401) return "auth_required";
   if (apiError?.kind === "credits" || apiError?.status === 402) return "insufficient_credits";
   if (token.includes("duration") || token.includes("too_long") || token.includes("too_short")) return "invalid_duration";
@@ -307,7 +308,7 @@ export function useLongVideoRemakeAnalysis({
         setView(idleView);
         return safeEstimate;
       } catch (error) {
-        markFailed(classifyError(error));
+        markFailed(classifyLongVideoAnalysisError(error));
         return null;
       } finally {
         estimateInFlightRef.current = false;
@@ -363,7 +364,7 @@ export function useLongVideoRemakeAnalysis({
       setPendingEstimate(null);
       return job;
     } catch (error) {
-      markFailed(classifyError(error));
+      markFailed(classifyLongVideoAnalysisError(error));
       return null;
     } finally {
       createInFlightRef.current = false;
@@ -381,7 +382,7 @@ export function useLongVideoRemakeAnalysis({
       });
 
       if (nextState === "failed") {
-        markFailed(job.status === "completed" ? "result_unavailable" : classifyError(new Error(`${job.errorCode || ""} ${job.errorMessage || ""}`)));
+        markFailed(job.status === "completed" ? "result_unavailable" : classifyLongVideoAnalysisError(new Error(`${job.errorCode || ""} ${job.errorMessage || ""}`)));
         return;
       }
       if (nextState === "completed") {

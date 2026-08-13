@@ -20,6 +20,7 @@ export type LongVideoAnalysisErrorCategory =
   | "insufficient_credits"
   | "invalid_duration"
   | "not_eligible"
+  | "quality_review_required"
   | "result_unavailable"
   | "status_unavailable";
 

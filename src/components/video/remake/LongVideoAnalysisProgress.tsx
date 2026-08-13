@@ -62,6 +62,7 @@ const errorCopy: Record<LongVideoAnalysisErrorCategory, DictionaryKey> = {
   insufficient_credits: "video.remake.longVideo.progress.error.insufficientCredits",
   invalid_duration: "video.remake.longVideo.progress.error.invalidDuration",
   not_eligible: "video.remake.longVideo.progress.error.notEligible",
+  quality_review_required: "video.remake.longVideo.progress.error.qualityReviewRequired",
   result_unavailable: "video.remake.longVideo.progress.error.resultUnavailable",
   status_unavailable: "video.remake.longVideo.progress.error.statusUnavailable",
 };

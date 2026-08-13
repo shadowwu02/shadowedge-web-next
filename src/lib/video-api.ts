@@ -312,7 +312,15 @@ function unwrapRemakeAnalysisPayload(payload: unknown) {
   const dataJob = asRecord(data.job);
   const job = hasRecordKeys(dataJob) ? dataJob : hasRecordKeys(rootJob) ? rootJob : hasRecordKeys(data) ? data : root;
   const result = asRecord(job.result || data.result || root.result);
-  const metadata = asRecord(job.metadata || data.metadata || root.metadata || result.metadata);
+  const baseMetadata = asRecord(job.metadata || data.metadata || root.metadata || result.metadata);
+  const metadata = {
+    ...baseMetadata,
+    ...(pickString(root.analysisEngine, data.analysisEngine) ? { analysisEngine: pickString(root.analysisEngine, data.analysisEngine) } : {}),
+    ...(root.providerCallMade === true || data.providerCallMade === true ? { providerCallMade: true } : {}),
+    ...(root.reviewRequired === true || data.reviewRequired === true ? { reviewRequired: true } : {}),
+    ...(root.schemaValid === false || data.schemaValid === false ? { schemaValid: false } : {}),
+    ...(root.vlmCalled === true || data.vlmCalled === true ? { vlmCalled: true } : {}),
+  };
   const sourceVideo = asRecord(job.sourceVideo || data.sourceVideo || root.sourceVideo || result.sourceVideo);
   const canonicalResult =
     root.canonicalResult ||
@@ -332,7 +340,7 @@ function unwrapRemakeAnalysisPayload(payload: unknown) {
   };
 }
 
-function normalizeLongAnalysisJob(payload: unknown): VideoRemakeLongAnalysisJob {
+export function normalizeLongAnalysisJob(payload: unknown): VideoRemakeLongAnalysisJob {
   const { canonicalResult: rawCanonicalResult, data, job, metadata, result, root, sourceVideo } = unwrapRemakeAnalysisPayload(payload);
   const analysisJobId = pickString(job.analysisJobId, job.id, data.analysisJobId, data.id, root.analysisJobId, root.id) || "";
   const status = pickString(job.status, data.status, root.status) || "queued";
