@@ -826,13 +826,6 @@ export async function getVideoModels() {
   return (envelope.data?.models || []).map(normalizeVideoModel);
 }
 
-export async function getInternalSmokeVideoModels() {
-  const envelope = await apiRequest<{ models: RawModel[] }>("/api/video/internal-smoke/models", {
-    method: "GET",
-  });
-  return (envelope.data?.models || []).map(normalizeVideoModel);
-}
-
 function assertRemoteMediaUrl(url: string) {
   const value = String(url || "").trim();
   if (!value) return;
