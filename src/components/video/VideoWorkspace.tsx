@@ -57,6 +57,7 @@ import {
   estimateLongVideoRemakeAnalysisCost,
   getFullEpisodeRemakeAnalysisStatus,
   getLongVideoRemakeAnalysisStatus,
+  getRemakeAnalysisStatusForRecovery,
   getVideoModels,
   getVideoStatus,
   reverseAnalyzeVideoRemake,
@@ -1773,58 +1774,6 @@ export function VideoWorkspace() {
     [t],
   );
 
-  useEffect(() => {
-    if (!remakeJobIdQuery || isAuthLoading || !isSignedIn) return;
-    if (remakeJobRecoveryRef.current === remakeJobIdQuery) return;
-
-    remakeJobRecoveryRef.current = remakeJobIdQuery;
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
-      async function recoverFullEpisodeJob() {
-        setWorkspaceMode("remake");
-        setRemakeMode("full_film");
-        setIsRemakeAnalyzing(true);
-        setRemakeAnalysisError("");
-        setRemakeAnalysisNotice(t("video.remake.fullEpisode.stage.queued"));
-        setRemakeStoryboard(null);
-        setRemakeAnalysisMeta(null);
-
-        try {
-          const recoveredJob = await getFullEpisodeRemakeAnalysisStatus(remakeJobIdQuery);
-          if (cancelled) return;
-
-          if (recoveredJob.status === "completed") {
-            applyCompletedFullEpisodeAnalysisJob(recoveredJob, {
-              sourceTitle: "Full episode source video",
-            });
-            return;
-          }
-
-          if (recoveredJob.status === "failed" || recoveredJob.errorCode || recoveredJob.errorMessage) {
-            setRemakeAnalysisError(recoveredJob.errorMessage || t("video.remake.fullEpisode.failed"));
-            setRemakeAnalysisNotice("");
-            return;
-          }
-
-          setRemakeAnalysisNotice(getFullEpisodeStageNotice(recoveredJob.episodeStage || recoveredJob.stage, t));
-        } catch (error) {
-          if (cancelled) return;
-          setRemakeAnalysisError(getFullEpisodeCreateErrorMessage(error, t));
-          setRemakeAnalysisNotice("");
-        } finally {
-          if (!cancelled) setIsRemakeAnalyzing(false);
-        }
-      }
-
-      void recoverFullEpisodeJob();
-    }, 0);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [applyCompletedFullEpisodeAnalysisJob, isAuthLoading, isSignedIn, remakeJobIdQuery, t]);
-
   useTaskPolling({
     enabled: task ? !isVideoStaleActiveRecord(task) : true,
     taskId: task?.jobId,
@@ -2019,6 +1968,79 @@ export function VideoWorkspace() {
   });
   const guardedLongVideoUxVisible =
     authenticatedLongVideoUxEnabled || Boolean(activeLongVideoAnalysisJob || longVideoAnalysisState || pendingLongVideoEstimate);
+
+  useEffect(() => {
+    if (!remakeJobIdQuery || isAuthLoading || !isSignedIn) return;
+    if (remakeJobRecoveryRef.current === remakeJobIdQuery) return;
+
+    remakeJobRecoveryRef.current = remakeJobIdQuery;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      async function recoverRemakeJob() {
+        setWorkspaceMode("remake");
+        setIsRemakeAnalyzing(true);
+        setRemakeAnalysisError("");
+        setRemakeAnalysisNotice(t("video.remake.longVideo.stage.queued"));
+        setRemakeStoryboard(null);
+        setRemakeAnalysisMeta(null);
+
+        try {
+          const recovered = await getRemakeAnalysisStatusForRecovery(remakeJobIdQuery);
+          if (cancelled) return;
+
+          setRemakeMode(recovered.mode);
+          if (recovered.mode === "long_video") {
+            const recoveredJob = recovered.job;
+            if (recoveredJob.status === "completed") {
+              applyCompletedLongVideoAnalysisJob(recoveredJob);
+              return;
+            }
+            if (recoveredJob.status === "failed" || recoveredJob.errorCode || recoveredJob.errorMessage) {
+              setRemakeAnalysisError(recoveredJob.errorMessage || t("video.remake.longVideo.stage.failed"));
+              setRemakeAnalysisNotice("");
+              return;
+            }
+            setRemakeAnalysisNotice(getLongVideoStageNotice(recoveredJob.stage, t));
+            return;
+          }
+
+          const recoveredJob = recovered.job;
+          if (recoveredJob.status === "completed") {
+            applyCompletedFullEpisodeAnalysisJob(recoveredJob, {
+              sourceTitle: "Full episode source video",
+            });
+            return;
+          }
+          if (recoveredJob.status === "failed" || recoveredJob.errorCode || recoveredJob.errorMessage) {
+            setRemakeAnalysisError(recoveredJob.errorMessage || t("video.remake.fullEpisode.failed"));
+            setRemakeAnalysisNotice("");
+            return;
+          }
+          setRemakeAnalysisNotice(getFullEpisodeStageNotice(recoveredJob.episodeStage || recoveredJob.stage, t));
+        } catch (error) {
+          if (cancelled) return;
+          setRemakeAnalysisError(getFullEpisodeCreateErrorMessage(error, t));
+          setRemakeAnalysisNotice("");
+        } finally {
+          if (!cancelled) setIsRemakeAnalyzing(false);
+        }
+      }
+
+      void recoverRemakeJob();
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [
+    applyCompletedFullEpisodeAnalysisJob,
+    applyCompletedLongVideoAnalysisJob,
+    isAuthLoading,
+    isSignedIn,
+    remakeJobIdQuery,
+    t,
+  ]);
 
   const resetRemakeDerivedSourceState = useCallback((workspaceMessage = "") => {
     resetLongVideoAnalysis();

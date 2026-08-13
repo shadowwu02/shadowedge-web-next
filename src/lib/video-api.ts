@@ -861,6 +861,26 @@ export async function getFullEpisodeRemakeAnalysisStatus(analysisJobId: string) 
   return normalizeFullEpisodeStatusResponse(envelope);
 }
 
+export type RecoveredRemakeAnalysisStatus =
+  | { mode: "long_video"; job: VideoRemakeLongAnalysisJob }
+  | { mode: "full_film"; job: VideoRemakeFullEpisodeAnalysisJob };
+
+export async function getRemakeAnalysisStatusForRecovery(analysisJobId: string): Promise<RecoveredRemakeAnalysisStatus> {
+  try {
+    return {
+      mode: "long_video",
+      job: await getLongVideoRemakeAnalysisStatus(analysisJobId),
+    };
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 404) throw error;
+  }
+
+  return {
+    mode: "full_film",
+    job: await getFullEpisodeRemakeAnalysisStatus(analysisJobId),
+  };
+}
+
 export async function getVideoModels() {
   const envelope = await apiRequest<{ models: RawModel[] }>("/api/video/models", {
     method: "GET",

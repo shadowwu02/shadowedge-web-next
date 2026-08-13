@@ -31,6 +31,22 @@ describe("Long Video Real VLM frontend full enablement", () => {
     expect(source).toContain('fetch("/api/internal/video/reverse-analyze"');
   });
 
+  it("recovers a canonical long-video result before falling back to a legacy full-episode job", () => {
+    const apiSource = readSource("src/lib/video-api.ts");
+    const workspaceSource = readSource("src/components/video/VideoWorkspace.tsx");
+    const recoveryFunction = apiSource.slice(
+      apiSource.indexOf("export async function getRemakeAnalysisStatusForRecovery"),
+      apiSource.indexOf("export async function getVideoModels"),
+    );
+
+    expect(recoveryFunction.indexOf("getLongVideoRemakeAnalysisStatus")).toBeLessThan(
+      recoveryFunction.indexOf("getFullEpisodeRemakeAnalysisStatus"),
+    );
+    expect(recoveryFunction).toContain("error.status !== 404");
+    expect(workspaceSource).toContain('recovered.mode === "long_video"');
+    expect(workspaceSource).toContain("applyCompletedLongVideoAnalysisJob(recoveredJob)");
+  });
+
   it("keeps UNCERTAIN and REVIEW_REQUIRED active to prevent duplicate submit", () => {
     expect(mapLongVideoAnalysisState({ status: "UNCERTAIN" })).toBe("uncertain");
     expect(mapLongVideoAnalysisState({ status: "REVIEW_REQUIRED" })).toBe("review_required");
