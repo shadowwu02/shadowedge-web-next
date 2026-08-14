@@ -133,6 +133,25 @@ const legacySeedanceFallbackModels: VideoModel[] = [
   },
 ];
 
+const artsdanceReferenceFallback = {
+  uploadSlots: ["reference_images", "reference_videos"],
+  referenceImages: true,
+  maxReferenceImages: 9,
+  referenceVideos: true,
+  maxReferenceVideos: 2,
+  referenceAudios: false,
+  maxReferenceAudios: 0,
+  maxTotalReferences: 11,
+  mixedReference: {
+    imageVideo: true,
+    maxImages: 9,
+    maxVideos: 2,
+    imageAudio: false,
+    videoAudio: false,
+    imageVideoAudio: false,
+  },
+} satisfies Partial<VideoModel>;
+
 const artsdanceFallbackModels: VideoModel[] = [
   {
     id: "seedance_2_0_mini",
@@ -146,7 +165,7 @@ const artsdanceFallbackModels: VideoModel[] = [
     ratios: ["16:9"],
     qualities: ["720p"],
     supportsAudio: false,
-    uploadSlots: [],
+    ...artsdanceReferenceFallback,
   },
   {
     id: "seedance_2_0_fast",
@@ -160,7 +179,7 @@ const artsdanceFallbackModels: VideoModel[] = [
     ratios: ["16:9"],
     qualities: ["720p"],
     supportsAudio: false,
-    uploadSlots: [],
+    ...artsdanceReferenceFallback,
   },
   {
     id: "seedance_2_0",
@@ -174,7 +193,7 @@ const artsdanceFallbackModels: VideoModel[] = [
     ratios: ["16:9"],
     qualities: ["720p"],
     supportsAudio: false,
-    uploadSlots: [],
+    ...artsdanceReferenceFallback,
   },
   {
     id: "seedance_2_5",
@@ -188,7 +207,7 @@ const artsdanceFallbackModels: VideoModel[] = [
     ratios: ["16:9"],
     qualities: ["720p"],
     supportsAudio: false,
-    uploadSlots: [],
+    ...artsdanceReferenceFallback,
   },
 ];
 

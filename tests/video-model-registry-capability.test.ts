@@ -31,6 +31,8 @@ describe("ArtsDance registry-driven capabilities", () => {
     imagePlusGenerateAudio: true,
   });
 
+  const referenceModels = ["seedance_2_0_mini", "seedance_2_0_fast", "seedance_2_0", "seedance_2_5"];
+
   it("uses Backend counts, resolutions, durations, ratios, and generated audio", () => {
     const rule = getVideoModelRuleFromRegistry(model);
     expect(rule.maxReferences).toEqual({ image: 9, video: 2, audio: 0, total: 11 });
@@ -55,6 +57,15 @@ describe("ArtsDance registry-driven capabilities", () => {
     expect(validateReferenceSelectionForRule(rule, [], [
       ...Array.from({ length: 9 }, (_value, index) => image(`i${index + 1}`)), video("v1"), video("v2"), video("v3"),
     ])).toContain("Reference limit reached");
+  });
+
+  it.each(referenceModels)("drives %s Reference slots from the Backend registry", (id) => {
+    const rule = getVideoModelRuleFromRegistry({ ...model, id, label: id });
+    expect(rule.uploadSlots).toEqual(["reference_images", "reference_videos"]);
+    expect(rule.maxReferences).toEqual({ image: 9, video: 2, audio: 0, total: 11 });
+    expect(rule.supportedMediaTypes).toEqual(["image", "video"]);
+    expect(rule.supportsAudioReference).toBe(false);
+    expect(rule.mixedReference).toMatchObject({ imageVideo: true, maxImages: 9, maxVideos: 2 });
   });
 
   it("restores verified mixed drafts and disables Generate only beyond the Backend capability", () => {
