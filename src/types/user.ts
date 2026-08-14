@@ -16,4 +16,6 @@ export type ShadowEdgeProfile = {
   max_concurrency?: number;
   maxConcurrency?: number;
   concurrency?: number;
+  tenantMembershipStatus?: "READY" | "REVIEW_REQUIRED" | "DENIED" | "UNAVAILABLE";
+  tenantMembershipCode?: string;
 };

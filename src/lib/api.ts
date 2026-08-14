@@ -100,6 +100,15 @@ export function normalizeApiError(status: number, payload: ApiEnvelope<unknown> 
     });
   }
 
+  if (code === "TENANT_MEMBERSHIP_REVIEW_REQUIRED") {
+    return new ApiError("Account ownership has not been completed. Please contact an administrator.", {
+      status,
+      code,
+      payload,
+      kind: "membership",
+    });
+  }
+
   if (status === 402 || status === 403 || text.includes("insufficient") || text.includes("not enough credit") || text.includes("credits")) {
     return new ApiError(text.includes("admin") ? "Contact administrator." : message || "Not enough credits.", {
       status,

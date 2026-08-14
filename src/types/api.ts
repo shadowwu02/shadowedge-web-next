@@ -16,14 +16,14 @@ export type ApiErrorOptions = {
   status?: number;
   code?: string;
   payload?: unknown;
-  kind?: "auth" | "credits" | "maintenance" | "network" | "server" | "unknown";
+  kind?: "auth" | "credits" | "membership" | "maintenance" | "network" | "server" | "unknown";
 };
 
 export class ApiError extends Error {
   status?: number;
   code?: string;
   payload?: unknown;
-  kind?: "auth" | "credits" | "maintenance" | "network" | "server" | "unknown";
+  kind?: "auth" | "credits" | "membership" | "maintenance" | "network" | "server" | "unknown";
 
   constructor(message: string, options: ApiErrorOptions = {}) {
     super(message || "ShadowEdge API request failed");

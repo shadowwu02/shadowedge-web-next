@@ -21,6 +21,10 @@ type AuthMePayload = {
   concurrency?: number;
   email?: string;
   name?: string;
+  tenantAccess?: {
+    status?: "READY" | "REVIEW_REQUIRED" | "DENIED" | "UNAVAILABLE";
+    code?: string;
+  };
 };
 
 export type AuthMeResult = {
@@ -83,6 +87,8 @@ export async function getCurrentUserProfile(): Promise<AuthMeResult> {
     credits_balance: data.profile?.credits_balance ?? data.credits_balance ?? data.credits,
     max_concurrency: data.profile?.max_concurrency ?? data.max_concurrency ?? data.concurrency,
     maxConcurrency: data.profile?.maxConcurrency ?? data.maxConcurrency,
+    tenantMembershipStatus: data.profile?.tenantMembershipStatus ?? data.tenantAccess?.status,
+    tenantMembershipCode: data.profile?.tenantMembershipCode ?? data.tenantAccess?.code,
   };
 
   markAuthSessionVerified(getStoredAuthToken());

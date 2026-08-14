@@ -82,6 +82,7 @@ export function ImageWorkspace() {
     if (!message) return "";
     const normalized = message.toLowerCase();
     if (message.includes("MAINTENANCE_MODE") || normalized.includes("under maintenance")) return t("maintenance.errors.generationPaused");
+    if (message.includes("TENANT_MEMBERSHIP_REVIEW_REQUIRED") || normalized.includes("account ownership has not been completed")) return t("account.tenantMembershipReviewRequired");
     if (normalized === "network request failed." || normalized === "network request failed") return t("image.errors.networkRequestFailed");
     if (normalized.includes("not enough credits") || normalized.includes("insufficient credits")) return t("image.errors.notEnoughCredits");
     if (normalized.includes("provider unavailable") || normalized.includes("provider is unavailable")) return t("image.errors.providerUnavailable");

@@ -2807,7 +2807,8 @@ export function VideoWorkspace() {
     [media, selectedModelRule],
   );
   const modelUnavailable = selectedModel.available === false;
-  const canGenerate = Boolean(selectedModel) && !modelUnavailable && hasPromptForGenerate && !referenceSelectionIssue && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits && !isPromptTooLong;
+  const tenantMembershipReviewRequired = profile?.tenantMembershipStatus === "REVIEW_REQUIRED";
+  const canGenerate = Boolean(selectedModel) && !modelUnavailable && !tenantMembershipReviewRequired && hasPromptForGenerate && !referenceSelectionIssue && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits && !isPromptTooLong;
   const reusableMedia = useMemo(
     () => collectReusableVideoAssets(task ? [task, ...history] : history),
     [history, task],
@@ -2841,6 +2842,9 @@ export function VideoWorkspace() {
     if (message.includes("MAINTENANCE_MODE") || message.toLowerCase().includes("under maintenance")) {
       return t("maintenance.errors.generationPaused");
     }
+    if (message.includes("TENANT_MEMBERSHIP_REVIEW_REQUIRED") || message.toLowerCase().includes("account ownership has not been completed")) {
+      return t("account.tenantMembershipReviewRequired");
+    }
     if (message.includes("does not support image references")) return t("video.errors.unsupportedImageReference");
     if (message.includes("does not support video references")) return t("video.errors.unsupportedVideoReference");
     if (message.includes("does not support audio references")) return t("video.errors.unsupportedAudioReference");
@@ -2864,6 +2868,7 @@ export function VideoWorkspace() {
   const generateButtonHelper = useMemo(() => {
     if (!hasPromptForGenerate) return t("video.errors.promptRequired");
     if (modelUnavailable) return t("generation.modelTemporarilyUnavailable");
+    if (tenantMembershipReviewRequired) return t("account.tenantMembershipReviewRequired");
     if (referenceSelectionIssue) return referenceSelectionIssue === LEGACY_REFERENCE_REUPLOAD_REQUIRED
       ? t("video.errors.legacyReferencesBeforeGenerate")
       : t("video.errors.unsupportedReferenceCombination");
@@ -2873,7 +2878,7 @@ export function VideoWorkspace() {
     if (!hasEnoughCredits) return t("video.credits.notEnough");
     if (isPromptTooLong) return tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT_LABEL });
     return t("video.credits.beforeSubmit");
-  }, [concurrencyLimitNotice, hasEnoughCredits, hasPromptForGenerate, isProcessing, isPromptTooLong, isSignedIn, isUploadingMedia, modelUnavailable, referenceSelectionIssue, t, tf, token]);
+  }, [concurrencyLimitNotice, hasEnoughCredits, hasPromptForGenerate, isProcessing, isPromptTooLong, isSignedIn, isUploadingMedia, modelUnavailable, referenceSelectionIssue, t, tenantMembershipReviewRequired, tf, token]);
 
   const handleGenerateRemakeShot = useCallback(
     async (shot: RemakeShot, queueMeta?: RemakeShotQueueMeta) => {
@@ -3619,6 +3624,11 @@ export function VideoWorkspace() {
   const submitCurrent = useCallback(() => {
     setWorkspaceNotice("");
 
+    if (tenantMembershipReviewRequired) {
+      setWorkspaceNotice(t("account.tenantMembershipReviewRequired"));
+      return;
+    }
+
     if (selectedModel.available === false) {
       setWorkspaceNotice(t("generation.modelTemporarilyUnavailable"));
       return;
@@ -3656,7 +3666,7 @@ export function VideoWorkspace() {
       media,
       mentionBindings: reconciledMentionBindings,
     });
-  }, [concurrencyLimitNotice, effectiveGenerateAudio, hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, maxConcurrency, media, params, prompt, reconciledMentionBindings, selectedModel, submit, t, token]);
+  }, [concurrencyLimitNotice, effectiveGenerateAudio, hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, maxConcurrency, media, params, prompt, reconciledMentionBindings, selectedModel, submit, t, tenantMembershipReviewRequired, token]);
 
   const getGeneratedResultReferenceIssue = useCallback(
     (record: (typeof history)[number]) => {
