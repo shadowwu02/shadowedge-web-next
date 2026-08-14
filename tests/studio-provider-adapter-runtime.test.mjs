@@ -68,15 +68,14 @@ test("video_edit resolves to the unified local Mock Provider", async () => {
   );
 });
 
-test("video_generate resolves provider and runtime adapter without invoking Provider", () => {
+test("retired Higgsfield video_generate fails closed without invoking Provider", () => {
   const resolution = resolveProviderRuntimeDefinition({
     capability: "video_generate",
     providerId: "higgsfield",
   });
-  assert.equal(resolution.ok, true);
-  if (!resolution.ok) return;
-  assert.equal(resolution.provider.runtimeType, "cli");
-  assert.equal(resolution.runtimeAdapter, "higgsfield_video_cli");
+  assert.equal(resolution.ok, false);
+  if (resolution.ok) return;
+  assert.equal(resolution.error.code, "CAPABILITY_PROVIDER_UNAVAILABLE");
 });
 
 test("motion_control resolves through the same adapter and supports cancel", async () => {
@@ -113,7 +112,7 @@ test("motion_control resolves through the same adapter and supports cancel", asy
 });
 
 test("metadata-only or unknown providers fail closed", () => {
-  assert.equal(getStudioProvider("higgsfield")?.status, "ACTIVE");
+  assert.equal(getStudioProvider("higgsfield")?.status, "DISABLED");
   assert.deepEqual(getStudioProvider("higgsfield")?.capabilities, [
     "video_generate",
     "video_edit",

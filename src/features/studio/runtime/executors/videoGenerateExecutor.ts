@@ -1,5 +1,4 @@
 import {
-  STUDIO_HIGGSFIELD_VIDEO_GENERATION_ENABLED,
   STUDIO_VIDEO_EXECUTION_ENABLED,
 } from "@/config/studioFeatures";
 import {
@@ -46,6 +45,10 @@ import type {
   VideoModel,
   VideoStatusResponse,
 } from "@/types/video";
+import {
+  HIGGSFIELD_RETIRED_MODEL_MESSAGE,
+  isRetiredHiggsfieldVideoAlias,
+} from "@/lib/higgsfieldProductionRetirement";
 
 const POLLING_INTERVAL_MS = 6_000;
 const MAX_POLL_ATTEMPTS = 480;
@@ -207,7 +210,7 @@ function friendlyMessage(code: StudioVideoErrorCode, fallback = "") {
     return "Studio video execution is disabled in this environment.";
   }
   if (code === "STUDIO_HIGGSFIELD_VIDEO_GENERATION_DISABLED") {
-    return "Studio Higgsfield video generation is disabled in this environment.";
+    return HIGGSFIELD_RETIRED_MODEL_MESSAGE;
   }
   if (
     code === "STUDIO_PROVIDER_MODEL_INVENTORY_UNAVAILABLE" ||
@@ -401,8 +404,8 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
 
     const providerId = configString(context, "providerId") || "higgsfield";
     if (
-      providerId === "higgsfield" &&
-      !STUDIO_HIGGSFIELD_VIDEO_GENERATION_ENABLED
+      providerId === "higgsfield" ||
+      isRetiredHiggsfieldVideoAlias(configString(context, "modelId") || configString(context, "model"))
     ) {
       return failure("STUDIO_HIGGSFIELD_VIDEO_GENERATION_DISABLED");
     }

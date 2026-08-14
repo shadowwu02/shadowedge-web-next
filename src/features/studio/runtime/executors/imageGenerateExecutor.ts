@@ -24,12 +24,17 @@ import { IMAGE_PROMPT_FRONTEND_LIMIT } from "@/lib/image/imagePromptLimits";
 import { ApiError } from "@/types/api";
 import type { ImageJobStatus } from "@/types/image";
 import { isCanonicalAssetId } from "@/lib/video/canonicalReferenceAssets";
+import {
+  HIGGSFIELD_RETIRED_MODEL_MESSAGE,
+  isRetiredHiggsfieldImageAlias,
+} from "@/lib/higgsfieldProductionRetirement";
 
 const POLLING_INTERVAL_MS = 4_000;
 const MAX_POLL_ATTEMPTS = 150;
 
 type StudioImageErrorCode =
   | "STUDIO_IMAGE_EXECUTION_DISABLED"
+  | "STUDIO_IMAGE_MODEL_RETIRED"
   | "AUTH_REQUIRED"
   | "INSUFFICIENT_CREDITS"
   | "FORBIDDEN"
@@ -134,6 +139,9 @@ function mapReasonCode(message: string, errorCode = ""): StudioImageErrorCode {
 function friendlyMessage(code: StudioImageErrorCode, fallback = "") {
   if (code === "STUDIO_IMAGE_EXECUTION_DISABLED") {
     return "Studio image execution is disabled in this environment.";
+  }
+  if (code === "STUDIO_IMAGE_MODEL_RETIRED") {
+    return HIGGSFIELD_RETIRED_MODEL_MESSAGE;
   }
   if (code === "AUTH_REQUIRED") {
     return "Your session expired. Sign in again before running this image node.";
@@ -245,6 +253,9 @@ export const ImageGenerateExecutor: StudioNodeExecutor = {
   async execute(context) {
     if (!STUDIO_IMAGE_EXECUTION_ENABLED) {
       return failure("STUDIO_IMAGE_EXECUTION_DISABLED");
+    }
+    if (isRetiredHiggsfieldImageAlias(configString(context, "model"))) {
+      return failure("STUDIO_IMAGE_MODEL_RETIRED");
     }
 
     const promptInput = findPromptInput(context);

@@ -34,6 +34,10 @@ import {
 } from "@/lib/image/imageWorkspaceDraft";
 import type { ImageGenerationParams, ImageHistoryItem, ImageModel, ImageReferenceItem } from "@/types/image";
 import { ApiError } from "@/types/api";
+import {
+  HIGGSFIELD_RETIRED_MODEL_MESSAGE,
+  isRetiredHiggsfieldImageAlias,
+} from "@/lib/higgsfieldProductionRetirement";
 
 type UseImageGenerationOptions = {
   autoLoad?: boolean;
@@ -212,13 +216,17 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
         if (draftResult.status === "expired") {
           setDraftNotice(t("image.draftExpired"));
         } else if (draft) {
-          const resultDraftNotice = readImageResultDraftNotice();
-          if (resultDraftNotice) {
-            setDraftNotice(resultDraftNotice);
-          } else if (nextReferences.length) {
-            setDraftNotice(tf("image.referencesRestored", { count: nextReferences.length }));
+          if (!draftModel && isRetiredHiggsfieldImageAlias(draft.modelId)) {
+            setDraftNotice(HIGGSFIELD_RETIRED_MODEL_MESSAGE);
           } else {
-            setDraftNotice(t("image.draftRestored"));
+            const resultDraftNotice = readImageResultDraftNotice();
+            if (resultDraftNotice) {
+              setDraftNotice(resultDraftNotice);
+            } else if (nextReferences.length) {
+              setDraftNotice(tf("image.referencesRestored", { count: nextReferences.length }));
+            } else {
+              setDraftNotice(t("image.draftRestored"));
+            }
           }
         }
 

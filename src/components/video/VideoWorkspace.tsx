@@ -113,6 +113,10 @@ import { LEGACY_REFERENCE_REUPLOAD_REQUIRED } from "@/lib/video/canonicalReferen
 import { isVideoActiveStatus, isVideoFailedStatus } from "@/lib/utils";
 import { ApiError } from "@/types/api";
 import type { UploadMediaItem, UploadMediaRole, VideoModel, VideoStatusResponse, VideoTaskRecord } from "@/types/video";
+import {
+  HIGGSFIELD_RETIRED_MODEL_MESSAGE,
+  isRetiredHiggsfieldVideoAlias,
+} from "@/lib/higgsfieldProductionRetirement";
 
 const artsdanceProductionEnabled = process.env.NEXT_PUBLIC_XINHANKR_ARTSDANCE_PRODUCTION_ENABLED === "true";
 const artsdanceModelAliases = new Set(["seedance_2_0_mini", "seedance_2_0_fast", "seedance_2_0", "seedance_2_5", "seedance_2_5_pro"]);
@@ -214,20 +218,6 @@ const artsdanceFallbackModels: VideoModel[] = [
 
 const fallbackModels: VideoModel[] = [
   ...(artsdanceProductionEnabled ? artsdanceFallbackModels : legacySeedanceFallbackModels),
-  {
-    id: "veo3_1",
-    label: "Veo 3.1",
-    provider: "auto",
-    providerModel: "veo3_1",
-    desc: "Cinematic video model placeholder.",
-    credits: 16,
-    durations: [5, 8],
-    durationDefault: 5,
-    ratios: ["16:9", "9:16"],
-    qualities: ["720p", "1080p"],
-    supportsAudio: true,
-    uploadSlots: ["image", "last_frame_image"],
-  },
 ];
 
 function isMaintenanceApiError(error: unknown) {
@@ -1356,7 +1346,9 @@ export function VideoWorkspace() {
         setMedia(draft.referenceMedia);
         setMentionBindings(draft.mentionBindings);
         const draftNotice = readVideoDraftNotice();
-        if (draftNotice) setWorkspaceNotice(draftNotice);
+        if (!draftModel && [draft.modelId, draft.providerModel, draft.modelLabel].some(isRetiredHiggsfieldVideoAlias)) {
+          setWorkspaceNotice(HIGGSFIELD_RETIRED_MODEL_MESSAGE);
+        } else if (draftNotice) setWorkspaceNotice(draftNotice);
       }
 
       setDraftReady(true);

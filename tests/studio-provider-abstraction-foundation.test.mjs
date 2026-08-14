@@ -37,19 +37,15 @@ test("Capability Registry includes current and future provider-neutral capabilit
   );
 });
 
-test("existing Higgsfield video executor resolves through provider runtime mapping", () => {
+test("retired Higgsfield video executor remains metadata but fails closed", () => {
   const runtime = resolveProviderRuntimeDefinition({
     capability: "video_generate",
     providerId: "higgsfield",
   });
-  assert.equal(runtime.ok, true);
-  assert.deepEqual(
-    resolveStudioVideoGenerationProvider("higgsfield", "higgsfield_video_cli"),
-    {
-      providerId: "higgsfield",
-      executor: "existing_video_api",
-      runtimeAdapter: "higgsfield_video_cli",
-    },
+  assert.equal(runtime.ok, false);
+  assert.throws(
+    () => resolveStudioVideoGenerationProvider("higgsfield", "higgsfield_video_cli"),
+    (error) => error.code === "STUDIO_VIDEO_PROVIDER_UNAVAILABLE",
   );
 });
 

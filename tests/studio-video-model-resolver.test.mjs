@@ -394,7 +394,7 @@ test("readiness presentation distinguishes Ready, Limited, and Coming Soon", () 
   );
 });
 
-test("the quoted Kling 2.6 scope uses the existing resolver and executor mapping", () => {
+test("the quoted Kling 2.6 metadata remains readable while its executor is retired", () => {
   const model = resolveStudioVideoGenerationModel(
     kling26Inventory({ providerCostReady: true }),
     { providerId: "higgsfield", modelId: "kling2_6" },
@@ -421,11 +421,10 @@ test("the quoted Kling 2.6 scope uses the existing resolver and executor mapping
     (error) => error.code === "PROVIDER_COST_NOT_CONFIGURED",
   );
   assert.equal(estimateStudioVideoModelCredits(model, params), 18);
-  assert.deepEqual(resolveStudioVideoGenerationProvider("higgsfield"), {
-    providerId: "higgsfield",
-    executor: "existing_video_api",
-    runtimeAdapter: "higgsfield_video_cli",
-  });
+  assert.throws(
+    () => resolveStudioVideoGenerationProvider("higgsfield"),
+    (error) => error.code === "STUDIO_VIDEO_PROVIDER_UNAVAILABLE",
+  );
 });
 
 test("empty or mismatched inventory fails closed without a static model fallback", () => {
@@ -447,13 +446,11 @@ test("empty or mismatched inventory fails closed without a static model fallback
   );
 });
 
-test("plan provider mapping resolves only to the existing Video API executor", () => {
-  const provider = resolveStudioVideoGenerationProvider("higgsfield");
-  assert.deepEqual(provider, {
-    providerId: "higgsfield",
-    executor: "existing_video_api",
-    runtimeAdapter: "higgsfield_video_cli",
-  });
+test("plan provider mapping rejects the retired Higgsfield executor", () => {
+  assert.throws(
+    () => resolveStudioVideoGenerationProvider("higgsfield"),
+    (error) => error.code === "STUDIO_VIDEO_PROVIDER_UNAVAILABLE",
+  );
   assert.throws(
     () => resolveStudioVideoGenerationProvider("unconfigured"),
     (error) => error.code === "STUDIO_VIDEO_PROVIDER_UNAVAILABLE",

@@ -52,7 +52,7 @@ export const STUDIO_PROVIDER_REGISTRY: readonly StudioProviderDefinition[] = [
       video_generate: "higgsfield_video_cli",
       video_edit: "higgsfield_video_edit",
     },
-    status: "ACTIVE",
+    status: "DISABLED",
     createdAt: "2026-07-18T00:00:00.000Z",
   },
   {

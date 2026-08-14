@@ -76,7 +76,7 @@ export const STUDIO_CAPABILITIES = [
       {
         providerId: "higgsfield",
         adapterKey: "existing_video_executor",
-        availability: "available",
+        availability: "metadata_only",
         supportedModes: ["text_to_video", "image_to_video", "reference_video"],
         supportedParameters: ["model", "duration", "ratio", "resolution"],
       },
@@ -104,7 +104,7 @@ export const STUDIO_CAPABILITIES = [
       {
         providerId: "higgsfield",
         adapterKey: "higgsfield_video_edit",
-        availability: "available",
+        availability: "metadata_only",
         supportedModes: ["video_to_video", "replace_background", "extend"],
         supportedParameters: ["mode", "prompt"],
       },

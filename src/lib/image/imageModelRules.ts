@@ -3,11 +3,13 @@ import type { ImageGenerationParams, ImageModel } from "@/types/image";
 type RawRecord = Record<string, unknown>;
 
 const fallbackModel: ImageModel = {
-  id: "image_auto",
-  name: "Auto",
-  label: "Auto",
-  provider: "higgsfield",
-  providerModel: "image_auto",
+  id: "gpt_image_2",
+  name: "GPT Image 2",
+  label: "GPT Image 2",
+  provider: "derouter",
+  providerModel: "gpt-image-2",
+  available: false,
+  availability: "catalog_unavailable",
   capabilities: {
     textToImage: true,
     imageToImage: true,
@@ -116,7 +118,7 @@ export function normalizeImageModel(rawModel: unknown): ImageModel {
 }
 
 export function getDefaultImageModel(models: ImageModel[]) {
-  return models.find((model) => model.id === "image_auto") || models[0] || fallbackModel;
+  return models.find((model) => model.id === "gpt_image_2") || models[0] || fallbackModel;
 }
 
 export function getImageModelById(models: ImageModel[], modelId?: string) {

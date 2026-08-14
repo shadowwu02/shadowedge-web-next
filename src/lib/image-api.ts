@@ -1,6 +1,7 @@
 import { apiRequest } from "@/lib/api";
 import { normalizeImageHistoryItem } from "@/lib/image/imageHistoryUtils";
 import { normalizeImageGenerationParams, normalizeImageModel } from "@/lib/image/imageModelRules";
+import { filterRetiredHiggsfieldModels } from "@/lib/higgsfieldProductionRetirement";
 import type {
   ImageGenerateRequest,
   ImageGenerateResponse,
@@ -37,7 +38,7 @@ export async function getImageModels() {
     method: "GET",
   });
 
-  return (envelope.data?.models || []).map(normalizeImageModel);
+  return filterRetiredHiggsfieldModels((envelope.data?.models || []).map(normalizeImageModel));
 }
 
 export function normalizeImageUploadResponse(payload: unknown, sourceFile?: File): ImageUploadResponse {

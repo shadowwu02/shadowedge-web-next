@@ -3,6 +3,7 @@ import { LONG_VIDEO_CREATE_AUTH_REPLAY } from "@/lib/video/remakeLongVideoQuoteS
 import { getStoredAuthToken } from "@/lib/auth";
 import { normalizeMediaAssetUrl } from "@/lib/media-assets";
 import { isCanonicalAssetId } from "@/lib/video/canonicalReferenceAssets";
+import { filterRetiredHiggsfieldModels } from "@/lib/higgsfieldProductionRetirement";
 import { ApiError } from "@/types/api";
 import type {
   RemakeAnalysisSource,
@@ -936,7 +937,7 @@ export async function getVideoModels() {
   const envelope = await apiRequest<{ models: RawModel[] }>("/api/video/models", {
     method: "GET",
   });
-  return (envelope.data?.models || []).map(normalizeVideoModel);
+  return filterRetiredHiggsfieldModels((envelope.data?.models || []).map(normalizeVideoModel));
 }
 
 function assertRemoteMediaUrl(url: string) {

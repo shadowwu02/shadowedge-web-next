@@ -57,51 +57,6 @@ const filterItems: Array<{ key: ModelLibraryFilter; labelKey: I18nKey }> = [
 
 const fallbackImageModels = [
   {
-    id: "image_auto",
-    name: "Auto",
-    providerModel: "image_auto",
-    provider: "auto",
-    capabilities: {
-      textToImage: true,
-      imageToImage: true,
-      maxReferences: 0,
-      maxBatchCount: 1,
-      ratios: ["auto", "1:1", "16:9", "9:16"],
-    },
-    creditRules: { baseCredits: 1, unit: "image", batchMultiplier: true },
-    defaults: { ratio: "auto", batchCount: 1 },
-  },
-  {
-    id: "nano_banana_flash",
-    name: "Nano Banana Flash",
-    providerModel: "nano_banana_flash",
-    provider: "google",
-    capabilities: {
-      textToImage: true,
-      imageToImage: true,
-      maxReferences: 3,
-      maxBatchCount: 1,
-      ratios: ["1:1", "4:3", "3:4", "16:9", "9:16"],
-    },
-    creditRules: { baseCredits: 2, unit: "image", batchMultiplier: true },
-    defaults: { ratio: "1:1", batchCount: 1 },
-  },
-  {
-    id: "seedream_v5_lite",
-    name: "Seedream 5.0 Lite",
-    providerModel: "seedream_v5_lite",
-    provider: "seedream",
-    capabilities: {
-      textToImage: true,
-      imageToImage: true,
-      maxReferences: 3,
-      maxBatchCount: 1,
-      ratios: ["1:1", "4:3", "3:4", "16:9", "9:16"],
-    },
-    creditRules: { baseCredits: 2, unit: "image", batchMultiplier: true },
-    defaults: { ratio: "1:1", batchCount: 1 },
-  },
-  {
     id: "gpt_image_2",
     name: "GPT Image 2",
     providerModel: "gpt-image-2",
@@ -450,7 +405,7 @@ function makeRemakeCard(seedanceCredits: number): ModelLibraryCard {
 
 function getFallbackVideoModels(): VideoModel[] {
   return videoModelRules
-    .filter((rule) => ["seedance_2_0", "veo3_1", "veo3_1_lite", "grok_video", "kling2_6", "wan2_7"].includes(rule.modelId))
+    .filter((rule) => ["seedance_2_0_mini", "seedance_2_0_fast", "seedance_2_0", "seedance_2_5"].includes(rule.modelId))
     .map((rule) => ({
       id: rule.modelId,
       label: rule.label,

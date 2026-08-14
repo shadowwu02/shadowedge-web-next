@@ -22,7 +22,6 @@ import {
 } from "@/features/studio/capabilities/studioVideoModelResolver";
 import { getStudioProviderReadinessBlocker } from "@/features/studio/capabilities/studioProviderReadiness";
 import { getImageModels } from "@/lib/image-api";
-import { loadStudioProviderModelInventory } from "@/lib/studio-provider-models-api";
 import {
   getDefaultImageParams,
   getImageModelById,
@@ -176,24 +175,7 @@ export function NodeInspector() {
 
   useEffect(() => {
     if (selectedNode?.type !== "videoGenerate" || videoInventory) return;
-    let cancelled = false;
-    void loadStudioProviderModelInventory("higgsfield", "video_generate")
-      .then((inventory) => {
-        if (cancelled) return;
-        setVideoInventory(inventory);
-        if (inventory.models.length) {
-          setVideoModelsError("");
-        } else {
-          setVideoModelsError("No Higgsfield runtime video models are currently available.");
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setVideoModelsError("Video models could not be loaded.");
-      });
-
-    return () => {
-      cancelled = true;
-    };
+    setVideoModelsError("This saved model is unavailable. Select a current production model outside this legacy Studio node.");
   }, [selectedNode?.type, videoInventory]);
 
   if (!selectedNode) {
@@ -919,7 +901,7 @@ export function NodeInspector() {
             ) : null}
             {!STUDIO_HIGGSFIELD_VIDEO_GENERATION_ENABLED ? (
               <p className="studio-node-footnote">
-                Runtime models are visible, but Studio Higgsfield execution is disabled by feature flag.
+                This legacy Higgsfield node is read-only. Select a current production model before generating.
               </p>
             ) : null}
             <div className="studio-inspector-grid">
