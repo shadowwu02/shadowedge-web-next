@@ -19,6 +19,7 @@ import { getSafeHistoryOutputUrl, getSafeHistoryThumbnailUrl } from "@/lib/video
 import type {
   UploadedMediaResponse,
   UploadMediaType,
+  VideoCreditRulesContract,
   VideoGenerationRequest,
   VideoHistoryItem,
   VideoModel,
@@ -199,6 +200,27 @@ function buildDurationArray(config: unknown) {
   return Array.from({ length: Math.max(0, max - min + 1) }, (_, index) => min + index);
 }
 
+function normalizeVideoCreditRules(value: unknown, fallbackCredits: number): VideoCreditRulesContract | undefined {
+  const raw = asRecord(value);
+  const rawTable = asRecord(raw.table);
+  const table = Object.fromEntries(Object.entries(rawTable).flatMap(([duration, rowValue]) => {
+    const row = Object.fromEntries(Object.entries(asRecord(rowValue)).flatMap(([quality, amount]) => {
+      const credits = Number(amount);
+      return Number.isFinite(credits) && credits > 0 ? [[quality, credits]] : [];
+    }));
+    return Object.keys(row).length ? [[duration, row]] : [];
+  }));
+  const baseCredits = Number(raw.baseCredits ?? fallbackCredits);
+  if (!Object.keys(table).length || !Number.isFinite(baseCredits) || baseCredits <= 0) return undefined;
+
+  return {
+    schemaVersion: String(raw.schemaVersion || ""),
+    baseCredits,
+    table,
+    referenceSurchargeCredits: Number(raw.referenceSurchargeCredits || 0),
+  };
+}
+
 export function normalizeVideoModel(model: RawModel): VideoModel {
   const durations = Array.isArray(model.durations)
     ? model.durations.map(Number).filter(Number.isFinite)
@@ -208,14 +230,16 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
     .trim();
 
   const mixedReference = asRecord(model.mixedReference);
+  const credits = Number(model.credits || 0);
   return {
     id: String(model.id || label),
     label,
     provider: String(model.provider || "auto"),
     providerModel: String(model.providerModel || ""),
     desc: String(model.desc || model.type || model.mode || "Video generation"),
-    credits: Number(model.credits || 0),
+    credits,
     creditBase: Number(model.creditBase || model.credits || 0),
+    creditRules: normalizeVideoCreditRules(model.creditRules, credits),
     durations: durations.length ? durations : [5],
     durationDefault: Number((model.duration as { default?: number } | undefined)?.default || durations[0] || 5),
     ratios: Array.isArray(model.ratios) && model.ratios.length ? model.ratios.map(String) : ["16:9"],

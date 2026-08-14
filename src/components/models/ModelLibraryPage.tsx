@@ -7,7 +7,7 @@ import { getImageModels } from "@/lib/image-api";
 import { estimateImageCredits, getDefaultImageParams, normalizeImageModel } from "@/lib/image/imageModelRules";
 import { getImageModelLogoLookup } from "@/lib/image/imageModelLogo";
 import { getVideoModels } from "@/lib/video-api";
-import { estimateVideoCreditsForParams, getVideoModelRule, hasVideoModelRule, videoModelRules, type VideoModelRule } from "@/lib/video/videoModelRules";
+import { estimateVideoCreditsForParams, getVideoModelRuleFromRegistry, hasVideoModelRule, videoModelRules, type VideoModelRule } from "@/lib/video/videoModelRules";
 import { useI18n } from "@/i18n/useI18n";
 import type { ImageModel } from "@/types/image";
 import type { VideoModel } from "@/types/video";
@@ -184,7 +184,7 @@ function getVideoRuleForModel(model: VideoModel) {
 
   return {
     isKnown: Boolean(matched),
-    rule: getVideoModelRule(String(matched || model.id || model.providerModel || model.label)),
+    rule: getVideoModelRuleFromRegistry(model),
   };
 }
 
@@ -293,7 +293,7 @@ function makeImageCard(model: ImageModel): ModelLibraryCard {
 function makeVideoCard(model: VideoModel): ModelLibraryCard {
   const { isKnown, rule } = getVideoRuleForModel(model);
   const credits = estimateVideoCreditsForParams(
-    model.id,
+    rule,
     {
       duration: model.durationDefault || model.durations[0] || 5,
       quality: model.qualities[0],

@@ -5,7 +5,7 @@ import {
   getReferencePromptBindings,
   toGenerationMediaList,
 } from "@/lib/video-mentions";
-import { estimateVideoCreditsForParams } from "@/lib/video/videoModelRules";
+import { estimateVideoCreditsForParams, getVideoModelRuleFromRegistry } from "@/lib/video/videoModelRules";
 import {
   sanitizeVideoMentionBindings,
   serializeMentionBindings,
@@ -70,7 +70,7 @@ export function buildVideoGenerationRequest(
     Number.isFinite(options.estimatedCredits)
     ? options.estimatedCredits
     : estimateVideoCreditsForParams(
-        options.model.id || options.model.providerModel || options.model.label,
+        getVideoModelRuleFromRegistry(options.model),
         {
           duration: options.duration,
           generateAudio: options.generateAudio,

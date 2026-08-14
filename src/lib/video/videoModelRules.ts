@@ -1,4 +1,4 @@
-import type { UploadMediaType, VideoModel } from "@/types/video";
+import type { UploadMediaType, VideoCreditRulesContract, VideoModel } from "@/types/video";
 
 export type VideoModelProvider =
   | "seedance"
@@ -40,13 +40,7 @@ export type VideoReferenceLimits = {
   audio: number;
 };
 
-export type VideoCreditRules = {
-  baseCredits?: number;
-  table?: Record<string, Partial<Record<VideoQuality, number>>>;
-  durationMultiplier?: "linear_from_5s";
-  qualityMultiplier?: Partial<Record<VideoQuality, number>>;
-  modeMultiplier?: Record<string, number>;
-};
+export type VideoCreditRules = VideoCreditRulesContract;
 
 export type VideoModelRule = {
   modelId: string;
@@ -339,8 +333,8 @@ const concreteRules: VideoModelRule[] = [
     supportsStartFrame: true,
     supportsEndFrame: true,
     mixedReference: artsdanceMixedReference,
-    credits: 12,
-    creditRules: withCreditBase(12),
+    credits: 23,
+    creditRules: withCreditBase(23),
     mediaMode: "none",
     qualityParam: "resolution",
     constraints: ["Production supports up to nine image and two video references; audio references remain disabled."],
@@ -927,6 +921,14 @@ export function getVideoModelRuleFromRegistry(model: VideoModel): VideoModelRule
   const ratios = model.ratios.length ? model.ratios : base.ratios;
   const durations = model.durations.length ? model.durations : base.durations;
   const qualities = model.qualities.length ? model.qualities : base.qualities;
+  const registryCreditRules = model.creditRules;
+  const creditRules = registryCreditRules
+    ? {
+        ...base.creditRules,
+        ...registryCreditRules,
+        table: registryCreditRules.table || base.creditRules.table,
+      }
+    : base.creditRules;
   return {
     ...base,
     modelId: model.id,
@@ -959,6 +961,8 @@ export function getVideoModelRuleFromRegistry(model: VideoModel): VideoModelRule
       videoAudio: model.mixedReference?.videoAudio === true,
       imageVideoAudio: model.mixedReference?.imageVideoAudio === true,
     },
+    credits: model.credits || creditRules.baseCredits || base.credits,
+    creditRules,
   };
 }
 
@@ -985,12 +989,12 @@ export function normalizeVideoParamsForModel(
 }
 
 export function estimateVideoCreditsForParams(
-  modelId: string,
+  modelOrRule: string | VideoModelRule,
   params: VideoModelParamInput,
   fallbackCredits = 12,
 ) {
-  const rule = getVideoModelRule(modelId);
-  const normalized = normalizeVideoParamsForModel(modelId, params);
+  const rule = typeof modelOrRule === "string" ? getVideoModelRule(modelOrRule) : modelOrRule;
+  const normalized = normalizeVideoParamsForRule(rule, params);
   const creditRules = rule.creditRules || {};
   const tableCredits = lookupCreditTableValue(creditRules.table, normalized.duration, normalized.quality);
 

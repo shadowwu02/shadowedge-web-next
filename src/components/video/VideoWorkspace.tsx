@@ -2787,7 +2787,7 @@ export function VideoWorkspace() {
   const estimatedCredits = useMemo(
     () =>
       estimateVideoCreditsForParams(
-        selectedModelRuleId,
+        selectedModelRule,
         {
           duration: params.duration,
           generateAudio: effectiveGenerateAudio,
@@ -2796,7 +2796,7 @@ export function VideoWorkspace() {
         },
         selectedModel.credits,
       ),
-    [effectiveGenerateAudio, params.duration, params.quality, params.ratio, selectedModel.credits, selectedModelRuleId],
+    [effectiveGenerateAudio, params.duration, params.quality, params.ratio, selectedModel.credits, selectedModelRule],
   );
   const hasEnoughCredits = credits === null || estimatedCredits <= credits;
   const isPromptTooLong = prompt.length > VIDEO_PROMPT_FRONTEND_LIMIT;

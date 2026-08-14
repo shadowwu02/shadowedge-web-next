@@ -67,6 +67,16 @@ export type UploadedMediaResponse = {
   raw?: unknown;
 };
 
+export type VideoCreditRulesContract = {
+  schemaVersion?: string;
+  baseCredits?: number;
+  table?: Record<string, Partial<Record<string, number>>>;
+  durationMultiplier?: "linear_from_5s";
+  qualityMultiplier?: Partial<Record<string, number>>;
+  modeMultiplier?: Record<string, number>;
+  referenceSurchargeCredits?: number;
+};
+
 export type VideoModel = {
   id: string;
   label: string;
@@ -75,6 +85,7 @@ export type VideoModel = {
   desc?: string;
   credits: number;
   creditBase?: number;
+  creditRules?: VideoCreditRulesContract;
   durations: number[];
   durationDefault: number;
   ratios: string[];

@@ -9,7 +9,7 @@ const models = [
   ["seedance_2_0_mini", "Seedance 2.0 Mini", 23],
   ["seedance_2_0_fast", "Seedance 2.0 Fast", 12],
   ["seedance_2_0", "Seedance 2.0", 23],
-  ["seedance_2_5", "Seedance 2.5", 12],
+  ["seedance_2_5", "Seedance 2.5", 23],
 ] as const;
 
 describe("ArtsDance Seedance production UI contract", () => {
