@@ -54,11 +54,16 @@ export type VideoRemakeReverseAnalyzeResponse = {
     estimatedCredits?: number;
     metadataOnly?: boolean;
     mock?: boolean;
+    canonicalKeyframeCount?: number;
+    cleanupStatus?: "completed" | "deferred" | "not_started" | string;
+    keyframeMaterializationErrorCode?: string | null;
+    keyframeMaterializationStatus?: "ready" | "failed" | "skipped_mock" | string;
     nextStep?: string;
     segments?: RemakeSegment[];
     sourceVideo?: RemakeSourceVideoMetadata;
     fallbackReason?: string;
     providerCallMade?: boolean;
+    readyShotCount?: number;
     sandboxVlm?: boolean;
     targetRatio?: string;
     vlmCalled?: boolean;
@@ -509,13 +514,17 @@ function normalizeCanonicalShot(value: unknown, index: number): VideoAnalysisCan
   const keyframes = (Array.isArray(record.keyframes) ? record.keyframes : []).map((value) => {
     const frame = asRecord(value);
     return {
+      analysisId: pickString(frame.analysisId) || undefined,
       analysisJobId: pickString(frame.analysisJobId) || undefined,
       assetId: pickString(frame.assetId, frame.id) || undefined,
+      correlationId: pickString(frame.correlationId) || undefined,
       height: Number.isFinite(Number(frame.height)) ? Number(frame.height) : undefined,
       mimeType: pickString(frame.mimeType, frame.mime) || undefined,
       mock: frame.mock === true,
       sourceAssetId: pickString(frame.sourceAssetId) || undefined,
+      sourceMode: pickString(frame.sourceMode) || undefined,
       status: pickString(frame.status) || undefined,
+      storageProvider: pickString(frame.storageProvider) || undefined,
       tenantId: pickString(frame.tenantId) || undefined,
       time: Number(frame.time ?? frame.timestamp ?? 0),
       url: pickString(frame.url, frame.publicUrl) || "",

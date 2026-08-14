@@ -4,6 +4,8 @@ import type { UploadMediaItem, UploadMediaType } from "@/types/video";
 
 export const REMAKE_SHOT_VIDEO_HANDOFF_KEY = "shadowedge_remake_video_handoff_v1";
 const REMAKE_SHOT_VIDEO_HANDOFF_VERSION = 1;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
 const SENSITIVE_TEXT_PATTERNS = [
   /api[_-]?key/i,
@@ -102,11 +104,14 @@ export type RemakeShotArtsDancePreview = {
   modelId: "seedance_2_0";
   prompt: string;
   referenceImages: Array<{
-    analysisJobId: string;
+    analysisId?: string;
+    analysisJobId?: string;
     assetId: string;
+    correlationId?: string;
     height?: number;
     mimeType?: string;
     sourceAssetId: string;
+    sourceMode?: string;
     tenantId: string;
     time: number;
     url: string;
@@ -238,8 +243,15 @@ function isCanonicalKeyframe(frame: RemakeKeyframe, shot: RemakeShot) {
   const start = Number(shot.sourceTimeRange?.start);
   const end = Number(shot.sourceTimeRange?.end);
   const url = normalizeSafeHandoffUrl(frame.url);
-  if (!frame.assetId || !frame.analysisJobId || !frame.sourceAssetId || !frame.userId || !frame.tenantId) return false;
+  const longVideoLineage = Boolean(frame.analysisJobId);
+  const shortRemakeLineage = frame.sourceMode === "short_remake" && Boolean(frame.analysisId && frame.correlationId);
+  const canonicalIds = [frame.assetId, frame.sourceAssetId, frame.userId, frame.tenantId];
+  if (
+    canonicalIds.some((value) => !value || !UUID_PATTERN.test(value) || value.toLowerCase() === ZERO_UUID) ||
+    (!longVideoLineage && !shortRemakeLineage)
+  ) return false;
   if (frame.mock === true || String(frame.status || "").toLowerCase() !== "ready") return false;
+  if (shortRemakeLineage && String(frame.storageProvider || "").toLowerCase() !== "r2") return false;
   if (!url || !/^https:\/\//i.test(url)) return false;
   if (!Number.isFinite(time) || time < start || time > end) return false;
   if (frame.mimeType && !frame.mimeType.startsWith("image/")) return false;
@@ -257,7 +269,10 @@ export function getRemakeShotHandoffReadiness(shot: RemakeShot): RemakeShotHando
   }
   const keyframes = (shot.keyframes || []).filter((frame) => isCanonicalKeyframe(frame, shot)).slice(0, 9);
   if (!keyframes.length) return { keyframes, ok: false, prompt, reason: "missing_canonical_keyframe" };
-  const identities = new Set(keyframes.map((frame) => `${frame.userId}:${frame.tenantId}:${frame.analysisJobId}:${frame.sourceAssetId}`));
+  const identities = new Set(keyframes.map((frame) => {
+    const lineage = frame.analysisJobId || `${frame.sourceMode}:${frame.analysisId}:${frame.correlationId}`;
+    return `${frame.userId}:${frame.tenantId}:${lineage}:${frame.sourceAssetId}`;
+  }));
   if (identities.size !== 1) return { keyframes: [], ok: false, prompt, reason: "missing_canonical_keyframe" };
   return { keyframes, ok: true, prompt };
 }
@@ -269,11 +284,14 @@ export function buildRemakeShotArtsDancePreview(shot: RemakeShot): RemakeShotArt
     modelId: "seedance_2_0",
     prompt: readiness.prompt,
     referenceImages: readiness.keyframes.map((frame) => ({
-      analysisJobId: String(frame.analysisJobId),
+      analysisId: frame.analysisId ? String(frame.analysisId) : undefined,
+      analysisJobId: frame.analysisJobId ? String(frame.analysisJobId) : undefined,
       assetId: String(frame.assetId),
+      correlationId: frame.correlationId ? String(frame.correlationId) : undefined,
       height: frame.height,
       mimeType: frame.mimeType,
       sourceAssetId: String(frame.sourceAssetId),
+      sourceMode: frame.sourceMode,
       tenantId: String(frame.tenantId),
       time: Number(frame.time),
       url: normalizeSafeHandoffUrl(frame.url),

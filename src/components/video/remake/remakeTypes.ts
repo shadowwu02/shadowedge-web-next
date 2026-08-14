@@ -29,13 +29,17 @@ export type RemakeSourceVideoMetadata = {
 };
 
 export type RemakeKeyframe = {
+  analysisId?: string;
   analysisJobId?: string;
   assetId?: string;
+  correlationId?: string;
   height?: number;
   mimeType?: string;
   mock?: boolean;
   sourceAssetId?: string;
+  sourceMode?: "long_video" | "short_remake" | string;
   status?: string;
+  storageProvider?: string;
   tenantId?: string;
   time: number;
   url: string;

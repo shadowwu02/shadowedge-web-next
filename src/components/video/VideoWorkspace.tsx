@@ -904,7 +904,7 @@ function buildRemakeShotReferenceMedia(shot: RemakeShot, model: VideoModel): Upl
     mimeType: "image/jpeg",
     name: `Shot ${shot.shot} keyframe ${index + 1}`,
     previewUrl: frame.url,
-    role: (index === 0 && rule.supportsStartFrame ? "start_frame" : "reference") as UploadMediaRole,
+    role: "reference" as UploadMediaRole,
     source: "history",
     type: "image",
     uploadStatus: "ready",
@@ -2490,7 +2490,9 @@ export function VideoWorkspace() {
         setWorkspaceNotice(t("video.remake.draftSaveFailed"));
       }
       setIsRemakeDraftRestored(false);
-      if (analysisSource === "fallback" || result.meta?.vlmFailed || result.meta?.vlmUnavailable) {
+      if (result.meta?.keyframeMaterializationStatus === "failed") {
+        setRemakeAnalysisNotice(t("video.remake.keyframePreparationFailed"));
+      } else if (analysisSource === "fallback" || result.meta?.vlmFailed || result.meta?.vlmUnavailable) {
         setRemakeAnalysisNotice(t("video.remake.vlmFallback"));
       } else {
         setRemakeAnalysisNotice(t("video.remake.analysisComplete"));
