@@ -529,11 +529,14 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       const effectiveParams = normalizeImageGenerationParams(effectiveModel, overrides.params || params);
       const effectiveReferences = overrides.references || references;
       const readyReferences = await ensureReadyReferences(effectiveReferences);
+      if (readyReferences.some((item) => !item.assetId)) {
+        throw new Error("Some reference images are from a legacy version and must be re-uploaded before generation.");
+      }
       const request = buildImageGenerateRequest({
         prompt: effectivePrompt,
         model: effectiveModel,
         params: effectiveParams,
-        referenceImages: readyReferences.map((item) => item.url).filter((url): url is string => Boolean(url)),
+        referenceImageAssetIds: readyReferences.map((item) => item.assetId).filter((assetId): assetId is string => Boolean(assetId)),
         meta: overrides.meta,
       });
       const response = await generateImage(request);

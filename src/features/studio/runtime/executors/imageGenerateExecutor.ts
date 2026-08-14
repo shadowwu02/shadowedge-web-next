@@ -60,7 +60,7 @@ function findPromptInput(context: NodeExecutionContext) {
 }
 
 function collectReferenceImages(context: NodeExecutionContext) {
-  const urls = new Set<string>();
+  const assetIds = new Set<string>();
 
   function visit(value: unknown, depth: number) {
     if (depth > 4 || value === null || value === undefined) return;
@@ -75,19 +75,19 @@ function collectReferenceImages(context: NodeExecutionContext) {
     const isImageAsset =
       record.assetType === "image" ||
       (record.executor === "asset" && record.type === "image");
-    const assetUrl = String(record.url || "").trim();
-    if (isImageAsset && assetUrl) urls.add(assetUrl);
+    const assetId = String(record.assetId || "").trim();
+    if (isImageAsset && assetId) assetIds.add(assetId);
 
-    const references = record.referenceImages;
+    const references = record.referenceImageAssetIds;
     if (Array.isArray(references)) {
-      references.map(String).map((url) => url.trim()).filter(Boolean).forEach((url) => urls.add(url));
+      references.map(String).map((id) => id.trim()).filter(Boolean).forEach((id) => assetIds.add(id));
     }
 
     Object.values(record).forEach((entry) => visit(entry, depth + 1));
   }
 
   visit(context.inputs, 0);
-  return Array.from(urls);
+  return Array.from(assetIds);
 }
 
 function buildPrompt(context: NodeExecutionContext) {
@@ -273,7 +273,7 @@ export const ImageGenerateExecutor: StudioNodeExecutor = {
         prompt,
         model,
         params,
-        referenceImages: references,
+        referenceImageAssetIds: references,
         meta: {
           source: "studio_canvas",
           studioProjectId: context.projectId,

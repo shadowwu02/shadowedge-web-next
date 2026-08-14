@@ -11,6 +11,7 @@ import type {
 } from "@/types/image";
 
 type RawRecord = Record<string, unknown>;
+const canonicalAssetIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function asRecord(value: unknown): RawRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as RawRecord) : {};
@@ -51,9 +52,11 @@ export function normalizeImageUploadResponse(payload: unknown, sourceFile?: File
   const filename = pickString(data.filename, data.name, sourceFile?.name) || sourceFile?.name || "image";
   const originalName = pickString(data.originalName, data.originalname, sourceFile?.name, filename) || filename;
   const mimeType = pickString(data.mimeType, data.mime_type, data.mimetype, sourceFile?.type) || sourceFile?.type || "image";
+  const assetId = pickString(data.assetId, data.asset_id);
 
   return {
     id: pickString(data.id, data.mediaId, data.media_id, data.key, url) || url,
+    assetId: assetId && canonicalAssetIdPattern.test(assetId) ? assetId : undefined,
     type: "image",
     name: originalName,
     url,
@@ -124,8 +127,10 @@ export async function generateImage(payload: ImageGenerateRequest) {
     model: payload.model || payload.modelId || "",
     ratio: payload.ratio || payload.aspect_ratio,
     aspect_ratio: payload.aspect_ratio || payload.ratio,
-    referenceImages: (payload.referenceImages || payload.reference_images || []).filter(Boolean),
-    reference_images: (payload.reference_images || payload.referenceImages || []).filter(Boolean),
+    referenceImages: [],
+    reference_images: [],
+    referenceImageAssetIds: (payload.referenceImageAssetIds || payload.reference_image_asset_ids || []).filter(Boolean),
+    reference_image_asset_ids: (payload.reference_image_asset_ids || payload.referenceImageAssetIds || []).filter(Boolean),
   };
 
   const envelope = await apiRequest<ImageGenerateResponse>("/api/image/generate", {
@@ -158,7 +163,7 @@ export function buildImageGenerateRequest(input: {
   prompt: string;
   model: ImageModel;
   params: Partial<ImageGenerateRequest>;
-  referenceImages?: string[];
+  referenceImageAssetIds?: string[];
   meta?: Record<string, unknown>;
 }): ImageGenerateRequest {
   const normalizedParams = normalizeImageGenerationParams(input.model, {
@@ -179,8 +184,10 @@ export function buildImageGenerateRequest(input: {
     resolution: normalizedParams.resolution,
     quality: normalizedParams.quality,
     batchCount: normalizedParams.batchCount,
-    referenceImages: input.referenceImages || [],
-    reference_images: input.referenceImages || [],
+    referenceImages: [],
+    reference_images: [],
+    referenceImageAssetIds: input.referenceImageAssetIds || [],
+    reference_image_asset_ids: input.referenceImageAssetIds || [],
     meta: {
       source: "image_workspace",
       model_id: input.model.id,
@@ -189,7 +196,8 @@ export function buildImageGenerateRequest(input: {
       resolution: normalizedParams.resolution,
       quality: normalizedParams.quality,
       batchCount: normalizedParams.batchCount,
-      referenceCount: input.referenceImages?.length || 0,
+      referenceCount: input.referenceImageAssetIds?.length || 0,
+      referenceImageAssetIds: input.referenceImageAssetIds || [],
       ...(input.meta || {}),
     },
   };

@@ -111,6 +111,8 @@ export type ImageGenerateRequest = {
   count?: number;
   referenceImages?: string[];
   reference_images?: string[];
+  referenceImageAssetIds?: string[];
+  reference_image_asset_ids?: string[];
   idempotencyKey?: string;
   meta?: Record<string, unknown>;
 };
