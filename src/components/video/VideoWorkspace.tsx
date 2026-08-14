@@ -2806,7 +2806,8 @@ export function VideoWorkspace() {
     () => validateReferenceSelectionForRule(selectedModelRule, [], media),
     [media, selectedModelRule],
   );
-  const canGenerate = Boolean(selectedModel) && hasPromptForGenerate && !referenceSelectionIssue && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits && !isPromptTooLong;
+  const modelUnavailable = selectedModel.available === false;
+  const canGenerate = Boolean(selectedModel) && !modelUnavailable && hasPromptForGenerate && !referenceSelectionIssue && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits && !isPromptTooLong;
   const reusableMedia = useMemo(
     () => collectReusableVideoAssets(task ? [task, ...history] : history),
     [history, task],
@@ -2862,6 +2863,7 @@ export function VideoWorkspace() {
   }, [estimatedCredits, hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, t, tf, token]);
   const generateButtonHelper = useMemo(() => {
     if (!hasPromptForGenerate) return t("video.errors.promptRequired");
+    if (modelUnavailable) return t("generation.modelTemporarilyUnavailable");
     if (referenceSelectionIssue) return referenceSelectionIssue === LEGACY_REFERENCE_REUPLOAD_REQUIRED
       ? t("video.errors.legacyReferencesBeforeGenerate")
       : t("video.errors.unsupportedReferenceCombination");
@@ -2871,7 +2873,7 @@ export function VideoWorkspace() {
     if (!hasEnoughCredits) return t("video.credits.notEnough");
     if (isPromptTooLong) return tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT_LABEL });
     return t("video.credits.beforeSubmit");
-  }, [concurrencyLimitNotice, hasEnoughCredits, hasPromptForGenerate, isProcessing, isPromptTooLong, isSignedIn, isUploadingMedia, referenceSelectionIssue, t, tf, token]);
+  }, [concurrencyLimitNotice, hasEnoughCredits, hasPromptForGenerate, isProcessing, isPromptTooLong, isSignedIn, isUploadingMedia, modelUnavailable, referenceSelectionIssue, t, tf, token]);
 
   const handleGenerateRemakeShot = useCallback(
     async (shot: RemakeShot, queueMeta?: RemakeShotQueueMeta) => {
@@ -3616,6 +3618,11 @@ export function VideoWorkspace() {
 
   const submitCurrent = useCallback(() => {
     setWorkspaceNotice("");
+
+    if (selectedModel.available === false) {
+      setWorkspaceNotice(t("generation.modelTemporarilyUnavailable"));
+      return;
+    }
 
     if (isUploadingMedia) {
       setWorkspaceNotice(t("video.errors.mediaUploading"));

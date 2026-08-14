@@ -81,6 +81,7 @@ export function ModelSelector({
         <div className="se-scrollbar se-card-quiet absolute left-0 right-0 top-[calc(100%+8px)] z-40 max-h-72 overflow-y-auto rounded-[22px] p-2 shadow-2xl shadow-black/45 backdrop-blur-xl">
           {models.map((model) => {
             const isSelected = model.id === selected?.id;
+            const unavailable = model.available === false;
             return (
               <button
                 className={`w-full rounded-[16px] border px-3 py-2.5 text-left transition-colors ${
@@ -89,6 +90,7 @@ export function ModelSelector({
                     : "border-transparent hover:border-[rgba(244,244,244,0.08)] hover:bg-[#1a1c22]/72"
                 }`}
                 key={model.id}
+                disabled={unavailable}
                 onClick={() => {
                   onChange(model);
                   setIsOpen(false);
@@ -99,6 +101,7 @@ export function ModelSelector({
                   <VideoModelLogo label={model.label} lookup={getModelLogoLookup(model)} size="lg" />
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold text-[#f4f4f4]">{model.label}</span>
+                    {unavailable ? <span className="mt-0.5 block text-[11px] text-[#ffd08a]">{t("generation.modelTemporarilyUnavailable")}</span> : null}
                     <span className="mt-0.5 block truncate text-xs text-[#b9b9b9]/52">
                       {getLocalizedModelDescription(model.desc, t) || model.providerModel}
                     </span>

@@ -61,6 +61,9 @@ export type ImageModel = {
   label: string;
   provider: string;
   providerModel: string;
+  available?: boolean;
+  availability?: string;
+  maintenanceMessage?: string;
   description?: string;
   capabilities: ImageModelCapabilities;
   creditRules: ImageCreditRules;

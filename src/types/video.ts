@@ -83,6 +83,9 @@ export type VideoModel = {
   label: string;
   provider?: string;
   providerModel?: string;
+  available?: boolean;
+  availability?: string;
+  maintenanceMessage?: string;
   desc?: string;
   credits: number;
   creditBase?: number;

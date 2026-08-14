@@ -526,6 +526,9 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
 
     try {
       const effectiveModel = overrides.model || selectedModel;
+      if (effectiveModel.available === false) {
+        throw new Error(t("generation.modelTemporarilyUnavailable"));
+      }
       const effectiveParams = normalizeImageGenerationParams(effectiveModel, overrides.params || params);
       const effectiveReferences = overrides.references || references;
       const readyReferences = await ensureReadyReferences(effectiveReferences);

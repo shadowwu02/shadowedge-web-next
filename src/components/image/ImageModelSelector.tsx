@@ -67,6 +67,7 @@ export function ImageModelSelector({
         <div className="se-scrollbar se-card-quiet absolute left-0 right-0 top-[calc(100%+8px)] z-40 max-h-80 overflow-y-auto rounded-[22px] p-2 shadow-2xl shadow-black/45 backdrop-blur-xl">
           {models.map((model) => {
             const isSelected = model.id === selectedModel?.id;
+            const unavailable = model.available === false;
             const tags = [
               model.capabilities.imageToImage ? t("image.model.referencesTag") : "",
               model.capabilities.maxBatchCount > 1 ? tf("image.model.batchTag", { count: model.capabilities.maxBatchCount }) : "",
@@ -80,6 +81,7 @@ export function ImageModelSelector({
                     : "border-transparent hover:border-[rgba(244,244,244,0.08)] hover:bg-[#1a1c22]/72"
                 }`}
                 key={model.id}
+                disabled={unavailable}
                 onClick={() => {
                   onChange(model.id);
                   setIsOpen(false);
@@ -90,6 +92,7 @@ export function ImageModelSelector({
                   <VideoModelLogo label={model.label} lookup={getImageModelLogoLookup(model)} size="lg" />
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold text-[#f4f4f4]">{model.label}</span>
+                    {unavailable ? <span className="mt-0.5 block text-[11px] text-[#ffd08a]">{t("generation.modelTemporarilyUnavailable")}</span> : null}
                     {model.description ? (
                       <span className="mt-0.5 block truncate text-[11px] text-[#b9b9b9]/52">{model.description}</span>
                     ) : null}

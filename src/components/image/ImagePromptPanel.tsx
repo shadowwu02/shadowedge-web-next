@@ -79,7 +79,8 @@ export function ImagePromptPanel({
   const isPromptTooLong = promptLength > IMAGE_PROMPT_FRONTEND_LIMIT;
   const isPromptNearLimit = promptLength >= IMAGE_PROMPT_WARNING_THRESHOLD;
   const hasExistingDraft = hasPrompt || references.length > 0;
-  const disabled = isGenerating || loadingModels || hasUploadingReferences || isPolling || isActiveJob || !hasPrompt || isPromptTooLong;
+  const modelUnavailable = selectedModel?.available === false;
+  const disabled = modelUnavailable || isGenerating || loadingModels || hasUploadingReferences || isPolling || isActiveJob || !hasPrompt || isPromptTooLong;
   const optionLabel = (value: string) => value || t("image.params.default");
   const resolutionLabel = (value: string) => usesGenerationTiers
     ? value.toUpperCase()
@@ -93,6 +94,8 @@ export function ImagePromptPanel({
       : tf("image.workspace.generateWithCredits", { credits: estimatedCredits });
   const generateHelper = !hasPrompt
     ? t("image.generate.disabled.promptEmpty")
+    : modelUnavailable
+      ? t("generation.modelTemporarilyUnavailable")
     : isPromptTooLong
       ? tf("image.errors.promptTooLong", { limit: IMAGE_PROMPT_FRONTEND_LIMIT_LABEL })
     : hasUploadingReferences
