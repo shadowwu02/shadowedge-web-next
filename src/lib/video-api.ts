@@ -2,6 +2,7 @@ import { apiRequest } from "@/lib/api";
 import { LONG_VIDEO_CREATE_AUTH_REPLAY } from "@/lib/video/remakeLongVideoQuoteState";
 import { getStoredAuthToken } from "@/lib/auth";
 import { normalizeMediaAssetUrl } from "@/lib/media-assets";
+import { isCanonicalAssetId } from "@/lib/video/canonicalReferenceAssets";
 import { ApiError } from "@/types/api";
 import type {
   RemakeAnalysisSource,
@@ -1279,5 +1280,9 @@ export async function uploadMedia(file: File) {
     body: formData,
   });
 
-  return normalizeUploadResponse(envelope, file);
+  const uploaded = normalizeUploadResponse(envelope, file);
+  if (!isCanonicalAssetId(uploaded.assetId)) {
+    throw new Error("Upload completed without a canonical Asset ID. Please upload the file again.");
+  }
+  return uploaded;
 }

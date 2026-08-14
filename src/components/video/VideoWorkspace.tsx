@@ -109,6 +109,7 @@ import {
   type VideoMentionBinding,
 } from "@/lib/video/videoMentionBindings";
 import { getReferenceRoleIssue, validateReferenceSelectionForRule } from "@/lib/video/videoReferenceRules";
+import { LEGACY_REFERENCE_REUPLOAD_REQUIRED } from "@/lib/video/canonicalReferenceAssets";
 import { isVideoActiveStatus, isVideoFailedStatus } from "@/lib/utils";
 import { ApiError } from "@/types/api";
 import type { UploadMediaItem, UploadMediaRole, VideoModel, VideoStatusResponse, VideoTaskRecord } from "@/types/video";
@@ -2811,7 +2812,11 @@ export function VideoWorkspace() {
     [history, task],
   );
   const displayNotice = useMemo(() => {
-    const message = workspaceNotice || error || modelError || (referenceSelectionIssue ? t("video.errors.unsupportedReferenceCombination") : "");
+    const message = workspaceNotice || error || modelError || (referenceSelectionIssue
+      ? referenceSelectionIssue === LEGACY_REFERENCE_REUPLOAD_REQUIRED
+        ? t("video.errors.legacyReferencesBeforeGenerate")
+        : t("video.errors.unsupportedReferenceCombination")
+      : "");
     if (!message) return "";
 
     const exactMessages: Record<string, string> = {
@@ -2857,7 +2862,9 @@ export function VideoWorkspace() {
   }, [estimatedCredits, hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, t, tf, token]);
   const generateButtonHelper = useMemo(() => {
     if (!hasPromptForGenerate) return t("video.errors.promptRequired");
-    if (referenceSelectionIssue) return t("video.errors.unsupportedReferenceCombination");
+    if (referenceSelectionIssue) return referenceSelectionIssue === LEGACY_REFERENCE_REUPLOAD_REQUIRED
+      ? t("video.errors.legacyReferencesBeforeGenerate")
+      : t("video.errors.unsupportedReferenceCombination");
     if (isUploadingMedia) return t("video.errors.mediaUploading");
     if (isProcessing) return concurrencyLimitNotice;
     if (!token && !isSignedIn) return t("video.errors.signInRequired");

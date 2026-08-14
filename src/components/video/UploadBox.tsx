@@ -27,6 +27,7 @@ import {
   validateReferenceSelectionForRule,
 } from "@/lib/video/videoReferenceRules";
 import { uploadMedia } from "@/lib/video-api";
+import { getCanonicalReferenceStatus } from "@/lib/video/canonicalReferenceAssets";
 import type { UploadMediaItem } from "@/types/video";
 import type { VideoModelRule } from "@/lib/video/videoModelRules";
 import { useI18n } from "@/i18n/useI18n";
@@ -187,6 +188,7 @@ export function UploadBox({
             errorMessage: "",
             file: undefined,
             assetId: uploaded.assetId,
+            canonicalReferenceStatus: getCanonicalReferenceStatus({ assetId: uploaded.assetId }),
             filename: uploaded.filename,
             id: uploaded.id || item.id,
             mimeType: uploaded.mimeType || item.mimeType,

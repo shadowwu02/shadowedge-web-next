@@ -15,6 +15,7 @@ import {
 } from "@/lib/video/videoReferenceRules";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
 import type { VideoModelRule } from "@/lib/video/videoModelRules";
+import { LEGACY_REFERENCE_REUPLOAD_REQUIRED } from "@/lib/video/canonicalReferenceAssets";
 import { ApiError } from "@/types/api";
 import { useI18n } from "@/i18n/useI18n";
 
@@ -178,6 +179,7 @@ export function MediaPickerDrawer({
 
   function localizeIssue(issue: string) {
     if (!issue) return "";
+    if (issue === LEGACY_REFERENCE_REUPLOAD_REQUIRED) return t("video.errors.legacyReferenceReuploadRequired");
     const uploadDisplay = getMediaUploadErrorDisplayKeys(issue, { fallbackKind: "upload" });
     if (uploadDisplay.kind === "auth") return t(uploadDisplay.messageKey);
     if (issue === "Already added to references.") return t("video.drawer.alreadyAdded");

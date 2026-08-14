@@ -6,6 +6,7 @@ import {
   toGenerationMediaList,
 } from "@/lib/video-mentions";
 import { estimateVideoCreditsForParams, getVideoModelRuleFromRegistry } from "@/lib/video/videoModelRules";
+import { assertCanonicalReferenceItems } from "@/lib/video/canonicalReferenceAssets";
 import {
   sanitizeVideoMentionBindings,
   serializeMentionBindings,
@@ -45,6 +46,7 @@ export function buildVideoGenerationRequest(
     ? getReferencePromptBindings(options.prompt, mentionMediaItems, mentionBindings)
     : [];
   const mediaList = toGenerationMediaList(referencedMediaItems);
+  assertCanonicalReferenceItems(referencedMediaItems);
   const images = mediaList
     .filter((item) => item.type === "image")
     .map((item) => item.url);
@@ -54,9 +56,9 @@ export function buildVideoGenerationRequest(
   const audios = mediaList
     .filter((item) => item.type === "audio")
     .map((item) => item.url);
-  const imageAssetIds = referencedMediaItems.filter((item) => item.type === "image").map((item) => item.assetId || item.id).filter(Boolean);
-  const videoAssetIds = referencedMediaItems.filter((item) => item.type === "video").map((item) => item.assetId || item.id).filter(Boolean);
-  const audioAssetIds = referencedMediaItems.filter((item) => item.type === "audio").map((item) => item.assetId || item.id).filter(Boolean);
+  const imageAssetIds = referencedMediaItems.filter((item) => item.type === "image").map((item) => item.assetId!);
+  const videoAssetIds = referencedMediaItems.filter((item) => item.type === "video").map((item) => item.assetId!);
+  const audioAssetIds = referencedMediaItems.filter((item) => item.type === "audio").map((item) => item.assetId!);
   const enhancedPrompt = buildMediaAwarePrompt(
     options.prompt,
     referencedMediaItems,

@@ -1,5 +1,6 @@
 import { apiRequest } from "@/lib/api";
 import { normalizeMediaAsset, normalizeMediaAssetUrl } from "@/lib/media-assets";
+import { getCanonicalReferenceStatus } from "@/lib/video/canonicalReferenceAssets";
 import type { ImageReferenceItem } from "@/types/image";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
 
@@ -233,6 +234,7 @@ export function mediaAssetToUploadMediaItem(asset: MediaAssetRecord): UploadMedi
   return {
     ...normalized,
     assetId: asset.id,
+    canonicalReferenceStatus: getCanonicalReferenceStatus({ assetId: asset.id }),
     source: "asset-library",
     uploadStatus: asset.status === "ready" || !asset.status ? "ready" : "failed",
     errorMessage: asset.status === "ready" || !asset.status ? "" : "Media unavailable",

@@ -12,6 +12,9 @@ const models = [
   ["seedance_2_5", "Seedance 2.5", 23],
 ] as const;
 
+const assetId = (kind: "image" | "video" | "audio", index: number) =>
+  `${kind === "image" ? "1" : kind === "video" ? "2" : "3"}0000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
+
 describe("ArtsDance Seedance production UI contract", () => {
   it.each(models)("freezes %s to the verified 9 Image + 2 Video capability", (alias, label, credits) => {
     const rule = getVideoModelRule(alias);
@@ -31,11 +34,11 @@ describe("ArtsDance Seedance production UI contract", () => {
   it.each(models)("validates mixed references and restored drafts for %s", (alias) => {
     const rule = getVideoModelRule(alias);
     const image = (index: number): UploadMediaItem => ({
-      id: `image-${index}`, assetId: `image-${index}`, type: "image", name: `image-${index}`,
+      id: `image-${index}`, assetId: assetId("image", index), type: "image", name: `image-${index}`,
       url: `https://assets.shadowedgeai.com/image-${index}.png`, uploadStatus: "ready",
     });
     const video = (index: number): UploadMediaItem => ({
-      id: `video-${index}`, assetId: `video-${index}`, type: "video", name: `video-${index}`,
+      id: `video-${index}`, assetId: assetId("video", index), type: "video", name: `video-${index}`,
       url: `https://assets.shadowedgeai.com/video-${index}.mp4`, uploadStatus: "ready",
     });
     expect(validateReferenceSelectionForRule(rule, [], [image(1), video(1)])).toBe("");
@@ -50,7 +53,7 @@ describe("ArtsDance Seedance production UI contract", () => {
       ...Array.from({ length: 9 }, (_value, index) => image(index + 1)), video(1), video(2), video(3),
     ])).toContain("Reference limit reached");
     expect(validateReferenceSelectionForRule(rule, [], [{
-      id: "audio-1", assetId: "audio-1", type: "audio", name: "audio-1",
+      id: "audio-1", assetId: assetId("audio", 1), type: "audio", name: "audio-1",
       url: "https://assets.shadowedgeai.com/audio-1.mp3", uploadStatus: "ready",
     }])).toContain("does not support audio references");
   });

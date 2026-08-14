@@ -36,6 +36,7 @@ export type UploadMediaSource =
 export type UploadMediaItem = {
   id: string;
   assetId?: string;
+  canonicalReferenceStatus?: "CANONICAL" | "LEGACY_REFERENCE_REUPLOAD_REQUIRED";
   type: UploadMediaType;
   role?: UploadMediaRole;
   source?: UploadMediaSource;

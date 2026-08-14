@@ -1,6 +1,10 @@
 import type { UploadMediaItem, UploadMediaRole, UploadMediaType } from "@/types/video";
 import type { VideoModelRule } from "@/lib/video/videoModelRules";
 import { getFileTypeFromFile } from "@/lib/upload-rules";
+import {
+  LEGACY_REFERENCE_REUPLOAD_REQUIRED,
+  isCanonicalReferenceItem,
+} from "@/lib/video/canonicalReferenceAssets";
 
 type ReferenceCountMap = Record<UploadMediaType, number>;
 
@@ -115,6 +119,9 @@ export function validateReferenceSelectionForRule(
   if (unsupported) return getUnsupportedReferenceTypeReason(rule, unsupported.type);
 
   const combined = [...uniqueCurrent, ...uniqueNext];
+  if (combined.some((item) => !isCanonicalReferenceItem(item))) {
+    return LEGACY_REFERENCE_REUPLOAD_REQUIRED;
+  }
   const totalLimit = getTotalLimit(rule);
 
   if (totalLimit >= 0 && combined.length > totalLimit) {
@@ -152,6 +159,8 @@ export function getReferenceMediaIssues(rule: VideoModelRule, items: UploadMedia
 
     totalCount += 1;
     counts[item.type] += 1;
+
+    if (!isCanonicalReferenceItem(item)) itemIssues.push(LEGACY_REFERENCE_REUPLOAD_REQUIRED);
 
     if (unsupportedReason) itemIssues.push(unsupportedReason);
     else {

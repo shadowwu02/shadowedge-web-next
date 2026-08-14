@@ -1,6 +1,7 @@
 import type { UploadMediaItem, UploadMediaRole, UploadMediaSource, UploadMediaType, VideoTaskRecord } from "@/types/video";
 import { getApiBaseUrl } from "@/lib/api";
 import { getMediaTypeFromUrl, isRemoteMediaUrl, isTransientMediaUrl } from "@/lib/upload-rules";
+import { getCanonicalReferenceStatus } from "@/lib/video/canonicalReferenceAssets";
 
 export const LOCAL_MEDIA_ASSETS_KEY = "shadowedge_local_upload_assets_v1";
 export const LOCAL_MEDIA_ASSETS_MAX = 80;
@@ -524,6 +525,7 @@ export function normalizeMediaAsset(item: unknown, source: MediaAssetSourceInput
   return {
     id: pickString(raw.id, raw.mediaId, raw.media_id, raw.key, url) || url,
     assetId: pickString(raw.assetId, raw.asset_id),
+    canonicalReferenceStatus: getCanonicalReferenceStatus({ assetId: pickString(raw.assetId, raw.asset_id) }),
     type,
     name,
     url,

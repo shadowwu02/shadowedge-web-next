@@ -7,6 +7,7 @@ import {
   type VideoMentionBinding,
 } from "@/lib/video/videoMentionBindings";
 import type { UploadMediaItem, UploadMediaRole, UploadMediaSource, UploadMediaType } from "@/types/video";
+import { getCanonicalReferenceStatus } from "@/lib/video/canonicalReferenceAssets";
 
 export const VIDEO_WORKSPACE_DRAFT_KEY = "shadowedge_video_create_draft_v1";
 export const VIDEO_WORKSPACE_DRAFT_VERSION = 1;
@@ -132,6 +133,7 @@ export function sanitizeVideoDraftMedia(items: UploadMediaItem[]) {
       return {
         id: item.id || item.url || `${item.type}-${item.name}`,
         assetId: item.assetId,
+        canonicalReferenceStatus: getCanonicalReferenceStatus(item),
         type: item.type,
         role: item.role || ("reference" as UploadMediaRole),
         source: item.source || ("reference_selected" as UploadMediaSource),

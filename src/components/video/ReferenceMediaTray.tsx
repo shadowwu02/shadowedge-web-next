@@ -15,6 +15,7 @@ import {
   getReferenceMediaIssues,
   getReferenceRoleIssue,
 } from "@/lib/video/videoReferenceRules";
+import { LEGACY_REFERENCE_REUPLOAD_REQUIRED } from "@/lib/video/canonicalReferenceAssets";
 import { useI18n } from "@/i18n/useI18n";
 
 const roleOptions: Array<{ value: UploadMediaRole }> = [
@@ -236,6 +237,7 @@ export function ReferenceMediaTray({
 
   function localizeIssue(issue: string) {
     if (!issue) return "";
+    if (issue === LEGACY_REFERENCE_REUPLOAD_REQUIRED) return t("video.errors.legacyReferenceReuploadRequired");
     if (issue.includes("does not support image references")) return t("video.errors.unsupportedImageReference");
     if (issue.includes("does not support video references")) return t("video.errors.unsupportedVideoReference");
     if (issue.includes("does not support audio references")) return t("video.errors.unsupportedAudioReference");
