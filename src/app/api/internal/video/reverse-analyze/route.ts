@@ -19,6 +19,13 @@ function getBearerAuthorization(request: Request) {
   return /^Bearer\s+\S+/i.test(value) ? value : "";
 }
 
+function getCorrelationId(request: Request) {
+  const supplied = (request.headers.get("x-correlation-id") || "").trim().slice(0, 160);
+  return supplied && /^[a-zA-Z0-9._:-]+$/.test(supplied)
+    ? supplied
+    : globalThis.crypto.randomUUID();
+}
+
 export async function GET() {
   const readiness = getReverseAnalyzeProxyReadinessFromEnv();
   return NextResponse.json(
@@ -48,6 +55,7 @@ async function validateUserAuthorization(authorization: string) {
 
 export async function POST(request: Request) {
   const authorization = getBearerAuthorization(request);
+  const correlationId = getCorrelationId(request);
 
   if (!authorization) {
     return NextResponse.json(
@@ -56,7 +64,7 @@ export async function POST(request: Request) {
         code: "UNAUTHORIZED",
         error: "Authentication is required.",
       },
-      { status: 401 },
+      { status: 401, headers: { "X-Correlation-Id": correlationId } },
     );
   }
 
@@ -69,7 +77,7 @@ export async function POST(request: Request) {
         code: "UNAUTHORIZED",
         error: "Authentication is required.",
       },
-      { status: 401 },
+      { status: 401, headers: { "X-Correlation-Id": correlationId } },
     );
   }
 
@@ -83,7 +91,7 @@ export async function POST(request: Request) {
         code: "INTERNAL_SITE_KEY_MISSING",
         error: "Reverse analyze API is not configured.",
       },
-      { status: 503 },
+      { status: 503, headers: { "X-Correlation-Id": correlationId } },
     );
   }
 
@@ -100,6 +108,7 @@ export async function POST(request: Request) {
         "x-shadowedge-client": "shadowedge-web",
         "x-shadowedge-site": "video",
         "x-shadowedge-site-key": siteKey,
+        "X-Correlation-Id": correlationId,
         Authorization: authorization,
       },
       body: JSON.stringify(body),
@@ -118,15 +127,19 @@ export async function POST(request: Request) {
       };
     }
 
-    return NextResponse.json(payload, { status: response.status });
+    return NextResponse.json(payload, {
+      status: response.status,
+      headers: { "X-Correlation-Id": response.headers.get("x-correlation-id") || correlationId },
+    });
   } catch (error) {
     return NextResponse.json(
       {
         ok: false,
         code: "REVERSE_ANALYZE_PROXY_FAILED",
         error: error instanceof Error ? error.message : "Reverse analyze API is unavailable.",
+        correlationId,
       },
-      { status: 502 },
+      { status: 502, headers: { "X-Correlation-Id": correlationId } },
     );
   }
 }

@@ -4,6 +4,7 @@ export type ApiEnvelope<T> = {
   error?: string;
   message?: string;
   code?: string;
+  correlationId?: string;
 };
 
 export type ApiRequestOptions = RequestInit & {
@@ -15,6 +16,7 @@ export type ApiRequestOptions = RequestInit & {
 export type ApiErrorOptions = {
   status?: number;
   code?: string;
+  correlationId?: string;
   payload?: unknown;
   kind?: "auth" | "credits" | "membership" | "maintenance" | "network" | "server" | "unknown";
 };
@@ -22,6 +24,7 @@ export type ApiErrorOptions = {
 export class ApiError extends Error {
   status?: number;
   code?: string;
+  correlationId?: string;
   payload?: unknown;
   kind?: "auth" | "credits" | "membership" | "maintenance" | "network" | "server" | "unknown";
 
@@ -30,6 +33,7 @@ export class ApiError extends Error {
     this.name = "ApiError";
     this.status = options.status;
     this.code = options.code;
+    this.correlationId = options.correlationId;
     this.payload = options.payload;
     this.kind = options.kind;
   }

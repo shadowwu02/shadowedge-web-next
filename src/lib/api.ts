@@ -90,11 +90,13 @@ export function normalizeApiError(status: number, payload: ApiEnvelope<unknown> 
   const text = payloadText(payload);
   const message = getApiErrorMessage(status, payload);
   const code = pickString(asRecord(payload).code, asRecord(payload).error_code, asRecord(payload).errorCode);
+  const correlationId = pickString(asRecord(payload).correlationId, asRecord(payload).correlation_id);
 
   if (status === 401) {
     return new ApiError(message === `HTTP ${status} request failed.` ? "Sign in required." : message, {
       status,
       code,
+      correlationId,
       payload,
       kind: "auth",
     });
@@ -104,6 +106,7 @@ export function normalizeApiError(status: number, payload: ApiEnvelope<unknown> 
     return new ApiError("Account ownership has not been completed. Please contact an administrator.", {
       status,
       code,
+      correlationId,
       payload,
       kind: "membership",
     });
@@ -113,6 +116,7 @@ export function normalizeApiError(status: number, payload: ApiEnvelope<unknown> 
     return new ApiError(text.includes("admin") ? "Contact administrator." : message || "Not enough credits.", {
       status,
       code,
+      correlationId,
       payload,
       kind: "credits",
     });
@@ -122,6 +126,7 @@ export function normalizeApiError(status: number, payload: ApiEnvelope<unknown> 
     return new ApiError(message || "ShadowEdge is temporarily under maintenance.", {
       status,
       code,
+      correlationId,
       payload,
       kind: "maintenance",
     });
@@ -131,6 +136,7 @@ export function normalizeApiError(status: number, payload: ApiEnvelope<unknown> 
     return new ApiError("This Studio service is not deployed on the current API version.", {
       status,
       code: "STUDIO_SERVICE_NOT_DEPLOYED",
+      correlationId,
       payload,
       kind: "unknown",
     });
@@ -139,6 +145,7 @@ export function normalizeApiError(status: number, payload: ApiEnvelope<unknown> 
   return new ApiError(message || "ShadowEdge API request failed", {
     status,
     code,
+    correlationId,
     payload,
     kind: status >= 500 ? "server" : "unknown",
   });
@@ -197,6 +204,10 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
 
   if (token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  if (!headers.has("X-Correlation-Id")) {
+    headers.set("X-Correlation-Id", globalThis.crypto?.randomUUID?.() || `web-${Date.now().toString(36)}`);
   }
 
   const hasBody = options.body !== undefined && options.body !== null;
