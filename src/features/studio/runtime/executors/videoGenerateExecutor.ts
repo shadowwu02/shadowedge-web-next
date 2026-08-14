@@ -23,6 +23,7 @@ import {
 import { loadStudioProviderModelInventory } from "@/lib/studio-provider-models-api";
 import { getVideoErrorReasonCode } from "@/lib/video/videoErrorDisplay";
 import { buildVideoGenerationRequest } from "@/lib/video/videoGenerationRequest";
+import { isCanonicalAssetId } from "@/lib/video/canonicalReferenceAssets";
 import {
   getVideoStatusWithVisibilityGrace,
   normalizeVideoJobIdentity,
@@ -116,19 +117,38 @@ function inferReferenceType(url: string): UploadMediaType {
   return "image";
 }
 
-function collectReferenceMedia(context: NodeExecutionContext) {
-  const collected = new Map<string, UploadMediaType>();
+export function collectStudioCanonicalReferenceMedia(context: NodeExecutionContext) {
+  const collected = new Map<string, UploadMediaItem>();
+  let invalid = false;
 
-  function add(urlValue: unknown, typeValue?: unknown) {
+  function add(assetIdValue: unknown, urlValue: unknown, typeValue?: unknown) {
+    const assetId = String(assetIdValue || "").trim();
     const url = String(urlValue || "").trim();
-    if (!url) return;
+    if (!url && !assetId) return;
+    if (!isCanonicalAssetId(assetId) || !url) {
+      invalid = true;
+      return;
+    }
     const type = String(typeValue || "").trim() as UploadMediaType;
-    collected.set(
+    const normalizedType = type === "image" || type === "video" || type === "audio"
+      ? type
+      : inferReferenceType(url);
+    collected.set(`${normalizedType}:${assetId}`, {
+      assetId,
+      id: assetId,
+      type: normalizedType,
+      name: `Studio ${normalizedType} reference`,
       url,
-      type === "image" || type === "video" || type === "audio"
-        ? type
-        : inferReferenceType(url),
-    );
+      previewUrl: normalizedType === "image" ? url : "",
+      source: "asset-library",
+      uploadStatus: "ready",
+    });
+  }
+
+  function addReferenceValue(value: unknown, type: UploadMediaType) {
+    const record = asRecord(value);
+    if (Object.keys(record).length) add(record.assetId, record.url, record.type || type);
+    else if (String(value || "").trim()) invalid = true;
   }
 
   function visit(value: unknown, depth: number) {
@@ -142,13 +162,13 @@ function collectReferenceMedia(context: NodeExecutionContext) {
     if (!Object.keys(record).length) return;
 
     if (record.assetType || record.executor === "asset") {
-      add(record.url, record.assetType || record.type);
+      add(record.assetId, record.url, record.assetType || record.type);
     }
     if (Array.isArray(record.referenceImages)) {
-      record.referenceImages.forEach((url) => add(url, "image"));
+      record.referenceImages.forEach((item) => addReferenceValue(item, "image"));
     }
     if (Array.isArray(record.referenceVideos)) {
-      record.referenceVideos.forEach((url) => add(url, "video"));
+      record.referenceVideos.forEach((item) => addReferenceValue(item, "video"));
     }
 
     Object.values(record).forEach((entry) => visit(entry, depth + 1));
@@ -156,18 +176,10 @@ function collectReferenceMedia(context: NodeExecutionContext) {
 
   visit(context.inputs, 0);
   if (Array.isArray(context.config.references)) {
-    context.config.references.forEach((url) => add(url));
+    context.config.references.forEach((item) => addReferenceValue(item, "image"));
   }
 
-  return Array.from(collected, ([url, type], index) => ({
-    id: `studio-reference-${index + 1}`,
-    type,
-    name: `Studio ${type} reference ${index + 1}`,
-    url,
-    previewUrl: url,
-    source: "asset-library" as const,
-    uploadStatus: "ready" as const,
-  } satisfies UploadMediaItem));
+  return { invalid, media: Array.from(collected.values()) };
 }
 
 function mapReasonCode(message: string, errorCode = ""): StudioVideoErrorCode {
@@ -471,7 +483,11 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
               ? context.config.generateAudio
               : undefined,
         });
-        const media = collectReferenceMedia(context);
+        const canonicalReferences = collectStudioCanonicalReferenceMedia(context);
+        if (canonicalReferences.invalid) {
+          return failure("PARAMETER_ISSUE", "Studio references require a Canonical Asset ID.");
+        }
+        const media = canonicalReferences.media;
         const mediaIssue = validateStudioVideoModelReferences(
           inventoryModel,
           media,

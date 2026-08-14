@@ -23,6 +23,7 @@ import {
 import { IMAGE_PROMPT_FRONTEND_LIMIT } from "@/lib/image/imagePromptLimits";
 import { ApiError } from "@/types/api";
 import type { ImageJobStatus } from "@/types/image";
+import { isCanonicalAssetId } from "@/lib/video/canonicalReferenceAssets";
 
 const POLLING_INTERVAL_MS = 4_000;
 const MAX_POLL_ATTEMPTS = 150;
@@ -59,8 +60,9 @@ function findPromptInput(context: NodeExecutionContext) {
     .find((input) => typeof input.prompt === "string" && input.prompt.trim());
 }
 
-function collectReferenceImages(context: NodeExecutionContext) {
+export function collectStudioCanonicalImageReferences(context: NodeExecutionContext) {
   const assetIds = new Set<string>();
+  let invalid = false;
 
   function visit(value: unknown, depth: number) {
     if (depth > 4 || value === null || value === undefined) return;
@@ -76,18 +78,24 @@ function collectReferenceImages(context: NodeExecutionContext) {
       record.assetType === "image" ||
       (record.executor === "asset" && record.type === "image");
     const assetId = String(record.assetId || "").trim();
-    if (isImageAsset && assetId) assetIds.add(assetId);
+    if (isImageAsset && (record.url || assetId)) {
+      if (isCanonicalAssetId(assetId)) assetIds.add(assetId);
+      else invalid = true;
+    }
 
     const references = record.referenceImageAssetIds;
     if (Array.isArray(references)) {
-      references.map(String).map((id) => id.trim()).filter(Boolean).forEach((id) => assetIds.add(id));
+      references.map(String).map((id) => id.trim()).filter(Boolean).forEach((id) => {
+        if (isCanonicalAssetId(id)) assetIds.add(id);
+        else invalid = true;
+      });
     }
 
     Object.values(record).forEach((entry) => visit(entry, depth + 1));
   }
 
   visit(context.inputs, 0);
-  return Array.from(assetIds);
+  return { assetIds: Array.from(assetIds), invalid };
 }
 
 function buildPrompt(context: NodeExecutionContext) {
@@ -265,7 +273,11 @@ export const ImageGenerateExecutor: StudioNodeExecutor = {
         quality: configString(context, "quality"),
         batchCount: Number(context.config.count || 1),
       });
-      const references = collectReferenceImages(context).slice(
+      const canonicalReferences = collectStudioCanonicalImageReferences(context);
+      if (canonicalReferences.invalid) {
+        return failure("PARAMETER_ISSUE", "Studio image references require a Canonical Asset ID.");
+      }
+      const references = canonicalReferences.assetIds.slice(
         0,
         Math.max(0, model.capabilities.maxReferences || 0),
       );

@@ -68,6 +68,25 @@ export type VideoRemakeReverseAnalyzeResponse = {
   storyboard: RemakeStoryboard;
 };
 
+export async function getReverseAnalyzeProxyReadiness() {
+  const response = await fetch("/api/internal/video/reverse-analyze", {
+    method: "GET",
+    cache: "no-store",
+  });
+  const payload = await response.json().catch(() => null) as {
+    data?: { ready?: boolean; status?: string };
+    code?: string;
+  } | null;
+  if (!response.ok || payload?.data?.ready !== true) {
+    throw new ApiError("Reverse analyze is not configured.", {
+      code: payload?.code || "REVERSE_ANALYZE_CONFIGURATION_MISSING",
+      kind: "maintenance",
+      status: response.status || 503,
+    });
+  }
+  return payload.data;
+}
+
 export type VideoRemakeLongAnalysisStage =
   | "queued"
   | "reading_metadata"
@@ -284,6 +303,7 @@ export async function reverseAnalyzeVideoRemake(input: VideoRemakeReverseAnalyze
   const token = getStoredAuthToken();
 
   try {
+    await getReverseAnalyzeProxyReadiness();
     response = await fetch("/api/internal/video/reverse-analyze", {
       method: "POST",
       headers: {

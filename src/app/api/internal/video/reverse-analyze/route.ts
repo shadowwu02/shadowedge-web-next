@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getReverseAnalyzeProxyReadinessFromEnv } from "@/lib/server/reverseAnalyzeProxyReadiness";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,14 @@ function getInternalRequestOrigin() {
 function getBearerAuthorization(request: Request) {
   const value = request.headers.get("authorization") || "";
   return /^Bearer\s+\S+/i.test(value) ? value : "";
+}
+
+export async function GET() {
+  const readiness = getReverseAnalyzeProxyReadinessFromEnv();
+  return NextResponse.json(
+    { ok: readiness.ready, data: readiness, code: readiness.code || undefined },
+    { status: readiness.ready ? 200 : 503 },
+  );
 }
 
 async function validateUserAuthorization(authorization: string) {
@@ -64,9 +73,10 @@ export async function POST(request: Request) {
     );
   }
 
+  const readiness = getReverseAnalyzeProxyReadinessFromEnv();
   const siteKey = process.env.INTERNAL_VIDEO_SITE_KEY || "";
 
-  if (!siteKey) {
+  if (!readiness.ready || !siteKey) {
     return NextResponse.json(
       {
         ok: false,
