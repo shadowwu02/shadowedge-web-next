@@ -1,7 +1,7 @@
 export type ReverseAnalyzeProxyReadiness = {
   ready: boolean;
   status: "READY" | "CONFIGURATION_MISSING";
-  code: "" | "INTERNAL_SITE_KEY_MISSING";
+  code: "" | "PROXY_CONFIGURATION_MISSING";
 };
 
 export function getReverseAnalyzeProxyReadinessFromEnv(
@@ -14,6 +14,6 @@ export function getReverseAnalyzeProxyReadinessFromEnv(
   return {
     ready,
     status: ready ? "READY" : "CONFIGURATION_MISSING",
-    code: ready ? "" : "INTERNAL_SITE_KEY_MISSING",
+    code: ready ? "" : "PROXY_CONFIGURATION_MISSING",
   };
 }

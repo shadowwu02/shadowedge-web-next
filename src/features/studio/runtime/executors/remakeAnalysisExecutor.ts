@@ -6,12 +6,14 @@ import type {
 } from "@/features/studio/runtime/types";
 import { reverseAnalyzeVideoRemake } from "@/lib/video-api";
 import { ApiError } from "@/types/api";
+import { isCanonicalAssetId } from "@/lib/video/canonicalReferenceAssets";
 
 type StudioRemakeErrorCode =
   | "STUDIO_REMAKE_EXECUTION_DISABLED"
   | "AUTH_REQUIRED"
   | "FORBIDDEN"
   | "VIDEO_INPUT_REQUIRED"
+  | "CANONICAL_ASSET_REQUIRED"
   | "REMAKE_ANALYSIS_FAILED";
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -155,6 +157,13 @@ export const RemakeAnalysisExecutor: StudioNodeExecutor = {
         "Connect a ready Video Asset Node before running Remake analysis.",
       );
     }
+    const sourceAssetId = String(videoInput?.assetId || "").trim();
+    if (!isCanonicalAssetId(sourceAssetId)) {
+      return failure(
+        "CANONICAL_ASSET_REQUIRED",
+        "Studio Remake requires a Canonical Video Asset ID.",
+      );
+    }
 
     try {
       context.reportProgress({
@@ -173,6 +182,7 @@ export const RemakeAnalysisExecutor: StudioNodeExecutor = {
         mode: "single_clip",
         sceneStyle: configString(context, "sceneStyle"),
         sourceFileName: String(videoInput?.name || videoInput?.assetId || "Studio video"),
+        sourceAssetId,
         sourceLanguage: "zh",
         sourceVideoUrl,
         targetLanguage: "en",

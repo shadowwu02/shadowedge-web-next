@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
 import { getReverseAnalyzeProxyReadinessFromEnv } from "@/lib/server/reverseAnalyzeProxyReadiness";
+import { classifyReverseAnalyzeBackendError } from "@/lib/server/reverseAnalyzeProxyContract";
 import { collectStudioCanonicalImageReferences } from "@/features/studio/runtime/executors/imageGenerateExecutor";
 import { collectStudioCanonicalReferenceMedia } from "@/features/studio/runtime/executors/videoGenerateExecutor";
 
@@ -17,9 +20,20 @@ describe("Candidate B Short Remake and Studio contracts", () => {
     expect(getReverseAnalyzeProxyReadinessFromEnv({})).toEqual({
       ready: false,
       status: "CONFIGURATION_MISSING",
-      code: "INTERNAL_SITE_KEY_MISSING",
+      code: "PROXY_CONFIGURATION_MISSING",
     });
     expect(getReverseAnalyzeProxyReadinessFromEnv({ INTERNAL_VIDEO_SITE_KEY: "server-secret" }).ready).toBe(true);
+  });
+
+  it("classifies proxy, membership, Canonical Asset, admission, and Provider failures", () => {
+    expect(classifyReverseAnalyzeBackendError({ code: "TENANT_MEMBERSHIP_REVIEW_REQUIRED" }, 403))
+      .toBe("TENANT_MEMBERSHIP_REVIEW_REQUIRED");
+    expect(classifyReverseAnalyzeBackendError({ code: "CANONICAL_ASSET_REQUIRED" }, 400))
+      .toBe("CANONICAL_ASSET_REQUIRED");
+    expect(classifyReverseAnalyzeBackendError({ code: "INVALID_INTERNAL_SITE_KEY" }, 403))
+      .toBe("BACKEND_ADMISSION_DENIED");
+    expect(classifyReverseAnalyzeBackendError({ code: "VLM_FAILED" }, 502))
+      .toBe("PROVIDER_FAILURE");
   });
 
   it("accepts a Canonical Studio Video Asset and preserves its assetId", () => {
@@ -65,5 +79,16 @@ describe("Candidate B Short Remake and Studio contracts", () => {
     }));
     expect(canonical).toEqual({ assetIds: [ASSET_ID], invalid: false });
     expect(legacy.invalid).toBe(true);
+  });
+
+  it("preserves the Canonical sourceAssetId in Workspace and Studio Short Remake", () => {
+    const workspace = fs.readFileSync(path.join(process.cwd(), "src/components/video/VideoWorkspace.tsx"), "utf8");
+    const studio = fs.readFileSync(
+      path.join(process.cwd(), "src/features/studio/runtime/executors/remakeAnalysisExecutor.ts"),
+      "utf8",
+    );
+    expect(workspace).toContain("sourceAssetId: sourceVideoForAnalyze?.assetId");
+    expect(studio).toContain("sourceAssetId,");
+    expect(studio).toContain("CANONICAL_ASSET_REQUIRED");
   });
 });

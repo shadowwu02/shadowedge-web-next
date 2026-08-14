@@ -36,6 +36,7 @@ export type VideoRemakeReverseAnalyzeInput = {
   characterRules: string;
   mode: RemakeMode;
   sceneStyle: string;
+  sourceAssetId?: string;
   sourceFileName?: string;
   sourceLanguage?: string;
   sourceVideoUrl?: string;
@@ -303,6 +304,14 @@ export async function reverseAnalyzeVideoRemake(input: VideoRemakeReverseAnalyze
   let response: Response;
   const token = getStoredAuthToken();
 
+  if (!isCanonicalAssetId(input.sourceAssetId)) {
+    throw new ApiError("A Canonical Video Asset is required.", {
+      code: "CANONICAL_ASSET_REQUIRED",
+      kind: "unknown",
+      status: 400,
+    });
+  }
+
   try {
     await getReverseAnalyzeProxyReadiness();
     response = await fetch("/api/internal/video/reverse-analyze", {
@@ -315,7 +324,12 @@ export async function reverseAnalyzeVideoRemake(input: VideoRemakeReverseAnalyze
       cache: "no-store",
     });
   } catch (error) {
-    throw new Error(error instanceof Error ? error.message : "Reverse analyze API is unavailable.");
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(error instanceof Error ? error.message : "Reverse analyze API is unavailable.", {
+      code: "PROXY_UPSTREAM_UNAVAILABLE",
+      kind: "network",
+      status: 502,
+    });
   }
 
   const text = await response.text();
@@ -911,6 +925,36 @@ export async function getFullEpisodeRemakeAnalysisStatus(analysisJobId: string) 
   });
 
   return normalizeFullEpisodeStatusResponse(envelope);
+}
+
+export async function preflightReverseAnalyzeVideoRemake(input: VideoRemakeReverseAnalyzeInput) {
+  const token = getStoredAuthToken();
+  if (!isCanonicalAssetId(input.sourceAssetId)) {
+    throw new ApiError("A Canonical Video Asset is required.", {
+      code: "CANONICAL_ASSET_REQUIRED",
+      kind: "unknown",
+      status: 400,
+    });
+  }
+  const response = await fetch("/api/internal/video/reverse-analyze", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+  const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
+  if (!response.ok || payload?.ok === false) {
+    throw new ApiError(getReverseAnalyzeErrorMessage(payload), {
+      code: pickString(payload?.code, payload?.error_code),
+      kind: response.status === 401 ? "auth" : response.status >= 500 ? "server" : "unknown",
+      payload: payload || undefined,
+      status: response.status,
+    });
+  }
+  return payload;
 }
 
 export type RecoveredRemakeAnalysisStatus =

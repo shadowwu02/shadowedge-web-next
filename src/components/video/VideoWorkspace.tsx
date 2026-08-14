@@ -267,6 +267,7 @@ function getRemakeUploadErrorMessage(error: unknown, t: (key: DictionaryKey) => 
   if (isMaintenanceApiError(error)) return t("maintenance.errors.generationPaused");
 
   const text = getErrorText(error);
+  if (text.includes("tenant_membership_review_required")) return t("video.remake.error.tenantMembershipReviewRequired");
   if (error instanceof ApiError && (error.kind === "auth" || error.status === 401)) return t("video.remake.uploadError.auth");
   if (/\b401\b|unauthorized|auth|required|sign in|login/.test(text)) return t("video.remake.uploadError.auth");
   if (/file too large|too large|limit_file_size|payload too large|\b413\b|250mb|max file size/.test(text)) {
@@ -283,6 +284,11 @@ function getRemakeUploadErrorMessage(error: unknown, t: (key: DictionaryKey) => 
 
 function getRemakeAnalysisErrorMessage(error: unknown, t: (key: DictionaryKey) => string) {
   const text = getErrorText(error);
+  if (text.includes("proxy_configuration_missing")) return t("video.remake.error.proxyConfigurationMissing");
+  if (text.includes("tenant_membership_review_required")) return t("video.remake.error.tenantMembershipReviewRequired");
+  if (text.includes("canonical_asset_required")) return t("video.remake.error.canonicalAssetRequired");
+  if (text.includes("backend_admission_denied")) return t("video.remake.error.backendAdmissionDenied");
+  if (text.includes("provider_failure")) return t("video.remake.error.providerFailure");
   if (text.includes("source_video_too_short") || text.includes("at least 3 seconds")) return t("video.remake.sourceTooShort");
   if (text.includes("long_video_too_short")) return t("video.remake.longVideo.tooShort");
   if (text.includes("long_video_too_long")) return t("video.remake.longVideo.tooLong");
@@ -2431,6 +2437,7 @@ export function VideoWorkspace() {
       setRemakeAnalysisNotice(t("video.remake.vlmAnalyzing"));
       const result = await reverseAnalyzeVideoRemake({
         ...settings,
+        sourceAssetId: sourceVideoForAnalyze?.assetId,
         sourceFileName: sourceVideoForAnalyze?.name || "",
         sourceLanguage: "zh",
         sourceVideoUrl,

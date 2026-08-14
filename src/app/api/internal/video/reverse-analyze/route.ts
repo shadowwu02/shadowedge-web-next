@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getReverseAnalyzeProxyReadinessFromEnv } from "@/lib/server/reverseAnalyzeProxyReadiness";
+import { safeReverseAnalyzeProxyPayload } from "@/lib/server/reverseAnalyzeProxyContract";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,7 @@ async function validateUserAuthorization(authorization: string) {
   }
 }
 
-export async function POST(request: Request) {
+async function proxyReverseAnalyze(request: Request, backendPath: string) {
   const authorization = getBearerAuthorization(request);
   const correlationId = getCorrelationId(request);
 
@@ -88,7 +89,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ok: false,
-        code: "INTERNAL_SITE_KEY_MISSING",
+        code: "PROXY_CONFIGURATION_MISSING",
         error: "Reverse analyze API is not configured.",
       },
       { status: 503, headers: { "X-Correlation-Id": correlationId } },
@@ -99,7 +100,7 @@ export async function POST(request: Request) {
   const origin = getInternalRequestOrigin();
 
   try {
-    const response = await fetch(`${getBackendApiBaseUrl()}/api/internal/video/reverse-analyze`, {
+    const response = await fetch(`${getBackendApiBaseUrl()}${backendPath}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -127,7 +128,7 @@ export async function POST(request: Request) {
       };
     }
 
-    return NextResponse.json(payload, {
+    return NextResponse.json(safeReverseAnalyzeProxyPayload(payload, response.status), {
       status: response.status,
       headers: { "X-Correlation-Id": response.headers.get("x-correlation-id") || correlationId },
     });
@@ -142,4 +143,12 @@ export async function POST(request: Request) {
       { status: 502, headers: { "X-Correlation-Id": correlationId } },
     );
   }
+}
+
+export async function POST(request: Request) {
+  return proxyReverseAnalyze(request, "/api/internal/video/reverse-analyze");
+}
+
+export async function PUT(request: Request) {
+  return proxyReverseAnalyze(request, "/api/internal/video/reverse-analyze-preflight");
 }
