@@ -209,6 +209,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   if (!headers.has("X-Correlation-Id")) {
     headers.set("X-Correlation-Id", globalThis.crypto?.randomUUID?.() || `web-${Date.now().toString(36)}`);
   }
+  const requestCorrelationId = String(headers.get("X-Correlation-Id") || "").trim() || undefined;
 
   const hasBody = options.body !== undefined && options.body !== null;
   if (hasBody && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
@@ -228,6 +229,8 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   } catch (error) {
     console.warn("[ShadowEdge Next] API network request failed:", error instanceof Error ? error.message : error);
     throw new ApiError("Network request failed.", {
+      code: "NETWORK_REQUEST_FAILED",
+      correlationId: requestCorrelationId,
       kind: "network",
     });
   }
@@ -256,6 +259,8 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
       } catch (error) {
         console.warn("[ShadowEdge Next] API network retry failed:", error instanceof Error ? error.message : error);
         throw new ApiError("Network request failed.", {
+          code: "NETWORK_REQUEST_FAILED",
+          correlationId: requestCorrelationId,
           kind: "network",
         });
       }

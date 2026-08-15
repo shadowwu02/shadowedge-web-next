@@ -145,10 +145,12 @@ export function NodeInspector() {
   const selectedPlanIsTerminalFailure = selectedGenerationPlan?.status === "failed";
   const [imageModels, setImageModels] = useState<ImageModel[]>([]);
   const [imageModelsError, setImageModelsError] = useState("");
-  const [videoInventory, setVideoInventory] =
-    useState<StudioProviderModelInventory | null>(null);
+  const [videoInventory] = useState<StudioProviderModelInventory | null>(null);
   const videoModels = videoInventory?.models || [];
-  const [videoModelsError, setVideoModelsError] = useState("");
+  const videoModelsError =
+    selectedNode?.type === "videoGenerate" && !videoInventory
+      ? "This saved model is unavailable. Select a current production model outside this legacy Studio node."
+      : "";
   const loadingImageModels =
     selectedNode?.type === "imageGenerate" &&
     !imageModels.length &&
@@ -178,11 +180,6 @@ export function NodeInspector() {
       cancelled = true;
     };
   }, [imageModels.length, selectedNode?.type]);
-
-  useEffect(() => {
-    if (selectedNode?.type !== "videoGenerate" || videoInventory) return;
-    setVideoModelsError("This saved model is unavailable. Select a current production model outside this legacy Studio node.");
-  }, [selectedNode?.type, videoInventory]);
 
   if (!selectedNode) {
     return (

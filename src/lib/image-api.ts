@@ -165,6 +165,7 @@ export function buildImageGenerateRequest(input: {
   model: ImageModel;
   params: Partial<ImageGenerateRequest>;
   referenceImageAssetIds?: string[];
+  idempotencyKey?: string;
   meta?: Record<string, unknown>;
 }): ImageGenerateRequest {
   const normalizedParams = normalizeImageGenerationParams(input.model, {
@@ -175,7 +176,7 @@ export function buildImageGenerateRequest(input: {
   });
 
   return {
-    idempotencyKey: crypto.randomUUID(),
+    idempotencyKey: input.idempotencyKey || crypto.randomUUID(),
     prompt: input.prompt.trim(),
     model: input.model.id,
     modelId: input.model.id,

@@ -26,7 +26,7 @@ const COPY: Record<ImageErrorCategory, string> = {
   CONCURRENCY: "已有图片任务正在处理中，请等待后再试。",
   MATERIALIZATION: "图片结果已生成但保存仍在处理中或失败，请查看历史记录。",
   PROVIDER: "生成服务暂时不可用，请稍后再试。",
-  NETWORK: "网络请求未完成，请检查连接后重试。",
+  NETWORK: "网络请求未能完成，请检查连接后重试。",
   UNKNOWN: "图片任务未能完成。",
 };
 

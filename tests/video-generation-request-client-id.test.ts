@@ -8,7 +8,7 @@ describe("normal Seedance requests", () => {
     it(`${id} carries the operation clientRequestId to the transport payload`, () => {
       const request = buildVideoGenerationRequest({
         prompt: "safe test prompt",
-        model: { id, label: id, provider: "xinhankr", providerModel: "provider-model", credits: 23, durations: [5], ratios: ["16:9"], qualities: ["720p"] },
+        model: { id, label: id, provider: "xinhankr", providerModel: "provider-model", credits: 23, durations: [5], durationDefault: 5, ratios: ["16:9"], qualities: ["720p"] },
         duration: 5,
         ratio: "16:9",
         quality: "720p",

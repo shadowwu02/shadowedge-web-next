@@ -36,6 +36,11 @@ import type { ImageGenerationParams, ImageHistoryItem, ImageModel, ImageReferenc
 import { ApiError } from "@/types/api";
 import { getImageGenerationErrorDisplay } from "@/lib/image/imageErrorDisplay";
 import {
+  isAmbiguousImageGenerationFailure,
+  resolveImageGenerationOperation,
+  type PendingImageGenerationOperation,
+} from "@/lib/image/imageRequestIdempotency";
+import {
   HIGGSFIELD_RETIRED_MODEL_MESSAGE,
   isRetiredHiggsfieldImageAlias,
 } from "@/lib/higgsfieldProductionRetirement";
@@ -150,6 +155,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextDraftSaveRef = useRef(false);
   const appliedUrlPromptRef = useRef("");
+  const pendingGenerationOperationRef = useRef<PendingImageGenerationOperation | null>(null);
 
   const selectedModel = useMemo(() => getImageModelById(models, selectedModelId), [models, selectedModelId]);
   const mergedHistory = useMemo(() => mergeImageHistory(history, localJobs), [history, localJobs]);
@@ -548,11 +554,26 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       if (readyReferences.some((item) => !item.assetId)) {
         throw new Error("Some reference images are from a legacy version and must be re-uploaded before generation.");
       }
+      const referenceImageAssetIds = readyReferences
+        .map((item) => item.assetId)
+        .filter((assetId): assetId is string => Boolean(assetId));
+      const pendingOperation = resolveImageGenerationOperation(pendingGenerationOperationRef.current, {
+        prompt: effectivePrompt,
+        modelId: effectiveModel.id,
+        ratio: effectiveParams.ratio,
+        resolution: effectiveParams.resolution,
+        quality: effectiveParams.quality,
+        batchCount: effectiveParams.batchCount,
+        referenceImageAssetIds,
+        meta: overrides.meta,
+      });
+      pendingGenerationOperationRef.current = pendingOperation;
       const request = buildImageGenerateRequest({
         prompt: effectivePrompt,
         model: effectiveModel,
         params: effectiveParams,
-        referenceImageAssetIds: readyReferences.map((item) => item.assetId).filter((assetId): assetId is string => Boolean(assetId)),
+        referenceImageAssetIds,
+        idempotencyKey: pendingOperation.idempotencyKey,
         meta: overrides.meta,
       });
       const response = await generateImage(request);
@@ -560,8 +581,12 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
 
       setCurrentJob(nextJob);
       setLocalJobs((current) => [nextJob, ...current.filter((item) => item.jobId !== nextJob.jobId)].slice(0, 20));
+      pendingGenerationOperationRef.current = null;
       return nextJob;
     } catch (submitError) {
+      if (!isAmbiguousImageGenerationFailure(submitError)) {
+        pendingGenerationOperationRef.current = null;
+      }
       setError(formatImageError("image.errors.generationRequestFailed", submitError, "Image generation request failed."));
       return null;
     } finally {

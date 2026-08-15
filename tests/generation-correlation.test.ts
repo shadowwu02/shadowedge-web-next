@@ -21,6 +21,24 @@ describe("generation request correlation", () => {
     }
   });
 
+  it("retains the client correlation ID on browser-level network failures", async () => {
+    let requestCorrelationId = "";
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => {
+      requestCorrelationId = String(new Headers(init?.headers).get("X-Correlation-Id") || "");
+      throw new TypeError("Failed to fetch");
+    }));
+    try {
+      await expect(apiRequest("/api/image/generate", { method: "POST", token: "", body: "{}" })).rejects.toMatchObject({
+        code: "NETWORK_REQUEST_FAILED",
+        kind: "network",
+        correlationId: expect.stringMatching(/^[a-zA-Z0-9._:-]+$/),
+      });
+      expect(requestCorrelationId).toMatch(/^[a-zA-Z0-9._:-]+$/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("forwards correlation through the Short Remake server proxy", () => {
     const source = fs.readFileSync(
       path.join(process.cwd(), "src/app/api/internal/video/reverse-analyze/route.ts"),
