@@ -268,6 +268,7 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
     maintenanceMessage: String(model.maintenanceMessage || model.maintenance_message || ""),
     desc: String(model.desc || model.type || model.mode || "Video generation"),
     credits,
+    maxPromptLength: Math.max(1, Number(model.maxPromptLength || 4000)),
     creditBase: Number(model.creditBase || model.credits || 0),
     creditRules: normalizeVideoCreditRules(model.creditRules, credits),
     durations: durations.length ? durations : [5],

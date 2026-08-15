@@ -72,6 +72,7 @@ export function ImageReferenceTray({
   const [assetReferences, setAssetReferences] = useState<ImageReferenceItem[]>([]);
   const [assetStatus, setAssetStatus] = useState<"idle" | "loading" | "auth" | "error">("idle");
   const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set());
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const maxReferences = model?.capabilities.maxReferences || 0;
   const canUpload = references.length < maxReferences;
   const remainingSlots = Math.max(0, maxReferences - references.length);
@@ -168,16 +169,24 @@ export function ImageReferenceTray({
     setIsAssetPickerOpen(true);
   }
 
+  function addLocalFiles(files: File[]) {
+    if (!canUpload) return;
+    files
+      .filter((file) => ["image/png", "image/jpeg", "image/webp"].includes(file.type))
+      .slice(0, remainingSlots)
+      .forEach(onUploadFile);
+  }
+
   return (
-    <section className="se-card rounded-[24px] p-3.5">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
+    <section className="se-card min-w-0 max-w-full overflow-hidden rounded-[24px] p-3.5">
+      <div className="mb-3 flex min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <p className="se-eyebrow">{t("image.workspace.referenceImages")}</p>
           <p className="mt-1 text-xs text-[#b9b9b9]/55">
             {maxReferences ? tf("image.references.count", { current: references.length, max: maxReferences }) : t("image.references.textOnly")}
           </p>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end">
           <button
             className="se-button-secondary inline-flex min-h-9 items-center justify-center gap-2 rounded-[15px] px-3 text-xs font-semibold"
             disabled={!canUpload}
@@ -205,7 +214,7 @@ export function ImageReferenceTray({
           multiple
           onChange={(event) => {
             const files = Array.from(event.target.files || []);
-            files.slice(0, Math.max(0, maxReferences - references.length)).forEach(onUploadFile);
+            addLocalFiles(files);
             event.target.value = "";
           }}
           ref={inputRef}
@@ -213,8 +222,31 @@ export function ImageReferenceTray({
         />
       </div>
 
+      <div
+        className={`min-w-0 max-w-full overflow-hidden rounded-[22px] border border-dashed transition-colors ${
+          isDraggingFiles && canUpload
+            ? "border-[#ffb44d]/52 bg-[#ffb44d]/10"
+            : "border-white/12 bg-white/[.025]"
+        }`}
+        data-testid="image-reference-well"
+        onDragEnter={(event) => {
+          event.preventDefault();
+          if (canUpload) setIsDraggingFiles(true);
+        }}
+        onDragLeave={(event) => {
+          if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+          setIsDraggingFiles(false);
+        }}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault();
+          setIsDraggingFiles(false);
+          addLocalFiles(Array.from(event.dataTransfer.files || []));
+        }}
+      >
       {references.length ? (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="se-subtle-scrollbar max-h-[360px] min-w-0 overflow-y-auto overscroll-contain p-2">
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2 2xl:grid-cols-3">
           {references.map((reference, referenceIndex) => {
             const displayName = getSafeMediaItemDisplayName(
               { ...reference, source: "reference_selected", type: "image" },
@@ -226,7 +258,7 @@ export function ImageReferenceTray({
               reference.uploadStatus === "failed" ? getMediaUploadErrorDisplayKeys(reference.errorMessage, { fallbackKind: "unavailable" }) : null;
 
             return (
-              <article className="group overflow-hidden rounded-[18px] border border-white/10 bg-[#05070b]/62" key={reference.id}>
+              <article className="group min-w-0 overflow-hidden rounded-[18px] border border-white/10 bg-[#05070b]/62" key={reference.id}>
                 <div className="relative aspect-square bg-black/40">
                   {previewUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -263,12 +295,10 @@ export function ImageReferenceTray({
             );
           })}
         </div>
+        </div>
       ) : (
-        <button
-          className={`grid w-full place-items-center rounded-[22px] border border-dashed border-white/12 bg-white/[.025] text-center transition-colors hover:border-[#ffb44d]/28 hover:bg-[#ffb44d]/7 disabled:hover:border-white/12 disabled:hover:bg-white/[.025] ${maxReferences ? "min-h-[148px]" : "min-h-[92px]"}`}
-          disabled={!canUpload}
-          onClick={() => inputRef.current?.click()}
-          type="button"
+        <div
+          className={`grid w-full place-items-center text-center ${maxReferences ? "min-h-[148px]" : "min-h-[92px]"}`}
         >
           <span>
             <span className={`mx-auto grid place-items-center border border-[#ffb44d]/20 bg-[#ffb44d]/10 text-[#ffd08a] ${maxReferences ? "size-11 rounded-2xl" : "size-8 rounded-xl"}`}>
@@ -279,8 +309,18 @@ export function ImageReferenceTray({
               {maxReferences ? t("image.references.uploadHint") : t("image.references.unsupportedHint")}
             </span>
           </span>
-        </button>
+        </div>
       )}
+      <button
+          className="flex min-h-11 w-full min-w-0 items-center justify-center gap-2 border-t border-white/10 px-3 py-2 text-xs font-semibold text-[#ffd08a]/82 transition hover:bg-[#ffb44d]/8 disabled:text-white/28 disabled:hover:bg-transparent"
+          disabled={!canUpload}
+          onClick={() => inputRef.current?.click()}
+          type="button"
+        >
+          <ImageIcon />
+          <span className="truncate">{maxReferences ? t("image.references.add") : t("image.references.unsupportedTitle")}</span>
+        </button>
+      </div>
       {maxReferences && !canUpload ? (
         <p className="mt-2 rounded-full border border-[#ffb44d]/16 bg-[#ffb44d]/8 px-3 py-1.5 text-[11px] font-semibold text-[#ffd08a]/75">
           {t("image.references.limitReached")}

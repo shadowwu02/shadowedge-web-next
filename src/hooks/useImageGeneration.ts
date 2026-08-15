@@ -6,8 +6,9 @@ import { useI18n } from "@/i18n/useI18n";
 import { formatGenerationConcurrencyLimitError } from "@/lib/generationConcurrencyError";
 import { getMediaUploadErrorDisplayKeys } from "@/lib/media-assets";
 import {
-  IMAGE_PROMPT_FRONTEND_LIMIT,
-  IMAGE_PROMPT_FRONTEND_LIMIT_LABEL,
+  countImagePromptCharacters,
+  formatImagePromptLimit,
+  getImagePromptLimit,
 } from "@/lib/image/imagePromptLimits";
 import { readImageResultDraftNotice } from "@/lib/image/imageResultDrafts";
 import {
@@ -534,8 +535,9 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       return null;
     }
 
-    if (effectivePrompt.length > IMAGE_PROMPT_FRONTEND_LIMIT) {
-      setError(tf("image.errors.promptTooLong", { limit: IMAGE_PROMPT_FRONTEND_LIMIT_LABEL }));
+    const effectiveModel = overrides.model || selectedModel;
+    if (countImagePromptCharacters(effectivePrompt) > getImagePromptLimit(effectiveModel)) {
+      setError(tf("image.errors.promptTooLong", { limit: formatImagePromptLimit(effectiveModel) }));
       return null;
     }
 
@@ -544,7 +546,6 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     setRecoveredJobId("");
 
     try {
-      const effectiveModel = overrides.model || selectedModel;
       if (effectiveModel.available === false) {
         throw new Error(t("generation.modelTemporarilyUnavailable"));
       }

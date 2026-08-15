@@ -1,4 +1,5 @@
 import { normalizeMediaAssetUrl } from "@/lib/media-assets";
+import { countVideoPromptCharacters, VIDEO_PROMPT_FRONTEND_LIMIT } from "@/lib/video/videoPromptLimits";
 import type { RemakeKeyframe, RemakeShot } from "@/components/video/remake/remakeTypes";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
 
@@ -141,7 +142,7 @@ function cleanPrompt(value: unknown) {
   const text = typeof value === "string" ? value.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim() : "";
   if (!text) return "";
   if (SENSITIVE_TEXT_PATTERNS.some((pattern) => pattern.test(text))) return "";
-  return text.slice(0, 12000);
+  return text;
 }
 
 const PLACEHOLDER_PROMPT_PATTERNS = [
@@ -263,7 +264,9 @@ export function getRemakeShotHandoffReadiness(shot: RemakeShot): RemakeShotHando
   const start = Number(shot.sourceTimeRange?.start);
   const end = Number(shot.sourceTimeRange?.end);
   if (shot.readyForGeneration !== true) return { keyframes: [], ok: false, prompt, reason: "not_ready" };
-  if (isPlaceholderPrompt(prompt)) return { keyframes: [], ok: false, prompt, reason: "invalid_prompt" };
+  if (isPlaceholderPrompt(prompt) || countVideoPromptCharacters(prompt) > VIDEO_PROMPT_FRONTEND_LIMIT) {
+    return { keyframes: [], ok: false, prompt, reason: "invalid_prompt" };
+  }
   if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start) {
     return { keyframes: [], ok: false, prompt, reason: "invalid_time_range" };
   }
@@ -324,7 +327,7 @@ function normalizeHandoff(raw: unknown): RemakeShotVideoHandoff | null {
 
   const prompt = cleanPrompt(record.prompt);
   const createdAt = cleanCreatedAt(record.createdAt);
-  if (!prompt || !Number.isFinite(Date.parse(createdAt))) return null;
+  if (!prompt || countVideoPromptCharacters(prompt) > VIDEO_PROMPT_FRONTEND_LIMIT || !Number.isFinite(Date.parse(createdAt))) return null;
 
   const referenceMedia = Array.isArray(record.referenceMedia)
     ? record.referenceMedia.map(normalizeReferenceMedia).filter((item): item is RemakeShotVideoHandoffReference => Boolean(item))

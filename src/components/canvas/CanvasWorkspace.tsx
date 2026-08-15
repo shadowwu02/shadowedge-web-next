@@ -16,6 +16,7 @@ import {
 import { CREATIVE_CANVAS_ENTRY } from "@/lib/canvas/canvasRoutes";
 import { useI18n, type DictionaryKey } from "@/i18n/useI18n";
 import { cn } from "@/lib/utils";
+import { countImagePromptCharacters, IMAGE_PROMPT_FRONTEND_LIMIT } from "@/lib/image/imagePromptLimits";
 
 type NoticeTone = "success" | "warning" | "muted";
 
@@ -64,7 +65,7 @@ function sanitizePromptQuery() {
   try {
     const params = new URLSearchParams(window.location.search);
     const prompt = String(params.get("prompt") || "").trim();
-    return prompt.slice(0, 1200);
+    return prompt;
   } catch {
     return "";
   }
@@ -88,7 +89,7 @@ function NoticeBanner({ notice }: { notice: CanvasNotice | null }) {
 
 export function CanvasWorkspace() {
   const router = useRouter();
-  const { t } = useI18n();
+  const { t, tf } = useI18n();
   const [workflow, setWorkflow] = useState<CanvasWorkflow>(() => createDefaultCanvasWorkflow());
   const [isHydrated, setIsHydrated] = useState(false);
   const [notice, setNotice] = useState<CanvasNotice | null>(null);
@@ -227,10 +228,17 @@ export function CanvasWorkspace() {
         setNotice({ message: t("canvas.promptRequired"), tone: "warning" });
         return;
       }
+      if (countImagePromptCharacters(prompt) > IMAGE_PROMPT_FRONTEND_LIMIT) {
+        setNotice({
+          message: tf(type === "image" ? "image.errors.promptTooLong" : "video.errors.promptTooLong", { limit: "4,000" }),
+          tone: "warning",
+        });
+        return;
+      }
       const target = type === "image" ? "/workspace/image" : "/workspace/video";
-      router.push(`${target}?prompt=${encodeURIComponent(prompt.slice(0, 1200))}`);
+      router.push(`${target}?prompt=${encodeURIComponent(prompt)}`);
     },
-    [router, t, workflow],
+    [router, t, tf, workflow],
   );
 
   const handleViewHistory = useCallback(() => {

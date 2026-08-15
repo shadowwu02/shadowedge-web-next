@@ -13,7 +13,7 @@ import { assetLibraryImageHandoffToReference, consumeAssetLibraryImageHandoff } 
 import { getImageUserFacingError } from "@/lib/image/imageErrorDisplay";
 import { isImageActiveStatus } from "@/lib/image/imageHistoryUtils";
 import { consumeImageUpscaleAssetHandoff } from "@/lib/image/imageUpscaleHandoff";
-import { IMAGE_PROMPT_FRONTEND_LIMIT_LABEL } from "@/lib/image/imagePromptLimits";
+import { formatImagePromptLimit } from "@/lib/image/imagePromptLimits";
 import {
   consumePromptStudioToImageDraft,
   getPromptStudioDraftLocale,
@@ -90,13 +90,13 @@ export function ImageWorkspace() {
     if (normalized.includes("failed to load image history")) return t("image.errors.historyLoadFailed");
     if (normalized.includes("failed to refresh image status")) return t("image.errors.statusRefreshFailed");
     if (normalized.includes("prompt_too_long") || normalized.includes("prompt is too long") || normalized.includes("prompt too long")) {
-      return tf("image.errors.promptTooLong", { limit: IMAGE_PROMPT_FRONTEND_LIMIT_LABEL });
+      return tf("image.errors.promptTooLong", { limit: formatImagePromptLimit(image.selectedModel) });
     }
     if (normalized.includes("image generation request failed")) return t("image.errors.generationRequestFailed");
     if (normalized.includes("prompt is required")) return t("image.errors.promptRequired");
     if (normalized.includes("upload failed") || normalized.includes("image upload failed")) return t("image.errors.uploadFailed");
     return getImageUserFacingError(message, t);
-  }, [image.error, t, tf]);
+  }, [image.error, image.selectedModel, t, tf]);
 
   const handleHistorySelect = useCallback((item: ImageHistoryItem) => {
     image.selectJob(item);
@@ -263,7 +263,7 @@ export function ImageWorkspace() {
   return (
     <div className="se-scrollbar grid h-full min-h-0 gap-4 overflow-y-auto overflow-x-hidden xl:grid-cols-[minmax(300px,360px)_minmax(0,1fr)_minmax(300px,380px)] xl:overflow-hidden">
       <div
-        className={`min-h-[760px] overflow-hidden rounded-[32px] transition-[box-shadow,background-color] duration-500 xl:min-h-0 ${
+        className={`min-h-[760px] min-w-0 max-w-full overflow-hidden rounded-[32px] transition-[box-shadow,background-color] duration-500 xl:min-h-0 ${
           isPromptStudioImportHighlighted
             ? "bg-[#ffb44d]/[.035] shadow-[0_0_0_1px_rgba(255,180,77,.34),0_0_36px_rgba(255,180,77,.18)]"
             : ""

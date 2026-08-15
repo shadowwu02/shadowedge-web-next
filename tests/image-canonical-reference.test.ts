@@ -14,6 +14,7 @@ const model: ImageModel = {
     textToImage: true,
     imageToImage: true,
     maxReferences: 9,
+    maxPromptLength: 4000,
     maxBatchCount: 1,
     ratios: ["1:1"],
     resolutions: ["1k"],

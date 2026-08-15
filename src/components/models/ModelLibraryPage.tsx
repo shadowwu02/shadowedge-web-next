@@ -413,6 +413,7 @@ function getFallbackVideoModels(): VideoModel[] {
       providerModel: rule.modelId,
       desc: rule.notes[0] || "Video generation",
       credits: rule.credits || rule.creditRules.baseCredits || 12,
+      maxPromptLength: 4000,
       creditBase: rule.creditRules.baseCredits || rule.credits || 12,
       durations: rule.durations,
       durationDefault: rule.defaultDuration,

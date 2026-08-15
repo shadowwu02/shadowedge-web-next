@@ -100,7 +100,7 @@ import { readVideoDraft, saveVideoDraft, type VideoWorkspaceDraft } from "@/lib/
 import { getReusableVideoOutputUrl, readVideoDraftNotice, sendVideoFailedJobToVideoDraft, sendVideoResultToVideoDraft } from "@/lib/video/videoResultDrafts";
 import { getVideoUserFacingErrorDisplay } from "@/lib/video/videoErrorDisplay";
 import { estimateVideoCreditsForParams, getVideoModelRule, getVideoModelRuleFromRegistry, hasVideoModelRule, normalizeVideoParamsForRule } from "@/lib/video/videoModelRules";
-import { VIDEO_PROMPT_FRONTEND_LIMIT, VIDEO_PROMPT_FRONTEND_LIMIT_LABEL } from "@/lib/video/videoPromptLimits";
+import { countVideoPromptCharacters, formatVideoPromptLimit, getVideoPromptLimit } from "@/lib/video/videoPromptLimits";
 import {
   parseMentionBindings,
   remapVideoMentionReferencesForMediaOrder,
@@ -127,6 +127,7 @@ const unavailableCatalogModel: VideoModel = {
   providerModel: "production_catalog_unavailable",
   available: false,
   credits: 0,
+  maxPromptLength: 4000,
   durations: [5],
   durationDefault: 5,
   ratios: ["16:9"],
@@ -2753,7 +2754,9 @@ export function VideoWorkspace() {
     [effectiveGenerateAudio, params.duration, params.quality, params.ratio, selectedModel.credits, selectedModelRule],
   );
   const hasEnoughCredits = credits === null || estimatedCredits <= credits;
-  const isPromptTooLong = prompt.length > VIDEO_PROMPT_FRONTEND_LIMIT;
+  const selectedPromptLimit = getVideoPromptLimit(selectedModel);
+  const selectedPromptLimitLabel = formatVideoPromptLimit(selectedModel);
+  const isPromptTooLong = countVideoPromptCharacters(prompt) > selectedPromptLimit;
   const hasPromptForGenerate = Boolean(prompt.trim());
   const referenceSelectionIssue = useMemo(
     () => validateReferenceSelectionForRule(selectedModelRule, [], media),
@@ -2780,9 +2783,9 @@ export function VideoWorkspace() {
       "Some media failed to upload. Remove failed items before generating.": t("video.errors.mediaFailedBeforeGenerate"),
       "Local preview media cannot be used for generation. Please wait for upload to finish.": t("video.errors.localPreviewMedia"),
       "Only uploaded remote media URLs can be used for generation.": t("video.errors.remoteMediaOnly"),
-      "Prompt is too long. Please keep it under 4,000 characters.": tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT_LABEL }),
-      "Prompt is too long. Please keep it under 8,000 characters.": tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT_LABEL }),
-      "Prompt is too long. Please keep it under 12,000 characters.": tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT_LABEL }),
+      "Prompt is too long. Please keep it under 4,000 characters.": tf("video.errors.promptTooLong", { limit: selectedPromptLimitLabel }),
+      "Prompt is too long. Please keep it under 8,000 characters.": tf("video.errors.promptTooLong", { limit: selectedPromptLimitLabel }),
+      "Prompt is too long. Please keep it under 12,000 characters.": tf("video.errors.promptTooLong", { limit: selectedPromptLimitLabel }),
       "You already have active generation tasks. Please wait until one finishes.": t("video.errors.activeGeneration"),
       "Video generation request failed.": t("video.errors.generationRequestFailed"),
       "No jobId returned by video API.": t("video.errors.noJobId"),
@@ -2805,11 +2808,11 @@ export function VideoWorkspace() {
     if (message.includes("Type limit reached")) return t("video.drawer.typeLimitReached");
     if (message.includes("Generated results cannot be used as references")) return t("video.drawer.generatedUnsupported");
     if (message.includes("PROMPT_TOO_LONG") || message.toLowerCase().includes("prompt is too long")) {
-      return tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT_LABEL });
+      return tf("video.errors.promptTooLong", { limit: selectedPromptLimitLabel });
     }
 
     return message;
-  }, [error, modelError, referenceSelectionIssue, t, tf, workspaceNotice]);
+  }, [error, modelError, referenceSelectionIssue, selectedPromptLimitLabel, t, tf, workspaceNotice]);
 
   const generateButtonLabel = useMemo(() => {
     if (catalogStatus !== "ready") return t("video.model.catalogUnavailable");
@@ -2831,9 +2834,9 @@ export function VideoWorkspace() {
     if (isProcessing) return concurrencyLimitNotice;
     if (!token && !isSignedIn) return t("video.errors.signInRequired");
     if (!hasEnoughCredits) return t("video.credits.notEnough");
-    if (isPromptTooLong) return tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT_LABEL });
+    if (isPromptTooLong) return tf("video.errors.promptTooLong", { limit: selectedPromptLimitLabel });
     return t("video.credits.beforeSubmit");
-  }, [catalogStatus, concurrencyLimitNotice, hasEnoughCredits, hasPromptForGenerate, isProcessing, isPromptTooLong, isSignedIn, isUploadingMedia, modelUnavailable, referenceSelectionIssue, t, tenantMembershipReviewRequired, tf, token]);
+  }, [catalogStatus, concurrencyLimitNotice, hasEnoughCredits, hasPromptForGenerate, isProcessing, isPromptTooLong, isSignedIn, isUploadingMedia, modelUnavailable, referenceSelectionIssue, selectedPromptLimitLabel, t, tenantMembershipReviewRequired, tf, token]);
 
   const handleGenerateRemakeShot = useCallback(
     async (shot: RemakeShot, queueMeta?: RemakeShotQueueMeta) => {
@@ -3993,7 +3996,7 @@ export function VideoWorkspace() {
 
   return (
     <div className="se-scrollbar h-full min-h-0 space-y-4 overflow-y-auto overflow-x-hidden xl:grid xl:grid-cols-[minmax(340px,370px)_minmax(0,1fr)] xl:gap-4 xl:space-y-0 xl:overflow-hidden 2xl:grid-cols-[380px_minmax(0,1fr)]">
-      <aside className="se-panel flex min-h-0 flex-col overflow-hidden rounded-[30px]">
+      <aside className="se-panel flex min-h-0 min-w-0 max-w-full flex-col overflow-hidden rounded-[30px]">
         <div className="shrink-0 border-b border-[rgba(244,244,244,0.08)] px-4 py-3.5">
           <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1 whitespace-nowrap text-[13px] font-semibold text-[#b9b9b9]/66">
             {workspaceTabs.map((tab) => {
@@ -4145,6 +4148,7 @@ export function VideoWorkspace() {
                   </>
                 ) : null}
                 <PromptBox
+                  maxPromptLength={selectedPromptLimit}
                   media={media}
                   mentionBindings={reconciledMentionBindings}
                   onChange={setPrompt}

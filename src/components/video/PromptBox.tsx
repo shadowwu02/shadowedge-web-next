@@ -21,15 +21,14 @@ import {
 import { shouldIgnoreMentionMenuScroll } from "@/lib/video/mentionMenuScroll";
 import { normalizeMediaAssetUrl, sanitizeMediaDisplayName } from "@/lib/media-assets";
 import {
-  VIDEO_PROMPT_FRONTEND_LIMIT,
-  VIDEO_PROMPT_FRONTEND_LIMIT_LABEL,
-  VIDEO_PROMPT_WARNING_THRESHOLD,
+  countVideoPromptCharacters,
 } from "@/lib/video/videoPromptLimits";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
 import { useI18n } from "@/i18n/useI18n";
 
 type PromptBoxProps = {
   value: string;
+  maxPromptLength: number;
   media: UploadMediaItem[];
   mentionBindings?: VideoMentionBinding[];
   onChange: (value: string) => void;
@@ -218,7 +217,7 @@ function getMissingMentionsWithBindings(prompt: string, media: UploadMediaItem[]
   });
 }
 
-export function PromptBox({ value, media, mentionBindings = [], onChange, onMentionBindingsChange }: PromptBoxProps) {
+export function PromptBox({ value, maxPromptLength, media, mentionBindings = [], onChange, onMentionBindingsChange }: PromptBoxProps) {
   const { locale, t, tf } = useI18n();
   const displayLocale = locale === "zh" ? "zh" : "en";
   const editorRef = useRef<HTMLDivElement | null>(null);
@@ -658,9 +657,11 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
     "bg-[#0f141e]/98 p-1.5 shadow-[0_18px_46px_rgba(0,0,0,.38)] backdrop-blur-xl",
     menuPosition.mode === "local" ? "absolute z-[40]" : "fixed z-[1400]",
   ].join(" ");
-  const promptLength = value.length;
-  const isPromptTooLong = promptLength > VIDEO_PROMPT_FRONTEND_LIMIT;
-  const isPromptNearLimit = promptLength >= VIDEO_PROMPT_WARNING_THRESHOLD;
+  const promptLength = countVideoPromptCharacters(value);
+  const promptLimit = Math.max(1, Number(maxPromptLength) || 4000);
+  const promptLimitLabel = promptLimit.toLocaleString("en-US");
+  const isPromptTooLong = promptLength > promptLimit;
+  const isPromptNearLimit = promptLength >= Math.floor(promptLimit * 0.84);
 
   function mentionGroupTitle(type: UploadMediaType) {
     if (type === "image") return t("video.prompt.group.images");
@@ -759,7 +760,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
                   : "border-[rgba(244,244,244,0.08)] bg-[#05070b]/30 text-[#b9b9b9]/50"
             }`}
           >
-            {tf("video.prompt.characterCount", { count: promptLength, limit: VIDEO_PROMPT_FRONTEND_LIMIT })}
+            {tf("video.prompt.characterCount", { count: promptLength, limit: promptLimit })}
           </span>
         </div>
       </div>
@@ -785,7 +786,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
         </div>
         {isPromptTooLong ? (
           <p className="text-xs font-semibold leading-5 text-[#fecaca]">
-            {tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT_LABEL })}
+            {tf("video.errors.promptTooLong", { limit: promptLimitLabel })}
           </p>
         ) : isPromptNearLimit ? (
           <p className="text-xs font-semibold leading-5 text-[#ffd08a]/85">
@@ -911,7 +912,7 @@ export function PromptBox({ value, media, mentionBindings = [], onChange, onMent
                       : "border-white/10 bg-white/[.04] text-white/48"
                 }`}
               >
-                {tf("video.prompt.characterCount", { count: promptLength, limit: VIDEO_PROMPT_FRONTEND_LIMIT })}
+                {tf("video.prompt.characterCount", { count: promptLength, limit: promptLimit })}
               </span>
             </div>
 

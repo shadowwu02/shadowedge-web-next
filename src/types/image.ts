@@ -38,6 +38,7 @@ export type ImageModelCapabilities = {
   textToImage: boolean;
   imageToImage: boolean;
   maxReferences: number;
+  maxPromptLength: number;
   maxBatchCount: number;
   ratios: string[];
   resolutions: string[];

@@ -7,7 +7,7 @@ import { formatGenerationConcurrencyLimitError } from "@/lib/generationConcurren
 import { createVideoTask, getVideoHistory, getVideoStatus, saveVideoHistory } from "@/lib/video-api";
 import { buildVideoGenerationRequest } from "@/lib/video/videoGenerationRequest";
 import { createVideoClientRequestId } from "@/lib/video/videoClientRequestId";
-import { VIDEO_PROMPT_FRONTEND_LIMIT, VIDEO_PROMPT_FRONTEND_LIMIT_LABEL } from "@/lib/video/videoPromptLimits";
+import { countVideoPromptCharacters, formatVideoPromptLimit, getVideoPromptLimit } from "@/lib/video/videoPromptLimits";
 import {
   getSafeHistoryOutputUrl,
   getVideoHistoryStableKey,
@@ -43,7 +43,7 @@ type SubmitValidationCopy = {
   localPreviewMedia: string;
   mediaFailedBeforeGenerate: string;
   mediaUploading: string;
-  promptTooLong: string;
+  promptTooLong: (limit: string) => string;
   promptRequired: string;
   remoteMediaOnly: string;
 };
@@ -57,8 +57,8 @@ function validateSubmitOptions(options: SubmitVideoOptions, copy: SubmitValidati
     return copy.promptRequired;
   }
 
-  if (options.prompt.length > VIDEO_PROMPT_FRONTEND_LIMIT) {
-    return copy.promptTooLong;
+  if (countVideoPromptCharacters(options.prompt) > getVideoPromptLimit(options.model)) {
+    return copy.promptTooLong(formatVideoPromptLimit(options.model));
   }
 
   if (options.media.some((item) => item.uploadStatus === "uploading")) {
@@ -180,7 +180,7 @@ export function useVideoGeneration() {
     localPreviewMedia: t("video.errors.localPreviewMedia"),
     mediaFailedBeforeGenerate: t("video.errors.mediaFailedBeforeGenerate"),
     mediaUploading: t("video.errors.mediaUploading"),
-    promptTooLong: tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT_LABEL }),
+    promptTooLong: (limit) => tf("video.errors.promptTooLong", { limit }),
     promptRequired: t("video.errors.promptRequired"),
     remoteMediaOnly: t("video.errors.remoteMediaOnly"),
   }), [t, tf]);

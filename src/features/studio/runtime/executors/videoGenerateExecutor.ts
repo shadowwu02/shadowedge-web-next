@@ -32,7 +32,7 @@ import {
   getSafeHistoryOutputUrl,
   normalizeVideoPollingStatus,
 } from "@/lib/video/historyUtils";
-import { VIDEO_PROMPT_FRONTEND_LIMIT } from "@/lib/video/videoPromptLimits";
+import { countVideoPromptCharacters, getVideoPromptLimit } from "@/lib/video/videoPromptLimits";
 import {
   isVideoActiveStatus,
   isVideoCompletedStatus,
@@ -451,13 +451,6 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
             "Connect a Prompt Node with a non-empty prompt.",
           );
         }
-        if (prompt.length > VIDEO_PROMPT_FRONTEND_LIMIT) {
-          return failure(
-            "PARAMETER_ISSUE",
-            `The composed prompt exceeds ${VIDEO_PROMPT_FRONTEND_LIMIT} characters.`,
-          );
-        }
-
         const inventory = await loadStudioProviderModelInventory(
           provider.providerId,
           "video_generate",
@@ -515,6 +508,7 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
           providerModel: inventoryModel.metadata.providerModel,
           desc: inventoryModel.metadata.description,
           credits: estimatedCredits,
+          maxPromptLength: 4000,
           creditBase: inventoryModel.metadata.creditBase || estimatedCredits,
           durations: inventoryModel.limits.durations,
           durationDefault: inventoryModel.limits.durations[0],
@@ -523,6 +517,14 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
           supportsAudio: inventoryModel.metadata.supportsAudio,
           uploadSlots: inventoryModel.limits.uploadSlots,
         };
+
+        const promptLimit = getVideoPromptLimit(model);
+        if (countVideoPromptCharacters(prompt) > promptLimit) {
+          return failure(
+            "PARAMETER_ISSUE",
+            `The composed prompt exceeds ${promptLimit} characters.`,
+          );
+        }
 
         const request = buildVideoGenerationRequest({
           prompt,

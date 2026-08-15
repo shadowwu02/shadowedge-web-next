@@ -88,6 +88,7 @@ export type VideoModel = {
   maintenanceMessage?: string;
   desc?: string;
   credits: number;
+  maxPromptLength: number;
   creditBase?: number;
   creditRules?: VideoCreditRulesContract;
   durations: number[];

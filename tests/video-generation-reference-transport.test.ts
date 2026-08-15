@@ -8,6 +8,7 @@ const model: VideoModel = {
   label: "Seedance 2.0",
   providerModel: "seedance_2_0",
   credits: 12,
+  maxPromptLength: 4000,
   durations: [5],
   durationDefault: 5,
   ratios: ["16:9"],

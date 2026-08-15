@@ -20,7 +20,7 @@ import {
   getImageModelById,
   normalizeImageGenerationParams,
 } from "@/lib/image/imageModelRules";
-import { IMAGE_PROMPT_FRONTEND_LIMIT } from "@/lib/image/imagePromptLimits";
+import { countImagePromptCharacters, getImagePromptLimit } from "@/lib/image/imagePromptLimits";
 import { ApiError } from "@/types/api";
 import type { ImageJobStatus } from "@/types/image";
 import { isCanonicalAssetId } from "@/lib/video/canonicalReferenceAssets";
@@ -263,17 +263,17 @@ export const ImageGenerateExecutor: StudioNodeExecutor = {
     if (!prompt) {
       return failure("PARAMETER_ISSUE", "Connect a Prompt Node with a non-empty prompt.");
     }
-    if (prompt.length > IMAGE_PROMPT_FRONTEND_LIMIT) {
-      return failure(
-        "PARAMETER_ISSUE",
-        `The composed prompt exceeds ${IMAGE_PROMPT_FRONTEND_LIMIT} characters.`,
-      );
-    }
-
     let jobId = "";
     try {
       const models = await getImageModels();
       const model = getImageModelById(models, configString(context, "model"));
+      const promptLimit = getImagePromptLimit(model);
+      if (countImagePromptCharacters(prompt) > promptLimit) {
+        return failure(
+          "PARAMETER_ISSUE",
+          `The composed prompt exceeds ${promptLimit} characters.`,
+        );
+      }
       const configuredRatio = configString(context, "ratio");
       const params = normalizeImageGenerationParams(model, {
         ratio:

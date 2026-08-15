@@ -4,9 +4,10 @@ import { ImageModelSelector } from "@/components/image/ImageModelSelector";
 import { ImageReferenceTray } from "@/components/image/ImageReferenceTray";
 import { useI18n } from "@/i18n/useI18n";
 import {
-  IMAGE_PROMPT_FRONTEND_LIMIT,
-  IMAGE_PROMPT_FRONTEND_LIMIT_LABEL,
-  IMAGE_PROMPT_WARNING_THRESHOLD,
+  countImagePromptCharacters,
+  formatImagePromptLimit,
+  getImagePromptLimit,
+  getImagePromptWarningThreshold,
 } from "@/lib/image/imagePromptLimits";
 import { getPromptStudioDraftLocale } from "@/lib/prompt-studio-draft-bridge";
 import type { ImageGenerationParams, ImageModel, ImageReferenceItem } from "@/types/image";
@@ -75,9 +76,11 @@ export function ImagePromptPanel({
   const maxBatchCount = selectedModel?.capabilities.maxBatchCount || 1;
   const hasUploadingReferences = references.some((reference) => reference.uploadStatus === "uploading");
   const hasPrompt = Boolean(prompt.trim());
-  const promptLength = prompt.length;
-  const isPromptTooLong = promptLength > IMAGE_PROMPT_FRONTEND_LIMIT;
-  const isPromptNearLimit = promptLength >= IMAGE_PROMPT_WARNING_THRESHOLD;
+  const promptLimit = getImagePromptLimit(selectedModel);
+  const promptLimitLabel = formatImagePromptLimit(selectedModel);
+  const promptLength = countImagePromptCharacters(prompt);
+  const isPromptTooLong = promptLength > promptLimit;
+  const isPromptNearLimit = promptLength >= getImagePromptWarningThreshold(selectedModel);
   const hasExistingDraft = hasPrompt || references.length > 0;
   const modelUnavailable = selectedModel?.available === false;
   const disabled = modelUnavailable || isGenerating || loadingModels || hasUploadingReferences || isPolling || isActiveJob || !hasPrompt || isPromptTooLong;
@@ -97,7 +100,7 @@ export function ImagePromptPanel({
     : modelUnavailable
       ? t("generation.modelTemporarilyUnavailable")
     : isPromptTooLong
-      ? tf("image.errors.promptTooLong", { limit: IMAGE_PROMPT_FRONTEND_LIMIT_LABEL })
+      ? tf("image.errors.promptTooLong", { limit: promptLimitLabel })
     : hasUploadingReferences
       ? t("image.generate.disabled.uploadingReferences")
       : loadingModels
@@ -107,7 +110,7 @@ export function ImagePromptPanel({
           : t("image.params.estimatedCostHint");
 
   return (
-    <aside className="se-panel se-scrollbar flex h-full min-h-0 flex-col overflow-y-auto rounded-[30px] p-4">
+    <aside className="se-panel se-scrollbar flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-y-auto overflow-x-hidden rounded-[30px] p-4">
       <div className="mb-4">
         <p className="se-eyebrow">{t("image.workspace.studioLabel")}</p>
         <h1 className="mt-2 text-2xl font-black text-[#f4f4f4]">{t("image.workspace.createTitle")}</h1>
@@ -131,7 +134,7 @@ export function ImagePromptPanel({
           <div className="mb-2 flex items-center justify-between">
             <span className="se-eyebrow">{t("image.prompt.label")}</span>
             <span className={`text-[10px] ${isPromptTooLong ? "text-[#ff8f8f]" : "text-[#b9b9b9]/45"}`}>
-              {tf("image.prompt.characterCount", { count: promptLength, limit: IMAGE_PROMPT_FRONTEND_LIMIT })}
+              {tf("image.prompt.characterCount", { count: promptLength, limit: promptLimit })}
             </span>
           </div>
           <textarea
@@ -142,7 +145,7 @@ export function ImagePromptPanel({
           />
           {isPromptTooLong ? (
             <p className="mt-2 rounded-[16px] border border-[#ff8f8f]/22 bg-[#ff4f4f]/8 px-3 py-2 text-[11px] font-semibold leading-5 text-[#ffb7b7]">
-              {tf("image.errors.promptTooLong", { limit: IMAGE_PROMPT_FRONTEND_LIMIT_LABEL })}
+              {tf("image.errors.promptTooLong", { limit: promptLimitLabel })}
             </p>
           ) : isPromptNearLimit ? (
             <p className="mt-2 rounded-[16px] border border-[#ffb44d]/18 bg-[#ffb44d]/8 px-3 py-2 text-[11px] font-semibold leading-5 text-[#ffd08a]/82">
@@ -309,7 +312,7 @@ export function ImagePromptPanel({
           references={references}
         />
 
-        {error ? <div className="rounded-[18px] border border-[#8c4632]/42 bg-[#2a1012]/72 px-3 py-2 text-xs leading-5 text-[#f2b3a1]">{error}</div> : null}
+        {error ? <div className="min-w-0 max-w-full overflow-hidden rounded-[18px] border border-[#8c4632]/42 bg-[#2a1012]/72 px-3 py-2 text-xs leading-5 text-[#f2b3a1] [overflow-wrap:anywhere]">{error}</div> : null}
       </div>
 
       <div className="mt-4 flex-none rounded-[22px] border border-[#ffb44d]/16 bg-[linear-gradient(180deg,rgba(255,178,74,0.10),rgba(20,18,14,0.82))] p-2.5 shadow-[0_18px_60px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.05)]">
