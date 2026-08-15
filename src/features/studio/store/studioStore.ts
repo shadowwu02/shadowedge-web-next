@@ -41,6 +41,11 @@ import {
   type StudioGenerationPlanSourceType,
 } from "@/features/studio/runtime/generationQueue";
 import {
+  createStudioVideoNodeRun,
+  isStudioVideoNodeRunRetryable,
+  updateStudioVideoNodeRun,
+} from "@/features/studio/runtime/studioVideoNodeRun";
+import {
   getStudioRetryPreflight,
   runSingleStudioNode,
   runStudioGraph,
@@ -2686,39 +2691,43 @@ export const useStudioStore = create<StudioState>()(
             ...latestPlan,
             status: "running",
             updatedAt: timestamp,
-            items: latestPlan.items.map((candidate) =>
-              candidate.nodeId === nodeId
-                ? {
-                    ...candidate,
-                    status,
-                    startedAt:
-                      status === "running" || status === "processing"
-                        ? candidate.startedAt || runtime?.startedAt || timestamp
-                        : candidate.startedAt,
-                    finishedAt:
-                      status === "completed" || status === "failed"
-                        ? runtime?.finishedAt || timestamp
-                        : candidate.finishedAt,
-                    jobId: outputString(outputs, "jobId") || candidate.jobId,
-                    costCredits: Number.isFinite(costCredits)
-                      ? costCredits
-                      : candidate.costCredits,
-                    creditsBalance: Number.isFinite(creditsBalance)
-                      ? creditsBalance
-                      : candidate.creditsBalance,
-                    errorCode:
-                      status === "failed"
-                        ? outputString(outputs, "errorCode") || "PROVIDER_TEMPORARY"
-                        : undefined,
-                    message:
-                      status === "failed"
-                        ? outputString(outputs, "message") ||
-                          runtime?.error ||
-                          "Video generation failed. Studio did not retry it."
-                        : undefined,
-                  }
-                : candidate,
-            ),
+            items: latestPlan.items.map((candidate) => {
+              if (candidate.nodeId !== nodeId) return candidate;
+              const nodeRun =
+                candidate.type === "video_generate" && candidate.nodeRun && runtime
+                  ? updateStudioVideoNodeRun(candidate.nodeRun, runtime)
+                  : candidate.nodeRun;
+              return {
+                ...candidate,
+                nodeRun,
+                status,
+                startedAt:
+                  status === "running" || status === "processing"
+                    ? candidate.startedAt || runtime?.startedAt || timestamp
+                    : candidate.startedAt,
+                finishedAt:
+                  status === "completed" || status === "failed"
+                    ? runtime?.finishedAt || timestamp
+                    : candidate.finishedAt,
+                jobId: outputString(outputs, "jobId") || candidate.jobId,
+                costCredits: Number.isFinite(costCredits)
+                  ? costCredits
+                  : candidate.costCredits,
+                creditsBalance: Number.isFinite(creditsBalance)
+                  ? creditsBalance
+                  : candidate.creditsBalance,
+                errorCode:
+                  status === "failed"
+                    ? outputString(outputs, "errorCode") || "PROVIDER_TEMPORARY"
+                    : undefined,
+                message:
+                  status === "failed"
+                    ? outputString(outputs, "message") ||
+                      runtime?.error ||
+                      "Video generation failed. Studio did not retry it."
+                    : undefined,
+              };
+            }),
           };
           syncPlan(updatedPlan);
           return updatedPlan;
@@ -2731,14 +2740,34 @@ export const useStudioStore = create<StudioState>()(
           confirmedAt,
           updatedAt: confirmedAt,
           completedAt: null,
-          items: plan.items.map((item) => ({
-            ...item,
-            status: "waiting",
-            startedAt: null,
-            finishedAt: null,
-            errorCode: undefined,
-            message: undefined,
-          })),
+          items: plan.items.map((item) => {
+            const retryCurrentOperation =
+              item.type === "video_generate" &&
+              isStudioVideoNodeRunRetryable(item.nodeRun);
+            const resumePollingOperation =
+              item.type === "video_generate" && Boolean(item.nodeRun?.backendJobId);
+            return {
+              ...item,
+              nodeRun:
+                item.type === "video_generate"
+                  ? retryCurrentOperation || resumePollingOperation
+                    ? {
+                        ...item.nodeRun!,
+                        status: resumePollingOperation ? "polling" as const : "running" as const,
+                        lastErrorKind: resumePollingOperation ? null : item.nodeRun!.lastErrorKind,
+                      }
+                    : createStudioVideoNodeRun({
+                        nodeId: item.nodeId,
+                        projectId: plan.projectId,
+                      })
+                  : item.nodeRun,
+              status: item.status === "completed" ? "completed" : "waiting",
+              startedAt: retryCurrentOperation ? item.startedAt : null,
+              finishedAt: null,
+              errorCode: undefined,
+              message: undefined,
+            };
+          }),
         };
         set({
           generationQueue: {
@@ -2757,7 +2786,7 @@ export const useStudioStore = create<StudioState>()(
               (candidate) => candidate.id === planId,
             );
             if (!currentPlan || currentPlan.status === "cancelled") break;
-            if (item.status === "completed") continue;
+            if (item.status === "completed" || item.status === "failed") continue;
             const node = get().nodes.find((candidate) => candidate.id === item.nodeId);
             const expectedKind =
               item.type === "video_edit"
@@ -2833,6 +2862,7 @@ export const useStudioStore = create<StudioState>()(
               nodes: get().nodes,
               edges: get().edges,
               executionSource: "generation_queue",
+              nodeRun: item.nodeRun,
               onNodeStart: (runtime) => {
                 syncRuntime(runtime);
                 updatePlanItem(item.nodeId, "running", runtime);
@@ -2861,11 +2891,18 @@ export const useStudioStore = create<StudioState>()(
             const completed = latestPlan.items.every(
               (item) => item.status === "completed",
             );
+            const retryableCurrentOperation = latestPlan.items.some(
+              (item) => isStudioVideoNodeRunRetryable(item.nodeRun),
+            );
             syncPlan({
               ...latestPlan,
-              status: completed ? "completed" : "failed",
+              status: completed
+                ? "completed"
+                : retryableCurrentOperation
+                  ? "draft"
+                  : "failed",
               updatedAt: completedAt,
-              completedAt,
+              completedAt: retryableCurrentOperation ? null : completedAt,
             });
           }
         } finally {
@@ -3630,12 +3667,26 @@ export const useStudioStore = create<StudioState>()(
           };
         }),
 
-      setHasHydrated: (hasHydrated) =>
+      setHasHydrated: (hasHydrated) => {
+        const generationPlans = hasHydrated ? listStudioGenerationPlans() : [];
         set({
           hasHydrated,
           runHistory: hasHydrated ? listStudioRunHistory() : [],
-          generationPlans: hasHydrated ? listStudioGenerationPlans() : [],
-        }),
+          generationPlans,
+        });
+        const recoveryPlan = generationPlans.find(
+          (plan) =>
+            plan.status === "draft" &&
+            plan.items.some(
+              (item) => item.type === "video_generate" && item.nodeRun?.status === "polling",
+            ),
+        );
+        if (recoveryPlan) {
+          window.setTimeout(() => {
+            void get().startGenerationPlan(recoveryPlan.id);
+          }, 0);
+        }
+      },
 
       runNodes: async () => {
         const state = get();

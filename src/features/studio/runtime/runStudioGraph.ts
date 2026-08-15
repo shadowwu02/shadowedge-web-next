@@ -3,6 +3,7 @@ import type {
   NodeExecutionResult,
   StudioNodeRuntimeState,
 } from "@/features/studio/runtime/types";
+import type { StudioVideoNodeRunContext } from "@/features/studio/runtime/studioVideoNodeRun";
 import type {
   StudioEdge,
   StudioNode,
@@ -696,12 +697,14 @@ export async function runSingleStudioNode({
   onNodeProgress,
   onNodeResult,
   executionSource = "direct",
+  nodeRun,
 }: {
   projectId: string | null;
   nodeId: string;
   nodes: StudioNode[];
   edges: StudioEdge[];
   executionSource?: "direct" | "generation_queue";
+  nodeRun?: StudioVideoNodeRunContext;
 } & StudioRuntimeCallbacks) {
   const node = nodes.find((item) => item.id === nodeId);
   if (!node) throw new Error("Studio node was not found.");
@@ -780,7 +783,13 @@ export async function runSingleStudioNode({
       projectId,
       nodeId: node.id,
       inputs: buildPersistedInputs(node, nodes, edges),
-      config: node.data,
+      config: {
+        ...node.data,
+        ...(nodeRun?.backendJobId
+          ? { jobId: nodeRun.backendJobId, status: "processing" }
+          : {}),
+      },
+      nodeRun,
       reportProgress: (progress) => {
         currentOutputs = { ...currentOutputs, ...(progress.outputs || {}) };
         onNodeProgress({

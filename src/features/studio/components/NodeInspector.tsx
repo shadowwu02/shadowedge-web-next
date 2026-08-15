@@ -137,6 +137,12 @@ export function NodeInspector() {
       ? `${selectedPlanItemCredits[0]} credits`
       : `${Math.min(...selectedPlanItemCredits)}–${Math.max(...selectedPlanItemCredits)} credits`
     : "Not calculated";
+  const selectedPlanRetriesCurrentOperation = Boolean(
+    selectedGenerationPlan?.items.some(
+      (item) => item.type === "video_generate" && item.nodeRun?.status === "retryable_uncertain",
+    ),
+  );
+  const selectedPlanIsTerminalFailure = selectedGenerationPlan?.status === "failed";
   const [imageModels, setImageModels] = useState<ImageModel[]>([]);
   const [imageModelsError, setImageModelsError] = useState("");
   const [videoInventory, setVideoInventory] =
@@ -1082,7 +1088,11 @@ export function NodeInspector() {
               }
               type="button"
             >
-              {selectedGenerationPlan ? "Review Generation Plan" : "Create Generation Plan"}
+              {selectedPlanIsTerminalFailure
+                ? "Run again (new operation)"
+                : selectedGenerationPlan
+                  ? "Review Generation Plan"
+                  : "Create Generation Plan"}
             </button>
             <button
               className="studio-node-action"
@@ -1106,7 +1116,9 @@ export function NodeInspector() {
               }
               type="button"
             >
-              Confirm Generation
+              {selectedPlanRetriesCurrentOperation
+                ? "Retry current operation"
+                : "Confirm Generation"}
             </button>
             <button
               className="studio-node-action"
@@ -1125,7 +1137,9 @@ export function NodeInspector() {
               Cancel
             </button>
             <p className="studio-node-footnote">
-              {data.duration}s · {data.ratio} · concurrency 1 · no automatic retry
+              {selectedPlanRetriesCurrentOperation
+                ? "Retry reuses the same operation ID after an uncertain request outcome."
+                : `${data.duration}s · ${data.ratio} · concurrency 1 · terminal failures require a new operation.`}
             </p>
             <InspectorField label="Job ID">
               <input disabled placeholder="Created after confirmation" value={data.jobId || ""} />

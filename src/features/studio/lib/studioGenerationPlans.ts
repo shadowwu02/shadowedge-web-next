@@ -1,5 +1,8 @@
 import { activeBrand, type BrandId } from "@/config/brand";
 import type { StudioGenerationPlan } from "@/features/studio/runtime/generationQueue";
+import {
+  prepareStudioVideoNodeRunForRefresh,
+} from "@/features/studio/runtime/studioVideoNodeRun";
 
 export const SHADOWEDGE_STUDIO_GENERATION_PLANS_STORAGE_KEY =
   "shadowedge_studio_generation_plans_v1";
@@ -55,23 +58,40 @@ function normalizeGenerationPlanSource(
 function normalizeInterruptedPlan(plan: StudioGenerationPlan) {
   if (plan.status !== "confirmed" && plan.status !== "running") return plan;
   const interruptedAt = new Date().toISOString();
+  const items = plan.items.map((item) => {
+    if (item.status === "completed") return item;
+    if (item.type === "video_generate" && item.nodeRun?.backendJobId) {
+      return {
+        ...item,
+        status: "waiting" as const,
+        finishedAt: null,
+        errorCode: undefined,
+        message: undefined,
+        nodeRun: prepareStudioVideoNodeRunForRefresh(item.nodeRun),
+      };
+    }
+    return {
+      ...item,
+      status: "failed" as const,
+      finishedAt: interruptedAt,
+      errorCode: "QUEUE_INTERRUPTED",
+      message:
+        "The local worker was interrupted before a confirmed backend job was saved. Studio will not resubmit automatically.",
+      nodeRun:
+        item.type === "video_generate" && item.nodeRun
+          ? prepareStudioVideoNodeRunForRefresh(item.nodeRun)
+          : item.nodeRun,
+    };
+  });
+  const hasPollingRecovery = items.some(
+    (item) => item.type === "video_generate" && item.nodeRun?.status === "polling",
+  );
   return {
     ...plan,
-    status: "failed" as const,
+    status: hasPollingRecovery ? "draft" as const : "failed" as const,
     updatedAt: interruptedAt,
-    completedAt: interruptedAt,
-    items: plan.items.map((item) =>
-      item.status === "completed"
-        ? item
-        : {
-            ...item,
-            status: "failed" as const,
-            finishedAt: interruptedAt,
-            errorCode: "QUEUE_INTERRUPTED",
-            message:
-              "The local worker was interrupted. Check any saved job ID before creating a new plan; Studio will not retry automatically.",
-          },
-    ),
+    completedAt: hasPollingRecovery ? null : interruptedAt,
+    items,
   };
 }
 

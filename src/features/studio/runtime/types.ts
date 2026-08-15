@@ -1,4 +1,5 @@
 import type { StudioNodeType } from "@/features/studio/types/studioTypes";
+import type { StudioVideoNodeRunContext } from "@/features/studio/runtime/studioVideoNodeRun";
 
 export type NodeExecutionStatus =
   | "idle"
@@ -28,6 +29,7 @@ export type NodeExecutionContext<
   nodeId: string;
   inputs: TInputs;
   config: TConfig;
+  nodeRun?: StudioVideoNodeRunContext;
   reportProgress: (progress: NodeExecutionProgress) => void;
 };
 

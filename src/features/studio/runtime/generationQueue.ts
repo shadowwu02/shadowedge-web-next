@@ -16,6 +16,7 @@ import {
   assertStudioProviderExecutionReady,
   getStudioProviderReadinessBlocker,
 } from "@/features/studio/capabilities/studioProviderReadiness";
+import type { StudioVideoNodeRunContext } from "@/features/studio/runtime/studioVideoNodeRun";
 
 export const MAX_CONCURRENT_VIDEO_GENERATIONS = 1;
 export const MAX_STUDIO_VIDEO_TASKS_PER_RUN = 3;
@@ -47,6 +48,7 @@ export type StudioGenerationPlanItem = {
   startedAt: string | null;
   finishedAt: string | null;
   jobId?: string;
+  nodeRun?: StudioVideoNodeRunContext;
   costCredits?: number;
   creditsBalance?: number;
   errorCode?: string;

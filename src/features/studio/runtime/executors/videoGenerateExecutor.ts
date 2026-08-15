@@ -423,7 +423,7 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
     }
     const savedIdentity = asRecord(context.config.jobIdentity);
     let identity = normalizeVideoJobIdentity({
-      jobId: context.config.jobId || savedIdentity.jobId,
+      jobId: context.nodeRun?.backendJobId || context.config.jobId || savedIdentity.jobId,
       databaseJobId:
         context.config.databaseJobId || savedIdentity.databaseJobId,
       dbJobId: context.config.dbJobId || savedIdentity.dbJobId,
@@ -436,7 +436,7 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
     const savedStatus = configString(context, "status").toLowerCase();
     const canResume =
       Boolean(identity.statusJobId) &&
-      (savedStatus === "queued" || savedStatus === "processing");
+      (Boolean(context.nodeRun?.backendJobId) || savedStatus === "queued" || savedStatus === "processing");
 
     try {
       let submittedCreditsBalance: number | undefined;
@@ -533,10 +533,17 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
           generateAudio: params.audio,
           media,
           estimatedCredits,
+          clientRequestId: context.nodeRun?.clientRequestId,
           meta: {
             source: "studio_canvas",
             studioProjectId: context.projectId,
             studioNodeId: context.nodeId,
+            ...(context.nodeRun
+              ? {
+                  studioNodeRunId: context.nodeRun.nodeRunId,
+                  clientRequestId: context.nodeRun.clientRequestId,
+                }
+              : {}),
             studioProviderId: provider.providerId,
             studioModelId: inventoryModel.id,
             ...(asRecord(context.config.modelRecommendation).recommendationId
