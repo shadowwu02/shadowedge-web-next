@@ -32,4 +32,14 @@ describe.each(["gpt_image_2", "nano_banana", "nano_banana_lite"])("%s browser re
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("accepts the durable 202 response and exposes its Job ID for polling", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      ok: true,
+      data: { jobId: `accepted-${model}`, dbJobId: `accepted-${model}`, status: "processing", model, asyncRuntime: "image_submit_outbox", outboxId: `outbox-${model}`, params: {} },
+    }), { status: 202, headers: { "Content-Type": "application/json" } })));
+    await expect(generateImage({ prompt: "A ceramic cup", model, idempotencyKey: `accepted-${model}` })).resolves.toMatchObject({
+      jobId: `accepted-${model}`, status: "processing", outboxId: `outbox-${model}`,
+    });
+  });
 });

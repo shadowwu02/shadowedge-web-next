@@ -39,6 +39,9 @@ import { getImageGenerationErrorDisplay } from "@/lib/image/imageErrorDisplay";
 import {
   isAmbiguousImageGenerationFailure,
   resolveImageGenerationOperation,
+  readPendingImageGenerationOperation,
+  writePendingImageGenerationOperation,
+  clearPendingImageGenerationOperation,
   type PendingImageGenerationOperation,
 } from "@/lib/image/imageRequestIdempotency";
 import {
@@ -558,7 +561,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       const referenceImageAssetIds = readyReferences
         .map((item) => item.assetId)
         .filter((assetId): assetId is string => Boolean(assetId));
-      const pendingOperation = resolveImageGenerationOperation(pendingGenerationOperationRef.current, {
+      const pendingOperation = resolveImageGenerationOperation(pendingGenerationOperationRef.current || readPendingImageGenerationOperation(), {
         prompt: effectivePrompt,
         modelId: effectiveModel.id,
         ratio: effectiveParams.ratio,
@@ -569,6 +572,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
         meta: overrides.meta,
       });
       pendingGenerationOperationRef.current = pendingOperation;
+      writePendingImageGenerationOperation(pendingOperation);
       const request = buildImageGenerateRequest({
         prompt: effectivePrompt,
         model: effectiveModel,
@@ -583,10 +587,12 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       setCurrentJob(nextJob);
       setLocalJobs((current) => [nextJob, ...current.filter((item) => item.jobId !== nextJob.jobId)].slice(0, 20));
       pendingGenerationOperationRef.current = null;
+      clearPendingImageGenerationOperation();
       return nextJob;
     } catch (submitError) {
       if (!isAmbiguousImageGenerationFailure(submitError)) {
         pendingGenerationOperationRef.current = null;
+        clearPendingImageGenerationOperation();
       }
       setError(formatImageError("image.errors.generationRequestFailed", submitError, "Image generation request failed."));
       return null;
