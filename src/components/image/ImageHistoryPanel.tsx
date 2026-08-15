@@ -170,7 +170,7 @@ export function ImageHistoryPanel({
 
       <div className="se-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
         {error ? (
-          <div className="rounded-[18px] border border-[#8c4632]/42 bg-[#2a1012]/72 px-3 py-2 text-xs leading-5 text-[#f2b3a1]">{error}</div>
+          <div className="min-w-0 break-words rounded-[18px] border border-[#8c4632]/42 bg-[#2a1012]/72 px-3 py-2 text-xs leading-5 text-[#f2b3a1]">{error}</div>
         ) : null}
         {actionError ? (
           <div className="rounded-[18px] border border-[#8c4632]/42 bg-[#2a1012]/72 px-3 py-2 text-xs leading-5 text-[#f2b3a1]">{actionError}</div>

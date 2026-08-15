@@ -30,15 +30,21 @@ const COPY: Record<ImageErrorCategory, string> = {
   UNKNOWN: "图片任务未能完成。",
 };
 
+const CODE_COPY: Record<string, string> = {
+  IMAGE_REFERENCES_UNSUPPORTED: "当前模型暂不支持此参考图请求。",
+};
+
 export function getImageGenerationErrorDisplay(error: unknown) {
   const apiError = error instanceof ApiError ? error : null;
   const category = classify(apiError?.code || "", apiError?.kind);
+  const code = String(apiError?.code || "").trim();
   const correlationId = String(apiError?.correlationId || "").trim();
+  const message = CODE_COPY[code] || COPY[category];
   return {
     category,
-    code: String(apiError?.code || "").trim(),
+    code,
     correlationId,
-    message: `${COPY[category]}${correlationId ? ` Correlation ID: ${correlationId}` : ""}`,
+    message: `${message}${code ? ` Code: ${code}` : ""}${correlationId ? ` Correlation ID: ${correlationId}` : ""}`,
   };
 }
 

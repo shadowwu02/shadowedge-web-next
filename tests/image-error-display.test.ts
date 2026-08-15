@@ -14,6 +14,18 @@ describe("image error display", () => {
     expect(getImageGenerationErrorDisplay(new ApiError("", { code: "REFERENCE_ASSET_NOT_READY" })).category).toBe("REFERENCE");
   });
 
+  it("keeps a structured reference-capability rejection and correlation receipt customer-safe", () => {
+    const display = getImageGenerationErrorDisplay(new ApiError("internal provider payload", {
+      code: "IMAGE_REFERENCES_UNSUPPORTED",
+      correlationId: "56dd4f1a-4d2c-4cdc-aee7-9faf94a14a98",
+    }));
+    expect(display.category).toBe("REFERENCE");
+    expect(display.message).toContain("当前模型暂不支持此参考图请求。");
+    expect(display.message).toContain("Code: IMAGE_REFERENCES_UNSUPPORTED");
+    expect(display.message).toContain("Correlation ID: 56dd4f1a-4d2c-4cdc-aee7-9faf94a14a98");
+    expect(display.message).not.toContain("internal provider payload");
+  });
+
   it("shows a safe network message and the client correlation ID", () => {
     const display = getImageGenerationErrorDisplay(new ApiError("Failed to fetch provider URL", {
       code: "NETWORK_REQUEST_FAILED",
