@@ -63,14 +63,17 @@ describe("ArtsDance Seedance production UI contract", () => {
     expect(getVideoModelRule("seedance_2_5_pro").label).toBe("Seedance 2.5");
   });
 
-  it("uses the build-time production gate and registry-driven reference controls", () => {
+  it("uses the build-time production gate, live catalog, and registry-driven reference controls", () => {
     const source = fs.readFileSync(
       path.join(process.cwd(), "src", "components", "video", "VideoWorkspace.tsx"),
       "utf8",
     );
     expect(source).toContain("NEXT_PUBLIC_XINHANKR_ARTSDANCE_PRODUCTION_ENABLED");
-    expect(source).toContain("requiredModels");
-    expect(source).toContain("legacySeedanceFallbackModels");
+    expect(source).toContain("selectWorkspaceProductionCatalog");
+    expect(source).toContain("catalogStatus === \"ready\"");
+    expect(source).toContain("video.model.catalogUnavailable");
+    expect(source).not.toContain("legacySeedanceFallbackModels");
+    expect(source).not.toContain("artsdanceFallbackModels");
     expect(source).toContain("selectedModelRule.uploadSlots.length > 0");
     expect(source).not.toContain('label: "Seedance 2.5 Pro"');
   });

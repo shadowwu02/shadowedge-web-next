@@ -109,6 +109,7 @@ import {
   type VideoMentionBinding,
 } from "@/lib/video/videoMentionBindings";
 import { getReferenceRoleIssue, validateReferenceSelectionForRule } from "@/lib/video/videoReferenceRules";
+import { selectWorkspaceProductionCatalog } from "@/lib/video/workspaceProductionCatalog";
 import { LEGACY_REFERENCE_REUPLOAD_REQUIRED } from "@/lib/video/canonicalReferenceAssets";
 import { isVideoActiveStatus, isVideoFailedStatus } from "@/lib/utils";
 import { ApiError } from "@/types/api";
@@ -119,106 +120,20 @@ import {
 } from "@/lib/higgsfieldProductionRetirement";
 
 const artsdanceProductionEnabled = process.env.NEXT_PUBLIC_XINHANKR_ARTSDANCE_PRODUCTION_ENABLED === "true";
-const artsdanceModelAliases = new Set(["seedance_2_0_mini", "seedance_2_0_fast", "seedance_2_0", "seedance_2_5", "seedance_2_5_pro"]);
-
-const legacySeedanceFallbackModels: VideoModel[] = [
-  {
-    id: "seedance_2_0",
-    label: "Seedance 2.0",
-    provider: "auto",
-    providerModel: "seedance_2_0",
-    desc: "General video generation model. Replace with live model registry when available.",
-    credits: 12,
-    durations: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    durationDefault: 4,
-    ratios: ["16:9", "9:16", "1:1"],
-    qualities: ["480p", "720p", "1080p"],
-    supportsAudio: true,
-    uploadSlots: ["media"],
-  },
-];
-
-const artsdanceReferenceFallback = {
-  uploadSlots: ["reference_images", "reference_videos"],
-  referenceImages: true,
-  maxReferenceImages: 9,
-  referenceVideos: true,
-  maxReferenceVideos: 2,
-  referenceAudios: false,
-  maxReferenceAudios: 0,
-  maxTotalReferences: 11,
-  mixedReference: {
-    imageVideo: true,
-    maxImages: 9,
-    maxVideos: 2,
-    imageAudio: false,
-    videoAudio: false,
-    imageVideoAudio: false,
-  },
-} satisfies Partial<VideoModel>;
-
-const artsdanceFallbackModels: VideoModel[] = [
-  {
-    id: "seedance_2_0_mini",
-    label: "Seedance 2.0 Mini",
-    provider: "auto",
-    providerModel: "seedance_2_0_mini",
-    desc: "Video generation",
-    credits: 23,
-    durations: [5],
-    durationDefault: 5,
-    ratios: ["16:9"],
-    qualities: ["720p"],
-    supportsAudio: false,
-    ...artsdanceReferenceFallback,
-  },
-  {
-    id: "seedance_2_0_fast",
-    label: "Seedance 2.0 Fast",
-    provider: "auto",
-    providerModel: "seedance_2_0_fast",
-    desc: "Video generation",
-    credits: 12,
-    durations: [5],
-    durationDefault: 5,
-    ratios: ["16:9"],
-    qualities: ["720p"],
-    supportsAudio: false,
-    ...artsdanceReferenceFallback,
-  },
-  {
-    id: "seedance_2_0",
-    label: "Seedance 2.0",
-    provider: "auto",
-    providerModel: "seedance_2_0",
-    desc: "Video generation",
-    credits: 23,
-    durations: [5],
-    durationDefault: 5,
-    ratios: ["16:9"],
-    qualities: ["720p"],
-    supportsAudio: false,
-    ...artsdanceReferenceFallback,
-  },
-  {
-    id: "seedance_2_5",
-    label: "Seedance 2.5",
-    provider: "auto",
-    providerModel: "seedance_2_5",
-    desc: "Video generation",
-    credits: 12,
-    durations: [5],
-    durationDefault: 5,
-    ratios: ["16:9"],
-    qualities: ["720p"],
-    supportsAudio: false,
-    ...artsdanceReferenceFallback,
-  },
-];
-
-const fallbackModels: VideoModel[] = [
-  ...(artsdanceProductionEnabled ? artsdanceFallbackModels : legacySeedanceFallbackModels),
-];
+const unavailableCatalogModel: VideoModel = {
+  id: "production_catalog_unavailable",
+  label: "Video catalog unavailable",
+  provider: "shadowedge",
+  providerModel: "production_catalog_unavailable",
+  available: false,
+  credits: 0,
+  durations: [5],
+  durationDefault: 5,
+  ratios: ["16:9"],
+  qualities: ["720p"],
+  supportsAudio: false,
+  uploadSlots: [],
+};
 
 function isMaintenanceApiError(error: unknown) {
   return error instanceof ApiError && error.kind === "maintenance";
@@ -1244,14 +1159,16 @@ export function VideoWorkspace() {
   const tabQuery = getVideoWorkspaceTabQuery(searchParams.get("tab"));
   const fromQuery = searchParams.get("from")?.trim() || "";
   const remakeJobIdQuery = searchParams.get("remakeJobId")?.trim() || "";
-  const [models, setModels] = useState<VideoModel[]>(fallbackModels);
-  const [selectedModel, setSelectedModel] = useState<VideoModel>(fallbackModels[0]);
+  const [models, setModels] = useState<VideoModel[]>([unavailableCatalogModel]);
+  const [selectedModel, setSelectedModel] = useState<VideoModel>(unavailableCatalogModel);
   const [modelLoading, setModelLoading] = useState(true);
   const [modelError, setModelError] = useState("");
+  const [catalogStatus, setCatalogStatus] = useState<"loading" | "ready" | "unavailable">("loading");
+  const [catalogReloadVersion, setCatalogReloadVersion] = useState(0);
   const [prompt, setPrompt] = useState("");
   const [media, setMedia] = useState<UploadMediaItem[]>([]);
   const [mentionBindings, setMentionBindings] = useState<VideoMentionBinding[]>([]);
-  const [params, setParams] = useState<VideoParams>(() => buildParamsForModel(fallbackModels[0]));
+  const [params, setParams] = useState<VideoParams>(() => buildParamsForModel(unavailableCatalogModel));
   const [isAssetPickerUploading, setIsAssetPickerUploading] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<VideoHistoryFilter>("all");
@@ -1339,7 +1256,10 @@ export function VideoWorkspace() {
     let cancelled = false;
 
     function applyModelRegistry(nextModels: VideoModel[], draft: VideoWorkspaceDraft | null) {
-      const availableModels = nextModels.length ? nextModels : fallbackModels;
+      const availableModels = nextModels;
+      if (!availableModels.length) {
+        throw new Error("Production video catalog is empty.");
+      }
       const draftModel = findDraftModel(draft, availableModels);
       const nextModel = draftModel || availableModels[0];
 
@@ -1363,24 +1283,29 @@ export function VideoWorkspace() {
     async function loadModels() {
       setModelLoading(true);
       setModelError("");
+      setCatalogStatus("loading");
       const draft = readVideoDraft();
 
       try {
         const loadedModels = await getVideoModels();
-        const registryModels = artsdanceProductionEnabled
-          ? loadedModels
-          : loadedModels.filter((model) => !artsdanceModelAliases.has(model.id.trim().toLowerCase()));
-        const requiredModels = artsdanceProductionEnabled ? artsdanceFallbackModels : legacySeedanceFallbackModels;
-        const nextModels = [...registryModels, ...requiredModels].filter(
-          (model, index, allModels) => allModels.findIndex((candidate) => candidate.id === model.id) === index,
-        );
+        const registryModels = selectWorkspaceProductionCatalog(loadedModels, artsdanceProductionEnabled);
+        const nextModels = registryModels;
         if (cancelled) return;
         applyModelRegistry(nextModels, draft);
-      } catch (loadError) {
-        const message = loadError instanceof Error ? loadError.message : t("video.errors.modelLoadFailed");
+        setCatalogStatus("ready");
+      } catch {
         if (!cancelled) {
-          setModelError(`${message} ${t("video.model.usingFallback")}`);
-          applyModelRegistry(fallbackModels, draft);
+          setModelError(t("video.model.catalogUnavailable"));
+          setCatalogStatus("unavailable");
+          setModels([unavailableCatalogModel]);
+          setSelectedModel(unavailableCatalogModel);
+          setParams(buildParamsForModel(unavailableCatalogModel));
+          if (draft) {
+            setPrompt(draft.prompt);
+            setMedia(draft.referenceMedia);
+            setMentionBindings(draft.mentionBindings);
+          }
+          setDraftReady(true);
         }
       } finally {
         if (!cancelled) setModelLoading(false);
@@ -1392,7 +1317,7 @@ export function VideoWorkspace() {
     return () => {
       cancelled = true;
     };
-  }, [t]);
+  }, [catalogReloadVersion, t]);
 
   const focusPromptStudioImportTarget = useCallback(() => {
     if (promptStudioImportHighlightTimerRef.current) {
@@ -2807,9 +2732,9 @@ export function VideoWorkspace() {
     () => validateReferenceSelectionForRule(selectedModelRule, [], media),
     [media, selectedModelRule],
   );
-  const modelUnavailable = selectedModel.available === false;
+  const modelUnavailable = catalogStatus !== "ready" || selectedModel.available === false;
   const tenantMembershipReviewRequired = profile?.tenantMembershipStatus === "REVIEW_REQUIRED";
-  const canGenerate = Boolean(selectedModel) && !modelUnavailable && !tenantMembershipReviewRequired && hasPromptForGenerate && !referenceSelectionIssue && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits && !isPromptTooLong;
+  const canGenerate = catalogStatus === "ready" && !modelLoading && Boolean(selectedModel) && !modelUnavailable && !tenantMembershipReviewRequired && hasPromptForGenerate && !referenceSelectionIssue && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits && !isPromptTooLong;
   const reusableMedia = useMemo(
     () => collectReusableVideoAssets(task ? [task, ...history] : history),
     [history, task],
@@ -2860,13 +2785,15 @@ export function VideoWorkspace() {
   }, [error, modelError, referenceSelectionIssue, t, tf, workspaceNotice]);
 
   const generateButtonLabel = useMemo(() => {
+    if (catalogStatus !== "ready") return t("video.model.catalogUnavailable");
     if (isUploadingMedia) return t("video.actions.uploadingMedia");
     if (isProcessing) return t("video.status.processing");
     if (!token && !isSignedIn) return t("video.errors.signInRequired");
     if (!hasEnoughCredits) return t("video.credits.notEnough");
     return tf("video.actions.generateWithCredits", { credits: estimatedCredits });
-  }, [estimatedCredits, hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, t, tf, token]);
+  }, [catalogStatus, estimatedCredits, hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, t, tf, token]);
   const generateButtonHelper = useMemo(() => {
+    if (catalogStatus !== "ready") return t("video.model.catalogUnavailable");
     if (!hasPromptForGenerate) return t("video.errors.promptRequired");
     if (modelUnavailable) return t("generation.modelTemporarilyUnavailable");
     if (tenantMembershipReviewRequired) return t("account.tenantMembershipReviewRequired");
@@ -2879,7 +2806,7 @@ export function VideoWorkspace() {
     if (!hasEnoughCredits) return t("video.credits.notEnough");
     if (isPromptTooLong) return tf("video.errors.promptTooLong", { limit: VIDEO_PROMPT_FRONTEND_LIMIT_LABEL });
     return t("video.credits.beforeSubmit");
-  }, [concurrencyLimitNotice, hasEnoughCredits, hasPromptForGenerate, isProcessing, isPromptTooLong, isSignedIn, isUploadingMedia, modelUnavailable, referenceSelectionIssue, t, tenantMembershipReviewRequired, tf, token]);
+  }, [catalogStatus, concurrencyLimitNotice, hasEnoughCredits, hasPromptForGenerate, isProcessing, isPromptTooLong, isSignedIn, isUploadingMedia, modelUnavailable, referenceSelectionIssue, t, tenantMembershipReviewRequired, tf, token]);
 
   const handleGenerateRemakeShot = useCallback(
     async (shot: RemakeShot, queueMeta?: RemakeShotQueueMeta) => {
@@ -4291,6 +4218,15 @@ export function VideoWorkspace() {
             </>
           )}
           <ErrorState message={displayNotice} />
+          {workspaceMode === "create" && catalogStatus === "unavailable" ? (
+            <button
+              className="se-button-secondary mt-3 min-h-10 rounded-full px-4 text-xs font-semibold"
+              onClick={() => setCatalogReloadVersion((version) => version + 1)}
+              type="button"
+            >
+              {t("video.model.retryCatalog")}
+            </button>
+          ) : null}
         </div>
 
         {workspaceMode !== "create" ? null : (
