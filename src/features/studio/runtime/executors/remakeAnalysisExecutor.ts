@@ -4,7 +4,7 @@ import type {
   NodeExecutionResult,
   StudioNodeExecutor,
 } from "@/features/studio/runtime/types";
-import { reverseAnalyzeVideoRemake } from "@/lib/video-api";
+import { runShortRemakeAfterAdmission } from "@/lib/video/shortRemakeAdmission";
 import { ApiError } from "@/types/api";
 import { isCanonicalAssetId } from "@/lib/video/canonicalReferenceAssets";
 
@@ -176,10 +176,10 @@ export const RemakeAnalysisExecutor: StudioNodeExecutor = {
         },
       });
 
-      const result = await reverseAnalyzeVideoRemake({
+      const request = {
         aspectRatio: configString(context, "targetRatio") || "16:9",
         characterRules: configString(context, "characterRules"),
-        mode: "single_clip",
+        mode: "single_clip" as const,
         sceneStyle: configString(context, "sceneStyle"),
         sourceFileName: String(videoInput?.name || videoInput?.assetId || "Studio video"),
         sourceAssetId,
@@ -191,6 +191,19 @@ export const RemakeAnalysisExecutor: StudioNodeExecutor = {
           (context.config.targetRegion as "US" | "Middle East" | "Japan" | "Southeast Asia") ||
           "US",
         translateDialogue: context.config.translateDialogue !== false,
+      };
+      const result = await runShortRemakeAfterAdmission(request, {
+        onAdmissionReady: () => {
+          context.reportProgress({
+            status: "processing",
+            outputs: {
+              executor: "remake_analysis",
+              status: "processing",
+              providerCallMade: false,
+              vlmCalled: false,
+            },
+          });
+        },
       });
 
       const storyboard = result.storyboard;

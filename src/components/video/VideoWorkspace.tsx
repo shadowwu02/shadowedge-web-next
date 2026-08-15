@@ -60,13 +60,13 @@ import {
   getRemakeAnalysisStatusForRecovery,
   getVideoModels,
   getVideoStatus,
-  reverseAnalyzeVideoRemake,
   uploadMedia,
   type VideoRemakeFullEpisodeAnalysisJob,
   type VideoRemakeLongAnalysisCostEstimate,
   type VideoRemakeLongAnalysisJob,
   type VideoRemakeLongAnalysisStage,
 } from "@/lib/video-api";
+import { runShortRemakeAfterAdmission } from "@/lib/video/shortRemakeAdmission";
 import {
   getSafeHistoryOutputUrl,
   getLocalizedVideoHistoryPublicErrorMessage,
@@ -202,6 +202,7 @@ function getRemakeAnalysisErrorMessage(error: unknown, t: (key: DictionaryKey) =
   if (text.includes("proxy_configuration_missing")) return t("video.remake.error.proxyConfigurationMissing");
   if (text.includes("tenant_membership_review_required")) return t("video.remake.error.tenantMembershipReviewRequired");
   if (text.includes("canonical_asset_required")) return t("video.remake.error.canonicalAssetRequired");
+  if (text.includes("short_remake_preflight_contract_invalid")) return t("video.remake.error.preflightFailed");
   if (text.includes("backend_admission_denied")) return t("video.remake.error.backendAdmissionDenied");
   if (text.includes("provider_failure")) return t("video.remake.error.providerFailure");
   if (text.includes("source_video_too_short") || text.includes("at least 3 seconds")) return t("video.remake.sourceTooShort");
@@ -1181,6 +1182,7 @@ export function VideoWorkspace() {
   const [remakeSceneStyle, setRemakeSceneStyle] = useState("");
   const [remakeTranslateDialogue, setRemakeTranslateDialogue] = useState(true);
   const [remakeStoryboard, setRemakeStoryboard] = useState<RemakeStoryboard | null>(null);
+  const [isRemakeAdmissionChecking, setIsRemakeAdmissionChecking] = useState(false);
   const [isRemakeAnalyzing, setIsRemakeAnalyzing] = useState(false);
   const [isRemakeSourceUploading, setIsRemakeSourceUploading] = useState(false);
   const [remakeAnalysisMeta, setRemakeAnalysisMeta] = useState<RemakeAnalysisMeta | null>(null);
@@ -1193,6 +1195,7 @@ export function VideoWorkspace() {
   const [isRemakeDraftRestored, setIsRemakeDraftRestored] = useState(false);
   const [remakeShotGenerations, setRemakeShotGenerations] = useState<Record<string, RemakeShotGenerationState>>({});
   const [remakeShotQueue, setRemakeShotQueue] = useState<RemakeShotQueueState>(idleRemakeShotQueue);
+  const remakeAnalysisSubmittingRef = useRef(false);
   const [, setRemakeActiveShotRecovery] = useState<RemakeActiveShotRecoveryState | null>(null);
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const remakeDraftHydratedRef = useRef(false);
@@ -1996,7 +1999,9 @@ export function VideoWorkspace() {
     remakeQueueDraftSignatureRef.current = "";
     remakeQueueDraftHydratedRef.current = "";
     remakeActiveRecoveryRef.current = "";
+    remakeAnalysisSubmittingRef.current = false;
     remakeShotQueueSubmittingRef.current = false;
+    setIsRemakeAdmissionChecking(false);
     setIsRemakeAnalyzing(false);
     setIsRemakeSourceUploading(false);
     setRemakeStoryboard(null);
@@ -2015,6 +2020,7 @@ export function VideoWorkspace() {
   }, [resetLongVideoAnalysis]);
 
   const handleAnalyzeRemakeStoryboard = useCallback(async () => {
+    if (remakeAnalysisSubmittingRef.current) return;
     const analysisRevision = remakeSourceRevisionRef.current;
     const targetRatio = normalizeRemakeTargetRatio(params.ratio);
     const settings = {
@@ -2086,7 +2092,9 @@ export function VideoWorkspace() {
     let sourceVideoForAnalyze = remakeSourceVideo;
     let sourceVideoUrl = remakeSourceVideo?.url || "";
     let fullEpisodeJobIdForRecovery = "";
+    let admissionPassed = false;
 
+    remakeAnalysisSubmittingRef.current = true;
     setIsRemakeAnalyzing(true);
     setRemakeAnalysisError("");
     setRemakeAnalysisNotice("");
@@ -2359,14 +2367,24 @@ export function VideoWorkspace() {
         return;
       }
 
-      setRemakeAnalysisNotice(t("video.remake.vlmAnalyzing"));
-      const result = await reverseAnalyzeVideoRemake({
+      const request = {
         ...settings,
         sourceAssetId: sourceVideoForAnalyze?.assetId,
         sourceFileName: sourceVideoForAnalyze?.name || "",
         sourceLanguage: "zh",
         sourceVideoUrl,
         targetLanguage: "en",
+      };
+      setIsRemakeAdmissionChecking(true);
+      setRemakeAnalysisNotice(t("video.remake.checkingSourceVideo"));
+      const result = await runShortRemakeAfterAdmission(request, {
+        shouldContinueAfterAdmission: () => remakeSourceRevisionRef.current === analysisRevision,
+        onAdmissionReady: () => {
+          admissionPassed = true;
+          if (remakeSourceRevisionRef.current !== analysisRevision) return;
+          setIsRemakeAdmissionChecking(false);
+          setRemakeAnalysisNotice(t("video.remake.vlmAnalyzing"));
+        },
       });
       if (remakeSourceRevisionRef.current !== analysisRevision) return;
 
@@ -2457,13 +2475,22 @@ export function VideoWorkspace() {
         setRemakeAnalysisNotice("");
         return;
       }
+      if (!admissionPassed) {
+        setRemakeStoryboard(null);
+        setRemakeAnalysisMeta(null);
+        setRemakeAnalysisError(getRemakeAnalysisErrorMessage(error, t));
+        setRemakeAnalysisNotice("");
+        return;
+      }
       const isDurationLimit = isRemakeDurationLimitError(error);
       setRemakeStoryboard(isDurationLimit ? null : buildMockRemakeStoryboard(settings, remakeSourceVideo));
       setRemakeAnalysisMeta(null);
       setRemakeAnalysisError(getRemakeAnalysisErrorMessage(error, t));
       setRemakeAnalysisNotice(isDurationLimit ? "" : t("video.remake.mockFallback"));
     } finally {
+      remakeAnalysisSubmittingRef.current = false;
       if (remakeSourceRevisionRef.current === analysisRevision) {
+        setIsRemakeAdmissionChecking(false);
         setIsRemakeAnalyzing(false);
         setIsRemakeSourceUploading(false);
       }
@@ -3938,6 +3965,8 @@ export function VideoWorkspace() {
 
   const remakeAnalyzeLabel = isRemakeSourceUploading
     ? t("video.remake.analyzingSourceVideo")
+    : isRemakeAdmissionChecking
+      ? t("video.remake.checkingSourceVideo")
     : remakeMode === "long_video" && guardedLongVideoUxVisible
       ? isLongVideoAnalysisEstimating
         ? t("video.remake.longVideo.cost.estimating")
@@ -4058,7 +4087,8 @@ export function VideoWorkspace() {
               estimateOnlySummary={remakeEstimateOnlySummary}
               guardedLongVideoUx={guardedLongVideoUxVisible}
               isAnalyzing={
-                isRemakeAnalyzing ||
+              isRemakeAnalyzing ||
+                isRemakeAdmissionChecking ||
                 isRemakeSourceUploading ||
                 isRemakeEstimateOnlyLoading ||
                 isLongVideoAnalysisActive
@@ -4253,7 +4283,7 @@ export function VideoWorkspace() {
             draftNotice={isRemakeDraftRestored ? t("video.remake.restoredDraft") : ""}
             guardedLongVideoUx={guardedLongVideoUxVisible}
             hasSourceVideo={Boolean(remakeSourceVideo)}
-            isAnalyzing={isRemakeAnalyzing || isRemakeSourceUploading || isLongVideoAnalysisActive}
+            isAnalyzing={isRemakeAnalyzing || isRemakeAdmissionChecking || isRemakeSourceUploading || isLongVideoAnalysisActive}
             longVideoAnalysisErrorCategory={longVideoAnalysisErrorCategory}
             longVideoAnalysisProgress={longVideoAnalysisProgress}
             longVideoAnalysisState={longVideoAnalysisState}

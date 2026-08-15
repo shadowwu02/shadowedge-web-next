@@ -88,7 +88,9 @@ describe("Candidate B Short Remake and Studio contracts", () => {
       "utf8",
     );
     expect(workspace).toContain("sourceAssetId: sourceVideoForAnalyze?.assetId");
+    expect(workspace).toContain("runShortRemakeAfterAdmission(request");
     expect(studio).toContain("sourceAssetId,");
+    expect(studio).toContain("runShortRemakeAfterAdmission(request");
     expect(studio).toContain("CANONICAL_ASSET_REQUIRED");
   });
 });
