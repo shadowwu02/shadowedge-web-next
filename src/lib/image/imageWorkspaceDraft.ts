@@ -10,6 +10,8 @@ const SENSITIVE_TEXT_PATTERNS = [/authorization/i, /bearer\s+/i, /access[_-]?tok
 export type ImageWorkspaceDraftReference = {
   id: string;
   assetId?: string;
+  canonicalStatus?: string;
+  referenceEligibility?: boolean;
   name: string;
   url: string;
   mimeType?: string;
@@ -109,6 +111,8 @@ function sanitizeReference(value: unknown): ImageWorkspaceDraftReference | null 
 
   return {
     assetId: asString(raw.assetId, 240) || asString(raw.asset_id, 240),
+    canonicalStatus: asString(raw.canonicalStatus, 40),
+    referenceEligibility: raw.referenceEligibility === true,
     id: asString(raw.id, 240) || url,
     name,
     url,
@@ -189,6 +193,8 @@ export function saveImageWorkspaceDraft(input: SaveImageWorkspaceDraftInput) {
       .map((item) => sanitizeReference({
         id: item.id,
         assetId: item.assetId,
+        canonicalStatus: item.canonicalStatus,
+        referenceEligibility: item.referenceEligibility === true,
         name: item.name,
         source: item.source,
         url: item.url,
@@ -219,13 +225,15 @@ export function getImageReferencesFromDraft(draft: ImageWorkspaceDraft, maxRefer
   return draft.references.slice(0, Math.max(0, maxReferences)).map((reference) => ({
     id: reference.id,
     assetId: reference.assetId,
+    canonicalStatus: reference.canonicalStatus,
+    referenceEligibility: reference.referenceEligibility === true,
     type: "image",
     name: reference.name,
     url: reference.url,
     previewUrl: reference.url,
     size: reference.sizeBytes,
     mimeType: reference.mimeType,
-    uploadStatus: "ready",
+    uploadStatus: reference.referenceEligibility === true && reference.canonicalStatus === "ready" ? "ready" : "not_reference_eligible",
     width: reference.width,
     height: reference.height,
     source: reference.source,

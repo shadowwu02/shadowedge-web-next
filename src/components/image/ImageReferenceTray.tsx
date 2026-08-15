@@ -84,6 +84,7 @@ export function ImageReferenceTray({
   const getUploadStatusLabel = (reference: ImageReferenceItem) => {
     if (reference.uploadStatus === "uploading") return t("image.status.uploading");
     if (reference.uploadStatus === "failed") return t("media.upload.unavailableTitle");
+    if (reference.uploadStatus === "not_reference_eligible") return t("image.status.notReferenceEligible");
     return reference.url ? t("image.status.ready") : t("image.status.local");
   };
   const selectedAssetReferences = useMemo(
@@ -248,14 +249,16 @@ export function ImageReferenceTray({
         <div className="se-subtle-scrollbar max-h-[360px] min-w-0 overflow-y-auto overscroll-contain p-2">
         <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2 2xl:grid-cols-3">
           {references.map((reference, referenceIndex) => {
+            const { uploadStatus: _uploadStatus, ...referenceForDisplay } = reference;
             const displayName = getSafeMediaItemDisplayName(
-              { ...reference, source: "reference_selected", type: "image" },
+              { ...referenceForDisplay, source: "reference_selected", type: "image" },
               referenceIndex,
               displayLocale,
             );
             const previewUrl = getReferencePreviewUrl(reference);
             const failedDisplay =
-              reference.uploadStatus === "failed" ? getMediaUploadErrorDisplayKeys(reference.errorMessage, { fallbackKind: "unavailable" }) : null;
+              reference.uploadStatus === "failed" || reference.uploadStatus === "not_reference_eligible"
+                ? getMediaUploadErrorDisplayKeys(reference.errorMessage, { fallbackKind: "unavailable" }) : null;
 
             return (
               <article className="group min-w-0 overflow-hidden rounded-[18px] border border-white/10 bg-[#05070b]/62" key={reference.id}>
@@ -281,13 +284,13 @@ export function ImageReferenceTray({
                   <p className="truncate text-[11px] font-semibold text-[#f4f4f4]/78">{displayName}</p>
                   <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-[#b9b9b9]/45">
                     <span>{formatBytes(reference.size) || t("image.references.generic")}</span>
-                    <span className={reference.uploadStatus === "failed" ? "text-[#f2b3a1]" : reference.uploadStatus === "uploading" ? "text-[#ffd08a]" : "text-[#b8e7ee]"}>
+                    <span className={reference.uploadStatus === "failed" || reference.uploadStatus === "not_reference_eligible" ? "text-[#f2b3a1]" : reference.uploadStatus === "uploading" ? "text-[#ffd08a]" : "text-[#b8e7ee]"}>
                       {getUploadStatusLabel(reference)}
                     </span>
                   </div>
                   {failedDisplay ? (
                     <p className="mt-1 line-clamp-2 text-[10px] text-[#f2b3a1]/78">
-                      {t(failedDisplay.messageKey)} {t("media.upload.removeAndUploadAgain")}
+                      {reference.uploadStatus === "not_reference_eligible" ? t("image.errors.referenceReuploadRequired") : t(failedDisplay.messageKey)} {t("media.upload.removeAndUploadAgain")}
                     </p>
                   ) : null}
                 </div>
@@ -363,12 +366,13 @@ export function ImageReferenceTray({
               {assetReferences.length ? (
                 <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
                   {assetReferences.map((reference, assetIndex) => {
+                    const { uploadStatus: _uploadStatus, ...referenceForDisplay } = reference;
                     const isAlreadyAdded = references.some((current) => isSameReference(current, reference));
                     const isSelected = selectedAssetIds.has(reference.id);
                     const isLimitBlocked = !isSelected && !isAlreadyAdded && selectedAssetReferences.length >= remainingSlots;
                     const previewUrl = getReferencePreviewUrl(reference);
                     const displayName = getSafeMediaItemDisplayName(
-                      { ...reference, source: "asset-library", type: "image" },
+                      { ...referenceForDisplay, source: "asset-library", type: "image" },
                       assetIndex,
                       displayLocale,
                     );

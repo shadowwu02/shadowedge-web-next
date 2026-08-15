@@ -13,6 +13,7 @@ import type {
 
 type RawRecord = Record<string, unknown>;
 const canonicalAssetIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const supportedReferenceImageMimes = new Set(["image/png", "image/jpeg", "image/webp"]);
 
 function asRecord(value: unknown): RawRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as RawRecord) : {};
@@ -54,10 +55,19 @@ export function normalizeImageUploadResponse(payload: unknown, sourceFile?: File
   const originalName = pickString(data.originalName, data.originalname, sourceFile?.name, filename) || filename;
   const mimeType = pickString(data.mimeType, data.mime_type, data.mimetype, sourceFile?.type) || sourceFile?.type || "image";
   const assetId = pickString(data.assetId, data.asset_id);
+  const eligibility = asRecord(data.referenceEligibility ?? data.reference_eligibility);
+  const canonicalStatus = String(data.canonicalStatus ?? data.canonical_status ?? eligibility.status ?? "").trim().toLowerCase();
+  const referenceEligible =
+    eligibility.eligible === true &&
+    canonicalStatus === "ready" &&
+    Boolean(assetId && canonicalAssetIdPattern.test(assetId)) &&
+    supportedReferenceImageMimes.has(mimeType.toLowerCase());
 
   return {
-    id: pickString(data.id, data.mediaId, data.media_id, data.key, url) || url,
-    assetId: assetId && canonicalAssetIdPattern.test(assetId) ? assetId : undefined,
+    id: referenceEligible ? assetId! : pickString(data.id, data.mediaId, data.media_id, data.key, url) || url,
+    assetId: referenceEligible ? assetId : undefined,
+    canonicalStatus: canonicalStatus || (referenceEligible ? "ready" : "failed"),
+    referenceEligibility: referenceEligible,
     type: "image",
     name: originalName,
     url,
@@ -66,9 +76,27 @@ export function normalizeImageUploadResponse(payload: unknown, sourceFile?: File
     mimeType,
     filename,
     originalName,
-    uploadStatus: "ready",
+    uploadStatus: referenceEligible ? "ready" : "not_reference_eligible",
+    errorMessage: referenceEligible ? "" : "REFERENCE_ASSET_FINALIZE_REQUIRED",
     raw: payload,
   };
+}
+
+export function isCanonicalImageReferenceReady(value: {
+  assetId?: string;
+  canonicalStatus?: string;
+  mimeType?: string;
+  referenceEligibility?: boolean;
+  uploadStatus?: string;
+}) {
+  return Boolean(
+    value.uploadStatus === "ready" &&
+    value.referenceEligibility === true &&
+    String(value.canonicalStatus || "").toLowerCase() === "ready" &&
+    value.assetId &&
+    canonicalAssetIdPattern.test(value.assetId) &&
+    supportedReferenceImageMimes.has(String(value.mimeType || "").toLowerCase())
+  );
 }
 
 export async function uploadImage(file: File) {
@@ -130,8 +158,8 @@ export async function generateImage(payload: ImageGenerateRequest) {
     aspect_ratio: payload.aspect_ratio || payload.ratio,
     referenceImages: [],
     reference_images: [],
-    referenceImageAssetIds: (payload.referenceImageAssetIds || payload.reference_image_asset_ids || []).filter(Boolean),
-    reference_image_asset_ids: (payload.reference_image_asset_ids || payload.referenceImageAssetIds || []).filter(Boolean),
+    referenceImageAssetIds: (payload.referenceImageAssetIds || payload.reference_image_asset_ids || []).filter((value) => typeof value === "string" && canonicalAssetIdPattern.test(value)),
+    reference_image_asset_ids: (payload.reference_image_asset_ids || payload.referenceImageAssetIds || []).filter((value) => typeof value === "string" && canonicalAssetIdPattern.test(value)),
   };
 
   const envelope = await apiRequest<ImageGenerateResponse>("/api/image/generate", {
@@ -188,8 +216,8 @@ export function buildImageGenerateRequest(input: {
     batchCount: normalizedParams.batchCount,
     referenceImages: [],
     reference_images: [],
-    referenceImageAssetIds: input.referenceImageAssetIds || [],
-    reference_image_asset_ids: input.referenceImageAssetIds || [],
+    referenceImageAssetIds: (input.referenceImageAssetIds || []).filter((value) => canonicalAssetIdPattern.test(value)),
+    reference_image_asset_ids: (input.referenceImageAssetIds || []).filter((value) => canonicalAssetIdPattern.test(value)),
     meta: {
       source: "image_workspace",
       model_id: input.model.id,
@@ -198,8 +226,8 @@ export function buildImageGenerateRequest(input: {
       resolution: normalizedParams.resolution,
       quality: normalizedParams.quality,
       batchCount: normalizedParams.batchCount,
-      referenceCount: input.referenceImageAssetIds?.length || 0,
-      referenceImageAssetIds: input.referenceImageAssetIds || [],
+      referenceCount: (input.referenceImageAssetIds || []).filter((value) => canonicalAssetIdPattern.test(value)).length,
+      referenceImageAssetIds: (input.referenceImageAssetIds || []).filter((value) => canonicalAssetIdPattern.test(value)),
       ...(input.meta || {}),
     },
   };

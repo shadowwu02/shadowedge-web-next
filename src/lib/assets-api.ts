@@ -262,7 +262,9 @@ export function mediaAssetToImageReferenceItem(asset: MediaAssetRecord): ImageRe
     source: "asset-library",
     type: "image",
     uploadedAt: asset.createdAt || undefined,
-    uploadStatus: asset.status === "ready" || !asset.status ? "ready" : "failed",
+    uploadStatus: asset.status === "ready" ? "ready" : "failed",
+    canonicalStatus: asset.status === "ready" ? "ready" : "failed",
+    referenceEligibility: asset.status === "ready",
     url: publicUrl,
     width: typeof asset.width === "number" ? asset.width : undefined,
   };

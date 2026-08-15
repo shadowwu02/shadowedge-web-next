@@ -32,11 +32,15 @@ describe("Image Canonical Reference contract", () => {
         id: "legacy-filename.png",
         url: "https://api.shadowedgeai.com/uploads/images/reference.png",
         mimetype: "image/png",
+        canonicalStatus: "ready",
+        referenceEligibility: { eligible: true, status: "ready" },
       },
     });
 
     expect(upload.assetId).toBe(ASSET_ID);
-    expect(upload.id).toBe("legacy-filename.png");
+    expect(upload.id).toBe(ASSET_ID);
+    expect(upload.referenceEligibility).toBe(true);
+    expect(upload.uploadStatus).toBe("ready");
   });
 
   it("never promotes a URL or legacy id to a Canonical assetId", () => {

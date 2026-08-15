@@ -75,6 +75,7 @@ export function ImagePromptPanel({
   const qualities = selectedModel?.capabilities.qualities || [];
   const maxBatchCount = selectedModel?.capabilities.maxBatchCount || 1;
   const hasUploadingReferences = references.some((reference) => reference.uploadStatus === "uploading");
+  const hasIneligibleReferences = references.some((reference) => reference.uploadStatus === "not_reference_eligible" || reference.uploadStatus === "failed");
   const hasPrompt = Boolean(prompt.trim());
   const promptLimit = getImagePromptLimit(selectedModel);
   const promptLimitLabel = formatImagePromptLimit(selectedModel);
@@ -83,7 +84,7 @@ export function ImagePromptPanel({
   const isPromptNearLimit = promptLength >= getImagePromptWarningThreshold(selectedModel);
   const hasExistingDraft = hasPrompt || references.length > 0;
   const modelUnavailable = selectedModel?.available === false;
-  const disabled = modelUnavailable || isGenerating || loadingModels || hasUploadingReferences || isPolling || isActiveJob || !hasPrompt || isPromptTooLong;
+  const disabled = modelUnavailable || isGenerating || loadingModels || hasUploadingReferences || hasIneligibleReferences || isPolling || isActiveJob || !hasPrompt || isPromptTooLong;
   const optionLabel = (value: string) => value || t("image.params.default");
   const resolutionLabel = (value: string) => usesGenerationTiers
     ? value.toUpperCase()
@@ -103,6 +104,8 @@ export function ImagePromptPanel({
       ? tf("image.errors.promptTooLong", { limit: promptLimitLabel })
     : hasUploadingReferences
       ? t("image.generate.disabled.uploadingReferences")
+      : hasIneligibleReferences
+        ? t("image.errors.referenceReuploadRequired")
       : loadingModels
         ? t("image.generate.disabled.loadingModels")
         : isGenerating || isPolling || isActiveJob

@@ -37,7 +37,12 @@ function getPromptStudioImageReferences(draft: PromptStudioBridgeDraft | null): 
       width: reference.width,
       height: reference.height,
       uploadedAt: reference.uploadedAt,
-      uploadStatus: "ready" as const,
+      // Prompt Studio restores URLs, not a server-confirmed Canonical Asset
+      // receipt. Keep it visible, but never make it executable as an Image
+      // reference until the customer chooses/re-uploads a Canonical asset.
+      uploadStatus: "not_reference_eligible" as const,
+      canonicalStatus: "failed",
+      referenceEligibility: false,
     }));
 }
 

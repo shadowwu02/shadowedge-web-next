@@ -91,7 +91,9 @@ export type ImageReferenceItem = {
   mimeType?: string;
   filename?: string;
   originalName?: string;
-  uploadStatus?: "local" | "uploading" | "ready" | "failed";
+  canonicalStatus?: "ready" | "finalizing" | "failed" | string;
+  referenceEligibility?: boolean;
+  uploadStatus?: "local" | "uploading" | "finalizing" | "ready" | "failed" | "not_reference_eligible";
   errorMessage?: string;
   width?: number;
   height?: number;

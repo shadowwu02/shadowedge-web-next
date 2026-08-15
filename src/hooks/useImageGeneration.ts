@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { buildImageGenerateRequest, generateImage, getImageHistory, getImageModels, getImageStatus, uploadImage } from "@/lib/image-api";
+import { buildImageGenerateRequest, generateImage, getImageHistory, getImageModels, getImageStatus, isCanonicalImageReferenceReady, uploadImage } from "@/lib/image-api";
 import { useI18n } from "@/i18n/useI18n";
 import { formatGenerationConcurrencyLimitError } from "@/lib/generationConcurrencyError";
 import { getMediaUploadErrorDisplayKeys } from "@/lib/media-assets";
@@ -380,7 +380,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
   }, [references.length, selectedModel, t, tf]);
 
   const addReferenceItems = useCallback((items: ImageReferenceItem[]) => {
-    const candidates = items.filter((item) => item.url && item.uploadStatus !== "failed");
+    const candidates = items.filter(isCanonicalImageReferenceReady);
     if (!candidates.length) return false;
 
     let addedCount = 0;
@@ -456,14 +456,14 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     const ready: ImageReferenceItem[] = [];
 
     for (const item of items) {
-      if (item.url && item.uploadStatus !== "failed") {
+      if (isCanonicalImageReferenceReady(item)) {
         ready.push(item);
         continue;
       }
 
       if (item.file) {
         const uploaded = await uploadReference(item.id);
-        if (uploaded?.url) ready.push(uploaded);
+        if (uploaded && isCanonicalImageReferenceReady(uploaded)) ready.push(uploaded);
       }
     }
 
@@ -552,7 +552,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       const effectiveParams = normalizeImageGenerationParams(effectiveModel, overrides.params || params);
       const effectiveReferences = overrides.references || references;
       const readyReferences = await ensureReadyReferences(effectiveReferences);
-      if (readyReferences.some((item) => !item.assetId)) {
+      if (readyReferences.length !== effectiveReferences.length || readyReferences.some((item) => !isCanonicalImageReferenceReady(item))) {
         throw new Error("Some reference images are from a legacy version and must be re-uploaded before generation.");
       }
       const referenceImageAssetIds = readyReferences

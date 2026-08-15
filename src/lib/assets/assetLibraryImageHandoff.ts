@@ -233,6 +233,8 @@ export function assetLibraryImageHandoffToReference(handoff: AssetLibraryImageHa
     type: "image",
     uploadedAt: handoff.createdAt,
     uploadStatus: "ready",
+    canonicalStatus: "ready",
+    referenceEligibility: true,
     url: publicUrl,
     width: handoff.width,
   };
