@@ -34,6 +34,7 @@ import {
 } from "@/lib/image/imageWorkspaceDraft";
 import type { ImageGenerationParams, ImageHistoryItem, ImageModel, ImageReferenceItem } from "@/types/image";
 import { ApiError } from "@/types/api";
+import { getImageGenerationErrorDisplay } from "@/lib/image/imageErrorDisplay";
 import {
   HIGGSFIELD_RETIRED_MODEL_MESSAGE,
   isRetiredHiggsfieldImageAlias,
@@ -161,6 +162,10 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       if (concurrencyMessage) return concurrencyMessage;
       if (error instanceof ApiError && error.kind === "maintenance") {
         return t("maintenance.errors.generationPaused");
+      }
+
+      if (error instanceof ApiError && (labelKey === "image.errors.generationRequestFailed" || labelKey === "image.errors.statusRefreshFailed")) {
+        return getImageGenerationErrorDisplay(error).message;
       }
 
       const label = t(labelKey);

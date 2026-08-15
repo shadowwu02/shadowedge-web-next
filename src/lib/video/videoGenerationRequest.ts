@@ -17,6 +17,7 @@ import type {
   VideoGenerationRequest,
   VideoModel,
 } from "@/types/video";
+import { createVideoClientRequestId, normalizeVideoClientRequestId } from "@/lib/video/videoClientRequestId";
 
 export type BuildVideoGenerationRequestInput = {
   prompt: string;
@@ -29,11 +30,13 @@ export type BuildVideoGenerationRequestInput = {
   mentionBindings?: VideoMentionBinding[];
   meta?: Record<string, unknown>;
   estimatedCredits?: number;
+  clientRequestId?: string;
 };
 
 export function buildVideoGenerationRequest(
   options: BuildVideoGenerationRequestInput,
 ): VideoGenerationRequest {
+  const clientRequestId = normalizeVideoClientRequestId(options.clientRequestId) || createVideoClientRequestId();
   const mentionMediaItems = getReadyMentionableMediaItems(options.media);
   const mentionBindings = sanitizeVideoMentionBindings(
     options.prompt,
@@ -83,6 +86,8 @@ export function buildVideoGenerationRequest(
       );
 
   return {
+    clientRequestId,
+    client_request_id: clientRequestId,
     prompt: enhancedPrompt,
     frontendModel: options.model.label,
     model: options.model.id,
@@ -112,6 +117,8 @@ export function buildVideoGenerationRequest(
     upload_assets: { media: mediaList },
     clientCost: estimatedCredits,
     meta: {
+      clientRequestId,
+      client_request_id: clientRequestId,
       frontend_model: options.model.label,
       model_id: options.model.id,
       duration: `${options.duration}s`,

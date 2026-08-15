@@ -1222,6 +1222,8 @@ export function normalizeVideoGenerationRequest(request: VideoGenerationRequest)
 
   return {
     ...request,
+    clientRequestId: request.clientRequestId,
+    client_request_id: request.clientRequestId,
     prompt: String(request.prompt || "").trim(),
     assets: {
       images: (request.assets?.images || []).filter(Boolean),

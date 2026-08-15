@@ -6,6 +6,7 @@ import { getCurrentUserProfile } from "@/lib/auth-api";
 import { formatGenerationConcurrencyLimitError } from "@/lib/generationConcurrencyError";
 import { createVideoTask, getVideoHistory, getVideoStatus, saveVideoHistory } from "@/lib/video-api";
 import { buildVideoGenerationRequest } from "@/lib/video/videoGenerationRequest";
+import { createVideoClientRequestId } from "@/lib/video/videoClientRequestId";
 import { VIDEO_PROMPT_FRONTEND_LIMIT, VIDEO_PROMPT_FRONTEND_LIMIT_LABEL } from "@/lib/video/videoPromptLimits";
 import {
   getSafeHistoryOutputUrl,
@@ -34,6 +35,7 @@ type SubmitVideoOptions = {
   meta?: Record<string, unknown>;
   maxConcurrency?: number | null;
   onSubmitError?: (message: string) => void;
+  clientRequestId?: string;
 };
 
 type SubmitValidationCopy = {
@@ -139,6 +141,7 @@ export function useVideoGeneration() {
   const [hiddenHistoryKeys, setHiddenHistoryKeys] = useState<Set<string>>(() => new Set());
   const taskRef = useRef<VideoTaskRecord | null>(null);
   const visibleHistoryRef = useRef<VideoTaskRecord[]>([]);
+  const pendingClientRequestIdRef = useRef("");
 
   const visibleHistory = useMemo(
     () => mergeVideoHistory(localHistory, serverHistory).filter((record, index) => !hiddenHistoryKeys.has(getVideoHistoryStableKey(record, `history:${index}`))),
@@ -228,7 +231,11 @@ export function useVideoGeneration() {
         throw new Error(validationMessage);
       }
 
-      const request = buildVideoGenerationRequest(options);
+      // Preserve a request ID after an ambiguous browser failure. A later user
+      // click is then an idempotent replay, while a completed operation resets it.
+      const clientRequestId = options.clientRequestId || pendingClientRequestIdRef.current || createVideoClientRequestId();
+      pendingClientRequestIdRef.current = clientRequestId;
+      const request = buildVideoGenerationRequest({ ...options, clientRequestId });
       const response = await createVideoTask(request);
       const result = response.data;
 
@@ -267,6 +274,7 @@ export function useVideoGeneration() {
         console.warn("[ShadowEdge Next] save video history failed:", saveError);
       });
       void refreshCredits();
+      pendingClientRequestIdRef.current = "";
       return nextTask;
     } catch (submitError) {
       const message =

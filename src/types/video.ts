@@ -116,6 +116,8 @@ export type VideoModel = {
 };
 
 export type VideoGenerationRequest = {
+  clientRequestId: string;
+  client_request_id: string;
   prompt: string;
   frontendModel: string;
   model: string;
