@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildImageGenerateRequest, generateImage, getImageHistory, getImageModels, getImageStatus, isCanonicalImageReferenceReady, uploadImage } from "@/lib/image-api";
 import { useI18n } from "@/i18n/useI18n";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { formatGenerationConcurrencyLimitError } from "@/lib/generationConcurrencyError";
 import { getMediaUploadErrorDisplayKeys } from "@/lib/media-assets";
 import {
@@ -133,6 +134,7 @@ function getImagePromptFromUrl() {
 
 export function useImageGeneration(options: UseImageGenerationOptions = {}) {
   const { t, tf } = useI18n();
+  const { isLoading: authLoading, isSignedIn } = useAuthSession();
   const pollingIntervalMs = options.pollingIntervalMs || defaultPollingIntervalMs;
   const autoLoad = options.autoLoad !== false;
   const [models, setModels] = useState<ImageModel[]>([]);
@@ -282,14 +284,17 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
   }, [formatImageError]);
 
   useEffect(() => {
-    if (!autoLoad) return;
+    // The public catalog intentionally projects no reference capability. Do
+    // not cache that anonymous projection while a restored customer session is
+    // still being verified; wait for the shared auth boundary first.
+    if (!autoLoad || authLoading) return;
     const timer = window.setTimeout(() => {
       void loadModels();
       void reloadHistory();
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [autoLoad, loadModels, reloadHistory]);
+  }, [autoLoad, authLoading, isSignedIn, loadModels, reloadHistory]);
 
   useEffect(() => {
     if (!draftReady) return;
