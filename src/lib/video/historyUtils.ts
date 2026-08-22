@@ -149,26 +149,100 @@ export function getSafeHistoryThumbnailUrl(record: unknown) {
   );
 }
 
+function getVideoHistoryIdentityAliases(record: unknown) {
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+  return Array.from(
+    new Set(
+      [
+        raw.dbJobId,
+        raw.db_job_id,
+        raw.databaseJobId,
+        raw.database_job_id,
+        raw.generationJobId,
+        raw.generation_job_id,
+        raw.id,
+        meta.dbJobId,
+        meta.db_job_id,
+        meta.databaseJobId,
+        meta.database_job_id,
+        meta.generationJobId,
+        meta.generation_job_id,
+        raw.jobId,
+        raw.job_id,
+        meta.jobId,
+        meta.job_id,
+        raw.taskId,
+        raw.task_id,
+        raw.providerTaskId,
+        raw.provider_task_id,
+        raw.providerJobId,
+        raw.provider_job_id,
+        meta.taskId,
+        meta.task_id,
+        meta.providerTaskId,
+        meta.provider_task_id,
+        meta.providerJobId,
+        meta.provider_job_id,
+      ]
+        .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+        .map((value) => value.trim()),
+    ),
+  );
+}
+
+export function getVideoGenerationJobId(record: unknown) {
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+  return (
+    pickString(
+      raw.dbJobId,
+      raw.db_job_id,
+      raw.databaseJobId,
+      raw.database_job_id,
+      raw.generationJobId,
+      raw.generation_job_id,
+      raw.id,
+      meta.dbJobId,
+      meta.db_job_id,
+      meta.databaseJobId,
+      meta.database_job_id,
+      meta.generationJobId,
+      meta.generation_job_id,
+      raw.jobId,
+      raw.job_id,
+      meta.jobId,
+      meta.job_id,
+      raw.taskId,
+      raw.task_id,
+      raw.providerTaskId,
+      raw.provider_task_id,
+      raw.providerJobId,
+      raw.provider_job_id,
+      meta.providerTaskId,
+      meta.provider_task_id,
+      meta.providerJobId,
+      meta.provider_job_id,
+    ) || ""
+  ).trim();
+}
+
+export function isSameVideoGenerationJob(left: unknown, right: unknown) {
+  const leftAliases = getVideoHistoryIdentityAliases(left);
+  if (!leftAliases.length) return false;
+  const rightAliases = new Set(getVideoHistoryIdentityAliases(right));
+  return leftAliases.some((alias) => rightAliases.has(alias));
+}
+
+export function videoHistoryRecordHasJobId(record: unknown, jobId: string) {
+  const expected = String(jobId || "").trim();
+  return Boolean(expected) && getVideoHistoryIdentityAliases(record).includes(expected);
+}
+
 export function getVideoHistoryStableKey(record: unknown, fallback = "") {
   const raw = asRecord(record);
   const meta = asRecord(raw.meta);
-  const explicitKey = pickString(
-    raw.jobId,
-    raw.job_id,
-    raw.taskId,
-    raw.task_id,
-    raw.providerTaskId,
-    raw.provider_task_id,
-    raw.providerJobId,
-    raw.provider_job_id,
-    raw.dbJobId,
-    raw.db_job_id,
-    raw.id,
-    meta.jobId,
-    meta.job_id,
-    meta.providerJobId,
-    meta.provider_job_id,
-  );
+  const explicitKey = getVideoGenerationJobId(raw);
   if (explicitKey) return explicitKey;
 
   const createdAt = pickString(raw.createdAt, raw.created_at, meta.createdAt, meta.created_at) || String(pickNumber(raw.createdAt, meta.createdAt) || "");
@@ -331,12 +405,10 @@ export function preferLatestVideoTask(current: VideoTaskRecord | null, candidate
   if (!candidate) return current;
   if (!current) return candidate;
 
-  const currentKey = getVideoHistoryStableKey(current, "");
-  const candidateKey = getVideoHistoryStableKey(candidate, "");
   const currentOutput = getSafeHistoryOutputUrl(current);
   const candidateOutput = getSafeHistoryOutputUrl(candidate);
 
-  if (currentKey && currentKey === candidateKey) {
+  if (isSameVideoGenerationJob(current, candidate)) {
     const next = {
       ...current,
       ...candidate,
@@ -364,25 +436,35 @@ export function preferLatestVideoTask(current: VideoTaskRecord | null, candidate
   return candidateTime >= currentTime ? candidate : current;
 }
 
+export function upsertVideoHistoryRecord(records: VideoTaskRecord[], candidate: VideoTaskRecord, limit = Number.POSITIVE_INFINITY) {
+  const matchingIndex = records.findIndex((record) => isSameVideoGenerationJob(record, candidate));
+  if (matchingIndex < 0) return [candidate, ...records].slice(0, limit);
+
+  const existing = records[matchingIndex];
+  const merged = preferLatestVideoTask(existing, candidate) || candidate;
+  return [merged, ...records.filter((_, index) => index !== matchingIndex)].slice(0, limit);
+}
+
 export type VideoHistoryStatusCounts = {
   active: number;
   failed: number;
 };
 
 export function getVideoHistoryStatusCounts(records: VideoTaskRecord[], currentTask?: VideoTaskRecord | null): VideoHistoryStatusCounts {
-  const taskMap = new Map<string, VideoTaskRecord>();
-
-  [...records, ...(currentTask ? [currentTask] : [])].forEach((record, index) => {
-    const fallbackKey = `status:${index}`;
-    const key = getVideoHistoryStableKey(record, fallbackKey) || fallbackKey;
-    const currentRecord = taskMap.get(key) || null;
-    taskMap.set(key, preferLatestVideoTask(currentRecord, record) || record);
-  });
+  const deduped = records.reduce<VideoTaskRecord[]>((items, record) => upsertVideoHistoryRecord(items, record), []);
+  if (currentTask) {
+    const matchingIndex = deduped.findIndex((record) => isSameVideoGenerationJob(record, currentTask));
+    if (matchingIndex < 0) {
+      deduped.unshift(currentTask);
+    } else {
+      deduped[matchingIndex] = mergeVideoHistoryRecord(deduped[matchingIndex], currentTask);
+    }
+  }
 
   const counts: VideoHistoryStatusCounts = { active: 0, failed: 0 };
 
-  taskMap.forEach((record, key) => {
-    const view = getSafeVideoHistoryView(record, key);
+  deduped.forEach((record, index) => {
+    const view = getSafeVideoHistoryView(record, `status:${index}`);
     if (isVideoActiveStatus(view.status) && !isVideoStaleActiveRecord(record)) {
       counts.active += 1;
       return;
@@ -397,20 +479,20 @@ export function getVideoHistoryStatusCounts(records: VideoTaskRecord[], currentT
 }
 
 export function mergeVideoHistory(localHistory: VideoTaskRecord[], serverHistory: VideoTaskRecord[]) {
-  const merged = new Map<string, VideoTaskRecord>();
+  const merged = serverHistory.reduce<VideoTaskRecord[]>((items, record) => upsertVideoHistoryRecord(items, record), []);
 
-  serverHistory.forEach((record, index) => {
-    const key = getVideoHistoryStableKey(record, `server:${index}`);
-    merged.set(key, record);
+  localHistory.forEach((localRecord) => {
+    const serverIndex = merged.findIndex((record) => isSameVideoGenerationJob(record, localRecord));
+    if (serverIndex < 0) {
+      const next = upsertVideoHistoryRecord(merged, localRecord);
+      merged.splice(0, merged.length, ...next);
+      return;
+    }
+
+    merged[serverIndex] = mergeVideoHistoryRecord(merged[serverIndex], localRecord);
   });
 
-  localHistory.forEach((record, index) => {
-    const key = getVideoHistoryStableKey(record, `local:${index}`);
-    const serverRecord = merged.get(key);
-    merged.set(key, serverRecord ? mergeVideoHistoryRecord(serverRecord, record) : record);
-  });
-
-  return Array.from(merged.values()).sort((a, b) => getVideoHistoryTime(b) - getVideoHistoryTime(a));
+  return merged.sort((a, b) => getVideoHistoryTime(b) - getVideoHistoryTime(a));
 }
 
 function truncateText(value: string, maxLength = 220) {

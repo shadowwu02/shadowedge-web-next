@@ -10,13 +10,17 @@ import { createVideoClientRequestId } from "@/lib/video/videoClientRequestId";
 import { countVideoPromptCharacters, formatVideoPromptLimit, getVideoPromptLimit } from "@/lib/video/videoPromptLimits";
 import {
   getSafeHistoryOutputUrl,
+  getVideoHistoryStatusCounts,
   getVideoHistoryStableKey,
+  isSameVideoGenerationJob,
   isVideoStaleActiveRecord,
   isVideoTerminalPollingRecord,
   mergeVideoHistory,
   normalizeVideoPollingStatus,
   preferLatestVideoTask,
   selectRecoverableVideoPollingTask,
+  upsertVideoHistoryRecord,
+  videoHistoryRecordHasJobId,
 } from "@/lib/video/historyUtils";
 import type { VideoMentionBinding } from "@/lib/video/videoMentionBindings";
 import { isVideoActiveStatus } from "@/lib/utils";
@@ -85,9 +89,7 @@ function getActiveTaskCount(records: VideoTaskRecord[]) {
 }
 
 function findTaskByJobId(records: VideoTaskRecord[], jobId: string) {
-  return records.find((record) =>
-    [record.jobId, record.providerJobId, record.dbJobId].filter(Boolean).some((value) => String(value) === String(jobId)),
-  );
+  return records.find((record) => videoHistoryRecordHasJobId(record, jobId));
 }
 
 function mergeStatusIntoTask(base: VideoTaskRecord, result: VideoStatusResponse): VideoTaskRecord {
@@ -157,14 +159,7 @@ export function useVideoGeneration() {
   }, [visibleHistory]);
 
   const activeTaskCount = useMemo(() => {
-    const activeIds = new Set<string>();
-    visibleHistory.forEach((record) => {
-      if (!isVideoActiveStatus(record.status)) return;
-      if (isVideoStaleActiveRecord(record)) return;
-      activeIds.add(getVideoHistoryStableKey(record, `active:${record.createdAt}`));
-    });
-    if (task && isVideoActiveStatus(task.status) && !isVideoStaleActiveRecord(task)) activeIds.add(getVideoHistoryStableKey(task, "current"));
-    return activeIds.size;
+    return getVideoHistoryStatusCounts(visibleHistory, task).active;
   }, [task, visibleHistory]);
 
   const refreshCredits = useCallback(async () => {
@@ -269,7 +264,7 @@ export function useVideoGeneration() {
       };
 
       setTask((current) => preferLatestVideoTask(current, nextTask));
-      setLocalHistory((current) => [nextTask, ...current.filter((item) => item.jobId !== nextTask.jobId)].slice(0, 20));
+      setLocalHistory((current) => upsertVideoHistoryRecord(current, nextTask, 20));
       void saveVideoHistory({ ...nextTask, source: "local" }).catch((saveError) => {
         console.warn("[ShadowEdge Next] save video history failed:", saveError);
       });
@@ -302,8 +297,8 @@ export function useVideoGeneration() {
     } catch (statusError) {
       if (baseTask && isVideoStaleActiveRecord(baseTask)) {
         const next = markStatusCheckExpired(baseTask, expiredStatusMessage);
-        setLocalHistory((items) => [next, ...items.filter((item) => item.jobId !== next.jobId)].slice(0, 20));
-        setTask((current) => (current && getVideoHistoryStableKey(current, "") === getVideoHistoryStableKey(next, "") ? next : current));
+        setLocalHistory((items) => upsertVideoHistoryRecord(items, next, 20));
+        setTask((current) => (current && isSameVideoGenerationJob(current, next) ? next : current));
         setError(expiredStatusMessage);
         return {
           jobId,
@@ -322,7 +317,7 @@ export function useVideoGeneration() {
 
     if (baseTask) {
       const next = mergeStatusIntoTask(baseTask, result as VideoStatusResponse);
-      setLocalHistory((items) => [next, ...items.filter((item) => item.jobId !== next.jobId)].slice(0, 20));
+      setLocalHistory((items) => upsertVideoHistoryRecord(items, next, 20));
       setTask((current) => preferLatestVideoTask(current, next));
 
       if (isVideoTerminalPollingRecord(next)) {

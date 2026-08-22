@@ -10,8 +10,10 @@ import {
   getLocalizedVideoHistoryPublicErrorMessage,
   getVideoHistoryStableKey,
   getVideoHistoryTime,
+  isSameVideoGenerationJob,
   isVideoStaleActiveRecord,
-  preferLatestVideoTask,
+  mergeVideoHistoryRecord,
+  upsertVideoHistoryRecord,
 } from "@/lib/video/historyUtils";
 import { getVideoUserFacingErrorDisplay } from "@/lib/video/videoErrorDisplay";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
@@ -144,29 +146,26 @@ function DownloadIcon() {
 }
 
 export function buildVideoGenerationRecords(task: VideoTaskRecord | null, history: VideoTaskRecord[]) {
-  const records = new Map<string, VideoTaskRecord>();
-
-  history.forEach((record, index) => {
-    const key = getVideoHistoryStableKey(record, `history:${index}`) || `history:${index}`;
-    records.set(key, preferLatestVideoTask(records.get(key) || null, record) || record);
-  });
-
-  let taskKey = "";
+  const records = history.reduce<VideoTaskRecord[]>((items, record) => upsertVideoHistoryRecord(items, record), []);
   if (task) {
-    taskKey = getVideoHistoryStableKey(task, "current") || "current";
-    records.set(taskKey, preferLatestVideoTask(records.get(taskKey) || null, task) || task);
-  }
-
-  const ordered = Array.from(records.entries()).sort((a, b) => getVideoHistoryTime(b[1]) - getVideoHistoryTime(a[1]));
-  if (taskKey) {
-    const taskIndex = ordered.findIndex(([key]) => key === taskKey);
-    if (taskIndex > 0) {
-      const [taskEntry] = ordered.splice(taskIndex, 1);
-      ordered.unshift(taskEntry);
+    const matchingIndex = records.findIndex((record) => isSameVideoGenerationJob(record, task));
+    if (matchingIndex < 0) {
+      records.unshift(task);
+    } else {
+      records[matchingIndex] = mergeVideoHistoryRecord(records[matchingIndex], task);
     }
   }
 
-  return ordered.slice(0, streamLimit).map(([, record]) => record);
+  const ordered = records.sort((a, b) => getVideoHistoryTime(b) - getVideoHistoryTime(a));
+  if (task) {
+    const taskIndex = ordered.findIndex((record) => isSameVideoGenerationJob(record, task));
+    if (taskIndex > 0) {
+      const [taskRecord] = ordered.splice(taskIndex, 1);
+      ordered.unshift(taskRecord);
+    }
+  }
+
+  return ordered.slice(0, streamLimit);
 }
 
 function filterGenerationRecord(record: VideoTaskRecord, filter: VideoHistoryFilter) {
