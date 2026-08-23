@@ -17,7 +17,6 @@ import { VideoReferenceTransformPanel } from "@/components/video/VideoReferenceT
 import { type VideoParams, VideoParamsPanel } from "@/components/video/VideoParamsPanel";
 import { RemakeStoryboardPanel, type RemakeOutputItem, type RemakeOutputScope } from "@/components/video/remake/RemakeStoryboardPanel";
 import { VideoRemakeWorkspace } from "@/components/video/remake/VideoRemakeWorkspace";
-import { buildMockRemakeStoryboard } from "@/components/video/remake/remakeMockData";
 import { getRemakeShotGenerationKey } from "@/components/video/remake/remakeTypes";
 import type {
   RemakeAnalysisSource,
@@ -83,6 +82,7 @@ import {
   readRemakeStoryboardDraft,
   saveRemakeStoryboardDraft,
 } from "@/lib/video/remakeStoryboardDraft";
+import { getRenderableRemakeStoryboard } from "@/lib/video/remakeStoryboardVisibility";
 import {
   clearRemakeShotQueueDraft,
   getRemakeQueueUserKeyHash,
@@ -1438,6 +1438,16 @@ export function VideoWorkspace() {
       }
 
       const draft = result.draft;
+      if (!getRenderableRemakeStoryboard({ storyboard: draft.storyboard })) {
+        clearRemakeStoryboardDraft();
+        setRemakeStoryboard(null);
+        setRemakeAnalysisMeta(null);
+        setRemakeAnalysisError(t("video.remake.analysisFailed"));
+        setRemakeAnalysisNotice("");
+        setIsRemakeDraftRestored(false);
+        setWorkspaceMode("remake");
+        return;
+      }
       setRemakeMode(draft.settings.mode);
       setRemakeTargetRegion(draft.settings.targetRegion);
       setRemakeCharacterRules(draft.settings.characterRules);
@@ -2097,6 +2107,7 @@ export function VideoWorkspace() {
     setRemakeAnalysisError("");
     setRemakeAnalysisNotice("");
     setRemakeAnalysisMeta(null);
+    setRemakeStoryboard(null);
 
     try {
       if (!sourceVideoUrl && remakeSourceVideo?.file) {
@@ -2386,6 +2397,16 @@ export function VideoWorkspace() {
       });
       if (remakeSourceRevisionRef.current !== analysisRevision) return;
 
+      const renderableStoryboard = getRenderableRemakeStoryboard(result);
+      if (!renderableStoryboard) {
+        clearRemakeStoryboardDraft();
+        setRemakeStoryboard(null);
+        setRemakeAnalysisMeta(null);
+        setRemakeAnalysisError(t("video.remake.analysisFailed"));
+        setRemakeAnalysisNotice("");
+        return;
+      }
+
       const analysisSource =
         getRemakeAnalysisSource(result.meta?.analysisSource) ||
         (result.meta?.mock ? "fallback" : result.meta?.vlmProvider ? "vlm" : undefined);
@@ -2393,14 +2414,14 @@ export function VideoWorkspace() {
       const providerCallMade = hasTrueFlag(result.meta?.providerCallMade, vlmCalled);
       const sandboxVlm = hasTrueFlag(result.meta?.sandboxVlm, analysisSource === "sandbox_vlm");
       const analyzedStoryboard: RemakeStoryboard = {
-        ...result.storyboard,
+        ...renderableStoryboard,
         analysisSource,
-        aspectRatio: result.storyboard.aspectRatio || result.meta?.targetRatio || result.meta?.aspectRatio || targetRatio,
+        aspectRatio: renderableStoryboard.aspectRatio || result.meta?.targetRatio || result.meta?.aspectRatio || targetRatio,
         fallbackReason: result.meta?.fallbackReason,
         mock: Boolean(result.meta?.mock),
         providerCallMade,
         sandboxVlm,
-        targetRatio: result.storyboard.targetRatio || result.meta?.targetRatio || result.meta?.aspectRatio || targetRatio,
+        targetRatio: renderableStoryboard.targetRatio || result.meta?.targetRatio || result.meta?.aspectRatio || targetRatio,
         vlmCalled,
         vlmProvider: result.meta?.vlmProvider,
       };
@@ -2431,13 +2452,11 @@ export function VideoWorkspace() {
         setWorkspaceNotice(t("video.remake.draftSaveFailed"));
       }
       setIsRemakeDraftRestored(false);
-      if (result.meta?.keyframeMaterializationStatus === "failed") {
-        setRemakeAnalysisNotice(t("video.remake.keyframePreparationFailed"));
-      } else if (analysisSource === "fallback" || result.meta?.vlmFailed || result.meta?.vlmUnavailable) {
-        setRemakeAnalysisNotice(t("video.remake.vlmFallback"));
-      } else {
-        setRemakeAnalysisNotice(t("video.remake.analysisComplete"));
-      }
+      setRemakeAnalysisNotice(
+        result.meta?.keyframeMaterializationStatus === "failed"
+          ? t("video.remake.keyframePreparationFailed")
+          : t("video.remake.analysisComplete"),
+      );
     } catch (error) {
       if (remakeSourceRevisionRef.current !== analysisRevision) return;
       if (remakeMode === "long_video") {
@@ -2480,11 +2499,11 @@ export function VideoWorkspace() {
         setRemakeAnalysisNotice("");
         return;
       }
-      const isDurationLimit = isRemakeDurationLimitError(error);
-      setRemakeStoryboard(isDurationLimit ? null : buildMockRemakeStoryboard(settings, remakeSourceVideo));
+      clearRemakeStoryboardDraft();
+      setRemakeStoryboard(null);
       setRemakeAnalysisMeta(null);
       setRemakeAnalysisError(getRemakeAnalysisErrorMessage(error, t));
-      setRemakeAnalysisNotice(isDurationLimit ? "" : t("video.remake.mockFallback"));
+      setRemakeAnalysisNotice("");
     } finally {
       remakeAnalysisSubmittingRef.current = false;
       if (remakeSourceRevisionRef.current === analysisRevision) {

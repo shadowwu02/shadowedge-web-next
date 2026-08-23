@@ -412,7 +412,6 @@ export function RemakeStoryboardPanel({
   storyboard,
 }: RemakeStoryboardPanelProps) {
   const { t, tf } = useI18n();
-  const shots = storyboard?.shots || [];
   const segments = metadata?.segments || [];
   const canonicalResult = metadata?.canonicalResult;
   const canonicalVisual = canonicalResult?.visualUnderstanding;
@@ -451,19 +450,26 @@ export function RemakeStoryboardPanel({
         !vlmCalled ||
         !providerCallMade),
   );
+  const isRejectedStoryboard = Boolean(storyboard && (isFallbackStoryboard || storyboard.shots.length === 0));
+  const renderableStoryboard = isRejectedStoryboard ? null : storyboard;
+  const shots = renderableStoryboard?.shots || [];
   const analysisSourceLabel =
     analysisSource === "vlm" || analysisSource === "real_vlm"
       ? t("video.remake.analysisSource.vlm")
       : analysisSource === "fallback" || analysisSource === "sandbox_vlm"
         ? t("video.remake.analysisSource.fallback")
         : "";
-  const displayedAnalysisSourceLabel = analysisSourceLabel || (isFallbackStoryboard ? t("video.remake.analysisSource.fallback") : "");
-  const emptyStateTitle = isAnalyzing
+  const displayedAnalysisSourceLabel = isRejectedStoryboard ? "" : analysisSourceLabel;
+  const emptyStateTitle = isRejectedStoryboard
+    ? t("video.remake.analysisFailed")
+    : isAnalyzing
     ? t("video.remake.analyzingSourceVideoTitle")
     : hasSourceVideo
       ? t("video.remake.sourceReady")
       : t("video.remake.noStoryboardTitle");
-  const emptyStateBody = isAnalyzing
+  const emptyStateBody = isRejectedStoryboard
+    ? t("video.remake.analysisFailedHint")
+    : isAnalyzing
     ? t("video.remake.analyzingStoryboardHint")
     : hasSourceVideo
       ? t("video.remake.sourceReadyStoryboardHint")
@@ -522,7 +528,7 @@ export function RemakeStoryboardPanel({
             {t(getRemakeModeLabelKey(settings.mode))}
           </span>
           <span>{settings.targetRegion}</span>
-          {storyboard && onClearDraft ? (
+          {renderableStoryboard && onClearDraft ? (
             <button
               className="se-button-secondary min-h-9 rounded-[14px] px-3 text-xs font-semibold"
               onClick={onClearDraft}
@@ -554,7 +560,7 @@ export function RemakeStoryboardPanel({
         </div>
       </div>
 
-      {storyboard ? (
+      {renderableStoryboard ? (
         <div className="mb-5 grid gap-2 rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/58 p-3 text-sm leading-6 text-[#b9b9b9]/72">
           {draftNotice ? <p className="font-semibold text-[#ffd08a]/88">{draftNotice}</p> : null}
           {!guardedLongVideoUx && isFallbackStoryboard ? (
@@ -585,29 +591,29 @@ export function RemakeStoryboardPanel({
         />
       ) : null}
 
-      {storyboard ? (
+      {renderableStoryboard ? (
         <div className="mb-5 grid gap-3 lg:grid-cols-4">
-          <ShotMeta label={t("video.remake.sourceVideo")} value={storyboard.sourceTitle || "--"} />
+          <ShotMeta label={t("video.remake.sourceVideo")} value={renderableStoryboard.sourceTitle || "--"} />
           <ShotMeta label={t("video.remake.metadata")} value={formatSourceMetadata(metadata?.sourceVideo)} />
           <ShotMeta label={t("video.remake.segments")} value={segments.length || "--"} />
-          <ShotMeta label={t("video.remake.targetRegion")} value={storyboard.targetRegion} />
-          <ShotMeta label={t("video.remake.characterRules")} value={storyboard.characterRules || "--"} />
-          <ShotMeta label={t("video.remake.sceneStyle")} value={storyboard.sceneStyle || "--"} />
+          <ShotMeta label={t("video.remake.targetRegion")} value={renderableStoryboard.targetRegion} />
+          <ShotMeta label={t("video.remake.characterRules")} value={renderableStoryboard.characterRules || "--"} />
+          <ShotMeta label={t("video.remake.sceneStyle")} value={renderableStoryboard.sceneStyle || "--"} />
         </div>
       ) : null}
 
-      {storyboard?.summary || storyboard?.remakePrompt ? (
+      {renderableStoryboard?.summary || renderableStoryboard?.remakePrompt ? (
         <div className="mb-5 grid gap-3 lg:grid-cols-2">
-          {storyboard.summary ? (
+          {renderableStoryboard.summary ? (
             <div className="rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/58 p-4">
               <p className="se-eyebrow">{t("video.remake.summary")}</p>
-              <p className="mt-2 text-sm leading-6 text-[#f4f4f4]/82">{storyboard.summary}</p>
+              <p className="mt-2 text-sm leading-6 text-[#f4f4f4]/82">{renderableStoryboard.summary}</p>
             </div>
           ) : null}
-          {storyboard.remakePrompt ? (
+          {renderableStoryboard.remakePrompt ? (
             <div className="rounded-[22px] border border-[rgba(244,244,244,0.08)] bg-[#111318]/58 p-4">
               <p className="se-eyebrow">{t("video.remake.remakePrompt")}</p>
-              <p className="mt-2 text-sm leading-6 text-[#f4f4f4]/82">{storyboard.remakePrompt}</p>
+              <p className="mt-2 text-sm leading-6 text-[#f4f4f4]/82">{renderableStoryboard.remakePrompt}</p>
             </div>
           ) : null}
         </div>
@@ -625,7 +631,7 @@ export function RemakeStoryboardPanel({
         <div className="grid gap-4">
           {shots.map((shot) => {
             const keyframes = getShotKeyframes(shot, segments);
-            const generation = shotGenerations[getRemakeShotGenerationKey(storyboard?.id, shot)];
+            const generation = shotGenerations[getRemakeShotGenerationKey(renderableStoryboard?.id, shot)];
             const isQueued = generation?.status === "queued";
             const isSkipped = generation?.status === "skipped";
             const hasGeneratedOutput = generation?.status === "success" && Boolean(generation.outputUrl);
