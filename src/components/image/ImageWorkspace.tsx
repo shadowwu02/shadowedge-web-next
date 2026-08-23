@@ -4,16 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ImageHistoryPanel } from "@/components/image/ImageHistoryPanel";
 import { ImageOutputDetailPanel } from "@/components/image/ImageOutputDetailPanel";
-import { ImageOutputStage } from "@/components/image/ImageOutputStage";
 import { ImagePromptPanel } from "@/components/image/ImagePromptPanel";
+import { ImageResultStack } from "@/components/image/ImageResultStack";
 import { ImageUpscalePanel } from "@/components/image/ImageUpscalePanel";
 import { useImageGeneration } from "@/hooks/useImageGeneration";
 import { useI18n } from "@/i18n/useI18n";
 import { assetLibraryImageHandoffToReference, consumeAssetLibraryImageHandoff } from "@/lib/assets/assetLibraryImageHandoff";
 import { getImageUserFacingError } from "@/lib/image/imageErrorDisplay";
+import { isCanonicalImageReferenceReady } from "@/lib/image-api";
 import { isImageActiveStatus } from "@/lib/image/imageHistoryUtils";
 import { consumeImageUpscaleAssetHandoff } from "@/lib/image/imageUpscaleHandoff";
 import { formatImagePromptLimit } from "@/lib/image/imagePromptLimits";
+import { mediaAssetToImageReferenceItem, saveAssetFromJob } from "@/lib/assets-api";
 import {
   consumePromptStudioToImageDraft,
   getPromptStudioDraftLocale,
@@ -129,6 +131,29 @@ export function ImageWorkspace() {
       }, 1800);
     });
   }, []);
+
+  const handleReuseResultAsReference = useCallback(async (job: ImageHistoryItem, outputUrl: string) => {
+    const jobId = job.dbJobId || job.jobId || job.id;
+    if (!jobId || !outputUrl) return null;
+
+    const saved = await saveAssetFromJob(jobId, {
+      displayName: t("assets.save.generatedImage"),
+      kind: "image",
+      outputUrl,
+    });
+    const reference = saved.asset ? mediaAssetToImageReferenceItem(saved.asset) : null;
+    if (!reference || !isCanonicalImageReferenceReady(reference)) return null;
+
+    const existingReference = image.references.find((item) => item.assetId === reference.assetId);
+    if (existingReference) return existingReference;
+    const maxReferences = Math.max(0, image.selectedModel?.capabilities.maxReferences || 0);
+    if (!maxReferences || image.references.length >= maxReferences) return null;
+    image.addReferenceItems([reference]);
+
+    setPromptStudioNotice(t("image.actions.referenceAdded"));
+    focusPromptStudioImportTarget();
+    return reference;
+  }, [focusPromptStudioImportTarget, image, t]);
 
   useEffect(() => {
     return () => {
@@ -308,12 +333,16 @@ export function ImageWorkspace() {
       </div>
 
       <div className="min-h-[560px] overflow-hidden xl:min-h-0">
-        <ImageOutputStage
+        <ImageResultStack
+          currentJobId={displayJob?.dbJobId || displayJob?.jobId || displayJob?.id}
           error={localizedError}
           isGenerating={image.isGenerating}
+          isLoading={image.loadingHistory}
           isPolling={image.isPolling}
-          job={displayJob}
+          jobs={image.history}
           onRefresh={handleRefreshStatus}
+          onReuseReference={handleReuseResultAsReference}
+          onSelect={handleHistorySelect}
           onUpscale={setUpscaleSource}
           recoveredJobId={image.recoveredJobId}
         />

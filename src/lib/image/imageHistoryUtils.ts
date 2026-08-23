@@ -253,6 +253,47 @@ export function getImageHistoryStableKey(record: unknown, fallback = "") {
   );
 }
 
+function getImageHistoryIdentityAliases(record: unknown) {
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+  return Array.from(
+    new Set(
+      [
+        raw.dbJobId,
+        raw.db_job_id,
+        raw.databaseJobId,
+        raw.database_job_id,
+        raw.generationJobId,
+        raw.generation_job_id,
+        raw.id,
+        meta.dbJobId,
+        meta.db_job_id,
+        meta.databaseJobId,
+        meta.database_job_id,
+        meta.generationJobId,
+        meta.generation_job_id,
+        raw.jobId,
+        raw.job_id,
+        meta.jobId,
+        meta.job_id,
+        raw.providerJobId,
+        raw.provider_job_id,
+        meta.providerJobId,
+        meta.provider_job_id,
+      ]
+        .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+        .map((value) => value.trim()),
+    ),
+  );
+}
+
+export function isSameImageGenerationJob(left: unknown, right: unknown) {
+  const leftAliases = getImageHistoryIdentityAliases(left);
+  if (!leftAliases.length) return false;
+  const rightAliases = new Set(getImageHistoryIdentityAliases(right));
+  return leftAliases.some((alias) => rightAliases.has(alias));
+}
+
 export function normalizeImageHistoryItem(item: unknown): ImageHistoryItem {
   const raw = asRecord(item);
   const meta = asRecord(raw.meta);
@@ -299,21 +340,60 @@ export function normalizeImageHistoryItem(item: unknown): ImageHistoryItem {
       createdAt,
     progress: typeof raw.progress === "number" ? raw.progress : null,
     raw: item,
+    source: raw.source === "local" ? "local" : "server",
+  };
+}
+
+export function mergeImageHistoryRecord(serverRecord: ImageHistoryItem, localRecord?: ImageHistoryItem): ImageHistoryItem {
+  if (!localRecord) return { ...serverRecord, source: "server" };
+  const outputUrls = Array.from(new Set([...(serverRecord.outputUrls || []), ...(localRecord.outputUrls || [])].filter(Boolean)));
+
+  return {
+    ...localRecord,
+    ...serverRecord,
+    prompt: serverRecord.prompt || localRecord.prompt,
+    model: serverRecord.model || localRecord.model,
+    provider: serverRecord.provider || localRecord.provider,
+    providerModel: serverRecord.providerModel || localRecord.providerModel,
+    ratio: serverRecord.ratio || localRecord.ratio,
+    resolution: serverRecord.resolution || localRecord.resolution,
+    quality: serverRecord.quality || localRecord.quality,
+    outputUrls,
+    outputUrl: serverRecord.outputUrl || outputUrls[0] || localRecord.outputUrl,
+    meta: {
+      ...(localRecord.meta || {}),
+      ...(serverRecord.meta || {}),
+    },
     source: "server",
   };
 }
 
-export function mergeImageHistory(history: ImageHistoryItem[], localItems: ImageHistoryItem[] = []) {
-  const merged = new Map<string, ImageHistoryItem>();
-  [...localItems, ...history].forEach((item, index) => {
-    const key = getImageHistoryStableKey(item, `image:${index}`);
-    const existing = merged.get(key);
-    if (!existing || getImageHistoryTime(item) >= getImageHistoryTime(existing)) {
-      merged.set(key, item);
-    }
-  });
+export function upsertImageHistoryRecord(records: ImageHistoryItem[], candidate: ImageHistoryItem, limit = Number.POSITIVE_INFINITY) {
+  const matchingIndex = records.findIndex((record) => isSameImageGenerationJob(record, candidate));
+  if (matchingIndex < 0) return [candidate, ...records].slice(0, limit);
 
-  return Array.from(merged.values()).sort((left, right) => getImageHistoryTime(right) - getImageHistoryTime(left));
+  const existing = records[matchingIndex];
+  const next = candidate.source === "server"
+    ? mergeImageHistoryRecord(candidate, existing)
+    : existing.source === "server"
+      ? mergeImageHistoryRecord(existing, candidate)
+      : getImageHistoryTime(candidate) >= getImageHistoryTime(existing)
+        ? candidate
+        : existing;
+
+  return [next, ...records.filter((_record, index) => index !== matchingIndex)]
+    .sort((left, right) => getImageHistoryTime(right) - getImageHistoryTime(left))
+    .slice(0, limit);
+}
+
+export function mergeImageHistory(history: ImageHistoryItem[], localItems: ImageHistoryItem[] = []) {
+  const serverRecords = history.reduce<ImageHistoryItem[]>((items, record) => {
+    return upsertImageHistoryRecord(items, { ...record, source: "server" });
+  }, []);
+
+  return localItems
+    .reduce<ImageHistoryItem[]>((items, localRecord) => upsertImageHistoryRecord(items, { ...localRecord, source: "local" }), serverRecords)
+    .sort((left, right) => getImageHistoryTime(right) - getImageHistoryTime(left));
 }
 
 export function selectRecoverableImageJob(history: ImageHistoryItem[]) {

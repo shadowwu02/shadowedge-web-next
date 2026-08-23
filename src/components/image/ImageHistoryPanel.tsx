@@ -10,6 +10,7 @@ import { getImageHistoryModelLogoLookup } from "@/lib/image/imageModelLogo";
 import { getReusableImageOutputUrl, sendImageFailedJobToImageDraft, sendImageResultToImageDraft } from "@/lib/image/imageResultDrafts";
 import { sendImageResultToVideoDraft } from "@/lib/video/videoResultDrafts";
 import { useI18n } from "@/i18n/useI18n";
+import { downloadBrowserFile } from "@/lib/browserDownload";
 import { formatTime } from "@/lib/utils";
 import type { ImageHistoryItem } from "@/types/image";
 
@@ -133,6 +134,14 @@ export function ImageHistoryPanel({
     }
 
     window.location.assign("/workspace/image?from=failed-job");
+  };
+  const handleDownload = async (url: string, filename: string) => {
+    setActionError("");
+    try {
+      await downloadBrowserFile({ filename, url });
+    } catch {
+      setActionError(t("image.actions.downloadFailed"));
+    }
   };
 
   return (
@@ -275,9 +284,9 @@ export function ImageHistoryPanel({
                 ) : null}
                 <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-white/8 pt-2">
                   {isCompleted && outputUrl ? (
-                    <a className={imageActionClass("primary")} download={`shadowedge-image-${safeFilename}.png`} href={outputUrl} rel="noreferrer" target="_blank">
+                    <button className={imageActionClass("primary")} onClick={() => void handleDownload(outputUrl, `shadowedge-image-${safeFilename}.png`)} type="button">
                       {t("image.actions.download")}
-                    </a>
+                    </button>
                   ) : null}
                   {isCompleted && outputUrl ? (
                     <SaveToAssetsButton

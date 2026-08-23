@@ -15,10 +15,13 @@ import { readImageResultDraftNotice } from "@/lib/image/imageResultDrafts";
 import {
   isImageActiveStatus,
   isImageTerminalStatus,
+  isSameImageGenerationJob,
   mergeImageHistory,
+  mergeImageHistoryRecord,
   mergeImageStatusIntoJob,
   normalizeImageHistoryItem,
   selectRecoverableImageJob,
+  upsertImageHistoryRecord,
 } from "@/lib/image/imageHistoryUtils";
 import {
   canAddImageReference,
@@ -101,6 +104,7 @@ function buildCurrentJobFromGenerateResponse(response: Awaited<ReturnType<typeof
     outputUrls: response.outputUrls,
     createdAt: Date.now(),
     updatedAt: Date.now(),
+    source: "local",
     meta: {
       cost: response.cost,
       ratio: response.params.ratio,
@@ -273,7 +277,11 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       if (!currentJobRef.current && recoverable) {
         setRecoveredJobId(recoverable.dbJobId || recoverable.jobId || recoverable.id);
       }
-      setCurrentJob((current) => current || recoverable);
+      setCurrentJob((current) => {
+        if (!current) return recoverable;
+        const serverRecord = items.find((item) => isSameImageGenerationJob(item, current));
+        return serverRecord ? mergeImageHistoryRecord(serverRecord, current) : current;
+      });
       return items;
     } catch (historyError) {
       setError(formatImageError("image.errors.historyLoadFailed", historyError, "Failed to load image history."));
@@ -496,7 +504,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       });
       setLocalJobs((current) => {
         const next = mergeImageStatusIntoJob(baseJob, status);
-        return [next, ...current.filter((item) => item.jobId !== next.jobId && item.dbJobId !== next.dbJobId)].slice(0, 20);
+        return upsertImageHistoryRecord(current, { ...next, source: "local" }, 20);
       });
       if (isImageTerminalStatus(status.status)) {
         const statusJobId = status.dbJobId || status.jobId || status.id;
@@ -590,7 +598,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       const nextJob = buildCurrentJobFromGenerateResponse(response, effectivePrompt);
 
       setCurrentJob(nextJob);
-      setLocalJobs((current) => [nextJob, ...current.filter((item) => item.jobId !== nextJob.jobId)].slice(0, 20));
+      setLocalJobs((current) => upsertImageHistoryRecord(current, { ...nextJob, source: "local" }, 20));
       pendingGenerationOperationRef.current = null;
       clearPendingImageGenerationOperation();
       return nextJob;

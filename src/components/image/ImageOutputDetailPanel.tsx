@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { SaveToAssetsButton } from "@/components/assets/SaveToAssetsButton";
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { getImageUserFacingErrorDisplay } from "@/lib/image/imageErrorDisplay";
@@ -7,6 +8,7 @@ import { getLocalizedImageHistoryPublicErrorMessage, isImageActiveStatus, isImag
 import { getImageHistoryModelLogoLookup } from "@/lib/image/imageModelLogo";
 import { useI18n } from "@/i18n/useI18n";
 import { formatTime } from "@/lib/utils";
+import { downloadBrowserFile } from "@/lib/browserDownload";
 import type { ImageHistoryItem } from "@/types/image";
 
 function CopyIcon() {
@@ -72,6 +74,7 @@ function formatFileSize(bytes: number) {
 
 export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }) {
   const { locale, t, tf } = useI18n();
+  const [downloadError, setDownloadError] = useState("");
 
   if (!job) {
     return (
@@ -111,6 +114,14 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
     if (isImageActiveStatus(status)) return t("image.status.processing");
     return status || t("image.status.unknown");
   })();
+  const handleDownload = async (url: string, index: number) => {
+    setDownloadError("");
+    try {
+      await downloadBrowserFile({ filename: `shadowedge-image-${index + 1}.png`, url });
+    } catch {
+      setDownloadError(t("image.actions.downloadFailed"));
+    }
+  };
 
   return (
     <section className="se-card-quiet rounded-[26px] p-4">
@@ -135,6 +146,7 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
       </div>
 
       <div className="space-y-3">
+        {downloadError ? <div className="rounded-[18px] border border-[#8c4632]/42 bg-[#2a1012]/72 px-3 py-2 text-xs leading-5 text-[#f2b3a1]">{downloadError}</div> : null}
         <div className="rounded-[18px] border border-white/8 bg-[#05070b]/52 p-3">
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-[.14em] text-[#b9b9b9]/40">{t("image.prompt.label")}</p>
           <p className="line-clamp-5 text-xs leading-5 text-[#f4f4f4]/78">{job.prompt || "--"}</p>
@@ -206,16 +218,14 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
                         outputUrl={url}
                       />
                     ) : null}
-                    <a
+                    <button
                       className="se-button-secondary inline-flex min-h-7 items-center gap-1.5 rounded-full px-2 text-[10px] font-semibold"
-                      download={`shadowedge-image-${index + 1}.png`}
-                      href={url}
-                      rel="noreferrer"
-                      target="_blank"
+                      onClick={() => void handleDownload(url, index)}
+                      type="button"
                     >
                       <DownloadIcon />
                       {t("image.actions.download")}
-                    </a>
+                    </button>
                   </div>
                 </div>
                 <p className="mt-1 truncate text-[10px] text-[#b9b9b9]/42">{url}</p>
