@@ -2,6 +2,10 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/i18n/useI18n";
+import {
+  readVideoDurationSliderValue,
+  resolveVideoDurationSliderContract,
+} from "@/lib/video/videoDurationSlider";
 import { getDefaultVideoModelRule, getVideoModelRule, normalizeVideoParamsForRule } from "@/lib/video/videoModelRules";
 import type { VideoModelRule } from "@/lib/video/videoModelRules";
 
@@ -104,6 +108,13 @@ export function VideoParamsPanel({
     () => uniqueSortedDurations(modelRule.durations.length ? modelRule.durations : defaultRule.durations, value.duration),
     [defaultRule.durations, modelRule.durations, value.duration],
   );
+  const durationSliderContract = useMemo(
+    () => resolveVideoDurationSliderContract(modelRule.durationPolicy, durationOptions),
+    [durationOptions, modelRule.durationPolicy],
+  );
+  const activeDurationSliderContract = durationSliderContract?.values.includes(value.duration)
+    ? durationSliderContract
+    : null;
   useEffect(() => {
     if (!openKey) return;
 
@@ -180,6 +191,13 @@ export function VideoParamsPanel({
     onChange({ ...value, duration: nextDuration });
   }
 
+  function updateSliderDuration(nextDuration: number) {
+    if (!durationSliderContract) return;
+    const exactDuration = readVideoDurationSliderValue(nextDuration, durationSliderContract);
+    if (exactDuration === null) return;
+    onChange({ ...value, duration: exactDuration });
+  }
+
   function updateListValue(key: "ratio" | "quality", nextValue: string) {
     setOpenKey(null);
     onChange({
@@ -245,28 +263,51 @@ export function VideoParamsPanel({
                   {tf("video.params.secondsValue", { seconds: value.duration })}
                 </span>
               </div>
-              <div
-                aria-label={t("video.params.duration")}
-                className="se-subtle-scrollbar grid max-h-[260px] grid-cols-3 gap-2 overflow-y-auto pr-1 sm:grid-cols-4"
-                role="radiogroup"
-              >
-                {durationOptions.map((duration) => (
-                  <button
-                    aria-checked={duration === value.duration}
-                    className={`min-h-10 min-w-0 rounded-[14px] border px-2 py-2 text-sm font-semibold transition-colors ${
-                      duration === value.duration
-                        ? "border-[#ffb44d]/42 bg-[#ffb44d]/18 text-[#ffd08a]"
-                        : "border-[rgba(244,244,244,0.08)] bg-[#111318]/72 text-[#b9b9b9]/72 hover:border-[#ffb44d]/28 hover:text-[#f4f4f4]"
-                    }`}
-                    key={duration}
-                    onClick={() => updateDuration(duration)}
-                    role="radio"
-                    type="button"
-                  >
-                    {tf("video.params.secondsValue", { seconds: duration })}
-                  </button>
-                ))}
-              </div>
+              {activeDurationSliderContract ? (
+                <div className="grid min-w-0 gap-2.5 rounded-[16px] border border-white/8 bg-black/12 px-3 py-2.5">
+                  <input
+                    aria-label={t("video.params.duration")}
+                    aria-valuetext={tf("video.params.secondsValue", { seconds: value.duration })}
+                    className="h-11 w-full min-w-0 cursor-pointer touch-manipulation accent-[#ffb44d]"
+                    max={activeDurationSliderContract.max}
+                    min={activeDurationSliderContract.min}
+                    onChange={(event) => updateSliderDuration(event.currentTarget.valueAsNumber)}
+                    step={activeDurationSliderContract.step}
+                    type="range"
+                    value={value.duration}
+                  />
+                  <div aria-hidden="true" className="flex min-w-0 items-center justify-between gap-3 text-[11px] font-semibold text-[#b9b9b9]/58">
+                    <span>{tf("video.params.secondsValue", { seconds: activeDurationSliderContract.min })}</span>
+                    <span className="truncate text-center text-xs text-[#ffd08a]">
+                      {tf("video.params.secondsValue", { seconds: value.duration })}
+                    </span>
+                    <span>{tf("video.params.secondsValue", { seconds: activeDurationSliderContract.max })}</span>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  aria-label={t("video.params.duration")}
+                  className="se-subtle-scrollbar grid max-h-[260px] grid-cols-3 gap-2 overflow-y-auto pr-1 sm:grid-cols-4"
+                  role="radiogroup"
+                >
+                  {durationOptions.map((duration) => (
+                    <button
+                      aria-checked={duration === value.duration}
+                      className={`min-h-10 min-w-0 rounded-[14px] border px-2 py-2 text-sm font-semibold transition-colors ${
+                        duration === value.duration
+                          ? "border-[#ffb44d]/42 bg-[#ffb44d]/18 text-[#ffd08a]"
+                          : "border-[rgba(244,244,244,0.08)] bg-[#111318]/72 text-[#b9b9b9]/72 hover:border-[#ffb44d]/28 hover:text-[#f4f4f4]"
+                      }`}
+                      key={duration}
+                      onClick={() => updateDuration(duration)}
+                      role="radio"
+                      type="button"
+                    >
+                      {tf("video.params.secondsValue", { seconds: duration })}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <div className="se-subtle-scrollbar grid max-h-[220px] gap-1 overflow-y-auto">

@@ -82,14 +82,18 @@ describe("video workspace public capability controls", () => {
     expect(getVideoHistoryGenerateAudio(request)).toBe(generateAudio);
   });
 
-  it("renders Catalog-driven duration options and keeps the result player explicitly audible", () => {
+  it("renders the Catalog-driven duration slider and keeps fixed durations on the discrete control", () => {
     const paramsSource = readFileSync("src/components/video/VideoParamsPanel.tsx", "utf8");
     const generateSource = readFileSync("src/components/video/GenerateButton.tsx", "utf8");
     const streamSource = readFileSync("src/components/video/VideoGenerationStream.tsx", "utf8");
 
+    expect(paramsSource).toContain("resolveVideoDurationSliderContract(modelRule.durationPolicy, durationOptions)");
+    expect(paramsSource).toContain('type="range"');
+    expect(paramsSource).toContain("event.currentTarget.valueAsNumber");
+    expect(paramsSource).toContain("touch-manipulation");
+    expect(paramsSource).toContain("h-11 w-full min-w-0");
     expect(paramsSource).toContain("durationOptions.map((duration)");
     expect(paramsSource).toContain('role="radiogroup"');
-    expect(paramsSource).not.toContain('type="range"');
     expect(generateSource).toContain("ESTIMATED_ONLY");
     expect(streamSource).toContain("muted={false}");
     expect(streamSource).toContain('preload="metadata"');
