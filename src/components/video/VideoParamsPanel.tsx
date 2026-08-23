@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties } from "react";
 import { useI18n } from "@/i18n/useI18n";
 import { getDefaultVideoModelRule, getVideoModelRule, normalizeVideoParamsForRule } from "@/lib/video/videoModelRules";
 import type { VideoModelRule } from "@/lib/video/videoModelRules";
@@ -35,22 +34,6 @@ const viewportPadding = 12;
 function uniqueSortedDurations(durations: number[], currentDuration: number) {
   const values = durations.length ? durations : [currentDuration || 5];
   return Array.from(new Set(values.map((duration) => Number(duration)).filter(Boolean))).sort((a, b) => a - b);
-}
-
-function getClosestDurationIndex(durations: number[], currentDuration: number) {
-  const current = Number(currentDuration) || durations[0] || 5;
-  let closestIndex = 0;
-  let closestDistance = Number.POSITIVE_INFINITY;
-
-  durations.forEach((duration, index) => {
-    const distance = Math.abs(duration - current);
-    if (distance < closestDistance) {
-      closestIndex = index;
-      closestDistance = distance;
-    }
-  });
-
-  return closestIndex;
 }
 
 function getEstimatedMenuHeight(key: ParamKey, optionCount = 0) {
@@ -121,8 +104,6 @@ export function VideoParamsPanel({
     () => uniqueSortedDurations(modelRule.durations.length ? modelRule.durations : defaultRule.durations, value.duration),
     [defaultRule.durations, modelRule.durations, value.duration],
   );
-  const durationIndex = getClosestDurationIndex(durationOptions, value.duration);
-
   useEffect(() => {
     if (!openKey) return;
 
@@ -193,8 +174,9 @@ export function VideoParamsPanel({
     setOpenKey(key);
   }
 
-  function updateDuration(nextIndex: number) {
-    const nextDuration = durationOptions[nextIndex] || durationOptions[0] || value.duration;
+  function updateDuration(nextDuration: number) {
+    if (!durationOptions.includes(nextDuration)) return;
+    setOpenKey(null);
     onChange({ ...value, duration: nextDuration });
   }
 
@@ -211,9 +193,6 @@ export function VideoParamsPanel({
     { key: "ratio", label: t("video.params.ratio"), value: value.ratio },
     { key: "quality", label: t("video.params.quality"), value: value.quality },
   ];
-  const durationProgress =
-    durationOptions.length > 1 ? Math.round((durationIndex / (durationOptions.length - 1)) * 100) : 100;
-
   useEffect(() => {
     const normalized = normalizeVideoParamsForRule(modelRule, value);
     const nextValue: VideoParams = {
@@ -259,52 +238,35 @@ export function VideoParamsPanel({
           onPointerDown={(event) => event.stopPropagation()}
         >
           {openKey === "duration" ? (
-            <div className="grid gap-4 p-2.5">
+            <div className="grid gap-3 p-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-[#f4f4f4]">{t("video.params.chooseDuration")}</span>
                 <span className="rounded-full border border-[#ffb44d]/18 bg-[#ffb44d]/12 px-2.5 py-1 text-xs font-semibold text-[#ffd08a]">
                   {tf("video.params.secondsValue", { seconds: value.duration })}
                 </span>
               </div>
-              <div className="px-1.5 pt-1">
-                <input
-                  aria-label={t("video.params.duration")}
-                  className="se-duration-slider w-full cursor-pointer"
-                  max={Math.max(0, durationOptions.length - 1)}
-                  min={0}
-                  onChange={(event) => updateDuration(Number(event.target.value))}
-                  step={1}
-                  style={{ "--se-duration-progress": `${durationProgress}%` } as CSSProperties}
-                  type="range"
-                  value={durationIndex}
-                />
-              </div>
               <div
-                className="grid gap-1 text-center text-[10px] font-semibold text-[#b9b9b9]/42"
-                style={{ gridTemplateColumns: `repeat(${durationOptions.length}, minmax(0, 1fr))` }}
+                aria-label={t("video.params.duration")}
+                className="grid grid-cols-2 gap-2 sm:grid-cols-3"
+                role="radiogroup"
               >
                 {durationOptions.map((duration) => (
                   <button
-                    className={`min-w-0 rounded-full px-0.5 py-1 transition-colors ${
+                    aria-checked={duration === value.duration}
+                    className={`min-h-10 min-w-0 rounded-[14px] border px-3 py-2 text-sm font-semibold transition-colors ${
                       duration === value.duration
-                        ? "bg-[#ffb44d]/18 text-[#ffd08a]"
-                        : "hover:bg-[#1a1c22] hover:text-[#f4f4f4]"
+                        ? "border-[#ffb44d]/42 bg-[#ffb44d]/18 text-[#ffd08a]"
+                        : "border-[rgba(244,244,244,0.08)] bg-[#111318]/72 text-[#b9b9b9]/72 hover:border-[#ffb44d]/28 hover:text-[#f4f4f4]"
                     }`}
                     key={duration}
-                    onClick={() => onChange({ ...value, duration })}
+                    onClick={() => updateDuration(duration)}
+                    role="radio"
                     type="button"
                   >
                     {tf("video.params.secondsValue", { seconds: duration })}
                   </button>
                 ))}
               </div>
-              <button
-                className="se-button-secondary justify-self-end rounded-full px-3 py-1.5 text-xs font-semibold"
-                onClick={() => setOpenKey(null)}
-                type="button"
-              >
-                {t("common.actions.done")}
-              </button>
             </div>
           ) : (
             <div className="se-subtle-scrollbar grid max-h-[220px] gap-1 overflow-y-auto">

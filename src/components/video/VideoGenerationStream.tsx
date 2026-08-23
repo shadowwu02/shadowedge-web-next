@@ -8,6 +8,7 @@ import { useI18n } from "@/i18n/useI18n";
 import {
   getSafeVideoHistoryView,
   getLocalizedVideoHistoryPublicErrorMessage,
+  getVideoHistoryGenerateAudio,
   getVideoHistoryStableKey,
   getVideoHistoryTime,
   isSameVideoGenerationJob,
@@ -205,6 +206,7 @@ function VideoGenerationCard({
   const isProcessing = isVideoActiveStatus(view.status) && !isStaleActive;
   const useResultIssue = getUseResultAsReferenceIssue?.(record) || "";
   const modelLogoLookup = getRecordModelLogoLookup(record, view.modelLabel);
+  const generateAudio = getVideoHistoryGenerateAudio(record);
   const sourceLabel = getOutputSourceLabel(record, t);
   const failureDisplay = isFailed
     ? getVideoUserFacingErrorDisplay(view.errorMessage, t, {
@@ -243,6 +245,11 @@ function VideoGenerationCard({
               <VideoModelLogo label={view.modelLabel} lookup={modelLogoLookup} size="sm" />
               <span className="truncate">{view.modelLabel}</span>
             </span>
+            {generateAudio !== null ? (
+              <span className="shrink-0 rounded-full border border-[rgba(244,244,244,0.08)] bg-[#1a1c22]/74 px-2.5 py-1 text-[10px] font-semibold text-[#b9b9b9]/72">
+                {generateAudio ? t("video.params.audioOn") : t("video.params.audioOff")}
+              </span>
+            ) : null}
           </div>
           <span className="shrink-0 text-[11px] text-[#b9b9b9]/45">{view.createdAtLabel}</span>
         </div>
@@ -253,8 +260,10 @@ function VideoGenerationCard({
               <video
                 className="max-h-[74vh] min-h-[460px] w-full object-contain xl:min-h-[520px] 2xl:min-h-[600px]"
                 controls
+                muted={false}
                 onError={() => setFailedPlaybackUrl(view.outputUrl)}
                 playsInline
+                preload="metadata"
                 src={view.outputUrl}
               />
               <div className="absolute right-4 top-4 flex flex-col gap-2 opacity-0 transition group-hover:opacity-100">

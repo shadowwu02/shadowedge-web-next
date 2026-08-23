@@ -71,6 +71,26 @@ function pickArray(...values: unknown[]) {
   return (value || []) as unknown[];
 }
 
+function pickOptionalBoolean(...values: unknown[]): boolean | null {
+  for (const value of values) {
+    if (typeof value === "boolean") return value;
+    if (value === 1 || value === "1" || value === "true") return true;
+    if (value === 0 || value === "0" || value === "false") return false;
+  }
+  return null;
+}
+
+export function getVideoHistoryGenerateAudio(record: unknown): boolean | null {
+  const raw = asRecord(record);
+  const meta = asRecord(raw.meta);
+  return pickOptionalBoolean(
+    meta.generate_audio,
+    meta.generateAudio,
+    raw.generate_audio,
+    raw.generateAudio,
+  );
+}
+
 function isRenderableMediaUrl(url: string) {
   const value = String(url || "").trim();
   return /^https?:\/\//i.test(value) || /^blob:/i.test(value) || /^data:(video|image)\//i.test(value);

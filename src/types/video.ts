@@ -96,6 +96,7 @@ export type VideoModel = {
   ratios: string[];
   qualities: string[];
   supportsAudio?: boolean;
+  audioDefault?: boolean;
   uploadSlots?: string[];
   referenceImages?: boolean;
   maxReferenceImages?: number;

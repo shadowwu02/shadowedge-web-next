@@ -6,7 +6,7 @@ import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { useI18n } from "@/i18n/useI18n";
 import { collectHistoryInputMediaAssets, normalizeMediaAssetUrl } from "@/lib/media-assets";
-import { getLocalizedVideoHistoryPublicErrorMessage, getSafeVideoHistoryView, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
+import { getLocalizedVideoHistoryPublicErrorMessage, getSafeVideoHistoryView, getVideoHistoryGenerateAudio, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
 import { getVideoUserFacingErrorDisplay } from "@/lib/video/videoErrorDisplay";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { UploadMediaItem, VideoTaskRecord } from "@/types/video";
@@ -168,6 +168,7 @@ export function VideoOutputDetailPanel({
   const isProcessing = isVideoActiveStatus(view.status) && !isStaleActive;
   const useResultIssue = getUseResultAsReferenceIssue?.(record) || "";
   const modelLogoLookup = getRecordModelLogoLookup(record, view.modelLabel);
+  const generateAudio = getVideoHistoryGenerateAudio(record);
   const failureDisplay = isFailed
     ? getVideoUserFacingErrorDisplay(view.errorMessage, t, {
         classificationMessage: view.errorClassificationMessage,
@@ -289,6 +290,11 @@ export function VideoOutputDetailPanel({
           <span className="se-pill truncate rounded-[14px] px-2.5 py-2">{view.quality}</span>
           <span className="se-pill truncate rounded-[14px] px-2.5 py-2">{view.duration}</span>
           <span className="se-pill truncate rounded-[14px] px-2.5 py-2">{view.ratio}</span>
+          {generateAudio !== null ? (
+            <span className="se-pill truncate rounded-[14px] px-2.5 py-2">
+              {generateAudio ? t("video.params.audioOn") : t("video.params.audioOff")}
+            </span>
+          ) : null}
           <span className="se-pill truncate rounded-[14px] px-2.5 py-2">{tf("video.history.job", { job: view.jobLabel })}</span>
         </div>
 

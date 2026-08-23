@@ -219,12 +219,13 @@ export type VideoRemakeLongAnalysisCostEstimate = {
   };
 };
 
-function buildDurationArray(config: unknown) {
-  const item = (config || {}) as { values?: unknown[]; min?: number; max?: number };
-  if (Array.isArray(item.values)) return item.values.map(Number).filter(Number.isFinite);
-  const min = Number(item.min || 1);
-  const max = Number(item.max || 15);
-  return Array.from({ length: Math.max(0, max - min + 1) }, (_, index) => min + index);
+function normalizePublicDurationValues(...candidates: unknown[]) {
+  const source = candidates.find((candidate) => Array.isArray(candidate) && candidate.length > 0) as unknown[] | undefined;
+  if (!source) return [];
+
+  return Array.from(
+    new Set(source.map(Number).filter((duration) => Number.isFinite(duration) && duration > 0)),
+  ).sort((a, b) => a - b);
 }
 
 function normalizeVideoCreditRules(value: unknown, fallbackCredits: number): VideoCreditRulesContract | undefined {
@@ -249,9 +250,19 @@ function normalizeVideoCreditRules(value: unknown, fallbackCredits: number): Vid
 }
 
 export function normalizeVideoModel(model: RawModel): VideoModel {
-  const durations = Array.isArray(model.durations)
-    ? model.durations.map(Number).filter(Number.isFinite)
-    : buildDurationArray(model.duration);
+  const durationCapability = asRecord(model.duration);
+  // Only explicit public values are executable. A min/max range may include
+  // internal discovery durations and must never be expanded by the browser.
+  const durations = normalizePublicDurationValues(
+    model.durations,
+    durationCapability.values,
+    durationCapability.verifiedValues,
+  );
+  const publicDurations = durations.length ? durations : [5];
+  const requestedDefault = Number(durationCapability.default);
+  const durationDefault = publicDurations.includes(requestedDefault) ? requestedDefault : publicDurations[0];
+  const audioCapability = asRecord(model.audio);
+  const supportsAudio = model.supportsAudio === true || audioCapability.supported === true;
   const label = String(model.name || model.label || model.id || "Video Model")
     .replace(/\s*HF\s*$/i, "")
     .trim();
@@ -271,15 +282,16 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
     maxPromptLength: Math.max(1, Number(model.maxPromptLength || 4000)),
     creditBase: Number(model.creditBase || model.credits || 0),
     creditRules: normalizeVideoCreditRules(model.creditRules, credits),
-    durations: durations.length ? durations : [5],
-    durationDefault: Number((model.duration as { default?: number } | undefined)?.default || durations[0] || 5),
+    durations: publicDurations,
+    durationDefault,
     ratios: Array.isArray(model.ratios) && model.ratios.length ? model.ratios.map(String) : ["16:9"],
     qualities: Array.isArray(model.resolutions)
       ? model.resolutions.map(String)
       : Array.isArray(model.qualities)
         ? model.qualities.map(String)
         : ["720p"],
-    supportsAudio: Boolean(model.supportsAudio),
+    supportsAudio,
+    audioDefault: supportsAudio && audioCapability.default === true,
     uploadSlots: Array.isArray(model.uploadSlots) ? model.uploadSlots.map(String) : ["media"],
     referenceImages: model.referenceImages === true,
     maxReferenceImages: Math.max(0, Number(model.maxReferenceImages || 0)),

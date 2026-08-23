@@ -124,6 +124,8 @@ export function buildVideoGenerationRequest(
       duration: `${options.duration}s`,
       ratio: options.ratio,
       quality: options.quality,
+      generate_audio: options.generateAudio,
+      generateAudio: options.generateAudio,
       original_prompt: options.prompt,
       enhanced_prompt: enhancedPrompt,
       mode: mediaList.length ? "media-to-video" : "text-to-video",

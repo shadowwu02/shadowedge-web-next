@@ -71,6 +71,7 @@ import {
   getSafeHistoryOutputUrl,
   getLocalizedVideoHistoryPublicErrorMessage,
   getSafeVideoHistoryView,
+  getVideoHistoryGenerateAudio,
   getVideoHistoryStableKey,
   getSafeVideoHistoryErrorMessage,
   getVideoHistoryTime,
@@ -650,7 +651,7 @@ function buildParamsForModel(model: VideoModel, current?: Partial<VideoParams>):
     duration: current?.duration ?? model.durationDefault,
     ratio: current?.ratio ?? model.ratios[0],
     quality: current?.quality ?? model.qualities[0],
-    generateAudio: current?.generateAudio ?? model.supportsAudio !== false,
+    generateAudio: current?.generateAudio ?? (model.audioDefault === true),
   });
 
   return {
@@ -827,10 +828,6 @@ function buildRemakeShotReferenceMedia(shot: RemakeShot, model: VideoModel): Upl
     uploadStatus: "ready",
     url: frame.url,
   }));
-}
-
-function getRecordGenerateAudio(record: { meta?: Record<string, unknown>; generate_audio?: unknown; generateAudio?: unknown }) {
-  return Boolean(record.meta?.generate_audio ?? record.meta?.generateAudio ?? record.generate_audio ?? record.generateAudio);
 }
 
 function getRecordDuration(record: { duration?: string | number; meta?: Record<string, unknown> }, fallback: number) {
@@ -2737,7 +2734,7 @@ export function VideoWorkspace() {
   const concurrencyLimitNotice = `${t("generation.errors.concurrencyLimitReached")} ${concurrencyLabel}`;
   const selectedModelRuleId = getVideoModelRuleId(selectedModel);
   const selectedModelRule = useMemo(() => getVideoModelRuleFromRegistry(selectedModel), [selectedModel]);
-  const isAudioSupported = selectedModel.supportsAudio !== false;
+  const isAudioSupported = selectedModel.supportsAudio === true;
   const effectiveGenerateAudio = isAudioSupported && params.generateAudio;
   const estimatedCredits = useMemo(
     () =>
@@ -3878,7 +3875,7 @@ export function VideoWorkspace() {
       const nextMentionBindings = getRecordMentionBindings(record, nextMedia, promptText);
       const nextParams = buildParamsForModel(fillModel, {
         duration: getRecordDuration(record, fillModel.durationDefault),
-        generateAudio: getRecordGenerateAudio(record),
+        generateAudio: getVideoHistoryGenerateAudio(record) === true,
         quality: record.quality,
         ratio: record.ratio,
       });
