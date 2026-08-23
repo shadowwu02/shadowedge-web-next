@@ -229,6 +229,17 @@ function normalizePublicDurationValues(...candidates: unknown[]) {
   ).sort((a, b) => a - b);
 }
 
+function normalizePublicDurationRange(capability: Record<string, unknown>) {
+  if (capability.selection !== "discrete_range") return [];
+  const min = Number(capability.min);
+  const max = Number(capability.max);
+  const step = Number(capability.step);
+  if (!Number.isInteger(min) || !Number.isInteger(max) || !Number.isInteger(step) || min <= 0 || max < min || step <= 0) {
+    return [];
+  }
+  return Array.from({ length: Math.floor((max - min) / step) + 1 }, (_value, index) => min + index * step);
+}
+
 function normalizePublicDurationPolicy(
   capability: Record<string, unknown>,
   durations: number[],
@@ -237,18 +248,18 @@ function normalizePublicDurationPolicy(
   const min = Number(capability.min);
   const max = Number(capability.max);
   const step = Number(capability.step);
-  const selection = capability.selection === "continuous" ? "continuous" : "discrete";
+  const selection = capability.selection === "discrete_range" ? "discrete_range" : "discrete";
   const validRange = Number.isInteger(min) && Number.isInteger(max) && Number.isInteger(step) &&
     min > 0 && max >= min && step > 0;
   const expectedValues = validRange
     ? Array.from({ length: Math.floor((max - min) / step) + 1 }, (_value, index) => min + index * step)
     : [];
-  const completeContinuousRange = selection === "continuous" &&
+  const completeDiscreteRange = selection === "discrete_range" &&
     expectedValues.length === durations.length && expectedValues.every((duration, index) => duration === durations[index]);
 
-  // A range is executable only when the public catalog explicitly marks it
-  // continuous and publishes every value. Bare min/max fields remain inert.
-  if (completeContinuousRange) return { selection, min, max, step };
+  // A range is executable only when the public catalog explicitly marks it as
+  // discrete_range. Bare min/max fields remain inert and fail closed.
+  if (completeDiscreteRange) return { selection, min, max, step };
   return {
     selection: "discrete",
     min: durations[0] || fallback,
@@ -280,14 +291,15 @@ function normalizeVideoCreditRules(value: unknown, fallbackCredits: number): Vid
 
 export function normalizeVideoModel(model: RawModel): VideoModel {
   const durationCapability = asRecord(model.duration);
-  // Only explicit public values are executable. A min/max range may include
-  // internal discovery durations and must never be expanded by the browser.
-  const durations = normalizePublicDurationValues(
+  // Only an explicit public discrete_range may be expanded. A bare min/max
+  // range may include internal discovery durations and remains inert.
+  const rangeDurations = normalizePublicDurationRange(durationCapability);
+  const explicitDurations = normalizePublicDurationValues(
     model.durations,
     durationCapability.values,
     durationCapability.verifiedValues,
   );
-  const publicDurations = durations.length ? durations : [5];
+  const publicDurations = rangeDurations.length ? rangeDurations : explicitDurations.length ? explicitDurations : [5];
   const durationPolicy = normalizePublicDurationPolicy(durationCapability, publicDurations);
   const requestedDefault = Number(durationCapability.default);
   const durationDefault = publicDurations.includes(requestedDefault) ? requestedDefault : publicDurations[0];

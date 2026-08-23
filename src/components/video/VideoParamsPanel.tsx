@@ -104,7 +104,6 @@ export function VideoParamsPanel({
     () => uniqueSortedDurations(modelRule.durations.length ? modelRule.durations : defaultRule.durations, value.duration),
     [defaultRule.durations, modelRule.durations, value.duration],
   );
-  const continuousDuration = modelRule.durationPolicy.selection === "continuous" && durationOptions.length > 1;
   useEffect(() => {
     if (!openKey) return;
 
@@ -175,9 +174,9 @@ export function VideoParamsPanel({
     setOpenKey(key);
   }
 
-  function updateDuration(nextDuration: number, close = true) {
+  function updateDuration(nextDuration: number) {
     if (!durationOptions.includes(nextDuration)) return;
-    if (close) setOpenKey(null);
+    setOpenKey(null);
     onChange({ ...value, duration: nextDuration });
   }
 
@@ -246,48 +245,28 @@ export function VideoParamsPanel({
                   {tf("video.params.secondsValue", { seconds: value.duration })}
                 </span>
               </div>
-              {continuousDuration ? (
-                <div className="grid gap-2">
-                  <input
-                    aria-label={t("video.params.duration")}
-                    aria-valuetext={tf("video.params.secondsValue", { seconds: value.duration })}
-                    className="h-2 w-full cursor-pointer accent-[#ffb44d]"
-                    max={modelRule.durationPolicy.max}
-                    min={modelRule.durationPolicy.min}
-                    onChange={(event) => updateDuration(Number(event.currentTarget.value), false)}
-                    step={modelRule.durationPolicy.step}
-                    type="range"
-                    value={value.duration}
-                  />
-                  <div className="flex items-center justify-between text-[11px] font-medium text-[#b9b9b9]/58">
-                    <span>{tf("video.params.secondsValue", { seconds: modelRule.durationPolicy.min })}</span>
-                    <span>{tf("video.params.secondsValue", { seconds: modelRule.durationPolicy.max })}</span>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  aria-label={t("video.params.duration")}
-                  className="grid grid-cols-2 gap-2 sm:grid-cols-3"
-                  role="radiogroup"
-                >
-                  {durationOptions.map((duration) => (
-                    <button
-                      aria-checked={duration === value.duration}
-                      className={`min-h-10 min-w-0 rounded-[14px] border px-3 py-2 text-sm font-semibold transition-colors ${
-                        duration === value.duration
-                          ? "border-[#ffb44d]/42 bg-[#ffb44d]/18 text-[#ffd08a]"
-                          : "border-[rgba(244,244,244,0.08)] bg-[#111318]/72 text-[#b9b9b9]/72 hover:border-[#ffb44d]/28 hover:text-[#f4f4f4]"
-                      }`}
-                      key={duration}
-                      onClick={() => updateDuration(duration)}
-                      role="radio"
-                      type="button"
-                    >
-                      {tf("video.params.secondsValue", { seconds: duration })}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <div
+                aria-label={t("video.params.duration")}
+                className="se-subtle-scrollbar grid max-h-[260px] grid-cols-3 gap-2 overflow-y-auto pr-1 sm:grid-cols-4"
+                role="radiogroup"
+              >
+                {durationOptions.map((duration) => (
+                  <button
+                    aria-checked={duration === value.duration}
+                    className={`min-h-10 min-w-0 rounded-[14px] border px-2 py-2 text-sm font-semibold transition-colors ${
+                      duration === value.duration
+                        ? "border-[#ffb44d]/42 bg-[#ffb44d]/18 text-[#ffd08a]"
+                        : "border-[rgba(244,244,244,0.08)] bg-[#111318]/72 text-[#b9b9b9]/72 hover:border-[#ffb44d]/28 hover:text-[#f4f4f4]"
+                    }`}
+                    key={duration}
+                    onClick={() => updateDuration(duration)}
+                    role="radio"
+                    type="button"
+                  >
+                    {tf("video.params.secondsValue", { seconds: duration })}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : (
             <div className="se-subtle-scrollbar grid max-h-[220px] gap-1 overflow-y-auto">

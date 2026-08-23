@@ -25,8 +25,11 @@ export function GenerateButton({
       <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
         <span className="se-eyebrow">{t("video.actions.readyCheck")}</span>
         {credits ? (
-          <span className="rounded-full border border-[#ffb44d]/22 bg-[#ffb44d]/9 px-2 py-0.5 text-[10px] font-semibold text-[#ffd08a]">
-            {tf("video.actions.creditsPill", { credits })}
+          <span className="flex items-center gap-1.5">
+            <span className="text-[9px] font-semibold tracking-[0.08em] text-[#b9b9b9]/52">ESTIMATED_ONLY</span>
+            <span className="rounded-full border border-[#ffb44d]/22 bg-[#ffb44d]/9 px-2 py-0.5 text-[10px] font-semibold text-[#ffd08a]">
+              {tf("video.actions.creditsPill", { credits })}
+            </span>
           </span>
         ) : null}
       </div>

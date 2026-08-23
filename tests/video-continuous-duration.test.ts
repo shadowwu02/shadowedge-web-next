@@ -12,7 +12,8 @@ function model(id: "seedance_2_0" | "seedance_2_5", max: number) {
     name: id === "seedance_2_0" ? "Seedance 2.0" : "Seedance 2.5",
     credits: 23,
     durations,
-    duration: { selection: "continuous", min: 5, max, step: 1, default: 5, values: durations },
+    duration: { selection: "discrete_range", min: 5, max, step: 1, default: 5 },
+    durations: [],
     ratios: ["16:9"],
     resolutions: ["720p"],
     supportsAudio: id === "seedance_2_0",
@@ -37,21 +38,27 @@ function build(selectedModel: ReturnType<typeof model>, duration: number) {
   });
 }
 
-describe("continuous video duration selector contract", () => {
-  it("preserves every selected Seedance 2.0 second from 5 through 15", () => {
+describe("discrete range video duration selector contract", () => {
+  it("preserves representative Seedance 2.0 seconds from 5 through 15", () => {
     const selectedModel = model("seedance_2_0", 15);
-    for (let duration = 5; duration <= 15; duration += 1) {
+    expect(selectedModel.durations).toEqual(range(5, 15));
+    for (const duration of [5, 6, 12, 15]) {
       const request = build(selectedModel, duration);
       expect(request.duration).toBe(duration);
       expect(request.meta.duration).toBe(`${duration}s`);
     }
   });
 
-  it("preserves Seedance 2.5 30 seconds without clamp or fallback", () => {
-    const request = build(model("seedance_2_5", 30), 30);
-    expect(request.duration).toBe(30);
-    expect(request.meta.duration).toBe("30s");
-    expect(request.clientCost).toBe(135);
+  it("preserves representative Seedance 2.5 seconds without clamp or fallback", () => {
+    const selectedModel = model("seedance_2_5", 30);
+    expect(selectedModel.durations).toEqual(range(5, 30));
+    for (const duration of [5, 6, 15, 20, 25, 30]) {
+      const request = build(selectedModel, duration);
+      expect(request.duration).toBe(duration);
+      expect(request.meta.duration).toBe(`${duration}s`);
+    }
+    expect(build(selectedModel, 12).clientCost).toBe(54);
+    expect(build(selectedModel, 30).clientCost).toBe(135);
   });
 
   it.each([4, 16, 12.5])("rejects invalid Seedance 2.0 duration %s", (duration) => {

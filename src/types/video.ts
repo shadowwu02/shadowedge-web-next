@@ -79,7 +79,7 @@ export type VideoCreditRulesContract = {
 };
 
 export type VideoDurationPolicy = {
-  selection: "discrete" | "continuous";
+  selection: "discrete" | "discrete_range";
   min: number;
   max: number;
   step: number;
