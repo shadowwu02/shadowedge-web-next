@@ -1,0 +1,260 @@
+{
+  "proposalVersion": "credit-model-v2.2026-08-23.v1",
+  "status": "DESIGN_ONLY_NOT_PRODUCTION",
+  "sourcePlanCatalog": {
+    "catalogVersion": "2026-08-23.v1",
+    "planId": "starter",
+    "priceUSD": 49,
+    "credits": 1200,
+    "billingInterval": "monthly",
+    "grossUSDPerCredit": 0.04083333333333333
+  },
+  "costEvidenceClasses": [
+    "REAL_PROVIDER_COST",
+    "CONTRACT_ESTIMATE",
+    "UNKNOWN"
+  ],
+  "modelCostBuckets": [
+    {
+      "bucket": "VERIFIED_VARIABLE_COST",
+      "models": [],
+      "activationRule": "May support margin approval after invoice reconciliation."
+    },
+    {
+      "bucket": "CONTRACT_ESTIMATE_ONLY",
+      "models": ["gpt_image_2"],
+      "activationRule": "Shadow pricing only until actual Provider billing is reconciled."
+    },
+    {
+      "bucket": "UNKNOWN_COST_HOLD",
+      "models": [
+        "nano_banana",
+        "nano_banana_lite",
+        "seedance_2_0_mini",
+        "seedance_2_0_fast",
+        "seedance_2_0",
+        "seedance_2_5"
+      ],
+      "activationRule": "No new public price or discounted plan approval."
+    }
+  ],
+  "currentPublicConsumptionMatrix": {
+    "image": [
+      {
+        "model": "gpt_image_2",
+        "quality": "low",
+        "credits": 1,
+        "providerCostEvidence": "CONTRACT_ESTIMATE"
+      },
+      {
+        "model": "gpt_image_2",
+        "quality": "medium",
+        "credits": 2,
+        "providerCostEvidence": "CONTRACT_ESTIMATE"
+      },
+      {
+        "model": "gpt_image_2",
+        "quality": "high",
+        "credits": 4,
+        "providerCostEvidence": "CONTRACT_ESTIMATE"
+      },
+      {
+        "model": "nano_banana",
+        "resolution": "1K",
+        "credits": 2,
+        "providerCostEvidence": "UNKNOWN"
+      },
+      {
+        "model": "nano_banana_lite",
+        "resolution": "1K",
+        "credits": 2,
+        "providerCostEvidence": "UNKNOWN"
+      }
+    ],
+    "video": [
+      {
+        "model": "seedance_2_0_mini",
+        "durationSeconds": 5,
+        "resolution": "720p",
+        "credits": 23,
+        "audio": "unsupported",
+        "providerCostEvidence": "UNKNOWN",
+        "catalogNote": "Present in the current Backend public Catalog; omitted from the Phase 2 brief, so no removal is proposed."
+      },
+      {
+        "model": "seedance_2_0_fast",
+        "durationSeconds": 5,
+        "resolution": "720p",
+        "credits": 12,
+        "audio": "unsupported",
+        "providerCostEvidence": "UNKNOWN"
+      },
+      {
+        "model": "seedance_2_0",
+        "durationSeconds": 5,
+        "resolution": "720p",
+        "credits": 23,
+        "audio": "included",
+        "providerCostEvidence": "UNKNOWN"
+      },
+      {
+        "model": "seedance_2_0",
+        "durationSeconds": 10,
+        "resolution": "720p",
+        "credits": 45,
+        "audio": "included",
+        "providerCostEvidence": "UNKNOWN"
+      },
+      {
+        "model": "seedance_2_0",
+        "durationSeconds": 15,
+        "resolution": "720p",
+        "credits": 68,
+        "audio": "included",
+        "providerCostEvidence": "UNKNOWN"
+      },
+      {
+        "model": "seedance_2_0",
+        "durationSeconds": 5,
+        "resolution": "1080p",
+        "credits": 45,
+        "audio": "included",
+        "providerCostEvidence": "UNKNOWN"
+      },
+      {
+        "model": "seedance_2_0",
+        "durationSeconds": 10,
+        "resolution": "1080p",
+        "credits": 90,
+        "audio": "included",
+        "providerCostEvidence": "UNKNOWN"
+      },
+      {
+        "model": "seedance_2_0",
+        "durationSeconds": 15,
+        "resolution": "1080p",
+        "credits": 135,
+        "audio": "included",
+        "providerCostEvidence": "UNKNOWN"
+      },
+      {
+        "model": "seedance_2_5",
+        "durationSeconds": 5,
+        "resolution": "720p",
+        "credits": 23,
+        "audio": "unsupported",
+        "providerCostEvidence": "UNKNOWN"
+      }
+    ]
+  },
+  "durationMultiplierProposal": [
+    {
+      "durationSeconds": 5,
+      "structuralMultiplier": 1,
+      "publicApproval": "CURRENT_EXACT_MATRIX_ONLY"
+    },
+    {
+      "durationSeconds": 10,
+      "structuralMultiplier": 2,
+      "publicApproval": "CURRENT_SEEDANCE_2_0_EXACT_MATRIX_ONLY"
+    },
+    {
+      "durationSeconds": 15,
+      "structuralMultiplier": 3,
+      "publicApproval": "CURRENT_SEEDANCE_2_0_EXACT_MATRIX_ONLY"
+    },
+    {
+      "durationSeconds": 30,
+      "structuralMultiplier": 6,
+      "publicApproval": "PENDING_COST_EVIDENCE",
+      "executableCustomerCredits": null
+    }
+  ],
+  "resolutionMultiplierProposal": [
+    {
+      "resolution": "720p",
+      "structuralMultiplier": 1,
+      "publicApproval": "CURRENT_EXACT_MATRIX_ONLY"
+    },
+    {
+      "resolution": "1080p",
+      "structuralMultiplier": 2,
+      "publicApproval": "CURRENT_SEEDANCE_2_0_EXACT_MATRIX_ONLY"
+    }
+  ],
+  "audioCostStrategy": {
+    "currentSeedance20AddonCredits": 0,
+    "proposal": "KEEP_BUNDLED_UNTIL_INCREMENTAL_COST_IS_VERIFIED",
+    "futureFormula": "ceil(incrementalAudioVariableCost / allowedVariableCostPerCredit)",
+    "unknownCostBehavior": "PENDING_COST_EVIDENCE",
+    "localFrontendEstimateAllowed": false
+  },
+  "internalCapabilityExclusions": [
+    {
+      "model": "seedance_2_0",
+      "durationSeconds": 14,
+      "reason": "INTERNAL_CERTIFICATION_NOT_PUBLIC_PRICE"
+    },
+    {
+      "model": "seedance_2_5",
+      "durationSeconds": 30,
+      "reason": "INTERNAL_CERTIFICATION_NOT_PUBLIC_PRICE"
+    }
+  ],
+  "planScenarios": [
+    {
+      "planId": "starter",
+      "priceUSD": 49,
+      "credits": 1200,
+      "grossUSDPerCredit": 0.04083333333333333,
+      "status": "CURRENT_DISPLAY_CONTRACT"
+    },
+    {
+      "planId": "pro",
+      "priceUSD": 99,
+      "credits": 2700,
+      "grossUSDPerCredit": 0.03666666666666667,
+      "volumeDiscountVsStarterPercent": 10.204081632653057,
+      "status": "DESIGN_ONLY_COST_GATED"
+    },
+    {
+      "planId": "team",
+      "priceUSD": 249,
+      "credits": 7500,
+      "grossUSDPerCredit": 0.0332,
+      "volumeDiscountVsStarterPercent": 18.693877551020407,
+      "status": "DESIGN_ONLY_COST_AND_TEAM_ENTITLEMENT_GATED"
+    }
+  ],
+  "marginGovernance": {
+    "targetContributionMarginPercent": 70,
+    "warningBelowPercent": 65,
+    "blockBelowPercent": 60,
+    "realMarginAvailable": false,
+    "requiredCostInputs": [
+      "providerCost",
+      "storage",
+      "egress",
+      "materializationCompute",
+      "paymentFees",
+      "taxes",
+      "refundReserve",
+      "promoCreditAllocation"
+    ],
+    "allowedVariableCostPerCreditAt70PercentMargin": {
+      "starter": 0.01225,
+      "pro": 0.011,
+      "team": 0.00996
+    }
+  },
+  "productionChanges": {
+    "publicPlanCatalog": false,
+    "publicModelCatalog": false,
+    "billing": false,
+    "stripe": false,
+    "membership": false,
+    "creditLedger": false,
+    "imagePricing": false,
+    "videoPricing": false
+  }
+}
