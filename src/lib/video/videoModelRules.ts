@@ -1,4 +1,4 @@
-import type { UploadMediaType, VideoCreditRulesContract, VideoModel } from "@/types/video";
+import type { UploadMediaType, VideoCreditRulesContract, VideoDurationPolicy, VideoModel } from "@/types/video";
 
 export type VideoModelProvider =
   | "seedance"
@@ -51,6 +51,7 @@ export type VideoModelRule = {
   uploadSlots: VideoUploadSlot[];
   ratios: VideoRatio[];
   durations: number[];
+  durationPolicy: VideoDurationPolicy;
   qualities: VideoQuality[];
   resolutions: VideoQuality[];
   defaultRatio: VideoRatio;
@@ -231,6 +232,7 @@ const defaultRule: VideoModelRule = {
   uploadSlots: ["media"],
   ratios: ["16:9", "9:16", "1:1"],
   durations: [5, 8, 10],
+  durationPolicy: { selection: "discrete", min: 5, max: 10, step: 1 },
   qualities: standardQualities,
   resolutions: standardQualities,
   defaultRatio: "16:9",
@@ -820,12 +822,19 @@ function makeRule(rule: Partial<VideoModelRule> & Pick<VideoModelRule, "modelId"
   const qualities = rule.qualities || rule.resolutions || defaultRule.qualities;
   const uploadSlots = rule.uploadSlots || defaultRule.uploadSlots;
 
+  const durations = rule.durations || defaultRule.durations;
   return {
     ...defaultRule,
     ...rule,
     uploadSlots,
     qualities,
     resolutions: rule.resolutions || qualities,
+    durationPolicy: rule.durationPolicy || {
+      selection: "discrete",
+      min: durations[0] || defaultRule.defaultDuration,
+      max: durations.at(-1) || defaultRule.defaultDuration,
+      step: 1,
+    },
     maxReferences: rule.maxReferences || inferReferenceLimits(uploadSlots),
     defaultRatio: rule.defaultRatio || rule.ratios?.[0] || defaultRule.defaultRatio,
     defaultDuration: rule.defaultDuration || rule.durations?.[0] || defaultRule.defaultDuration,
@@ -943,6 +952,12 @@ export function getVideoModelRuleFromRegistry(model: VideoModel): VideoModelRule
     },
     ratios,
     durations,
+    durationPolicy: model.durationPolicy || {
+      selection: "discrete",
+      min: durations[0] || base.defaultDuration,
+      max: durations.at(-1) || base.defaultDuration,
+      step: 1,
+    },
     qualities,
     resolutions: qualities,
     defaultRatio: ratios.includes(base.defaultRatio) ? base.defaultRatio : ratios[0],
@@ -979,6 +994,32 @@ export function normalizeVideoParamsForRule(
   const duration = incomingDuration !== undefined && durations.includes(incomingDuration) ? incomingDuration : rule.defaultDuration;
   const quality = qualities.includes(incomingQuality) ? incomingQuality : String(rule.defaultQuality);
   return { ratio, duration, quality, resolution: quality, generateAudio: params.generateAudio };
+}
+
+export function assertVideoGenerationParamsForRule(
+  rule: VideoModelRule,
+  params: VideoModelParamInput,
+) {
+  const duration = coerceDuration(params.duration);
+  const qualities = safeList(rule.qualities.length ? rule.qualities : rule.resolutions, defaultRule.qualities).map(String);
+  const quality = String(params.quality || params.resolution || "");
+  const ratio = String(params.ratio || "");
+  if (duration === undefined || !Number.isInteger(duration) || !rule.durations.includes(duration)) {
+    throw Object.assign(new Error("This duration is not available for the selected video model."), {
+      code: "VIDEO_DURATION_UNSUPPORTED",
+    });
+  }
+  if (!qualities.includes(quality)) {
+    throw Object.assign(new Error("This resolution is not available for the selected video model."), {
+      code: "VIDEO_RESOLUTION_UNSUPPORTED",
+    });
+  }
+  if (!rule.ratios.map(String).includes(ratio)) {
+    throw Object.assign(new Error("This aspect ratio is not available for the selected video model."), {
+      code: "VIDEO_ASPECT_RATIO_UNSUPPORTED",
+    });
+  }
+  return { duration, quality, ratio, generateAudio: params.generateAudio === true };
 }
 
 export function normalizeVideoParamsForModel(

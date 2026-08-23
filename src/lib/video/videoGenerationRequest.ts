@@ -5,7 +5,11 @@ import {
   getReferencePromptBindings,
   toGenerationMediaList,
 } from "@/lib/video-mentions";
-import { estimateVideoCreditsForParams, getVideoModelRuleFromRegistry } from "@/lib/video/videoModelRules";
+import {
+  assertVideoGenerationParamsForRule,
+  estimateVideoCreditsForParams,
+  getVideoModelRuleFromRegistry,
+} from "@/lib/video/videoModelRules";
 import { assertCanonicalReferenceItems } from "@/lib/video/canonicalReferenceAssets";
 import {
   sanitizeVideoMentionBindings,
@@ -36,6 +40,18 @@ export type BuildVideoGenerationRequestInput = {
 export function buildVideoGenerationRequest(
   options: BuildVideoGenerationRequestInput,
 ): VideoGenerationRequest {
+  const modelRule = getVideoModelRuleFromRegistry(options.model);
+  assertVideoGenerationParamsForRule(modelRule, {
+    duration: options.duration,
+    generateAudio: options.generateAudio,
+    quality: options.quality,
+    ratio: options.ratio,
+  });
+  if (options.generateAudio && options.model.supportsAudio === false) {
+    throw Object.assign(new Error("Generated audio is not available for the selected video model."), {
+      code: "VIDEO_AUDIO_UNSUPPORTED",
+    });
+  }
   const clientRequestId = normalizeVideoClientRequestId(options.clientRequestId) || createVideoClientRequestId();
   const mentionMediaItems = getReadyMentionableMediaItems(options.media);
   const mentionBindings = sanitizeVideoMentionBindings(
@@ -75,7 +91,7 @@ export function buildVideoGenerationRequest(
     Number.isFinite(options.estimatedCredits)
     ? options.estimatedCredits
     : estimateVideoCreditsForParams(
-        getVideoModelRuleFromRegistry(options.model),
+        modelRule,
         {
           duration: options.duration,
           generateAudio: options.generateAudio,

@@ -78,6 +78,13 @@ export type VideoCreditRulesContract = {
   referenceSurchargeCredits?: number;
 };
 
+export type VideoDurationPolicy = {
+  selection: "discrete" | "continuous";
+  min: number;
+  max: number;
+  step: number;
+};
+
 export type VideoModel = {
   id: string;
   label: string;
@@ -93,6 +100,7 @@ export type VideoModel = {
   creditRules?: VideoCreditRulesContract;
   durations: number[];
   durationDefault: number;
+  durationPolicy?: VideoDurationPolicy;
   ratios: string[];
   qualities: string[];
   supportsAudio?: boolean;

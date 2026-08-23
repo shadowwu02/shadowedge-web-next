@@ -21,27 +21,35 @@ function rawModel(overrides: Record<string, unknown>) {
   };
 }
 
+const range = (min: number, max: number) => Array.from({ length: max - min + 1 }, (_value, index) => min + index);
+
 describe("video workspace public capability controls", () => {
-  it("preserves the explicit Seedance 2.0 public 5/10/15 duration set", () => {
-    const model = normalizeVideoModel(rawModel({}));
+  it("reads the explicit Seedance 2.0 public continuous range", () => {
+    const model = normalizeVideoModel(rawModel({
+      duration: { selection: "continuous", default: 5, min: 5, max: 15, step: 1, values: range(5, 15) },
+      durations: range(5, 15),
+    }));
     const rule = getVideoModelRuleFromRegistry(model);
 
-    expect(model.durations).toEqual([5, 10, 15]);
-    expect(rule.durations).toEqual([5, 10, 15]);
+    expect(model.durations).toEqual(range(5, 15));
+    expect(model.durationPolicy).toEqual({ selection: "continuous", min: 5, max: 15, step: 1 });
+    expect(rule.durations).toEqual(range(5, 15));
+    expect(rule.durationPolicy.selection).toBe("continuous");
     expect(model.durationDefault).toBe(5);
   });
 
-  it("does not expand Seedance 2.5 discovery min/max into the public selector", () => {
+  it("reads the explicit Seedance 2.5 public 5-30 range", () => {
     const model = normalizeVideoModel(rawModel({
       id: "seedance_2_5",
       name: "Seedance 2.5",
-      duration: { default: 5, min: 5, max: 30, step: 1, values: [5], verifiedValues: [5] },
-      durations: [5],
+      duration: { selection: "continuous", default: 5, min: 5, max: 30, step: 1, values: range(5, 30) },
+      durations: range(5, 30),
       supportsAudio: false,
       audio: { default: false, supported: false },
     }));
 
-    expect(model.durations).toEqual([5]);
+    expect(model.durations).toEqual(range(5, 30));
+    expect(model.durationPolicy).toEqual({ selection: "continuous", min: 5, max: 30, step: 1 });
     expect(model.durationDefault).toBe(5);
     expect(model.supportsAudio).toBe(false);
   });
@@ -74,13 +82,15 @@ describe("video workspace public capability controls", () => {
     expect(getVideoHistoryGenerateAudio(request)).toBe(generateAudio);
   });
 
-  it("keeps the duration UI discrete and the result player explicitly audible", () => {
+  it("renders a Catalog-driven duration slider and keeps the result player explicitly audible", () => {
     const paramsSource = readFileSync("src/components/video/VideoParamsPanel.tsx", "utf8");
     const streamSource = readFileSync("src/components/video/VideoGenerationStream.tsx", "utf8");
 
-    expect(paramsSource).toContain('role="radiogroup"');
-    expect(paramsSource).toContain('role="radio"');
-    expect(paramsSource).not.toContain('type="range"');
+    expect(paramsSource).toContain('modelRule.durationPolicy.selection === "continuous"');
+    expect(paramsSource).toContain('type="range"');
+    expect(paramsSource).toContain("max={modelRule.durationPolicy.max}");
+    expect(paramsSource).toContain("min={modelRule.durationPolicy.min}");
+    expect(paramsSource).toContain("step={modelRule.durationPolicy.step}");
     expect(streamSource).toContain("muted={false}");
     expect(streamSource).toContain('preload="metadata"');
     expect(streamSource).toContain('t("video.params.audioOn")');

@@ -22,6 +22,7 @@ import type {
   UploadedMediaResponse,
   UploadMediaType,
   VideoCreditRulesContract,
+  VideoDurationPolicy,
   VideoGenerationRequest,
   VideoHistoryItem,
   VideoModel,
@@ -228,6 +229,34 @@ function normalizePublicDurationValues(...candidates: unknown[]) {
   ).sort((a, b) => a - b);
 }
 
+function normalizePublicDurationPolicy(
+  capability: Record<string, unknown>,
+  durations: number[],
+): VideoDurationPolicy {
+  const fallback = durations[0] || 5;
+  const min = Number(capability.min);
+  const max = Number(capability.max);
+  const step = Number(capability.step);
+  const selection = capability.selection === "continuous" ? "continuous" : "discrete";
+  const validRange = Number.isInteger(min) && Number.isInteger(max) && Number.isInteger(step) &&
+    min > 0 && max >= min && step > 0;
+  const expectedValues = validRange
+    ? Array.from({ length: Math.floor((max - min) / step) + 1 }, (_value, index) => min + index * step)
+    : [];
+  const completeContinuousRange = selection === "continuous" &&
+    expectedValues.length === durations.length && expectedValues.every((duration, index) => duration === durations[index]);
+
+  // A range is executable only when the public catalog explicitly marks it
+  // continuous and publishes every value. Bare min/max fields remain inert.
+  if (completeContinuousRange) return { selection, min, max, step };
+  return {
+    selection: "discrete",
+    min: durations[0] || fallback,
+    max: durations.at(-1) || fallback,
+    step: 1,
+  };
+}
+
 function normalizeVideoCreditRules(value: unknown, fallbackCredits: number): VideoCreditRulesContract | undefined {
   const raw = asRecord(value);
   const rawTable = asRecord(raw.table);
@@ -259,6 +288,7 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
     durationCapability.verifiedValues,
   );
   const publicDurations = durations.length ? durations : [5];
+  const durationPolicy = normalizePublicDurationPolicy(durationCapability, publicDurations);
   const requestedDefault = Number(durationCapability.default);
   const durationDefault = publicDurations.includes(requestedDefault) ? requestedDefault : publicDurations[0];
   const audioCapability = asRecord(model.audio);
@@ -284,6 +314,7 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
     creditRules: normalizeVideoCreditRules(model.creditRules, credits),
     durations: publicDurations,
     durationDefault,
+    durationPolicy,
     ratios: Array.isArray(model.ratios) && model.ratios.length ? model.ratios.map(String) : ["16:9"],
     qualities: Array.isArray(model.resolutions)
       ? model.resolutions.map(String)
