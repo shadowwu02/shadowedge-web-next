@@ -3,9 +3,14 @@
 import { useMemo, useState } from "react";
 
 import { useI18n } from "@/i18n/useI18n";
+import {
+  RemakeExportFlowPanel,
+  type RemakeExportFlowPanelProps,
+} from "@/components/video/remake/RemakeExportFlowPanel";
 import type { RemakeKeyframe, RemakeShot, RemakeShotGenerationState } from "@/components/video/remake/remakeTypes";
 
 type RemakeStoryboardTimelineProps = {
+  exportFlow?: RemakeExportFlowPanelProps;
   shotGenerations?: Record<string, RemakeShotGenerationState>;
   shots: RemakeShot[];
 };
@@ -76,7 +81,7 @@ function KeyframePreview({ keyframes }: { keyframes: RemakeKeyframe[] }) {
   );
 }
 
-export function RemakeStoryboardTimeline({ shotGenerations = {}, shots }: RemakeStoryboardTimelineProps) {
+export function RemakeStoryboardTimeline({ exportFlow, shotGenerations = {}, shots }: RemakeStoryboardTimelineProps) {
   const { t, tf } = useI18n();
   const [selectedShotKey, setSelectedShotKey] = useState(() => (shots[0] ? getShotKey(shots[0]) : ""));
   const [drafts, setDrafts] = useState<Record<string, ShotDraft>>(() => buildDrafts(shots));
@@ -261,6 +266,7 @@ export function RemakeStoryboardTimeline({ shotGenerations = {}, shots }: Remake
           <p className="text-xs leading-5 text-[#b9b9b9]/58">{t("video.remake.timeline.localDraftHint")}</p>
         </div>
       </div>
+      {exportFlow ? <RemakeExportFlowPanel {...exportFlow} /> : null}
     </section>
   );
 }
