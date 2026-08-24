@@ -49,7 +49,7 @@ function render(
       ? {
           available: true,
           mimeType: "video/mp4",
-          href: "/api/remake/render-jobs/render-job-public-ref/download",
+          href: "/api/remake/internal-export/render-jobs/render-job-public-ref/download",
         }
       : { available: false, mimeType: null, href: null },
     ...overrides,
@@ -123,7 +123,7 @@ describe("Remake R8 Export Product Flow", () => {
     })).toThrowError(expect.objectContaining({ code: "REMAKE_EXPORT_DOWNLOAD_INVALID" }));
     expect(() => reduceRemakeExportFlow(confirming, {
       type: "RENDER_RECEIVED",
-      render: render("processing", { download: { available: true, mimeType: "video/mp4", href: "/api/remake/render-jobs/render-job-public-ref/download" } }),
+      render: render("processing", { download: { available: true, mimeType: "video/mp4", href: "/api/remake/internal-export/render-jobs/render-job-public-ref/download" } }),
     })).toThrowError(expect.objectContaining({ code: "REMAKE_EXPORT_DOWNLOAD_NOT_READY" }));
   });
 
@@ -146,6 +146,6 @@ describe("Remake R8 Export Product Flow", () => {
     expect(componentSource).not.toMatch(/fetch\(|credit.*mutat|billing|stripe|provider/i);
     expect(timelineSource).toContain("exportFlow?: RemakeExportFlowPanelProps");
     expect(timelineSource).toContain("exportFlow ? <RemakeExportFlowPanel");
-    expect(panelSource).not.toContain("exportFlow=");
+    expect(panelSource).toContain("exportFlow={exportFlow}");
   });
 });

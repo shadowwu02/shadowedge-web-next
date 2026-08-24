@@ -69,7 +69,7 @@ function assertPreview(preview: RemakeExportPreview) {
 }
 
 function isSafeDownloadHref(href: string) {
-  return /^\/api\/remake\/render-jobs\/[^/]+\/download$/.test(href);
+  return /^\/api\/remake\/internal-export\/render-jobs\/[^/]+\/download$/.test(href);
 }
 
 function assertRenderProjection(render: RemakeExportRenderProjection) {

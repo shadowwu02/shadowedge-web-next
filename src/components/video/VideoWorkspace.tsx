@@ -40,6 +40,7 @@ import { useTaskPolling } from "@/hooks/useTaskPolling";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useCredits } from "@/hooks/useCredits";
 import { useLongVideoRemakeAnalysis } from "@/hooks/useLongVideoRemakeAnalysis";
+import { useRemakeInternalBetaExport } from "@/hooks/useRemakeInternalBetaExport";
 import { useVideoGeneration } from "@/hooks/useVideoGeneration";
 import { type DictionaryKey, useI18n } from "@/i18n/useI18n";
 import { collectHistoryInputMediaAssets, collectReusableVideoAssets, mergeMediaAssets, normalizeMediaAssetUrl } from "@/lib/media-assets";
@@ -3367,6 +3368,14 @@ export function VideoWorkspace() {
   );
 
   const remakeShots = useMemo(() => remakeStoryboard?.shots || [], [remakeStoryboard]);
+  const remakeInternalBetaExport = useRemakeInternalBetaExport({
+    enabled: workspaceMode === "remake" && isSignedIn && Boolean(remakeStoryboard),
+    token: token || undefined,
+    storyboard: remakeStoryboard,
+    sourceAssetRef: remakeSourceVideo?.assetId,
+    shotGenerations: displayedRemakeShotGenerations,
+    aspectRatio: normalizeRemakeTargetRatio(params.ratio),
+  });
   const remakeQueueCompletedCount = useMemo(() => {
     if (!remakeShotQueue.queueRunId) return 0;
 
@@ -4318,6 +4327,7 @@ export function VideoWorkspace() {
           <RemakeStoryboardPanel
             analysisNotice={remakeAnalysisNotice}
             draftNotice={isRemakeDraftRestored ? t("video.remake.restoredDraft") : ""}
+            exportFlow={remakeInternalBetaExport}
             guardedLongVideoUx={guardedLongVideoUxVisible}
             hasSourceVideo={Boolean(remakeSourceVideo)}
             isAnalyzing={isRemakeAnalyzing || isRemakeAdmissionChecking || isRemakeSourceUploading || isLongVideoAnalysisActive}

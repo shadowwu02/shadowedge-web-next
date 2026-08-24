@@ -2,6 +2,7 @@ type BrowserDownloadOptions = {
   documentObject?: Document;
   fetcher?: typeof fetch;
   filename: string;
+  headers?: HeadersInit;
   url: string;
   urlApi?: Pick<typeof URL, "createObjectURL" | "revokeObjectURL">;
 };
@@ -10,6 +11,7 @@ export async function downloadBrowserFile({
   documentObject = document,
   fetcher = fetch,
   filename,
+  headers,
   url,
   urlApi = URL,
 }: BrowserDownloadOptions) {
@@ -18,6 +20,7 @@ export async function downloadBrowserFile({
 
   const response = await fetcher(safeUrl, {
     credentials: "omit",
+    headers,
     method: "GET",
   });
   if (!response.ok) throw new Error(`DOWNLOAD_REQUEST_FAILED_${response.status}`);

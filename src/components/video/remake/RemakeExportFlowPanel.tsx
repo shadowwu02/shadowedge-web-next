@@ -10,6 +10,7 @@ export type RemakeExportFlowPanelProps = {
   state: RemakeExportFlowState;
   onCancel: () => void;
   onConfirm: () => void;
+  onDownload?: () => void;
   onRequestPreview: () => void;
 };
 
@@ -21,6 +22,7 @@ export function RemakeExportFlowPanel({
   state,
   onCancel,
   onConfirm,
+  onDownload,
   onRequestPreview,
 }: RemakeExportFlowPanelProps) {
   const { t, tf } = useI18n();
@@ -153,13 +155,23 @@ export function RemakeExportFlowPanel({
             {t(`video.remake.export.statusHelp.${render.status}`)}
           </p>
           {render.status === "completed" && render.download.available && render.download.href ? (
-            <a
-              className="se-button-primary min-h-11 justify-self-start rounded-[16px] px-4 py-3 text-xs font-semibold"
-              download
-              href={render.download.href}
-            >
-              {t("video.remake.export.download")}
-            </a>
+            onDownload ? (
+              <button
+                className="se-button-primary min-h-11 justify-self-start rounded-[16px] px-4 py-3 text-xs font-semibold"
+                onClick={onDownload}
+                type="button"
+              >
+                {t("video.remake.export.download")}
+              </button>
+            ) : (
+              <a
+                className="se-button-primary min-h-11 justify-self-start rounded-[16px] px-4 py-3 text-xs font-semibold"
+                download
+                href={render.download.href}
+              >
+                {t("video.remake.export.download")}
+              </a>
+            )
           ) : null}
         </div>
       ) : null}

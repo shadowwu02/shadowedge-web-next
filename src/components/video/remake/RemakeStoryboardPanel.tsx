@@ -3,6 +3,7 @@
 import { useI18n } from "@/i18n/useI18n";
 import { LongVideoAnalysisProgress } from "@/components/video/remake/LongVideoAnalysisProgress";
 import { RemakeStoryboardTimeline } from "@/components/video/remake/RemakeStoryboardTimeline";
+import type { RemakeExportFlowPanelProps } from "@/components/video/remake/RemakeExportFlowPanel";
 import { getRemakeShotGenerationKey } from "@/components/video/remake/remakeTypes";
 import { getVideoUserFacingError } from "@/lib/video/videoErrorDisplay";
 import { getRemakeShotHandoffReadiness } from "@/lib/video/remakeShotVideoHandoff";
@@ -30,6 +31,7 @@ import type {
 type RemakeStoryboardPanelProps = {
   analysisNotice?: string;
   draftNotice?: string;
+  exportFlow?: RemakeExportFlowPanelProps;
   guardedLongVideoUx?: boolean;
   hasSourceVideo?: boolean;
   isAnalyzing?: boolean;
@@ -388,6 +390,7 @@ function RemakeOutputsPanel({
 export function RemakeStoryboardPanel({
   analysisNotice = "",
   draftNotice = "",
+  exportFlow,
   guardedLongVideoUx = false,
   hasSourceVideo = false,
   isAnalyzing = false,
@@ -630,6 +633,7 @@ export function RemakeStoryboardPanel({
 
       {renderableStoryboard && shots.length ? (
         <RemakeStoryboardTimeline
+          exportFlow={exportFlow}
           key={renderableStoryboard.id}
           shotGenerations={Object.fromEntries(
             shots.map((shot) => [
