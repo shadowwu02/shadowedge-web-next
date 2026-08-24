@@ -2,6 +2,7 @@
 
 import { useI18n } from "@/i18n/useI18n";
 import { LongVideoAnalysisProgress } from "@/components/video/remake/LongVideoAnalysisProgress";
+import { RemakeStoryboardTimeline } from "@/components/video/remake/RemakeStoryboardTimeline";
 import { getRemakeShotGenerationKey } from "@/components/video/remake/remakeTypes";
 import { getVideoUserFacingError } from "@/lib/video/videoErrorDisplay";
 import { getRemakeShotHandoffReadiness } from "@/lib/video/remakeShotVideoHandoff";
@@ -626,6 +627,13 @@ export function RemakeStoryboardPanel({
       ) : null}
 
       {fullEpisodeResult ? <FullEpisodeCoveragePanel result={fullEpisodeResult} /> : null}
+
+      {renderableStoryboard && shots.length ? (
+        <RemakeStoryboardTimeline
+          key={renderableStoryboard.id}
+          shots={shots}
+        />
+      ) : null}
 
       {shots.length ? (
         <div className="grid gap-4">
