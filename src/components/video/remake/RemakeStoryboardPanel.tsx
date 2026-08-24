@@ -631,6 +631,12 @@ export function RemakeStoryboardPanel({
       {renderableStoryboard && shots.length ? (
         <RemakeStoryboardTimeline
           key={renderableStoryboard.id}
+          shotGenerations={Object.fromEntries(
+            shots.map((shot) => [
+              `${shot.shotGroupId}:${shot.shot}`,
+              shotGenerations[getRemakeShotGenerationKey(renderableStoryboard.id, shot)],
+            ]).filter((entry) => Boolean(entry[1])),
+          )}
           shots={shots}
         />
       ) : null}

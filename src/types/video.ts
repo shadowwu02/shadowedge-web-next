@@ -224,6 +224,7 @@ export type VideoTaskRecord = {
   createdAt: number | string;
   updatedAt?: number | string;
   completedAt?: number | string;
+  replacement?: unknown;
   meta?: Record<string, unknown>;
 };
 
@@ -261,6 +262,8 @@ export type VideoStatusResponse = {
   providerPublicMessageEn?: string;
   providerPublicMessageZh?: string;
   providerFailureCategory?: string;
+  resultAssetId?: string;
+  replacement?: unknown;
   public_message?: string;
   refunded?: boolean;
   refund_amount?: number;

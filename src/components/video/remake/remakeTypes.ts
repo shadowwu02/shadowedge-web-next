@@ -235,6 +235,7 @@ export type RemakeShotGenerationState = {
   retryOfShotKey?: string;
   retryOfTaskId?: string;
   retryQueueRunId?: string;
+  replacement?: import("@/lib/video/remakeShotReplacement").RemakeShotReplacementProjection;
   startedAt?: number;
   status: RemakeShotGenerationStatus;
   taskId?: string;

@@ -3,9 +3,10 @@
 import { useMemo, useState } from "react";
 
 import { useI18n } from "@/i18n/useI18n";
-import type { RemakeKeyframe, RemakeShot } from "@/components/video/remake/remakeTypes";
+import type { RemakeKeyframe, RemakeShot, RemakeShotGenerationState } from "@/components/video/remake/remakeTypes";
 
 type RemakeStoryboardTimelineProps = {
+  shotGenerations?: Record<string, RemakeShotGenerationState>;
   shots: RemakeShot[];
 };
 
@@ -75,7 +76,7 @@ function KeyframePreview({ keyframes }: { keyframes: RemakeKeyframe[] }) {
   );
 }
 
-export function RemakeStoryboardTimeline({ shots }: RemakeStoryboardTimelineProps) {
+export function RemakeStoryboardTimeline({ shotGenerations = {}, shots }: RemakeStoryboardTimelineProps) {
   const { t, tf } = useI18n();
   const [selectedShotKey, setSelectedShotKey] = useState(() => (shots[0] ? getShotKey(shots[0]) : ""));
   const [drafts, setDrafts] = useState<Record<string, ShotDraft>>(() => buildDrafts(shots));
@@ -86,6 +87,19 @@ export function RemakeStoryboardTimeline({ shots }: RemakeStoryboardTimelineProp
     () => selectedShot?.keyframes || [],
     [selectedShot],
   );
+  const selectedGeneration = selectedShot
+    ? shotGenerations[getShotKey(selectedShot)]
+    : undefined;
+  const replacementStatus = selectedGeneration?.replacement?.generated.status || (
+    selectedGeneration?.status === "queued"
+      ? "pending"
+      : selectedGeneration?.status === "generating"
+        ? "processing"
+        : selectedGeneration?.status === "failed"
+          ? "failed"
+          : undefined
+  );
+  const replacementAsset = selectedGeneration?.replacement?.generated.assetLineage;
 
   if (!selectedShot || !selectedDraft) return null;
   const activeDraft = selectedDraft;
@@ -170,6 +184,36 @@ export function RemakeStoryboardTimeline({ shots }: RemakeStoryboardTimelineProp
             </span>
           </div>
           <KeyframePreview keyframes={selectedKeyframes} />
+          <div className="mt-4 rounded-[20px] border border-[rgba(244,244,244,0.08)] bg-[#05070b]/52 p-3" data-testid="remake-shot-replacement">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
+                <span className="rounded-full bg-white/5 px-2.5 py-1 text-[#b9b9b9]/76">{t("video.remake.timeline.originalV1")}</span>
+                <span className="rounded-full bg-[#0b2a3a]/58 px-2.5 py-1 text-[#b7e8ff]/82">{t("video.remake.timeline.editedV2")}</span>
+                <span className="rounded-full bg-[#ffb44d]/10 px-2.5 py-1 text-[#ffd08a]/88">{t("video.remake.timeline.generatedV3")}</span>
+              </div>
+              {replacementStatus ? (
+                <span className="text-xs font-semibold text-[#b9b9b9]/72">{t(`video.remake.timeline.replacement.${replacementStatus}`)}</span>
+              ) : null}
+            </div>
+
+            {replacementStatus === "completed" && replacementAsset ? (
+              <video
+                className="mt-3 aspect-video w-full rounded-[16px] bg-black object-cover"
+                controls
+                playsInline
+                preload="none"
+                src={replacementAsset.url}
+              />
+            ) : replacementStatus ? (
+              <p className="mt-3 text-sm leading-6 text-[#b9b9b9]/66">
+                {replacementStatus === "failed"
+                  ? t("video.remake.timeline.replacementFailedHint")
+                  : t("video.remake.timeline.replacementPendingHint")}
+              </p>
+            ) : (
+              <p className="mt-3 text-sm leading-6 text-[#b9b9b9]/58">{t("video.remake.timeline.noReplacement")}</p>
+            )}
+          </div>
         </div>
 
         <div className="grid content-start gap-4 rounded-[24px] border border-[rgba(244,244,244,0.08)] bg-[#05070b]/42 p-4">

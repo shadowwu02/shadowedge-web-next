@@ -1248,6 +1248,7 @@ export function normalizeVideoHistoryItem(item: unknown): VideoHistoryItem {
     createdAt: pickString(record.createdAt, record.created_at, meta.createdAt, meta.created_at) || Date.now(),
     updatedAt: pickString(record.updatedAt, record.updated_at, meta.updatedAt, meta.updated_at),
     completedAt: pickString(record.completedAt, record.completed_at, meta.completedAt, meta.completed_at),
+    replacement: record.replacement,
     first_frame_image: firstFrameImage,
     last_frame_image: lastFrameImage,
     assets,

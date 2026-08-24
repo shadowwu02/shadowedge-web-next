@@ -84,6 +84,10 @@ import {
 } from "@/lib/video/remakeStoryboardDraft";
 import { getRenderableRemakeStoryboard } from "@/lib/video/remakeStoryboardVisibility";
 import {
+  normalizeRemakeShotReplacement,
+  preferRemakeShotReplacement,
+} from "@/lib/video/remakeShotReplacement";
+import {
   clearRemakeShotQueueDraft,
   getRemakeQueueUserKeyHash,
   readRemakeShotQueueDraft,
@@ -1020,6 +1024,9 @@ function buildRemakeOutputItems(records: VideoTaskRecord[], storyboard: RemakeSt
 
 function preferRemakeHistoryCandidate(current: RemakeHistoryShotCandidate | undefined, candidate: RemakeHistoryShotCandidate) {
   if (!current) return true;
+  const preferredReplacement = preferRemakeShotReplacement(current.replacement, candidate.replacement);
+  if (preferredReplacement === current.replacement && preferredReplacement !== candidate.replacement) return false;
+  if (preferredReplacement === candidate.replacement && preferredReplacement !== current.replacement) return true;
   if (candidate.matchPriority !== current.matchPriority) return candidate.matchPriority > current.matchPriority;
   if (candidate.historyTime !== current.historyTime) return candidate.historyTime > current.historyTime;
   if (candidate.status === "success" && current.status !== "success") return true;
@@ -1038,6 +1045,7 @@ function toRemakeShotGenerationState(candidate: RemakeHistoryShotCandidate): Rem
     retryOfShotKey: candidate.retryOfShotKey,
     retryOfTaskId: candidate.retryOfTaskId,
     retryQueueRunId: candidate.retryQueueRunId,
+    replacement: candidate.replacement,
     status: candidate.status,
     taskId: candidate.taskId,
     updatedAt: candidate.updatedAt,
@@ -1081,11 +1089,14 @@ function buildRemakeHistoryShotMap(
       : fallbackShotKeys.get(lookupKey);
     if (!shotKey) return;
 
-    const outputUrl = getRemakeHistoryOutputUrl(record);
+    const replacement = normalizeRemakeShotReplacement(record.replacement);
+    const outputUrl = replacement?.generated.assetLineage?.url || getRemakeHistoryOutputUrl(record);
     const status = String(record.status || "");
-    const isSuccess = Boolean(outputUrl);
-    const isFailed = isVideoFailedStatus(status);
-    if (!isSuccess && !isFailed) return;
+    const isSuccess = replacement?.generated.status === "completed" || (!replacement && Boolean(outputUrl));
+    const isFailed = replacement?.generated.status === "failed" || (!replacement && isVideoFailedStatus(status));
+    const isPending = replacement?.generated.status === "pending";
+    const isProcessing = replacement?.generated.status === "processing";
+    if (!isSuccess && !isFailed && !isPending && !isProcessing) return;
 
     const historyTime = getVideoHistoryTime(record);
     const candidate: RemakeHistoryShotCandidate = {
@@ -1101,7 +1112,8 @@ function buildRemakeHistoryShotMap(
       retryOfShotKey: getStringValue(meta.retryOfShotKey) || undefined,
       retryOfTaskId: getStringValue(meta.retryOfTaskId) || undefined,
       retryQueueRunId: getStringValue(meta.retryQueueRunId) || undefined,
-      status: isSuccess ? "success" : "failed",
+      replacement: replacement || undefined,
+      status: isSuccess ? "success" : isFailed ? "failed" : isPending ? "queued" : "generating",
       taskId: getRemakeHistoryTaskId(record) || undefined,
       updatedAt: historyTime || undefined,
     };
@@ -3303,6 +3315,7 @@ export function VideoWorkspace() {
 
       const outputUrl = getSafeHistoryOutputUrl(record);
       const status = String(record.status || "");
+      const replacement = normalizeRemakeShotReplacement(record.replacement) || generation.replacement;
       let derived: RemakeShotGenerationState | null = null;
 
       if (outputUrl) {
@@ -3310,6 +3323,7 @@ export function VideoWorkspace() {
           ...generation,
           error: "",
           outputUrl,
+          replacement,
           status: "success",
           updatedAt: generation.updatedAt,
         };
@@ -3317,12 +3331,14 @@ export function VideoWorkspace() {
         derived = {
           ...generation,
           error: String(record.error_message || record.message || t("video.remake.shotGenerationFailed")),
+          replacement,
           status: "failed",
           updatedAt: generation.updatedAt,
         };
       } else if (isVideoActiveStatus(status)) {
         derived = {
           ...generation,
+          replacement,
           status: "generating",
           updatedAt: generation.updatedAt,
         };
@@ -3332,7 +3348,8 @@ export function VideoWorkspace() {
       if (
         derived.status === generation.status &&
         derived.outputUrl === generation.outputUrl &&
-        derived.error === generation.error
+        derived.error === generation.error &&
+        derived.replacement === generation.replacement
       ) {
         return;
       }
