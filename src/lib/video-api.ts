@@ -279,12 +279,14 @@ function normalizePublicTupleCapabilities(value: unknown): VideoTupleCapability[
     const resolution = String(raw.resolution || "").trim();
     const audio = asRecord(raw.audio);
     const pricing = asRecord(raw.pricing);
-    const pricingStatus = pricing.status === "READY"
+    const credits = Number(pricing.currentCustomerCredits);
+    const pricingVersion = String(pricing.pricingVersion || "").trim();
+    const pricingReady = pricing.status === "READY" && pricingVersion && Number.isFinite(credits) && credits > 0;
+    const pricingStatus = pricingReady
       ? "READY"
-      : pricing.status === "MISSING_REQUIRES_OWNER_DECISION"
+      : pricing.status === "MISSING_REQUIRES_OWNER_DECISION" || pricing.status === "READY"
         ? "MISSING_REQUIRES_OWNER_DECISION"
         : null;
-    const credits = Number(pricing.currentCustomerCredits);
     if (!Number.isInteger(duration) || duration <= 0 || !resolution || !pricingStatus) return [];
     return [{
       duration,
@@ -296,8 +298,11 @@ function normalizePublicTupleCapabilities(value: unknown): VideoTupleCapability[
       },
       pricing: {
         status: pricingStatus,
-        currentCustomerCredits: Number.isFinite(credits) && credits > 0 ? credits : null,
-        ...(pricing.reason === "CUSTOMER_PRICE_MISSING" ? { reason: "CUSTOMER_PRICE_MISSING" as const } : {}),
+        pricingVersion: pricingReady ? pricingVersion : null,
+        currentCustomerCredits: pricingReady ? credits : null,
+        ...(!pricingReady || pricing.reason === "CUSTOMER_PRICE_MISSING"
+          ? { reason: "CUSTOMER_PRICE_MISSING" as const }
+          : {}),
       },
     }];
   });
@@ -318,6 +323,7 @@ function normalizeVideoCreditRules(value: unknown, fallbackCredits: number): Vid
 
   return {
     schemaVersion: String(raw.schemaVersion || ""),
+    pricingVersion: String(raw.pricingVersion || ""),
     baseCredits,
     table,
     referenceSurchargeCredits: Number(raw.referenceSurchargeCredits || 0),

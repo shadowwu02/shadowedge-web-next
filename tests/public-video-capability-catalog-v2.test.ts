@@ -15,6 +15,7 @@ function tuple(duration: number, resolution: string, audio: boolean, credits: nu
     audio: { supported: audio, default: false },
     pricing: {
       status: credits === null ? "MISSING_REQUIRES_OWNER_DECISION" : "READY",
+      pricingVersion: credits === null ? null : "VIDEO_PUBLIC_PRICING_V2_20260825",
       currentCustomerCredits: credits,
     },
   };
@@ -97,24 +98,28 @@ describe("Public Video Capability Catalog V2", () => {
     })).toThrowError(expect.objectContaining({ code: "VIDEO_AUDIO_UNSUPPORTED" }));
   });
 
-  it("keeps verified but unpriced tuples visible and non-executable", () => {
+  it("uses the exact versioned tuple price without a local estimate override", () => {
     const model = publicModel({
       id: "seedance_2_0",
       duration: { type: "range", selection: "discrete_range", min: 5, max: 15, step: 1, default: 5 },
       durations: range(5, 15),
       resolutions: ["720p", "1080p", "4K"],
-      tuples: [tuple(5, "720p", true, 23), tuple(5, "4K", false, null)],
+      tuples: [tuple(5, "720p", true, 23), tuple(5, "4K", false, 90)],
     });
     expect(getVideoTupleCapability(model, { duration: 5, resolution: "4K" })).not.toBeNull();
-    expect(() => buildVideoGenerationRequest({
+    const request = buildVideoGenerationRequest({
       duration: 5,
       generateAudio: false,
+      estimatedCredits: 999,
       media: [],
       model,
       prompt: "Safe catalog fixture",
       quality: "4K",
       ratio: "16:9",
-    })).toThrowError(expect.objectContaining({ code: "VIDEO_PRICING_NOT_APPROVED" }));
+    });
+    expect(request.clientCost).toBe(90);
+    expect(request.pricingVersion).toBe("VIDEO_PUBLIC_PRICING_V2_20260825");
+    expect(request.creditAmount).toBe(90);
   });
 
   it("projects the same canonical model into Studio without local capability rules", () => {

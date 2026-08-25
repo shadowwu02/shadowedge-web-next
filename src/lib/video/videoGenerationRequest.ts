@@ -22,7 +22,7 @@ import type {
   VideoModel,
 } from "@/types/video";
 import { createVideoClientRequestId, normalizeVideoClientRequestId } from "@/lib/video/videoClientRequestId";
-import { assertVideoTupleForGeneration } from "@/lib/video/videoTupleAuthority";
+import { assertVideoTupleForGeneration, getVideoTuplePricingDecision } from "@/lib/video/videoTupleAuthority";
 
 export type BuildVideoGenerationRequestInput = {
   prompt: string;
@@ -54,6 +54,11 @@ export function buildVideoGenerationRequest(
     ratio: options.ratio,
     resolution: options.quality,
   });
+  const catalogPricing = catalogTuple ? getVideoTuplePricingDecision(options.model, {
+    duration: options.duration,
+    resolution: options.quality,
+    generateAudio: options.generateAudio,
+  }) : null;
   if (options.generateAudio && options.model.supportsAudio === false) {
     throw Object.assign(new Error("Generated audio is not available for the selected video model."), {
       code: "VIDEO_AUDIO_UNSUPPORTED",
@@ -93,7 +98,7 @@ export function buildVideoGenerationRequest(
   );
   const primaryImageUrl = images[0] || "";
   const primaryVideoUrl = videos[0] || "";
-  const estimatedCredits = catalogTuple?.pricing.currentCustomerCredits ?? (
+  const estimatedCredits = catalogPricing?.creditAmount ?? (
     typeof options.estimatedCredits === "number" && Number.isFinite(options.estimatedCredits)
       ? options.estimatedCredits
       : estimateVideoCreditsForParams(
@@ -139,6 +144,11 @@ export function buildVideoGenerationRequest(
     videoUrl: primaryVideoUrl,
     upload_assets: { media: mediaList },
     clientCost: estimatedCredits,
+    ...(catalogPricing ? {
+      pricingVersion: catalogPricing.pricingVersion,
+      pricing_version: catalogPricing.pricingVersion,
+      creditAmount: catalogPricing.creditAmount,
+    } : {}),
     meta: {
       clientRequestId,
       client_request_id: clientRequestId,
@@ -149,6 +159,10 @@ export function buildVideoGenerationRequest(
       quality: options.quality,
       generate_audio: options.generateAudio,
       generateAudio: options.generateAudio,
+      ...(catalogPricing ? {
+        pricingVersion: catalogPricing.pricingVersion,
+        creditAmount: catalogPricing.creditAmount,
+      } : {}),
       original_prompt: options.prompt,
       enhanced_prompt: enhancedPrompt,
       mode: mediaList.length ? "media-to-video" : "text-to-video",

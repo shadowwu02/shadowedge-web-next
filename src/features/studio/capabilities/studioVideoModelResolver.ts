@@ -653,12 +653,13 @@ export function resolveStudioVideoProviderCostRule(
 
 export function estimateStudioVideoModelCredits(
   model: StudioProviderVideoModel,
-  input: Pick<StudioVideoModelParams, "duration" | "quality" | "resolution">,
+  input: Pick<StudioVideoModelParams, "duration" | "quality" | "resolution" | "audio">,
 ) {
   if (model.catalogModel) {
     return getVideoTupleCredits(model.catalogModel, {
       duration: input.duration,
       resolution: cleanString(input.resolution || input.quality),
+      generateAudio: input.audio,
     });
   }
   const durationRules = model.metadata.creditTable[String(input.duration)] || {};

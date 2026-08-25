@@ -70,6 +70,7 @@ export type UploadedMediaResponse = {
 
 export type VideoCreditRulesContract = {
   schemaVersion?: string;
+  pricingVersion?: string;
   baseCredits?: number;
   table?: Record<string, Partial<Record<string, number>>>;
   durationMultiplier?: "linear_from_5s";
@@ -98,6 +99,7 @@ export type VideoTupleCapability = {
   };
   pricing: {
     status: VideoTuplePricingStatus;
+    pricingVersion: string | null;
     currentCustomerCredits: number | null;
     reason?: "CUSTOMER_PRICE_MISSING";
   };
@@ -198,6 +200,9 @@ export type VideoGenerationRequest = {
     }>;
   };
   clientCost: number;
+  pricingVersion?: string;
+  pricing_version?: string;
+  creditAmount?: number;
   meta: Record<string, unknown>;
 };
 

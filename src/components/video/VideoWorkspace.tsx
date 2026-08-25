@@ -107,7 +107,7 @@ import { getReusableVideoOutputUrl, readVideoDraftNotice, sendVideoFailedJobToVi
 import { getVideoUserFacingErrorDisplay } from "@/lib/video/videoErrorDisplay";
 import { estimateVideoCreditsForParams, getVideoModelRule, getVideoModelRuleFromRegistry, hasVideoModelRule, normalizeVideoParamsForRule } from "@/lib/video/videoModelRules";
 import { countVideoPromptCharacters, formatVideoPromptLimit, getVideoPromptLimit } from "@/lib/video/videoPromptLimits";
-import { getVideoTupleCapability, getVideoTupleCredits } from "@/lib/video/videoTupleAuthority";
+import { getVideoTupleCapability, getVideoTupleCredits, getVideoTuplePricingDecision } from "@/lib/video/videoTupleAuthority";
 import {
   parseMentionBindings,
   remapVideoMentionReferencesForMediaOrder,
@@ -2768,6 +2768,7 @@ export function VideoWorkspace() {
   const selectedModelRuleId = getVideoModelRuleId(selectedModel);
   const selectedModelRule = useMemo(() => getVideoModelRuleFromRegistry(selectedModel), [selectedModel]);
   const hasTupleAuthority = Boolean(selectedModel.tupleCapabilities?.length);
+  const requiresTupleAuthority = hasTupleAuthority || Boolean(selectedModel.creditRules?.pricingVersion);
   const selectedTuple = useMemo(
     () => getVideoTupleCapability(selectedModel, { duration: params.duration, resolution: params.quality }),
     [params.duration, params.quality, selectedModel],
@@ -2777,13 +2778,23 @@ export function VideoWorkspace() {
   // shown as invalid and blocked; it is never silently serialized as false.
   const effectiveGenerateAudio = params.generateAudio;
   const audioTupleInvalid = effectiveGenerateAudio && !isAudioSupported;
-  const tuplePricingReady = !hasTupleAuthority || (
-    selectedTuple?.pricing.status === "READY" && selectedTuple.pricing.currentCustomerCredits !== null
+  const tuplePricingDecision = useMemo(
+    () => getVideoTuplePricingDecision(selectedModel, {
+      duration: params.duration,
+      resolution: params.quality,
+      generateAudio: effectiveGenerateAudio,
+    }),
+    [effectiveGenerateAudio, params.duration, params.quality, selectedModel],
   );
+  const tuplePricingReady = !requiresTupleAuthority || tuplePricingDecision !== null;
   const estimatedCredits = useMemo(
     () => {
-      if (hasTupleAuthority) {
-        return getVideoTupleCredits(selectedModel, { duration: params.duration, resolution: params.quality });
+      if (requiresTupleAuthority) {
+        return getVideoTupleCredits(selectedModel, {
+          duration: params.duration,
+          resolution: params.quality,
+          generateAudio: effectiveGenerateAudio,
+        });
       }
       return estimateVideoCreditsForParams(
         selectedModelRule,
@@ -2796,7 +2807,7 @@ export function VideoWorkspace() {
         selectedModel.credits,
       );
     },
-    [effectiveGenerateAudio, hasTupleAuthority, params.duration, params.quality, params.ratio, selectedModel, selectedModelRule],
+    [effectiveGenerateAudio, params.duration, params.quality, params.ratio, requiresTupleAuthority, selectedModel, selectedModelRule],
   );
   const hasEnoughCredits = estimatedCredits !== null && (credits === null || estimatedCredits <= credits);
   const selectedPromptLimit = getVideoPromptLimit(selectedModel);
