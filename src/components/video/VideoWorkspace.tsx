@@ -107,6 +107,7 @@ import { getReusableVideoOutputUrl, readVideoDraftNotice, sendVideoFailedJobToVi
 import { getVideoUserFacingErrorDisplay } from "@/lib/video/videoErrorDisplay";
 import { estimateVideoCreditsForParams, getVideoModelRule, getVideoModelRuleFromRegistry, hasVideoModelRule, normalizeVideoParamsForRule } from "@/lib/video/videoModelRules";
 import { countVideoPromptCharacters, formatVideoPromptLimit, getVideoPromptLimit } from "@/lib/video/videoPromptLimits";
+import { getVideoTupleCapability, getVideoTupleCredits } from "@/lib/video/videoTupleAuthority";
 import {
   parseMentionBindings,
   remapVideoMentionReferencesForMediaOrder,
@@ -2766,11 +2767,25 @@ export function VideoWorkspace() {
   const concurrencyLimitNotice = `${t("generation.errors.concurrencyLimitReached")} ${concurrencyLabel}`;
   const selectedModelRuleId = getVideoModelRuleId(selectedModel);
   const selectedModelRule = useMemo(() => getVideoModelRuleFromRegistry(selectedModel), [selectedModel]);
-  const isAudioSupported = selectedModel.supportsAudio === true;
-  const effectiveGenerateAudio = isAudioSupported && params.generateAudio;
+  const hasTupleAuthority = Boolean(selectedModel.tupleCapabilities?.length);
+  const selectedTuple = useMemo(
+    () => getVideoTupleCapability(selectedModel, { duration: params.duration, resolution: params.quality }),
+    [params.duration, params.quality, selectedModel],
+  );
+  const isAudioSupported = selectedTuple?.audio.supported ?? (hasTupleAuthority ? false : selectedModel.supportsAudio === true);
+  // Preserve the user's explicit audio choice. An incompatible resolution is
+  // shown as invalid and blocked; it is never silently serialized as false.
+  const effectiveGenerateAudio = params.generateAudio;
+  const audioTupleInvalid = effectiveGenerateAudio && !isAudioSupported;
+  const tuplePricingReady = !hasTupleAuthority || (
+    selectedTuple?.pricing.status === "READY" && selectedTuple.pricing.currentCustomerCredits !== null
+  );
   const estimatedCredits = useMemo(
-    () =>
-      estimateVideoCreditsForParams(
+    () => {
+      if (hasTupleAuthority) {
+        return getVideoTupleCredits(selectedModel, { duration: params.duration, resolution: params.quality });
+      }
+      return estimateVideoCreditsForParams(
         selectedModelRule,
         {
           duration: params.duration,
@@ -2779,10 +2794,11 @@ export function VideoWorkspace() {
           ratio: params.ratio,
         },
         selectedModel.credits,
-      ),
-    [effectiveGenerateAudio, params.duration, params.quality, params.ratio, selectedModel.credits, selectedModelRule],
+      );
+    },
+    [effectiveGenerateAudio, hasTupleAuthority, params.duration, params.quality, params.ratio, selectedModel, selectedModelRule],
   );
-  const hasEnoughCredits = credits === null || estimatedCredits <= credits;
+  const hasEnoughCredits = estimatedCredits !== null && (credits === null || estimatedCredits <= credits);
   const selectedPromptLimit = getVideoPromptLimit(selectedModel);
   const selectedPromptLimitLabel = formatVideoPromptLimit(selectedModel);
   const isPromptTooLong = countVideoPromptCharacters(prompt) > selectedPromptLimit;
@@ -2793,7 +2809,7 @@ export function VideoWorkspace() {
   );
   const modelUnavailable = catalogStatus !== "ready" || selectedModel.available === false;
   const tenantMembershipReviewRequired = profile?.tenantMembershipStatus === "REVIEW_REQUIRED";
-  const canGenerate = catalogStatus === "ready" && !modelLoading && Boolean(selectedModel) && !modelUnavailable && !tenantMembershipReviewRequired && hasPromptForGenerate && !referenceSelectionIssue && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits && !isPromptTooLong;
+  const canGenerate = catalogStatus === "ready" && !modelLoading && Boolean(selectedModel) && !modelUnavailable && !tenantMembershipReviewRequired && hasPromptForGenerate && !referenceSelectionIssue && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits && tuplePricingReady && !audioTupleInvalid && !isPromptTooLong;
   const reusableMedia = useMemo(
     () => collectReusableVideoAssets(task ? [task, ...history] : history),
     [history, task],
@@ -2848,9 +2864,11 @@ export function VideoWorkspace() {
     if (isUploadingMedia) return t("video.actions.uploadingMedia");
     if (isProcessing) return t("video.status.processing");
     if (!token && !isSignedIn) return t("video.errors.signInRequired");
+    if (!tuplePricingReady) return "Pricing approval required";
+    if (audioTupleInvalid) return "Turn off audio to continue";
     if (!hasEnoughCredits) return t("video.credits.notEnough");
     return tf("video.actions.generateWithCredits", { credits: estimatedCredits });
-  }, [catalogStatus, estimatedCredits, hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, t, tf, token]);
+  }, [audioTupleInvalid, catalogStatus, estimatedCredits, hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, t, tf, token, tuplePricingReady]);
   const generateButtonHelper = useMemo(() => {
     if (catalogStatus !== "ready") return t("video.model.catalogUnavailable");
     if (!hasPromptForGenerate) return t("video.errors.promptRequired");
@@ -2862,10 +2880,12 @@ export function VideoWorkspace() {
     if (isUploadingMedia) return t("video.errors.mediaUploading");
     if (isProcessing) return concurrencyLimitNotice;
     if (!token && !isSignedIn) return t("video.errors.signInRequired");
+    if (!tuplePricingReady) return "This verified capability needs an approved customer Credit price before generation.";
+    if (audioTupleInvalid) return "Generated audio is unavailable at this resolution. Turn audio off before generation.";
     if (!hasEnoughCredits) return t("video.credits.notEnough");
     if (isPromptTooLong) return tf("video.errors.promptTooLong", { limit: selectedPromptLimitLabel });
     return t("video.credits.beforeSubmit");
-  }, [catalogStatus, concurrencyLimitNotice, hasEnoughCredits, hasPromptForGenerate, isProcessing, isPromptTooLong, isSignedIn, isUploadingMedia, modelUnavailable, referenceSelectionIssue, selectedPromptLimitLabel, t, tenantMembershipReviewRequired, tf, token]);
+  }, [audioTupleInvalid, catalogStatus, concurrencyLimitNotice, hasEnoughCredits, hasPromptForGenerate, isProcessing, isPromptTooLong, isSignedIn, isUploadingMedia, modelUnavailable, referenceSelectionIssue, selectedPromptLimitLabel, t, tenantMembershipReviewRequired, tf, token, tuplePricingReady]);
 
   const handleGenerateRemakeShot = useCallback(
     async (shot: RemakeShot, queueMeta?: RemakeShotQueueMeta) => {
@@ -4263,9 +4283,10 @@ export function VideoWorkspace() {
                   </span>
                 </button>
                 <AudioToggle
-                  checked={effectiveGenerateAudio}
-                  disabled={!isAudioSupported}
+                  checked={params.generateAudio}
+                  disabled={!isAudioSupported && !params.generateAudio}
                   onChange={(checked) => setParams((current) => ({ ...current, generateAudio: checked }))}
+                  unsupported={!isAudioSupported}
                 />
               </div>
               <ModelSelector models={models} onChange={handleModelChange} selectedModelId={selectedModel.id} />
@@ -4311,7 +4332,7 @@ export function VideoWorkspace() {
               <p className="mb-2 text-xs font-semibold text-[#b9b9b9]/64">{concurrencyLabel}</p>
             ) : null}
             <GenerateButton
-              credits={estimatedCredits}
+              credits={estimatedCredits ?? undefined}
               disabled={!canGenerate}
               helperText={generateButtonHelper}
               isSubmitting={isSubmitting}

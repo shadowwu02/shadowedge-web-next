@@ -79,10 +79,28 @@ export type VideoCreditRulesContract = {
 };
 
 export type VideoDurationPolicy = {
+  type: "range" | "values";
   selection: "discrete" | "discrete_range";
   min: number;
   max: number;
   step: number;
+};
+
+export type VideoTuplePricingStatus = "READY" | "MISSING_REQUIRES_OWNER_DECISION";
+
+export type VideoTupleCapability = {
+  duration: number;
+  resolution: string;
+  allowedAspectRatios: string[];
+  audio: {
+    supported: boolean;
+    default: boolean;
+  };
+  pricing: {
+    status: VideoTuplePricingStatus;
+    currentCustomerCredits: number | null;
+    reason?: "CUSTOMER_PRICE_MISSING";
+  };
 };
 
 export type VideoModel = {
@@ -105,6 +123,7 @@ export type VideoModel = {
   qualities: string[];
   supportsAudio?: boolean;
   audioDefault?: boolean;
+  tupleCapabilities?: VideoTupleCapability[];
   uploadSlots?: string[];
   referenceImages?: boolean;
   maxReferenceImages?: number;

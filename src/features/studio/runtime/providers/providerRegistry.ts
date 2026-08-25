@@ -44,6 +44,17 @@ export const STUDIO_PROVIDER_REGISTRY: readonly StudioProviderDefinition[] = [
     createdAt: "2026-07-15T00:00:00.000Z",
   },
   {
+    providerId: "seedance",
+    name: "Seedance",
+    capabilities: ["video_generate"],
+    runtimeType: "http",
+    runtimeAdapters: {
+      video_generate: "existing_video_api",
+    },
+    status: "ACTIVE",
+    createdAt: "2026-08-25T00:00:00.000Z",
+  },
+  {
     providerId: "higgsfield",
     name: "Higgsfield",
     capabilities: ["video_generate", "video_edit"],

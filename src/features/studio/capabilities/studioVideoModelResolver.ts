@@ -1,5 +1,7 @@
 import type { StudioProviderReadiness } from "./studioProviderReadiness";
 import { resolveProviderRuntimeDefinition } from "../runtime/providers/providerRegistry.ts";
+import { getVideoTupleCredits } from "@/lib/video/videoTupleAuthority";
+import type { VideoModel } from "@/types/video";
 
 export type ProviderCostScope = "EXACT" | "PARTIAL" | "UNKNOWN";
 export type StudioModelReadinessStatus =
@@ -69,7 +71,7 @@ export type StudioProviderVideoModel = {
     modes: string[];
     credits: number | null;
     creditBase: number | null;
-    creditTable: Record<string, Record<string, number>>;
+    creditTable: Record<string, Partial<Record<string, number>>>;
     supportsAudio: boolean;
     hot: boolean;
     providerCost?: {
@@ -101,6 +103,7 @@ export type StudioProviderVideoModel = {
     verifiedParameters: StudioVerifiedVideoParameters[];
     blockers: string[];
   };
+  catalogModel?: VideoModel;
 };
 
 export type StudioProviderModelInventory = {
@@ -515,15 +518,16 @@ export function normalizeStudioVideoModelParams(
   const requestedRatio = cleanString(input.ratio);
   const requestedResolution = cleanString(input.resolution || input.quality);
   const requestedMode = cleanString(input.mode) || model.metadata.defaultMode;
-  const duration = durations.includes(requestedDuration)
-    ? requestedDuration
-    : durations[0];
-  const ratio = includesString(ratios, requestedRatio)
-    ? requestedRatio
-    : ratios[0];
-  const resolution = includesString(resolutions, requestedResolution)
-    ? requestedResolution
-    : resolutions[0];
+  if (!durations.includes(requestedDuration) || !includesString(ratios, requestedRatio) ||
+      !includesString(resolutions, requestedResolution)) {
+    throw new StudioVideoModelResolutionError(
+      "STUDIO_VIDEO_MODEL_PARAMS_UNSUPPORTED",
+      `The selected duration, ratio, or resolution is not in the canonical catalog for ${model.id}.`,
+    );
+  }
+  const duration = requestedDuration;
+  const ratio = requestedRatio;
+  const resolution = requestedResolution;
   const mode = includesString(model.metadata.modes, requestedMode)
     ? requestedMode
     : model.metadata.defaultMode || model.metadata.modes[0];
@@ -651,6 +655,12 @@ export function estimateStudioVideoModelCredits(
   model: StudioProviderVideoModel,
   input: Pick<StudioVideoModelParams, "duration" | "quality" | "resolution">,
 ) {
+  if (model.catalogModel) {
+    return getVideoTupleCredits(model.catalogModel, {
+      duration: input.duration,
+      resolution: cleanString(input.resolution || input.quality),
+    });
+  }
   const durationRules = model.metadata.creditTable[String(input.duration)] || {};
   const resolution = cleanString(input.resolution || input.quality);
   const tableCredits = Number(durationRules[resolution]);
@@ -680,7 +690,7 @@ export function resolveStudioVideoGenerationProvider(
     capability: "video_generate",
     providerId,
   });
-  if (!resolution.ok || resolution.runtimeAdapter !== "higgsfield_video_cli") {
+  if (!resolution.ok || !["higgsfield_video_cli", "existing_video_api"].includes(resolution.runtimeAdapter)) {
     throw new StudioVideoModelResolutionError(
       "STUDIO_VIDEO_PROVIDER_UNAVAILABLE",
       `Studio has no existing video executor mapping for ${providerId}.`,
@@ -693,7 +703,7 @@ export function resolveStudioVideoGenerationProvider(
     );
   }
   return {
-    providerId: "higgsfield" as const,
+    providerId: resolution.provider.providerId,
     executor: "existing_video_api" as const,
     runtimeAdapter: resolution.runtimeAdapter,
   };

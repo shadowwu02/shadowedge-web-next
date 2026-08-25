@@ -16,7 +16,7 @@ function rangeModel(id: "seedance_2_0" | "seedance_2_5", max: number) {
     id,
     name: id,
     credits: 23,
-    duration: { selection: "discrete_range", min: 5, max, step: 1, default: 5 },
+    duration: { type: "range", selection: "discrete_range", min: 5, max, step: 1, default: 5 },
     durations: [],
     ratios: ["16:9"],
     resolutions: ["720p"],
@@ -75,18 +75,18 @@ describe("video duration slider contract", () => {
 
   it("keeps fixed Catalog models on the existing discrete duration UI", () => {
     expect(resolveVideoDurationSliderContract(
-      { selection: "discrete", min: 5, max: 5, step: 1 },
+      { type: "values", selection: "discrete", min: 5, max: 5, step: 1 },
       [5],
     )).toBeNull();
   });
 
   it("fails closed when a range policy and its explicit duration values disagree", () => {
     expect(resolveVideoDurationSliderContract(
-      { selection: "discrete_range", min: 5, max: 15, step: 1 },
+      { type: "range", selection: "discrete_range", min: 5, max: 15, step: 1 },
       [5, 10, 15],
     )).toBeNull();
     expect(resolveVideoDurationSliderContract(
-      { selection: "discrete_range", min: 5, max: 15, step: 1 },
+      { type: "range", selection: "discrete_range", min: 5, max: 15, step: 1 },
       [...range(5, 15), 12.5],
     )).toBeNull();
   });

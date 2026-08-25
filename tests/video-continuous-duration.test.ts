@@ -12,7 +12,7 @@ function model(id: "seedance_2_0" | "seedance_2_5", max: number) {
     name: id === "seedance_2_0" ? "Seedance 2.0" : "Seedance 2.5",
     credits: 23,
     durations,
-    duration: { selection: "discrete_range", min: 5, max, step: 1, default: 5 },
+    duration: { type: "range", selection: "discrete_range", min: 5, max, step: 1, default: 5 },
     durations: [],
     ratios: ["16:9"],
     resolutions: ["720p"],

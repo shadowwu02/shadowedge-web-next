@@ -26,13 +26,13 @@ const range = (min: number, max: number) => Array.from({ length: max - min + 1 }
 describe("video workspace public capability controls", () => {
   it("expands the explicit Seedance 2.0 public discrete range", () => {
     const model = normalizeVideoModel(rawModel({
-      duration: { selection: "discrete_range", default: 5, min: 5, max: 15, step: 1 },
+      duration: { type: "range", selection: "discrete_range", default: 5, min: 5, max: 15, step: 1 },
       durations: [],
     }));
     const rule = getVideoModelRuleFromRegistry(model);
 
     expect(model.durations).toEqual(range(5, 15));
-    expect(model.durationPolicy).toEqual({ selection: "discrete_range", min: 5, max: 15, step: 1 });
+    expect(model.durationPolicy).toEqual({ type: "range", selection: "discrete_range", min: 5, max: 15, step: 1 });
     expect(rule.durations).toEqual(range(5, 15));
     expect(rule.durationPolicy.selection).toBe("discrete_range");
     expect(model.durationDefault).toBe(5);
@@ -42,14 +42,14 @@ describe("video workspace public capability controls", () => {
     const model = normalizeVideoModel(rawModel({
       id: "seedance_2_5",
       name: "Seedance 2.5",
-      duration: { selection: "discrete_range", default: 5, min: 5, max: 30, step: 1 },
+      duration: { type: "range", selection: "discrete_range", default: 5, min: 5, max: 30, step: 1 },
       durations: [],
       supportsAudio: false,
       audio: { default: false, supported: false },
     }));
 
     expect(model.durations).toEqual(range(5, 30));
-    expect(model.durationPolicy).toEqual({ selection: "discrete_range", min: 5, max: 30, step: 1 });
+    expect(model.durationPolicy).toEqual({ type: "range", selection: "discrete_range", min: 5, max: 30, step: 1 });
     expect(model.durationDefault).toBe(5);
     expect(model.supportsAudio).toBe(false);
   });

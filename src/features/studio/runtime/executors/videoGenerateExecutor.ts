@@ -402,7 +402,7 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
       return failure("STUDIO_VIDEO_EXECUTION_DISABLED");
     }
 
-    const providerId = configString(context, "providerId") || "higgsfield";
+    const providerId = configString(context, "providerId") || "seedance";
     if (
       providerId === "higgsfield" ||
       isRetiredHiggsfieldVideoAlias(configString(context, "modelId") || configString(context, "model"))
@@ -501,7 +501,7 @@ export const VideoGenerateExecutor: StudioNodeExecutor = {
             "Runtime cost metadata is unavailable for this video model.",
           );
         }
-        const model: VideoModel = {
+        const model: VideoModel = inventoryModel.catalogModel || {
           id: inventoryModel.id,
           label: inventoryModel.label,
           provider: inventoryModel.providerId,

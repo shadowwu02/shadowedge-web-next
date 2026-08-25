@@ -26,6 +26,7 @@ import type {
   VideoGenerationRequest,
   VideoHistoryItem,
   VideoModel,
+  VideoTupleCapability,
   VideoStatusResponse,
 } from "@/types/video";
 
@@ -230,7 +231,7 @@ function normalizePublicDurationValues(...candidates: unknown[]) {
 }
 
 function normalizePublicDurationRange(capability: Record<string, unknown>) {
-  if (capability.selection !== "discrete_range") return [];
+  if (capability.type !== "range" && capability.selection !== "discrete_range") return [];
   const min = Number(capability.min);
   const max = Number(capability.max);
   const step = Number(capability.step);
@@ -248,7 +249,8 @@ function normalizePublicDurationPolicy(
   const min = Number(capability.min);
   const max = Number(capability.max);
   const step = Number(capability.step);
-  const selection = capability.selection === "discrete_range" ? "discrete_range" : "discrete";
+  const type = capability.type === "range" ? "range" : "values";
+  const selection = type === "range" && capability.selection === "discrete_range" ? "discrete_range" : "discrete";
   const validRange = Number.isInteger(min) && Number.isInteger(max) && Number.isInteger(step) &&
     min > 0 && max >= min && step > 0;
   const expectedValues = validRange
@@ -259,13 +261,46 @@ function normalizePublicDurationPolicy(
 
   // A range is executable only when the public catalog explicitly marks it as
   // discrete_range. Bare min/max fields remain inert and fail closed.
-  if (completeDiscreteRange) return { selection, min, max, step };
+  if (completeDiscreteRange) return { type: "range", selection, min, max, step };
   return {
+    type: "values",
     selection: "discrete",
     min: durations[0] || fallback,
     max: durations.at(-1) || fallback,
     step: 1,
   };
+}
+
+function normalizePublicTupleCapabilities(value: unknown): VideoTupleCapability[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const raw = asRecord(entry);
+    const duration = Number(raw.duration);
+    const resolution = String(raw.resolution || "").trim();
+    const audio = asRecord(raw.audio);
+    const pricing = asRecord(raw.pricing);
+    const pricingStatus = pricing.status === "READY"
+      ? "READY"
+      : pricing.status === "MISSING_REQUIRES_OWNER_DECISION"
+        ? "MISSING_REQUIRES_OWNER_DECISION"
+        : null;
+    const credits = Number(pricing.currentCustomerCredits);
+    if (!Number.isInteger(duration) || duration <= 0 || !resolution || !pricingStatus) return [];
+    return [{
+      duration,
+      resolution,
+      allowedAspectRatios: Array.isArray(raw.allowedAspectRatios) ? raw.allowedAspectRatios.map(String) : [],
+      audio: {
+        supported: audio.supported === true,
+        default: audio.supported === true && audio.default === true,
+      },
+      pricing: {
+        status: pricingStatus,
+        currentCustomerCredits: Number.isFinite(credits) && credits > 0 ? credits : null,
+        ...(pricing.reason === "CUSTOMER_PRICE_MISSING" ? { reason: "CUSTOMER_PRICE_MISSING" as const } : {}),
+      },
+    }];
+  });
 }
 
 function normalizeVideoCreditRules(value: unknown, fallbackCredits: number): VideoCreditRulesContract | undefined {
@@ -305,6 +340,7 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
   const durationDefault = publicDurations.includes(requestedDefault) ? requestedDefault : publicDurations[0];
   const audioCapability = asRecord(model.audio);
   const supportsAudio = model.supportsAudio === true || audioCapability.supported === true;
+  const tupleCapabilities = normalizePublicTupleCapabilities(model.tupleCapabilities);
   const label = String(model.name || model.label || model.id || "Video Model")
     .replace(/\s*HF\s*$/i, "")
     .trim();
@@ -335,6 +371,7 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
         : ["720p"],
     supportsAudio,
     audioDefault: supportsAudio && audioCapability.default === true,
+    tupleCapabilities,
     uploadSlots: Array.isArray(model.uploadSlots) ? model.uploadSlots.map(String) : ["media"],
     referenceImages: model.referenceImages === true,
     maxReferenceImages: Math.max(0, Number(model.maxReferenceImages || 0)),

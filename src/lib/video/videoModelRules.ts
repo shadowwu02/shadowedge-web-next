@@ -232,7 +232,7 @@ const defaultRule: VideoModelRule = {
   uploadSlots: ["media"],
   ratios: ["16:9", "9:16", "1:1"],
   durations: [5, 8, 10],
-  durationPolicy: { selection: "discrete", min: 5, max: 10, step: 1 },
+  durationPolicy: { type: "values", selection: "discrete", min: 5, max: 10, step: 1 },
   qualities: standardQualities,
   resolutions: standardQualities,
   defaultRatio: "16:9",
@@ -830,6 +830,7 @@ function makeRule(rule: Partial<VideoModelRule> & Pick<VideoModelRule, "modelId"
     qualities,
     resolutions: rule.resolutions || qualities,
     durationPolicy: rule.durationPolicy || {
+      type: "values",
       selection: "discrete",
       min: durations[0] || defaultRule.defaultDuration,
       max: durations.at(-1) || defaultRule.defaultDuration,
@@ -953,6 +954,7 @@ export function getVideoModelRuleFromRegistry(model: VideoModel): VideoModelRule
     ratios,
     durations,
     durationPolicy: model.durationPolicy || {
+      type: "values",
       selection: "discrete",
       min: durations[0] || base.defaultDuration,
       max: durations.at(-1) || base.defaultDuration,

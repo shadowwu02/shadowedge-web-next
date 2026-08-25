@@ -22,6 +22,7 @@ import type {
   VideoModel,
 } from "@/types/video";
 import { createVideoClientRequestId, normalizeVideoClientRequestId } from "@/lib/video/videoClientRequestId";
+import { assertVideoTupleForGeneration } from "@/lib/video/videoTupleAuthority";
 
 export type BuildVideoGenerationRequestInput = {
   prompt: string;
@@ -46,6 +47,12 @@ export function buildVideoGenerationRequest(
     generateAudio: options.generateAudio,
     quality: options.quality,
     ratio: options.ratio,
+  });
+  const catalogTuple = assertVideoTupleForGeneration(options.model, {
+    duration: options.duration,
+    generateAudio: options.generateAudio,
+    ratio: options.ratio,
+    resolution: options.quality,
   });
   if (options.generateAudio && options.model.supportsAudio === false) {
     throw Object.assign(new Error("Generated audio is not available for the selected video model."), {
@@ -86,11 +93,10 @@ export function buildVideoGenerationRequest(
   );
   const primaryImageUrl = images[0] || "";
   const primaryVideoUrl = videos[0] || "";
-  const estimatedCredits =
-    typeof options.estimatedCredits === "number" &&
-    Number.isFinite(options.estimatedCredits)
-    ? options.estimatedCredits
-    : estimateVideoCreditsForParams(
+  const estimatedCredits = catalogTuple?.pricing.currentCustomerCredits ?? (
+    typeof options.estimatedCredits === "number" && Number.isFinite(options.estimatedCredits)
+      ? options.estimatedCredits
+      : estimateVideoCreditsForParams(
         modelRule,
         {
           duration: options.duration,
@@ -99,7 +105,8 @@ export function buildVideoGenerationRequest(
           ratio: options.ratio,
         },
         options.model.credits,
-      );
+      )
+  );
 
   return {
     clientRequestId,
