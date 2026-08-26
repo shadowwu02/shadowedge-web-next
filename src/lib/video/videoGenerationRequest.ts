@@ -41,6 +41,11 @@ export type BuildVideoGenerationRequestInput = {
 export function buildVideoGenerationRequest(
   options: BuildVideoGenerationRequestInput,
 ): VideoGenerationRequest {
+  if (options.model.provider === "fluxproxy" || options.model.productLine === "international") {
+    throw Object.assign(new Error("International Seedance customer pricing requires an owner decision."), {
+      code: "FLUXPROXY_CUSTOMER_PRICING_REQUIRED",
+    });
+  }
   const modelRule = getVideoModelRuleFromRegistry(options.model);
   assertVideoGenerationParamsForRule(modelRule, {
     duration: options.duration,

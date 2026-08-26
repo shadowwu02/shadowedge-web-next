@@ -15,6 +15,8 @@ import { VideoGenerationStream, type VideoHistoryFilter } from "@/components/vid
 import { VideoHowItWorks } from "@/components/video/VideoHowItWorks";
 import { VideoReferenceTransformPanel } from "@/components/video/VideoReferenceTransformPanel";
 import { type VideoParams, VideoParamsPanel } from "@/components/video/VideoParamsPanel";
+import { FluxProxyInternationalReferencePanel } from "@/components/video/FluxProxyInternationalReferencePanel";
+import { isFluxProxyInternationalModel } from "@/lib/video/fluxproxyInternational";
 import { RemakeStoryboardPanel, type RemakeOutputItem, type RemakeOutputScope } from "@/components/video/remake/RemakeStoryboardPanel";
 import { VideoRemakeWorkspace } from "@/components/video/remake/VideoRemakeWorkspace";
 import { getRemakeShotGenerationKey } from "@/components/video/remake/remakeTypes";
@@ -4307,6 +4309,9 @@ export function VideoWorkspace() {
                 onChange={setParams}
                 value={params}
               />
+              {isFluxProxyInternationalModel(selectedModel) ? (
+                <FluxProxyInternationalReferencePanel media={media} model={selectedModel} />
+              ) : null}
               {!token && !isSignedIn ? (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[#ffb44d]/20 bg-[#ffb44d]/8 px-3 py-2.5">
                   <div className="min-w-0">

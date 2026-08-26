@@ -51,6 +51,12 @@ export type UploadMediaItem = {
   duration?: number;
   uploadStatus?: "local" | "uploading" | "ready" | "failed";
   errorMessage?: string;
+  providerAssetReview?: {
+    provider: "fluxproxy";
+    providerModel: string;
+    status: "NOT_SUBMITTED" | "PROCESSING" | "ACTIVE" | "FAILED";
+    safeErrorCategory?: string;
+  };
 };
 
 export type UploadedMediaResponse = {
@@ -125,6 +131,17 @@ export type VideoModel = {
   label: string;
   provider?: string;
   providerModel?: string;
+  productLine?: "existing" | "international";
+  customerPricingStatus?: "READY" | "MISSING_OWNER_DECISION";
+  internationalCapabilities?: {
+    family: "2.0" | "2.5";
+    imageMax?: number;
+    videoMax?: number;
+    audioMax?: number;
+    videoTotalDurationMax?: number;
+    audioTotalDurationMax?: number;
+    referenceCountLimitsVerified?: boolean;
+  };
   available?: boolean;
   availability?: string;
   maintenanceMessage?: string;
