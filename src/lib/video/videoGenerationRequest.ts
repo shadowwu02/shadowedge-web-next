@@ -23,6 +23,7 @@ import type {
 } from "@/types/video";
 import { createVideoClientRequestId, normalizeVideoClientRequestId } from "@/lib/video/videoClientRequestId";
 import { assertVideoTupleForGeneration, getVideoTuplePricingDecision } from "@/lib/video/videoTupleAuthority";
+import { isFluxProxyInternationalModel, toFluxProxyReferenceRole } from "@/lib/video/fluxproxyInternational";
 
 export type BuildVideoGenerationRequestInput = {
   prompt: string;
@@ -41,11 +42,6 @@ export type BuildVideoGenerationRequestInput = {
 export function buildVideoGenerationRequest(
   options: BuildVideoGenerationRequestInput,
 ): VideoGenerationRequest {
-  if (options.model.provider === "fluxproxy" || options.model.productLine === "international") {
-    throw Object.assign(new Error("International Seedance customer pricing requires an owner decision."), {
-      code: "FLUXPROXY_CUSTOMER_PRICING_REQUIRED",
-    });
-  }
   const modelRule = getVideoModelRuleFromRegistry(options.model);
   assertVideoGenerationParamsForRule(modelRule, {
     duration: options.duration,
@@ -95,6 +91,13 @@ export function buildVideoGenerationRequest(
   const imageAssetIds = referencedMediaItems.filter((item) => item.type === "image").map((item) => item.assetId!);
   const videoAssetIds = referencedMediaItems.filter((item) => item.type === "video").map((item) => item.assetId!);
   const audioAssetIds = referencedMediaItems.filter((item) => item.type === "audio").map((item) => item.assetId!);
+  const fluxProxyReferences = isFluxProxyInternationalModel(options.model)
+    ? referencedMediaItems.map((item) => ({
+        assetId: item.assetId!,
+        type: item.type,
+        role: toFluxProxyReferenceRole(item),
+      }))
+    : undefined;
   const enhancedPrompt = buildMediaAwarePrompt(
     options.prompt,
     referencedMediaItems,
@@ -141,6 +144,7 @@ export function buildVideoGenerationRequest(
     reference_image_asset_ids: imageAssetIds,
     reference_video_asset_ids: videoAssetIds,
     reference_audio_asset_ids: audioAssetIds,
+    ...(fluxProxyReferences ? { references: fluxProxyReferences } : {}),
     mediaList,
     mode: mediaList.length ? "media-to-video" : "text-to-video",
     image: primaryImageUrl,

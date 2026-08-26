@@ -1,15 +1,25 @@
 import { describe, expect, it } from "vitest";
 import { buildVideoGenerationRequest } from "@/lib/video/videoGenerationRequest";
-import { getFluxProxyInputSlots, getFluxProxyMediaCounters, getFluxProxyMediaLimits, getFluxProxyMentionToken, getFluxProxyReviewSummary, isFluxProxyInternationalModel, listFluxProxyMentionBindings, listFluxProxyMentionTokens } from "@/lib/video/fluxproxyInternational";
+import { getFluxProxyInputSlots, getFluxProxyInternationalDisplayName, getFluxProxyMediaCounters, getFluxProxyMediaLimits, getFluxProxyMentionToken, getFluxProxyReviewSummary, isFluxProxyInternationalModel, listFluxProxyMentionBindings, listFluxProxyMentionTokens } from "@/lib/video/fluxproxyInternational";
 import type { UploadMediaItem, VideoModel } from "@/types/video";
 
-const model = { id: "seedance_2_5_international", label: "Seedance 2.5 International", provider: "fluxproxy", providerModel: "dreamina-seedance-2-5-260628-df", productLine: "international", customerPricingStatus: "MISSING_OWNER_DECISION", credits: 0, maxPromptLength: 10000, durations: [], durationDefault: 5, ratios: ["16:9"], qualities: ["480p", "720p"] } satisfies VideoModel;
-const media = (type: UploadMediaItem["type"], id: string, role?: UploadMediaItem["role"]): UploadMediaItem => ({ id, assetId: id, type, role, name: id, duration: type === "image" ? 0 : 3, uploadStatus: "ready", providerAssetReview: { provider: "fluxproxy", providerModel: model.providerModel!, status: "ACTIVE" } });
+const model = { id: "seedance_2_5_international", label: "Seedance 2.5 International", provider: "fluxproxy", providerModel: "dreamina-seedance-2-5-260628-df", productLine: "international", customerPricingStatus: "READY", credits: 23, maxPromptLength: 10000, durations: Array.from({ length: 27 }, (_value, index) => index + 4), durationDefault: 5, durationPolicy: { type: "range", selection: "discrete_range", min: 4, max: 30, step: 1 }, ratios: ["16:9"], qualities: ["480p", "720p"], referenceImages: true, referenceVideos: true, referenceAudios: true, maxReferenceImages: 30, maxReferenceVideos: 10, maxReferenceAudios: 10, maxTotalReferences: 50, internationalCapabilities: { family: "2.5", imageMax: 30, videoMax: 10, audioMax: 10, videoTotalDurationMax: 30, audioTotalDurationMax: 30, referenceCountLimitsVerified: true }, creditRules: { pricingVersion: "FLUXPROXY_INTERNATIONAL_PRICING_V1_20260826", baseCredits: 23, table: { "5": { "720p": 23 } }, referenceSurchargeCredits: 0 }, tupleCapabilities: [{ duration: 5, resolution: "720p", allowedAspectRatios: ["16:9"], audio: { supported: false, default: false }, pricing: { status: "READY", pricingVersion: "FLUXPROXY_INTERNATIONAL_PRICING_V1_20260826", currentCustomerCredits: 23 } }] } satisfies VideoModel;
+const media = (type: UploadMediaItem["type"], id: string, role?: UploadMediaItem["role"]): UploadMediaItem => ({ id, assetId: id, type, role, name: id, url: `https://api.shadowedge.example/assets/${id}`, duration: type === "image" ? 0 : 3, uploadStatus: "ready", providerAssetReview: { provider: "fluxproxy", providerModel: model.providerModel!, status: "ACTIVE" } });
 
 describe("FluxProxy International frontend contract", () => {
   it("identifies only the International product line", () => {
     expect(isFluxProxyInternationalModel(model)).toBe(true);
     expect(isFluxProxyInternationalModel({ id: "seedance_2_5", provider: "xinhankr" })).toBe(false);
+    expect(getFluxProxyInternationalDisplayName(model, "zh")).toBe("Seedance 2.5 国际版");
+  });
+  it("projects all four distinct English and Chinese model-card names", () => {
+    const ids = ["seedance_2_0_international", "seedance_2_0_fast_international", "seedance_2_0_mini_international", "seedance_2_5_international"];
+    expect(ids.map((id) => getFluxProxyInternationalDisplayName({ id, label: id }, "en"))).toEqual([
+      "Seedance 2.0 International", "Seedance 2.0 Fast International", "Seedance 2.0 Mini International", "Seedance 2.5 International",
+    ]);
+    expect(ids.map((id) => getFluxProxyInternationalDisplayName({ id, label: id }, "zh"))).toEqual([
+      "Seedance 2.0 国际版", "Seedance 2.0 Fast 国际版", "Seedance 2.0 Mini 国际版", "Seedance 2.5 国际版",
+    ]);
   });
   it("derives 2.5 counters and documented limits", () => {
     const items = [media("image", "i"), media("video", "v"), media("audio", "a")];
@@ -34,7 +44,11 @@ describe("FluxProxy International frontend contract", () => {
     expect(getFluxProxyReviewSummary([active], model.providerModel).ready).toBe(true);
     expect(getFluxProxyReviewSummary([{ ...active, providerAssetReview: { ...active.providerAssetReview!, providerModel: "other" } }], model.providerModel)).toMatchObject({ ready: false, modelMismatch: 1 });
   });
-  it("hard-blocks customer generation while pricing is missing", () => {
-    expect(() => buildVideoGenerationRequest({ prompt: "safe", model, duration: 5, ratio: "16:9", quality: "720p", generateAudio: false, media: [] })).toThrowError(expect.objectContaining({ code: "FLUXPROXY_CUSTOMER_PRICING_REQUIRED" }));
+  it("builds an exact Pricing V1 customer request with canonical references", () => {
+    const image = media("image", "00000000-0000-4000-8000-000000000001", "reference");
+    const request = buildVideoGenerationRequest({ prompt: "Use @Image 1 safely", model, duration: 5, ratio: "16:9", quality: "720p", generateAudio: false, media: [image] });
+    expect(request.pricingVersion).toBe("FLUXPROXY_INTERNATIONAL_PRICING_V1_20260826");
+    expect(request.creditAmount).toBe(23);
+    expect(request.references).toEqual([{ assetId: image.assetId, type: "image", role: "reference_image" }]);
   });
 });

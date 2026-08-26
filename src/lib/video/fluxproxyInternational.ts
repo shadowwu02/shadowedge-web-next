@@ -14,14 +14,14 @@ export function isFluxProxyInternationalModel(model?: Pick<VideoModel, "id" | "p
 }
 
 export function getFluxProxyMediaLimits(model: VideoModel) {
-  const family25 = model.id === "seedance_2_5_international";
+  const capability = model.internationalCapabilities;
   return Object.freeze({
-    image: family25 ? 30 : null,
-    video: family25 ? 10 : null,
-    audio: family25 ? 10 : null,
-    videoTotalDuration: family25 ? 30 : null,
-    audioTotalDuration: family25 ? 30 : null,
-    referenceCountLimitsVerified: family25,
+    image: capability?.referenceCountLimitsVerified ? Math.max(0, Number(capability.imageMax || model.maxReferenceImages || 0)) : null,
+    video: capability?.referenceCountLimitsVerified ? Math.max(0, Number(capability.videoMax || model.maxReferenceVideos || 0)) : null,
+    audio: capability?.referenceCountLimitsVerified ? Math.max(0, Number(capability.audioMax || model.maxReferenceAudios || 0)) : null,
+    videoTotalDuration: capability?.videoTotalDurationMax || null,
+    audioTotalDuration: capability?.audioTotalDurationMax || null,
+    referenceCountLimitsVerified: capability?.referenceCountLimitsVerified === true,
   });
 }
 
@@ -31,7 +31,26 @@ export function getFluxProxyInputSlots(model: VideoModel) {
     { type: "image" as const, label: "Images", max: limits.image, roles: ["reference_image", "first_frame", "last_frame"] as FluxProxyMentionRole[] },
     { type: "video" as const, label: "Videos", max: limits.video, roles: ["reference_video"] as FluxProxyMentionRole[] },
     { type: "audio" as const, label: "Audio", max: limits.audio, roles: ["reference_audio"] as FluxProxyMentionRole[] },
-  ]);
+  ].filter((slot) => slot.max === null || slot.max > 0));
+}
+
+const INTERNATIONAL_MODEL_NAMES = Object.freeze({
+  seedance_2_0_international: { en: "Seedance 2.0 International", zh: "Seedance 2.0 国际版" },
+  seedance_2_0_fast_international: { en: "Seedance 2.0 Fast International", zh: "Seedance 2.0 Fast 国际版" },
+  seedance_2_0_mini_international: { en: "Seedance 2.0 Mini International", zh: "Seedance 2.0 Mini 国际版" },
+  seedance_2_5_international: { en: "Seedance 2.5 International", zh: "Seedance 2.5 国际版" },
+});
+
+export function getFluxProxyInternationalDisplayName(model: Pick<VideoModel, "id" | "label">, locale: "en" | "zh") {
+  return INTERNATIONAL_MODEL_NAMES[model.id as keyof typeof INTERNATIONAL_MODEL_NAMES]?.[locale] || model.label;
+}
+
+export function toFluxProxyReferenceRole(item: Pick<UploadMediaItem, "type" | "role">): FluxProxyMentionRole {
+  if (item.type === "video") return "reference_video";
+  if (item.type === "audio") return "reference_audio";
+  if (item.role === "start_frame") return "first_frame";
+  if (item.role === "end_frame") return "last_frame";
+  return "reference_image";
 }
 
 export function getFluxProxyMediaCounters(media: UploadMediaItem[]) {

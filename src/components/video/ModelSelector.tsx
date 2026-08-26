@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { useI18n } from "@/i18n/useI18n";
 import type { VideoModel } from "@/types/video";
+import { getFluxProxyInternationalDisplayName, isFluxProxyInternationalModel } from "@/lib/video/fluxproxyInternational";
 
 function getLocalizedModelDescription(description: string | undefined, t: ReturnType<typeof useI18n>["t"]) {
   if (description === "General video generation model. Replace with live model registry when available.") {
@@ -39,10 +40,13 @@ export function ModelSelector({
   selectedModelId?: string;
   onChange: (model: VideoModel) => void;
 }) {
-  const { t, tf } = useI18n();
+  const { locale, t, tf } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLElement | null>(null);
   const selected = models.find((model) => model.id === selectedModelId) || models[0];
+  const selectedLabel = selected && isFluxProxyInternationalModel(selected)
+    ? getFluxProxyInternationalDisplayName(selected, locale === "zh" ? "zh" : "en")
+    : selected?.label;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -66,10 +70,10 @@ export function ModelSelector({
         type="button"
       >
         <span className="flex min-w-0 items-center gap-3">
-          <VideoModelLogo label={selected?.label} lookup={getModelLogoLookup(selected)} size="lg" />
+          <VideoModelLogo label={selectedLabel} lookup={getModelLogoLookup(selected)} size="lg" />
           <span className="min-w-0">
             <span className="block text-[11px] font-medium text-[#b9b9b9]/56">{t("video.params.model")}</span>
-            <span className="mt-0.5 block truncate text-sm font-semibold text-[#f4f4f4]">{selected?.label || t("video.model.select")}</span>
+            <span className="mt-0.5 block truncate text-sm font-semibold text-[#f4f4f4]">{selectedLabel || t("video.model.select")}</span>
           </span>
         </span>
         <span className="grid size-8 shrink-0 place-items-center rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/72 text-[#b9b9b9]/55 transition-colors group-hover:border-[#ffb44d]/24 group-hover:text-[#ffd08a]">
@@ -82,6 +86,10 @@ export function ModelSelector({
           {models.map((model) => {
             const isSelected = model.id === selected?.id;
             const unavailable = model.available === false;
+            const international = isFluxProxyInternationalModel(model);
+            const displayLabel = international
+              ? getFluxProxyInternationalDisplayName(model, locale === "zh" ? "zh" : "en")
+              : model.label;
             return (
               <button
                 className={`w-full rounded-[16px] border px-3 py-2.5 text-left transition-colors ${
@@ -98,9 +106,12 @@ export function ModelSelector({
                 type="button"
               >
                 <span className="grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3">
-                  <VideoModelLogo label={model.label} lookup={getModelLogoLookup(model)} size="lg" />
+                  <VideoModelLogo label={displayLabel} lookup={getModelLogoLookup(model)} size="lg" />
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold text-[#f4f4f4]">{model.label}</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="block min-w-0 truncate text-sm font-semibold text-[#f4f4f4]">{displayLabel}</span>
+                      {international ? <span className="shrink-0 rounded-full border border-[#ffb44d]/25 bg-[#ffb44d]/10 px-1.5 py-0.5 text-[9px] font-semibold text-[#ffd08a]">{locale === "zh" ? "国际版" : "International"}</span> : null}
+                    </span>
                     {unavailable ? <span className="mt-0.5 block text-[11px] text-[#ffd08a]">{t("generation.modelTemporarilyUnavailable")}</span> : null}
                     <span className="mt-0.5 block truncate text-xs text-[#b9b9b9]/52">
                       {getLocalizedModelDescription(model.desc, t) || model.providerModel}

@@ -206,6 +206,11 @@ export type VideoGenerationRequest = {
   reference_image_asset_ids: string[];
   reference_video_asset_ids: string[];
   reference_audio_asset_ids: string[];
+  references?: Array<{
+    assetId: string;
+    type: UploadMediaType;
+    role: "reference_image" | "first_frame" | "last_frame" | "reference_video" | "reference_audio";
+  }>;
   mediaList: Array<{
     id?: string;
     type: UploadMediaType;

@@ -353,12 +353,24 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
     .trim();
 
   const mixedReference = asRecord(model.mixedReference);
+  const internationalCapabilities = asRecord(model.internationalCapabilities);
   const credits = Number(model.credits || 0);
   return {
     id: String(model.id || label),
     label,
     provider: String(model.provider || "auto"),
     providerModel: String(model.providerModel || ""),
+    productLine: model.productLine === "international" ? "international" : "existing",
+    customerPricingStatus: model.customerPricingStatus === "READY" ? "READY" : "MISSING_OWNER_DECISION",
+    internationalCapabilities: model.productLine === "international" ? {
+      family: internationalCapabilities.family === "2.5" ? "2.5" : "2.0",
+      imageMax: Math.max(0, Number(internationalCapabilities.imageMax || model.maxReferenceImages || 0)),
+      videoMax: Math.max(0, Number(internationalCapabilities.videoMax || model.maxReferenceVideos || 0)),
+      audioMax: Math.max(0, Number(internationalCapabilities.audioMax || model.maxReferenceAudios || 0)),
+      videoTotalDurationMax: Math.max(0, Number(internationalCapabilities.videoTotalDurationMax || 0)) || undefined,
+      audioTotalDurationMax: Math.max(0, Number(internationalCapabilities.audioTotalDurationMax || 0)) || undefined,
+      referenceCountLimitsVerified: internationalCapabilities.referenceCountLimitsVerified === true,
+    } : undefined,
     available: model.available !== false,
     availability: String(model.availability || (model.available === false ? "maintenance" : "available")),
     maintenanceMessage: String(model.maintenanceMessage || model.maintenance_message || ""),

@@ -16,7 +16,7 @@ import { VideoHowItWorks } from "@/components/video/VideoHowItWorks";
 import { VideoReferenceTransformPanel } from "@/components/video/VideoReferenceTransformPanel";
 import { type VideoParams, VideoParamsPanel } from "@/components/video/VideoParamsPanel";
 import { FluxProxyInternationalReferencePanel } from "@/components/video/FluxProxyInternationalReferencePanel";
-import { isFluxProxyInternationalModel } from "@/lib/video/fluxproxyInternational";
+import { getFluxProxyReviewSummary, isFluxProxyInternationalModel } from "@/lib/video/fluxproxyInternational";
 import { RemakeStoryboardPanel, type RemakeOutputItem, type RemakeOutputScope } from "@/components/video/remake/RemakeStoryboardPanel";
 import { VideoRemakeWorkspace } from "@/components/video/remake/VideoRemakeWorkspace";
 import { getRemakeShotGenerationKey } from "@/components/video/remake/remakeTypes";
@@ -2820,9 +2820,11 @@ export function VideoWorkspace() {
     () => validateReferenceSelectionForRule(selectedModelRule, [], media),
     [media, selectedModelRule],
   );
+  const internationalReferenceReviewReady = !isFluxProxyInternationalModel(selectedModel) ||
+    media.length === 0 || getFluxProxyReviewSummary(media, selectedModel.providerModel).ready;
   const modelUnavailable = catalogStatus !== "ready" || selectedModel.available === false;
   const tenantMembershipReviewRequired = profile?.tenantMembershipStatus === "REVIEW_REQUIRED";
-  const canGenerate = catalogStatus === "ready" && !modelLoading && Boolean(selectedModel) && !modelUnavailable && !tenantMembershipReviewRequired && hasPromptForGenerate && !referenceSelectionIssue && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits && tuplePricingReady && !audioTupleInvalid && !isPromptTooLong;
+  const canGenerate = catalogStatus === "ready" && !modelLoading && Boolean(selectedModel) && !modelUnavailable && !tenantMembershipReviewRequired && hasPromptForGenerate && !referenceSelectionIssue && internationalReferenceReviewReady && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits && tuplePricingReady && !audioTupleInvalid && !isPromptTooLong;
   const reusableMedia = useMemo(
     () => collectReusableVideoAssets(task ? [task, ...history] : history),
     [history, task],
