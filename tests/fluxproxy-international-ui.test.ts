@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildVideoGenerationRequest } from "@/lib/video/videoGenerationRequest";
-import { getFluxProxyInputSlots, getFluxProxyMediaCounters, getFluxProxyMediaLimits, getFluxProxyMentionToken, getFluxProxyReviewSummary, isFluxProxyInternationalModel, listFluxProxyMentionTokens } from "@/lib/video/fluxproxyInternational";
+import { getFluxProxyInputSlots, getFluxProxyMediaCounters, getFluxProxyMediaLimits, getFluxProxyMentionToken, getFluxProxyReviewSummary, isFluxProxyInternationalModel, listFluxProxyMentionBindings, listFluxProxyMentionTokens } from "@/lib/video/fluxproxyInternational";
 import type { UploadMediaItem, VideoModel } from "@/types/video";
 
 const model = { id: "seedance_2_5_international", label: "Seedance 2.5 International", provider: "fluxproxy", providerModel: "dreamina-seedance-2-5-260628-df", productLine: "international", customerPricingStatus: "MISSING_OWNER_DECISION", credits: 0, maxPromptLength: 10000, durations: [], durationDefault: 5, ratios: ["16:9"], qualities: ["480p", "720p"] } satisfies VideoModel;
@@ -19,8 +19,15 @@ describe("FluxProxy International frontend contract", () => {
   });
   it("keeps deterministic mention tokens in media order", () => {
     const items = [media("image", "first", "start_frame"), media("image", "last", "end_frame"), media("video", "v"), media("audio", "a")];
-    expect(listFluxProxyMentionTokens(items)).toEqual(["@FirstFrame", "@LastFrame", "@Video1", "@Audio1"]);
-    expect(getFluxProxyMentionToken(media("image", "i"), 2)).toBe("@Image2");
+    expect(listFluxProxyMentionTokens(items)).toEqual(["@图1", "@图2", "@视频1", "@音频1"]);
+    expect(listFluxProxyMentionTokens(items, "en")).toEqual(["@Image1", "@Image2", "@Video1", "@Audio1"]);
+    expect(getFluxProxyMentionToken(media("image", "i"), 2)).toBe("@图2");
+    expect(listFluxProxyMentionBindings(items).map(({ token, assetId, type }) => ({ token, assetId, type }))).toEqual([
+      { token: "@图1", assetId: "first", type: "image" },
+      { token: "@图2", assetId: "last", type: "image" },
+      { token: "@视频1", assetId: "v", type: "video" },
+      { token: "@音频1", assetId: "a", type: "audio" },
+    ]);
   });
   it("requires ACTIVE review for the exact provider model", () => {
     const active = media("image", "i");

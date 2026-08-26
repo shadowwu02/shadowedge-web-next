@@ -40,22 +40,28 @@ export function getFluxProxyMediaCounters(media: UploadMediaItem[]) {
   return Object.freeze({ images: count("image"), videos: count("video"), audios: count("audio"), videoDuration: duration("video"), audioDuration: duration("audio") });
 }
 
-export function getFluxProxyMentionToken(item: UploadMediaItem, typeIndex: number): string {
-  if (item.type === "image") {
-    if (item.role === "start_frame") return "@FirstFrame";
-    if (item.role === "end_frame") return "@LastFrame";
-    return `@Image${typeIndex}`;
-  }
-  if (item.type === "video") return `@Video${typeIndex}`;
-  return `@Audio${typeIndex}`;
+export function getFluxProxyMentionToken(item: UploadMediaItem, typeIndex: number, locale: "en" | "zh" = "zh"): string {
+  const labels = locale === "zh"
+    ? { image: "图", video: "视频", audio: "音频" }
+    : { image: "Image", video: "Video", audio: "Audio" };
+  return `@${labels[item.type]}${typeIndex}`;
 }
 
-export function listFluxProxyMentionTokens(media: UploadMediaItem[]) {
+export function listFluxProxyMentionBindings(media: UploadMediaItem[], locale: "en" | "zh" = "zh") {
   const indexes = { image: 0, video: 0, audio: 0 };
   return media.map((item) => {
     indexes[item.type] += 1;
-    return getFluxProxyMentionToken(item, indexes[item.type]);
+    return Object.freeze({
+      token: getFluxProxyMentionToken(item, indexes[item.type], locale),
+      assetId: item.assetId,
+      type: item.type,
+      role: item.role,
+    });
   });
+}
+
+export function listFluxProxyMentionTokens(media: UploadMediaItem[], locale: "en" | "zh" = "zh") {
+  return listFluxProxyMentionBindings(media, locale).map((binding) => binding.token);
 }
 
 export function getFluxProxyReviewSummary(media: UploadMediaItem[], providerModel?: string) {
