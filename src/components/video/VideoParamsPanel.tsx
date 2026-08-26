@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useI18n } from "@/i18n/useI18n";
 import {
+  readVideoDurationSliderKeyValue,
+  readVideoDurationSliderPointerValue,
   readVideoDurationSliderValue,
   resolveVideoDurationSliderContract,
 } from "@/lib/video/videoDurationSlider";
@@ -94,6 +97,7 @@ export function VideoParamsPanel({
   const rootRef = useRef<HTMLElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
+  const activeSliderPointerRef = useRef<number | null>(null);
   const defaultRule = getDefaultVideoModelRule();
   const modelRule = useMemo(() => providedModelRule || getVideoModelRule(modelId), [modelId, providedModelRule]);
   const ratioOptions = useMemo(
@@ -198,6 +202,58 @@ export function VideoParamsPanel({
     onChange({ ...value, duration: exactDuration });
   }
 
+  function updateSliderDurationFromPointer(event: ReactPointerEvent<HTMLInputElement>) {
+    if (!durationSliderContract) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const nextDuration = readVideoDurationSliderPointerValue(
+      event.clientX,
+      rect.left,
+      rect.width,
+      durationSliderContract,
+    );
+    if (nextDuration === null) return;
+    updateSliderDuration(nextDuration);
+  }
+
+  function handleSliderPointerDown(event: ReactPointerEvent<HTMLInputElement>) {
+    activeSliderPointerRef.current = event.pointerId;
+    updateSliderDurationFromPointer(event);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handleSliderPointerMove(event: ReactPointerEvent<HTMLInputElement>) {
+    if (activeSliderPointerRef.current !== event.pointerId) return;
+    updateSliderDurationFromPointer(event);
+  }
+
+  function handleSliderPointerEnd(event: ReactPointerEvent<HTMLInputElement>) {
+    if (activeSliderPointerRef.current !== event.pointerId) return;
+    updateSliderDurationFromPointer(event);
+    activeSliderPointerRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function handleSliderPointerCancel(event: ReactPointerEvent<HTMLInputElement>) {
+    if (activeSliderPointerRef.current !== event.pointerId) return;
+    activeSliderPointerRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function handleSliderKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (!durationSliderContract) return;
+
+    const nextDuration = readVideoDurationSliderKeyValue(event.key, value.duration, durationSliderContract);
+    if (nextDuration === null) return;
+
+    event.preventDefault();
+    updateSliderDuration(nextDuration);
+  }
+
   function updateListValue(key: "ratio" | "quality", nextValue: string) {
     setOpenKey(null);
     onChange({
@@ -267,11 +323,19 @@ export function VideoParamsPanel({
                 <div className="grid min-w-0 gap-2.5 rounded-[16px] border border-white/8 bg-black/12 px-3 py-2.5">
                   <input
                     aria-label={t("video.params.duration")}
+                    aria-valuemax={activeDurationSliderContract.max}
+                    aria-valuemin={activeDurationSliderContract.min}
+                    aria-valuenow={value.duration}
                     aria-valuetext={tf("video.params.secondsValue", { seconds: value.duration })}
-                    className="h-11 w-full min-w-0 cursor-pointer touch-manipulation accent-[#ffb44d]"
+                    className="h-11 w-full min-w-0 cursor-pointer touch-pan-y accent-[#ffb44d]"
                     max={activeDurationSliderContract.max}
                     min={activeDurationSliderContract.min}
-                    onChange={(event) => updateSliderDuration(event.currentTarget.valueAsNumber)}
+                    onInput={(event) => updateSliderDuration(event.currentTarget.valueAsNumber)}
+                    onKeyDown={handleSliderKeyDown}
+                    onPointerCancel={handleSliderPointerCancel}
+                    onPointerDown={handleSliderPointerDown}
+                    onPointerMove={handleSliderPointerMove}
+                    onPointerUp={handleSliderPointerEnd}
                     step={activeDurationSliderContract.step}
                     type="range"
                     value={value.duration}

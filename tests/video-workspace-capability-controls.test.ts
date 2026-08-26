@@ -90,7 +90,7 @@ describe("video workspace public capability controls", () => {
     expect(paramsSource).toContain("resolveVideoDurationSliderContract(modelRule.durationPolicy, durationOptions)");
     expect(paramsSource).toContain('type="range"');
     expect(paramsSource).toContain("event.currentTarget.valueAsNumber");
-    expect(paramsSource).toContain("touch-manipulation");
+    expect(paramsSource).toContain("touch-pan-y");
     expect(paramsSource).toContain("h-11 w-full min-w-0");
     expect(paramsSource).toContain("durationOptions.map((duration)");
     expect(paramsSource).toContain('role="radiogroup"');

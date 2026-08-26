@@ -39,3 +39,45 @@ export function readVideoDurationSliderValue(
   if (!Number.isInteger(value) || !contract.values.includes(value)) return null;
   return value;
 }
+
+export function readVideoDurationSliderPointerValue(
+  clientX: number,
+  trackLeft: number,
+  trackWidth: number,
+  contract: VideoDurationSliderContract,
+) {
+  if (![clientX, trackLeft, trackWidth].every(Number.isFinite) || trackWidth <= 0) return null;
+
+  const targetIndex = ((clientX - trackLeft) / trackWidth) * (contract.values.length - 1);
+  let nearestIndex = 0;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  contract.values.forEach((_, index) => {
+    const distance = Math.abs(index - targetIndex);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestIndex = index;
+    }
+  });
+
+  return contract.values[nearestIndex];
+}
+
+export function readVideoDurationSliderKeyValue(
+  key: string,
+  currentValue: number,
+  contract: VideoDurationSliderContract,
+) {
+  const currentIndex = contract.values.indexOf(currentValue);
+  if (currentIndex < 0) return null;
+
+  if (key === "Home") return contract.values[0];
+  if (key === "End") return contract.values.at(-1) ?? null;
+  if (key === "ArrowLeft" || key === "ArrowDown") {
+    return contract.values[currentIndex - 1] ?? null;
+  }
+  if (key === "ArrowRight" || key === "ArrowUp") {
+    return contract.values[currentIndex + 1] ?? null;
+  }
+  return null;
+}
