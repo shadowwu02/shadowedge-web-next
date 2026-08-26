@@ -1,4 +1,4 @@
-import { apiRequest } from "@/lib/api";
+import { apiRequest, getApiBaseUrl } from "@/lib/api";
 import { normalizeMediaAsset, normalizeMediaAssetUrl } from "@/lib/media-assets";
 import { getCanonicalReferenceStatus } from "@/lib/video/canonicalReferenceAssets";
 import type { ImageReferenceItem } from "@/types/image";
@@ -21,6 +21,7 @@ export type MediaAssetRecord = {
   createdAt?: string | null;
   lastUsedAt?: string | null;
   metadata?: Record<string, unknown> | null;
+  privateReference?: boolean;
 };
 
 export type ListMediaAssetsParams = {
@@ -210,7 +211,11 @@ export function mapMediaAssetsToUserAssets(assets: MediaAssetRecord[]): UserAsse
 }
 
 export function mediaAssetToUploadMediaItem(asset: MediaAssetRecord): UploadMediaItem | null {
-  const publicUrl = String(asset.publicUrl || asset.url || "").trim();
+  const publicUrl = String(
+    asset.publicUrl || asset.url || (asset.privateReference && asset.type === "audio"
+      ? `${getApiBaseUrl()}/api/assets/${encodeURIComponent(asset.id)}/private-audio-reference`
+      : ""),
+  ).trim();
   const normalized = normalizeMediaAsset(
     {
       assetId: asset.id,

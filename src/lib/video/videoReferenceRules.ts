@@ -69,7 +69,12 @@ export function getAllowedReferenceTypes(rule: VideoModelRule): UploadMediaType[
 
 export function getReferenceAccept(rule: VideoModelRule) {
   const allowedTypes = getAllowedReferenceTypes(rule);
-  return allowedTypes.map((type) => `${type}/*`).join(",");
+  return allowedTypes.flatMap((type) => {
+    if (type === "audio" && rule.audioReference?.enabled && rule.audioReference.mimeTypes.length) {
+      return rule.audioReference.mimeTypes;
+    }
+    return [`${type}/*`];
+  }).join(",");
 }
 
 export function getReferenceLimitSummary(rule: VideoModelRule) {
@@ -99,11 +104,38 @@ export function isReferenceTypeSupported(rule: VideoModelRule, type: UploadMedia
   return !getUnsupportedReferenceTypeReason(rule, type);
 }
 
-export function validateFilesForReferenceRule(rule: VideoModelRule, files: File[]) {
+export function validateFilesForReferenceRule(rule: VideoModelRule, files: File[], currentItems: UploadMediaItem[] = []) {
   const unsupported = files.find((file) => !isReferenceTypeSupported(rule, getFileTypeFromFile(file, "media")));
-  if (!unsupported) return "";
-  const type = getFileTypeFromFile(unsupported, "media");
-  return getUnsupportedReferenceTypeReason(rule, type);
+  if (unsupported) {
+    const type = getFileTypeFromFile(unsupported, "media");
+    return getUnsupportedReferenceTypeReason(rule, type);
+  }
+  const invalidAudio = files.find((file) => {
+    if (getFileTypeFromFile(file, "media") !== "audio" || !rule.audioReference?.enabled) return false;
+    const extension = file.name.split(".").pop()?.toLowerCase() || "";
+    return !rule.audioReference.formats.includes(extension) || !rule.audioReference.mimeTypes.includes(file.type.toLowerCase());
+  });
+  if (invalidAudio) return "Audio Reference Beta accepts WAV or MP3 files only.";
+
+  const combinedCounts = countMediaTypes([
+    ...currentItems,
+    ...files.map((file) => ({ type: getFileTypeFromFile(file, "media") })),
+  ]);
+  const mixedIssue = getMixedImageVideoIssue(rule, combinedCounts);
+  if (mixedIssue) return mixedIssue;
+  if (combinedCounts.audio > 0 && (combinedCounts.image > 0 || combinedCounts.video > 0)) {
+    return "This model does not support mixed audio references.";
+  }
+  const overLimitType = (["image", "video", "audio"] as UploadMediaType[]).find(
+    (type) => combinedCounts[type] > getTypeLimit(rule, type),
+  );
+  if (overLimitType) {
+    return `Reference limit reached for this model. It supports up to ${getTypeLimit(rule, overLimitType)} ${mediaTypeLabels[overLimitType]}.`;
+  }
+  if (currentItems.length + files.length > getTotalLimit(rule)) {
+    return `Reference limit reached for this model. It supports up to ${getTotalLimit(rule)} media items.`;
+  }
+  return "";
 }
 
 export function validateReferenceSelectionForRule(

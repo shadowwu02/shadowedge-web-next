@@ -374,6 +374,11 @@ export function ReferenceMediaTray({
           <div className="min-w-0">
             <p className="se-eyebrow">{t("video.references.inputMedia")}</p>
             <h2 className="mt-1 text-sm font-semibold text-[#f4f4f4]">{uploadTitle}</h2>
+            {modelRule.audioReference?.enabled && modelRule.audioReference.beta ? (
+              <span className="mt-1 inline-flex rounded-full border border-[#ffb44d]/24 bg-[#ffb44d]/10 px-2 py-0.5 text-[10px] font-semibold text-[#ffd08a]">
+                {t("video.references.audioReferenceBeta")}
+              </span>
+            ) : null}
           </div>
           <span className="shrink-0 rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/70 px-2.5 py-1 text-[11px] font-medium text-[#b9b9b9]/56">
             {tf("video.references.referencesCount", { count: media.length, total: limitSummary.total })}

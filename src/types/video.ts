@@ -87,6 +87,21 @@ export type VideoDurationPolicy = {
   step: number;
 };
 
+export type VideoAudioReferenceCapability = {
+  enabled: boolean;
+  beta: boolean;
+  max: number;
+  formats: string[];
+  mimeTypes: string[];
+  maxFileBytes: number;
+  minDurationSeconds: number;
+  maxDurationSeconds: number;
+  serializer?: string;
+  surchargeCredits: number;
+  consumptionEvidence?: string;
+  semanticEffect?: string;
+};
+
 export type VideoTuplePricingStatus = "READY" | "MISSING_REQUIRES_OWNER_DECISION";
 
 export type VideoTupleCapability = {
@@ -133,6 +148,7 @@ export type VideoModel = {
   maxReferenceVideos?: number;
   referenceAudios?: boolean;
   maxReferenceAudios?: number;
+  audioReference?: VideoAudioReferenceCapability;
   maxTotalReferences?: number;
   mixedReference?: {
     imageVideo?: boolean;

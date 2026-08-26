@@ -1,4 +1,4 @@
-import type { UploadMediaType, VideoCreditRulesContract, VideoDurationPolicy, VideoModel } from "@/types/video";
+import type { UploadMediaType, VideoAudioReferenceCapability, VideoCreditRulesContract, VideoDurationPolicy, VideoModel } from "@/types/video";
 
 export type VideoModelProvider =
   | "seedance"
@@ -63,6 +63,7 @@ export type VideoModelRule = {
   supportsVideoReference: boolean;
   supportsImageReference: boolean;
   supportsGeneratedResultAsReference: boolean;
+  audioReference?: VideoAudioReferenceCapability;
   mixedReference?: {
     imageVideo: boolean;
     maxImages?: number;
@@ -968,6 +969,7 @@ export function getVideoModelRuleFromRegistry(model: VideoModel): VideoModelRule
     supportsImageReference: model.referenceImages === true && imageLimit > 0,
     supportsVideoReference: model.referenceVideos === true && videoLimit > 0,
     supportsAudioReference: model.referenceAudios === true && audioLimit > 0,
+    audioReference: model.audioReference,
     supportsStartFrame: model.referenceImages === true && imageLimit > 0,
     supportsEndFrame: model.referenceImages === true && imageLimit >= 2,
     mixedReference: {

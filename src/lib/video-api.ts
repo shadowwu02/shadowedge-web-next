@@ -345,6 +345,7 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
   const requestedDefault = Number(durationCapability.default);
   const durationDefault = publicDurations.includes(requestedDefault) ? requestedDefault : publicDurations[0];
   const audioCapability = asRecord(model.audio);
+  const audioReferenceCapability = asRecord(model.audioReference);
   const supportsAudio = model.supportsAudio === true || audioCapability.supported === true;
   const tupleCapabilities = normalizePublicTupleCapabilities(model.tupleCapabilities);
   const label = String(model.name || model.label || model.id || "Video Model")
@@ -385,6 +386,20 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
     maxReferenceVideos: Math.max(0, Number(model.maxReferenceVideos || 0)),
     referenceAudios: model.referenceAudios === true,
     maxReferenceAudios: Math.max(0, Number(model.maxReferenceAudios || 0)),
+    audioReference: audioReferenceCapability.enabled === true ? {
+      enabled: true,
+      beta: audioReferenceCapability.beta === true,
+      max: Math.max(0, Number(audioReferenceCapability.max || model.maxReferenceAudios || 0)),
+      formats: Array.isArray(audioReferenceCapability.formats) ? audioReferenceCapability.formats.map(String) : [],
+      mimeTypes: Array.isArray(audioReferenceCapability.mimeTypes) ? audioReferenceCapability.mimeTypes.map(String) : [],
+      maxFileBytes: Math.max(0, Number(audioReferenceCapability.maxFileBytes || 0)),
+      minDurationSeconds: Math.max(0, Number(audioReferenceCapability.minDurationSeconds || 0)),
+      maxDurationSeconds: Math.max(0, Number(audioReferenceCapability.maxDurationSeconds || 0)),
+      serializer: String(audioReferenceCapability.serializer || ""),
+      surchargeCredits: Math.max(0, Number(audioReferenceCapability.surchargeCredits || 0)),
+      consumptionEvidence: String(audioReferenceCapability.consumptionEvidence || ""),
+      semanticEffect: String(audioReferenceCapability.semanticEffect || ""),
+    } : undefined,
     maxTotalReferences: Math.max(0, Number(model.maxTotalReferences || 0)),
     mixedReference: {
       imageVideo: mixedReference.imageVideo === true,
@@ -1454,7 +1469,8 @@ export async function uploadMedia(file: File) {
   const formData = new FormData();
   formData.append("file", file);
 
-  const envelope = await apiRequest<Record<string, unknown>>("/api/upload-media", {
+  const endpoint = file.type.startsWith("audio/") ? "/api/upload-audio-reference" : "/api/upload-media";
+  const envelope = await apiRequest<Record<string, unknown>>(endpoint, {
     method: "POST",
     body: formData,
   });

@@ -34,7 +34,6 @@ import { useI18n } from "@/i18n/useI18n";
 
 const uploadSlot = "media";
 const maxFileSizeBytes = 250 * 1024 * 1024;
-const maxAudioDurationSeconds = 15.05;
 
 function createLocalMediaItem(file: File, index: number, duration = 0, errorMessage = ""): UploadMediaItem {
   return {
@@ -52,8 +51,8 @@ function createLocalMediaItem(file: File, index: number, duration = 0, errorMess
   };
 }
 
-function validateFileSize(file: File, message: string) {
-  if (file.size > maxFileSizeBytes) {
+function validateFileSize(file: File, maximum: number, message: string) {
+  if (file.size > maximum) {
     return message;
   }
 
@@ -122,7 +121,7 @@ export function UploadBox({
   }, []);
 
   async function buildUploadableItems(files: File[]) {
-    const ruleError = validateFilesForReferenceRule(modelRule, files);
+    const ruleError = validateFilesForReferenceRule(modelRule, files, media);
     if (ruleError) {
       setPickerNotice(ruleError);
       return [];
@@ -141,17 +140,27 @@ export function UploadBox({
 
     const currentAudioDuration = sumAudioDuration(media);
     let nextAudioDuration = currentAudioDuration;
+    const audioCapability = modelRule.audioReference;
 
     const items = await Promise.all(
       typeLimitResult.files.map(async (file, index) => {
-        const sizeError = validateFileSize(file, t("video.upload.fileTooLarge"));
-        const duration = file.type.startsWith("audio/") ? await getAudioDuration(file) : 0;
+        const isAudio = file.type.startsWith("audio/");
+        const sizeLimit = isAudio && audioCapability?.enabled && audioCapability.maxFileBytes
+          ? audioCapability.maxFileBytes
+          : maxFileSizeBytes;
+        const sizeError = validateFileSize(file, sizeLimit, isAudio ? t("video.upload.audioFileTooLarge") : t("video.upload.fileTooLarge"));
+        const duration = isAudio ? await getAudioDuration(file) : 0;
 
         if (sizeError) {
           return createLocalMediaItem(file, index, duration, sizeError);
         }
 
-        if (duration && nextAudioDuration + duration > maxAudioDurationSeconds) {
+        if (isAudio && audioCapability?.enabled && (
+          !duration ||
+          duration < audioCapability.minDurationSeconds ||
+          duration > audioCapability.maxDurationSeconds ||
+          nextAudioDuration + duration > audioCapability.maxDurationSeconds
+        )) {
           return createLocalMediaItem(file, index, duration, t("video.upload.maxAudioDuration"));
         }
 
