@@ -133,6 +133,7 @@ export type VideoModel = {
   providerModel?: string;
   productLine?: "existing" | "international";
   customerPricingStatus?: "READY" | "MISSING_OWNER_DECISION";
+  customerExecutionEnabled?: boolean;
   internationalCapabilities?: {
     family: "2.0" | "2.5";
     imageMax?: number;

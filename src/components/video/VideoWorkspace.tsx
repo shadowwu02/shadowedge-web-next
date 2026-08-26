@@ -2822,7 +2822,8 @@ export function VideoWorkspace() {
   );
   const internationalReferenceReviewReady = !isFluxProxyInternationalModel(selectedModel) ||
     media.length === 0 || getFluxProxyReviewSummary(media, selectedModel.providerModel).ready;
-  const modelUnavailable = catalogStatus !== "ready" || selectedModel.available === false;
+  const internationalExecutionUnavailable = isFluxProxyInternationalModel(selectedModel) && selectedModel.customerExecutionEnabled === false;
+  const modelUnavailable = catalogStatus !== "ready" || selectedModel.available === false || internationalExecutionUnavailable;
   const tenantMembershipReviewRequired = profile?.tenantMembershipStatus === "REVIEW_REQUIRED";
   const canGenerate = catalogStatus === "ready" && !modelLoading && Boolean(selectedModel) && !modelUnavailable && !tenantMembershipReviewRequired && hasPromptForGenerate && !referenceSelectionIssue && internationalReferenceReviewReady && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits && tuplePricingReady && !audioTupleInvalid && !isPromptTooLong;
   const reusableMedia = useMemo(

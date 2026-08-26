@@ -362,6 +362,7 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
     providerModel: String(model.providerModel || ""),
     productLine: model.productLine === "international" ? "international" : "existing",
     customerPricingStatus: model.customerPricingStatus === "READY" ? "READY" : "MISSING_OWNER_DECISION",
+    customerExecutionEnabled: model.customerExecutionEnabled !== false,
     internationalCapabilities: model.productLine === "international" ? {
       family: internationalCapabilities.family === "2.5" ? "2.5" : "2.0",
       imageMax: Math.max(0, Number(internationalCapabilities.imageMax || model.maxReferenceImages || 0)),
