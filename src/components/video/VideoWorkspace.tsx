@@ -17,6 +17,7 @@ import { VideoReferenceTransformPanel } from "@/components/video/VideoReferenceT
 import { type VideoParams, VideoParamsPanel } from "@/components/video/VideoParamsPanel";
 import { FluxProxyInternationalReferencePanel } from "@/components/video/FluxProxyInternationalReferencePanel";
 import { getFluxProxyReviewSummary, getVideoWorkspaceModelState, isFluxProxyInternationalModel } from "@/lib/video/fluxproxyInternational";
+import { removeReferenceMediaSelection } from "@/lib/video/videoReferenceSelection";
 import { RemakeStoryboardPanel, type RemakeOutputItem, type RemakeOutputScope } from "@/components/video/remake/RemakeStoryboardPanel";
 import { VideoRemakeWorkspace } from "@/components/video/remake/VideoRemakeWorkspace";
 import { getRemakeShotGenerationKey } from "@/components/video/remake/remakeTypes";
@@ -1756,7 +1757,7 @@ export function VideoWorkspace() {
   });
 
   const removeMedia = useCallback((id: string) => {
-    setMedia((currentItems) => currentItems.filter((item) => item.id !== id));
+    setMedia((currentItems) => removeReferenceMediaSelection(currentItems, id));
   }, []);
 
   const updateMediaRole = useCallback((id: string, role: UploadMediaRole) => {
@@ -4222,6 +4223,7 @@ export function VideoWorkspace() {
                       modelRule={selectedModelRule}
                       onBusyChange={setIsAssetPickerUploading}
                       onChange={setMedia}
+                      providerModel={selectedModel.providerModel}
                       reusableMedia={reusableMedia}
                     />
                     <ReferenceMediaTray

@@ -29,6 +29,11 @@ import {
 import { uploadMedia } from "@/lib/video-api";
 import { getCanonicalReferenceStatus } from "@/lib/video/canonicalReferenceAssets";
 import { refreshPrivateMediaAssetPreview } from "@/lib/assets-api";
+import {
+  applyCurrentPrivateReferencePresentation,
+  mergeSelectedReferenceMedia,
+  resolveCurrentReferenceProjections,
+} from "@/lib/video/videoReferenceSelection";
 import type { UploadMediaItem } from "@/types/video";
 import type { VideoModelRule } from "@/lib/video/videoModelRules";
 import { useI18n } from "@/i18n/useI18n";
@@ -72,12 +77,14 @@ export function UploadBox({
   modelRule,
   onBusyChange,
   onChange,
+  providerModel = "",
   reusableMedia = [],
 }: {
   media: UploadMediaItem[];
   modelRule: VideoModelRule;
   onBusyChange?: (isBusy: boolean) => void;
   onChange: Dispatch<SetStateAction<UploadMediaItem[]>>;
+  providerModel?: string;
   reusableMedia?: UploadMediaItem[];
 }) {
   const { t } = useI18n();
@@ -117,19 +124,12 @@ export function UploadBox({
       onChange((currentItems) => currentItems.map((item) => {
         const presentation = item.assetId ? byAssetId.get(item.assetId) : null;
         if (!presentation) return item;
-        const previewUrl = String(presentation.previewUrl || "").trim();
-        return {
-          ...item,
-          url: previewUrl || item.url,
-          previewUrl: previewUrl || item.previewUrl,
-          previewExpiresAt: presentation.previewExpiresAt || item.previewExpiresAt,
-          providerAssetReview: presentation.providerAssetReview || undefined,
-        };
+        return applyCurrentPrivateReferencePresentation(item, presentation, providerModel);
       }));
     });
 
     return () => { cancelled = true; };
-  }, [modelRule.modelId, onChange]);
+  }, [modelRule.modelId, onChange, providerModel]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -290,45 +290,57 @@ export function UploadBox({
     onChange((currentItems) => currentItems.filter((current) => current.id !== id && current.url !== url));
   }
 
-  function addSelectedToReferences(ids: string[], availableMedia = allPickerMedia) {
+  async function addSelectedToReferences(ids: string[], availableMedia = allPickerMedia) {
     setPickerNotice("");
 
     const selectedItems = mergeMediaAssets(availableMedia.filter((item) => ids.includes(item.id) && item.uploadStatus === "ready" && item.url));
-    const selectedRemoteItems = selectedItems.filter((item) => item.url && isRemoteMediaUrl(item.url) && !isTransientMediaUrl(item.url));
+    let selectedRemoteItems = selectedItems.filter((item) => item.url && isRemoteMediaUrl(item.url) && !isTransientMediaUrl(item.url));
+
+    if (providerModel) {
+      selectedRemoteItems = resolveCurrentReferenceProjections(selectedRemoteItems, availableMedia, providerModel);
+      try {
+        selectedRemoteItems = await Promise.all(selectedRemoteItems.map(async (item) => {
+          if (!item.privateReference || !item.assetId) return item;
+          const presentation = await refreshPrivateMediaAssetPreview(item.assetId, {
+            model: modelRule.modelId,
+            type: item.type,
+          });
+          return applyCurrentPrivateReferencePresentation(item, presentation, providerModel);
+        }));
+        selectedRemoteItems = mergeSelectedReferenceMedia([], selectedRemoteItems);
+      } catch {
+        setPickerNotice(t("video.drawer.assetsLoadError"));
+        return false;
+      }
+    }
 
     if (!selectedRemoteItems.length) {
       setPickerNotice(t("video.upload.selectReadyFirst"));
       return false;
     }
 
+    const currentMedia = mediaRef.current;
     const selectedNewItems = selectedRemoteItems.filter(
-      (item) => !media.some((current) => current.id === item.id || (current.url && current.url === item.url)),
+      (item) => !currentMedia.some((current) =>
+        current.id === item.id ||
+        Boolean(current.assetId && item.assetId && current.assetId === item.assetId) ||
+        Boolean(current.url && current.url === item.url)),
     );
-    const modelLimitMessage = validateReferenceSelectionForRule(modelRule, media, selectedNewItems);
+    const modelLimitMessage = validateReferenceSelectionForRule(modelRule, currentMedia, selectedNewItems);
 
     if (modelLimitMessage) {
       setPickerNotice(modelLimitMessage);
       return false;
     }
 
-    const limitMessage = validateSelectedMediaForSlot(uploadSlot, media, selectedNewItems);
+    const limitMessage = validateSelectedMediaForSlot(uploadSlot, currentMedia, selectedNewItems);
 
     if (limitMessage) {
       setPickerNotice(limitMessage);
       return false;
     }
 
-    onChange((currentItems) => {
-      const selectedByAssetId = new Map(selectedRemoteItems.filter((item) => item.assetId).map((item) => [item.assetId, item]));
-      const refreshedCurrentItems = currentItems.map((current) => {
-        const selected = current.assetId ? selectedByAssetId.get(current.assetId) : null;
-        return selected ? { ...current, ...selected, role: selected.role || current.role || "reference", source: "reference_selected" as const } : current;
-      });
-      return mergeMediaAssets(
-        refreshedCurrentItems,
-        selectedRemoteItems.map((item) => ({ ...item, role: item.role || "reference", source: "reference_selected" as const })),
-      ).slice(0, 12);
-    });
+    onChange((currentItems) => mergeSelectedReferenceMedia(currentItems, selectedRemoteItems));
 
     return true;
   }
@@ -379,6 +391,7 @@ export function UploadBox({
         onFiles={(files) => void handleFiles(files)}
         onNotice={setPickerNotice}
         onRemove={removeMedia}
+        providerModel={providerModel}
         referenceMedia={media}
         reusableMedia={reusableMedia}
         slot={uploadSlot}

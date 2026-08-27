@@ -35,7 +35,9 @@ const drawerMaxHeight = 520;
 const filters: MediaFilter[] = ["uploads", "assets", "history", "generated", "image", "video", "audio", "elements", "liked"];
 
 function isSameMediaAsset(left: UploadMediaItem, right: UploadMediaItem) {
-  return left.id === right.id || Boolean(left.url && right.url && left.url === right.url);
+  return left.id === right.id ||
+    Boolean(left.assetId && right.assetId && left.assetId === right.assetId) ||
+    Boolean(left.url && right.url && left.url === right.url);
 }
 
 function CheckIcon() {
@@ -109,6 +111,7 @@ export function MediaPickerDrawer({
   onRemove,
   referenceMedia,
   reusableMedia = [],
+  providerModel = "",
   slot,
 }: {
   anchorElement: HTMLElement | null;
@@ -118,7 +121,7 @@ export function MediaPickerDrawer({
   localMedia: UploadMediaItem[];
   modelRule: VideoModelRule;
   notice?: string;
-  onAddSelected: (ids: string[], availableMedia?: UploadMediaItem[]) => boolean;
+  onAddSelected: (ids: string[], availableMedia?: UploadMediaItem[]) => boolean | Promise<boolean>;
   onClearNotice?: () => void;
   onClose: () => void;
   onFiles: (files: File[]) => void;
@@ -126,6 +129,7 @@ export function MediaPickerDrawer({
   onRemove: (id: string) => void;
   referenceMedia: UploadMediaItem[];
   reusableMedia?: UploadMediaItem[];
+  providerModel?: string;
   slot: string;
 }) {
   const { locale, t, tf } = useI18n();
@@ -135,6 +139,7 @@ export function MediaPickerDrawer({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [assetLibraryMedia, setAssetLibraryMedia] = useState<UploadMediaItem[]>([]);
   const [assetLibraryStatus, setAssetLibraryStatus] = useState<"idle" | "loading" | "auth" | "error">("idle");
+  const [isAddingSelected, setIsAddingSelected] = useState(false);
   const previousStatusesRef = useRef<Map<string, UploadMediaItem["uploadStatus"]>>(new Map());
   const refreshingPreviewsRef = useRef<Set<string>>(new Set());
   const rafRef = useRef<number | null>(null);
@@ -279,8 +284,7 @@ export function MediaPickerDrawer({
         item,
       ];
       const newItems = candidateItems.filter(
-        (candidate) =>
-          !referenceMedia.some((currentItem) => currentItem.id === candidate.id || (currentItem.url && currentItem.url === candidate.url)),
+        (candidate) => !referenceMedia.some((currentItem) => isSameMediaAsset(currentItem, candidate)),
       );
 
       const limitMessage = validateReferenceSelectionForRule(modelRule, referenceMedia, newItems);
@@ -335,6 +339,7 @@ export function MediaPickerDrawer({
 
     async function loadAssets() {
       setAssetLibraryStatus("loading");
+      setAssetLibraryMedia([]);
 
       try {
         const result = await listMediaAssets({ limit: 100, status: "ready", model: modelRule.modelId });
@@ -384,8 +389,7 @@ export function MediaPickerDrawer({
           if (!item) return;
           const selectedItems = selectionMedia.filter((candidate) => next.has(candidate.id) || candidate.id === id);
           const newItems = selectedItems.filter(
-            (candidate) =>
-              !referenceMedia.some((currentItem) => currentItem.id === candidate.id || (currentItem.url && currentItem.url === candidate.url)),
+            (candidate) => !referenceMedia.some((currentItem) => isSameMediaAsset(currentItem, candidate)),
           );
           if (validateReferenceSelectionForRule(modelRule, referenceMedia, newItems)) return;
           next.add(id);
@@ -471,7 +475,7 @@ export function MediaPickerDrawer({
   }
 
   async function refreshPrivatePreview(item: UploadMediaItem) {
-    const refreshKey = `${modelRule.modelId}:${item.type}:${item.assetId || ""}`;
+    const refreshKey = `${providerModel || modelRule.modelId}:${item.type}:${item.assetId || ""}`;
     if (!item.privateReference || !item.assetId || refreshingPreviewsRef.current.has(refreshKey)) return;
     refreshingPreviewsRef.current.add(refreshKey);
     try {
@@ -506,11 +510,17 @@ export function MediaPickerDrawer({
     onRemove(id);
   }
 
-  function addSelected() {
-    const didAdd = onAddSelected(Array.from(validSelectedIds), selectionMedia);
-    if (didAdd) {
-      setSelectedIds(new Set());
-      onClose();
+  async function addSelected() {
+    if (isAddingSelected) return;
+    setIsAddingSelected(true);
+    try {
+      const didAdd = await onAddSelected(Array.from(validSelectedIds), selectionMedia);
+      if (didAdd) {
+        setSelectedIds(new Set());
+        onClose();
+      }
+    } finally {
+      setIsAddingSelected(false);
     }
   }
 
@@ -731,8 +741,8 @@ export function MediaPickerDrawer({
           <div className="flex gap-2">
             <button
               className="se-button-primary rounded-full px-4 py-2 text-xs font-black"
-              disabled={!selectedCount}
-              onClick={addSelected}
+              disabled={!selectedCount || isAddingSelected}
+              onClick={() => void addSelected()}
               type="button"
             >
               {t("video.drawer.addSelected")}

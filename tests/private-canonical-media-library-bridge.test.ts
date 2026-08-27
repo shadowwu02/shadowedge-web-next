@@ -123,7 +123,7 @@ describe("private canonical Asset media-library bridge", () => {
     expect(source).toMatch(/listMediaAssets\(\{[^}]*model:\s*modelRule\.modelId/);
     expect(source).toMatch(/refreshPrivateMediaAssetPreview\(item\.assetId/);
     expect(source).toMatch(/candidate\.assetId === item\.assetId/);
-    expect(source).toMatch(/refreshKey = `\$\{modelRule\.modelId\}:\$\{item\.type\}:\$\{item\.assetId/);
+    expect(source).toMatch(/refreshKey = `\$\{providerModel \|\| modelRule\.modelId\}:\$\{item\.type\}:\$\{item\.assetId/);
     expect(source).toMatch(/refreshingPreviewsRef\.current\.delete\(refreshKey\)/);
     expect(source).toMatch(/onError=\{\(\) => void refreshPrivatePreview\(item\)\}/);
   });
@@ -131,8 +131,8 @@ describe("private canonical Asset media-library bridge", () => {
   it("replaces a selected historical binding projection with the refreshed current projection", () => {
     const source = fs.readFileSync(path.join(process.cwd(), "src/components/video/UploadBox.tsx"), "utf8");
     expect(source).toMatch(/refreshPrivateMediaAssetPreview\(item\.assetId as string/);
-    expect(source).toMatch(/providerAssetReview:\s*presentation\.providerAssetReview \|\| undefined/);
-    expect(source).toMatch(/selectedByAssetId/);
-    expect(source).toMatch(/return selected \? \{ \.\.\.current, \.\.\.selected/);
+    expect(source).toMatch(/resolveCurrentReferenceProjections\(selectedRemoteItems, availableMedia, providerModel\)/);
+    expect(source).toMatch(/mergeSelectedReferenceMedia\(currentItems, selectedRemoteItems\)/);
+    expect(source).toMatch(/providerModel=\{providerModel\}/);
   });
 });
