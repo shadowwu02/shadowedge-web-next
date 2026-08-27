@@ -355,15 +355,28 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
   const mixedReference = asRecord(model.mixedReference);
   const internationalCapabilities = asRecord(model.internationalCapabilities);
   const credits = Number(model.credits || 0);
+  const international = model.productLine === "international";
+  const customerExecutionEnabled = model.customerExecutionEnabled !== false;
+  const internationalClosedPreview = international && !customerExecutionEnabled;
+  const catalogVisible = model.catalogVisible !== false;
+  const catalogSelectable = model.catalogSelectable === true || (
+    model.catalogSelectable !== false && (model.available !== false || internationalClosedPreview)
+  );
+  const configurationEnabled = model.configurationEnabled === true || (
+    model.configurationEnabled !== false && catalogSelectable
+  );
   return {
     id: String(model.id || label),
     label,
     provider: String(model.provider || "auto"),
     providerModel: String(model.providerModel || ""),
-    productLine: model.productLine === "international" ? "international" : "existing",
+    productLine: international ? "international" : "existing",
     customerPricingStatus: model.customerPricingStatus === "READY" ? "READY" : "MISSING_OWNER_DECISION",
-    customerExecutionEnabled: model.customerExecutionEnabled !== false,
-    internationalCapabilities: model.productLine === "international" ? {
+    customerExecutionEnabled,
+    catalogVisible,
+    catalogSelectable,
+    configurationEnabled,
+    internationalCapabilities: international ? {
       family: internationalCapabilities.family === "2.5" ? "2.5" : "2.0",
       imageMax: Math.max(0, Number(internationalCapabilities.imageMax || model.maxReferenceImages || 0)),
       videoMax: Math.max(0, Number(internationalCapabilities.videoMax || model.maxReferenceVideos || 0)),

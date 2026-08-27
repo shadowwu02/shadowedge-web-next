@@ -44,6 +44,9 @@ describe("FluxProxy customer generation bridge", () => {
     const open = normalizeVideoModel(model);
     expect(closed.customerExecutionEnabled).toBe(false);
     expect(closed.available).toBe(false);
+    expect(closed.catalogVisible).toBe(true);
+    expect(closed.catalogSelectable).toBe(true);
+    expect(closed.configurationEnabled).toBe(true);
     expect(open.customerExecutionEnabled).toBe(true);
   });
 

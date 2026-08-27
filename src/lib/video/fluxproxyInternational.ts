@@ -13,6 +13,30 @@ export function isFluxProxyInternationalModel(model?: Pick<VideoModel, "id" | "p
   return Boolean(model && (model.provider === "fluxproxy" || model.productLine === "international" || FLUXPROXY_INTERNATIONAL_MODEL_IDS.includes(model.id as typeof FLUXPROXY_INTERNATIONAL_MODEL_IDS[number])));
 }
 
+export function getVideoWorkspaceModelState(model: VideoModel) {
+  const international = isFluxProxyInternationalModel(model);
+  const catalogVisible = model.catalogVisible !== false;
+  const catalogSelectable = model.catalogSelectable === true || (
+    model.catalogSelectable !== false && model.available !== false
+  );
+  const configurationEnabled = model.configurationEnabled === true || (
+    model.configurationEnabled !== false && catalogSelectable
+  );
+  const executionEnabled = model.available !== false && (
+    !international || model.customerExecutionEnabled !== false
+  );
+
+  return Object.freeze({
+    catalogVisible,
+    catalogSelectable,
+    configurationEnabled,
+    executionEnabled,
+    executionBlockedReason: configurationEnabled && !executionEnabled && international
+      ? "INTERNATIONAL_BETA_GATE_OFF" as const
+      : null,
+  });
+}
+
 export function getFluxProxyMediaLimits(model: VideoModel) {
   const capability = model.internationalCapabilities;
   return Object.freeze({

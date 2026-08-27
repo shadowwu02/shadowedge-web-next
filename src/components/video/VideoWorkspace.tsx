@@ -16,7 +16,7 @@ import { VideoHowItWorks } from "@/components/video/VideoHowItWorks";
 import { VideoReferenceTransformPanel } from "@/components/video/VideoReferenceTransformPanel";
 import { type VideoParams, VideoParamsPanel } from "@/components/video/VideoParamsPanel";
 import { FluxProxyInternationalReferencePanel } from "@/components/video/FluxProxyInternationalReferencePanel";
-import { getFluxProxyReviewSummary, isFluxProxyInternationalModel } from "@/lib/video/fluxproxyInternational";
+import { getFluxProxyReviewSummary, getVideoWorkspaceModelState, isFluxProxyInternationalModel } from "@/lib/video/fluxproxyInternational";
 import { RemakeStoryboardPanel, type RemakeOutputItem, type RemakeOutputScope } from "@/components/video/remake/RemakeStoryboardPanel";
 import { VideoRemakeWorkspace } from "@/components/video/remake/VideoRemakeWorkspace";
 import { getRemakeShotGenerationKey } from "@/components/video/remake/remakeTypes";
@@ -2822,10 +2822,11 @@ export function VideoWorkspace() {
   );
   const internationalReferenceReviewReady = !isFluxProxyInternationalModel(selectedModel) ||
     media.length === 0 || getFluxProxyReviewSummary(media, selectedModel.providerModel).ready;
-  const internationalExecutionUnavailable = isFluxProxyInternationalModel(selectedModel) && selectedModel.customerExecutionEnabled === false;
-  const modelUnavailable = catalogStatus !== "ready" || selectedModel.available === false || internationalExecutionUnavailable;
+  const selectedModelWorkspaceState = getVideoWorkspaceModelState(selectedModel);
+  const internationalExecutionUnavailable = selectedModelWorkspaceState.executionBlockedReason === "INTERNATIONAL_BETA_GATE_OFF";
+  const modelUnavailable = catalogStatus !== "ready" || !selectedModelWorkspaceState.configurationEnabled;
   const tenantMembershipReviewRequired = profile?.tenantMembershipStatus === "REVIEW_REQUIRED";
-  const canGenerate = catalogStatus === "ready" && !modelLoading && Boolean(selectedModel) && !modelUnavailable && !tenantMembershipReviewRequired && hasPromptForGenerate && !referenceSelectionIssue && internationalReferenceReviewReady && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits && tuplePricingReady && !audioTupleInvalid && !isPromptTooLong;
+  const canGenerate = catalogStatus === "ready" && !modelLoading && Boolean(selectedModel) && !modelUnavailable && !internationalExecutionUnavailable && !tenantMembershipReviewRequired && hasPromptForGenerate && !referenceSelectionIssue && internationalReferenceReviewReady && !isSubmitting && !isUploadingMedia && !isProcessing && Boolean(token || isSignedIn) && hasEnoughCredits && tuplePricingReady && !audioTupleInvalid && !isPromptTooLong;
   const reusableMedia = useMemo(
     () => collectReusableVideoAssets(task ? [task, ...history] : history),
     [history, task],
@@ -2877,6 +2878,7 @@ export function VideoWorkspace() {
 
   const generateButtonLabel = useMemo(() => {
     if (catalogStatus !== "ready") return t("video.model.catalogUnavailable");
+    if (internationalExecutionUnavailable) return t("video.actions.internationalBetaDisabled");
     if (isUploadingMedia) return t("video.actions.uploadingMedia");
     if (isProcessing) return t("video.status.processing");
     if (!token && !isSignedIn) return t("video.errors.signInRequired");
@@ -2884,9 +2886,10 @@ export function VideoWorkspace() {
     if (audioTupleInvalid) return "Turn off audio to continue";
     if (!hasEnoughCredits) return t("video.credits.notEnough");
     return tf("video.actions.generateWithCredits", { credits: estimatedCredits });
-  }, [audioTupleInvalid, catalogStatus, estimatedCredits, hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, t, tf, token, tuplePricingReady]);
+  }, [audioTupleInvalid, catalogStatus, estimatedCredits, hasEnoughCredits, internationalExecutionUnavailable, isProcessing, isSignedIn, isUploadingMedia, t, tf, token, tuplePricingReady]);
   const generateButtonHelper = useMemo(() => {
     if (catalogStatus !== "ready") return t("video.model.catalogUnavailable");
+    if (internationalExecutionUnavailable) return t("video.model.internationalExecutionBlockedReason");
     if (!hasPromptForGenerate) return t("video.errors.promptRequired");
     if (modelUnavailable) return t("generation.modelTemporarilyUnavailable");
     if (tenantMembershipReviewRequired) return t("account.tenantMembershipReviewRequired");
@@ -2901,7 +2904,7 @@ export function VideoWorkspace() {
     if (!hasEnoughCredits) return t("video.credits.notEnough");
     if (isPromptTooLong) return tf("video.errors.promptTooLong", { limit: selectedPromptLimitLabel });
     return t("video.credits.beforeSubmit");
-  }, [audioTupleInvalid, catalogStatus, concurrencyLimitNotice, hasEnoughCredits, hasPromptForGenerate, isProcessing, isPromptTooLong, isSignedIn, isUploadingMedia, modelUnavailable, referenceSelectionIssue, selectedPromptLimitLabel, t, tenantMembershipReviewRequired, tf, token, tuplePricingReady]);
+  }, [audioTupleInvalid, catalogStatus, concurrencyLimitNotice, hasEnoughCredits, hasPromptForGenerate, internationalExecutionUnavailable, isProcessing, isPromptTooLong, isSignedIn, isUploadingMedia, modelUnavailable, referenceSelectionIssue, selectedPromptLimitLabel, t, tenantMembershipReviewRequired, tf, token, tuplePricingReady]);
 
   const handleGenerateRemakeShot = useCallback(
     async (shot: RemakeShot, queueMeta?: RemakeShotQueueMeta) => {
@@ -3665,8 +3668,13 @@ export function VideoWorkspace() {
       return;
     }
 
-    if (selectedModel.available === false) {
+    if (modelUnavailable) {
       setWorkspaceNotice(t("generation.modelTemporarilyUnavailable"));
+      return;
+    }
+
+    if (internationalExecutionUnavailable) {
+      setWorkspaceNotice(t("video.model.internationalExecutionBlockedReason"));
       return;
     }
 
@@ -3702,7 +3710,7 @@ export function VideoWorkspace() {
       media,
       mentionBindings: reconciledMentionBindings,
     });
-  }, [concurrencyLimitNotice, effectiveGenerateAudio, hasEnoughCredits, isProcessing, isSignedIn, isUploadingMedia, maxConcurrency, media, params, prompt, reconciledMentionBindings, selectedModel, submit, t, tenantMembershipReviewRequired, token]);
+  }, [concurrencyLimitNotice, effectiveGenerateAudio, hasEnoughCredits, internationalExecutionUnavailable, isProcessing, isSignedIn, isUploadingMedia, maxConcurrency, media, modelUnavailable, params, prompt, reconciledMentionBindings, selectedModel, submit, t, tenantMembershipReviewRequired, token]);
 
   const getGeneratedResultReferenceIssue = useCallback(
     (record: (typeof history)[number]) => {

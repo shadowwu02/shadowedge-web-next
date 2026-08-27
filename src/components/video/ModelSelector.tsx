@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { VideoModelLogo } from "@/components/video/VideoModelLogo";
 import { useI18n } from "@/i18n/useI18n";
 import type { VideoModel } from "@/types/video";
-import { getFluxProxyInternationalDisplayName, isFluxProxyInternationalModel } from "@/lib/video/fluxproxyInternational";
+import { getFluxProxyInternationalDisplayName, getVideoWorkspaceModelState, isFluxProxyInternationalModel } from "@/lib/video/fluxproxyInternational";
 
 function getLocalizedModelDescription(description: string | undefined, t: ReturnType<typeof useI18n>["t"]) {
   if (description === "General video generation model. Replace with live model registry when available.") {
@@ -43,7 +43,8 @@ export function ModelSelector({
   const { locale, t, tf } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLElement | null>(null);
-  const selected = models.find((model) => model.id === selectedModelId) || models[0];
+  const visibleModels = models.filter((model) => getVideoWorkspaceModelState(model).catalogVisible);
+  const selected = visibleModels.find((model) => model.id === selectedModelId) || visibleModels[0];
   const selectedLabel = selected && isFluxProxyInternationalModel(selected)
     ? getFluxProxyInternationalDisplayName(selected, locale === "zh" ? "zh" : "en")
     : selected?.label;
@@ -83,10 +84,12 @@ export function ModelSelector({
 
       {isOpen ? (
         <div className="se-scrollbar se-card-quiet absolute left-0 right-0 top-[calc(100%+8px)] z-40 max-h-72 overflow-y-auto rounded-[22px] p-2 shadow-2xl shadow-black/45 backdrop-blur-xl">
-          {models.map((model) => {
+          {visibleModels.map((model) => {
             const isSelected = model.id === selected?.id;
-            const unavailable = model.available === false;
             const international = isFluxProxyInternationalModel(model);
+            const workspaceState = getVideoWorkspaceModelState(model);
+            const unavailable = !workspaceState.catalogSelectable;
+            const executionPreview = workspaceState.executionBlockedReason === "INTERNATIONAL_BETA_GATE_OFF";
             const displayLabel = international
               ? getFluxProxyInternationalDisplayName(model, locale === "zh" ? "zh" : "en")
               : model.label;
@@ -112,7 +115,8 @@ export function ModelSelector({
                       <span className="block min-w-0 truncate text-sm font-semibold text-[#f4f4f4]">{displayLabel}</span>
                       {international ? <span className="shrink-0 rounded-full border border-[#ffb44d]/25 bg-[#ffb44d]/10 px-1.5 py-0.5 text-[9px] font-semibold text-[#ffd08a]">{locale === "zh" ? "国际版" : "International"}</span> : null}
                     </span>
-                    {unavailable ? <span className="mt-0.5 block text-[11px] text-[#ffd08a]">{t("generation.modelTemporarilyUnavailable")}</span> : null}
+                    {executionPreview ? <span className="mt-0.5 block text-[11px] text-[#ffd08a]">{t("video.model.internationalPreviewOnly")}</span> : null}
+                    {!executionPreview && unavailable ? <span className="mt-0.5 block text-[11px] text-[#ffd08a]">{t("generation.modelTemporarilyUnavailable")}</span> : null}
                     <span className="mt-0.5 block truncate text-xs text-[#b9b9b9]/52">
                       {getLocalizedModelDescription(model.desc, t) || model.providerModel}
                     </span>

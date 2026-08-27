@@ -136,6 +136,9 @@ export type VideoModel = {
   productLine?: "existing" | "international";
   customerPricingStatus?: "READY" | "MISSING_OWNER_DECISION";
   customerExecutionEnabled?: boolean;
+  catalogVisible?: boolean;
+  catalogSelectable?: boolean;
+  configurationEnabled?: boolean;
   internationalCapabilities?: {
     family: "2.0" | "2.5";
     imageMax?: number;
