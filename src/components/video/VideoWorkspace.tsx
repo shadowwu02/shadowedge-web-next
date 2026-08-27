@@ -2822,7 +2822,7 @@ export function VideoWorkspace() {
     [media, selectedModelRule],
   );
   const internationalReferenceReviewReady = !isFluxProxyInternationalModel(selectedModel) ||
-    media.length === 0 || getFluxProxyReviewSummary(media, selectedModel.providerModel).ready;
+    media.length === 0 || getFluxProxyReviewSummary(media, selectedModel.referenceBindingProfileId).ready;
   const selectedModelWorkspaceState = getVideoWorkspaceModelState(selectedModel);
   const internationalExecutionUnavailable = selectedModelWorkspaceState.executionBlockedReason === "INTERNATIONAL_BETA_GATE_OFF";
   const modelUnavailable = catalogStatus !== "ready" || !selectedModelWorkspaceState.configurationEnabled;
@@ -4223,7 +4223,7 @@ export function VideoWorkspace() {
                       modelRule={selectedModelRule}
                       onBusyChange={setIsAssetPickerUploading}
                       onChange={setMedia}
-                      providerModel={selectedModel.providerModel}
+                      referenceBindingProfileId={selectedModel.referenceBindingProfileId}
                       reusableMedia={reusableMedia}
                     />
                     <ReferenceMediaTray

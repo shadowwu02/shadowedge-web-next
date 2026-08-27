@@ -54,8 +54,8 @@ export type UploadMediaItem = {
   uploadStatus?: "local" | "uploading" | "ready" | "failed";
   errorMessage?: string;
   providerAssetReview?: {
-    provider: "fluxproxy";
-    providerModel: string;
+    referenceBindingProfileId: string;
+    assetType: UploadMediaType;
     status: "NOT_SUBMITTED" | "PROCESSING" | "ACTIVE" | "FAILED";
     isCurrent?: boolean;
     authoritySource?: "BASE" | "SUPERSEDING";
@@ -136,6 +136,7 @@ export type VideoModel = {
   label: string;
   provider?: string;
   providerModel?: string;
+  referenceBindingProfileId?: string;
   productLine?: "existing" | "international";
   customerPricingStatus?: "READY" | "MISSING_OWNER_DECISION";
   customerExecutionEnabled?: boolean;

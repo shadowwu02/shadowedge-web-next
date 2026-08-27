@@ -370,6 +370,7 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
     label,
     provider: String(model.provider || "auto"),
     providerModel: String(model.providerModel || ""),
+    referenceBindingProfileId: String(model.referenceBindingProfileId || "") || undefined,
     productLine: international ? "international" : "existing",
     customerPricingStatus: model.customerPricingStatus === "READY" ? "READY" : "MISSING_OWNER_DECISION",
     customerExecutionEnabled,

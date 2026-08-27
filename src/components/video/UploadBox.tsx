@@ -77,14 +77,14 @@ export function UploadBox({
   modelRule,
   onBusyChange,
   onChange,
-  providerModel = "",
+  referenceBindingProfileId = "",
   reusableMedia = [],
 }: {
   media: UploadMediaItem[];
   modelRule: VideoModelRule;
   onBusyChange?: (isBusy: boolean) => void;
   onChange: Dispatch<SetStateAction<UploadMediaItem[]>>;
-  providerModel?: string;
+  referenceBindingProfileId?: string;
   reusableMedia?: UploadMediaItem[];
 }) {
   const { t } = useI18n();
@@ -124,12 +124,12 @@ export function UploadBox({
       onChange((currentItems) => currentItems.map((item) => {
         const presentation = item.assetId ? byAssetId.get(item.assetId) : null;
         if (!presentation) return item;
-        return applyCurrentPrivateReferencePresentation(item, presentation, providerModel);
+        return applyCurrentPrivateReferencePresentation(item, presentation, referenceBindingProfileId);
       }));
     });
 
     return () => { cancelled = true; };
-  }, [modelRule.modelId, onChange, providerModel]);
+  }, [modelRule.modelId, onChange, referenceBindingProfileId]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -296,8 +296,8 @@ export function UploadBox({
     const selectedItems = mergeMediaAssets(availableMedia.filter((item) => ids.includes(item.id) && item.uploadStatus === "ready" && item.url));
     let selectedRemoteItems = selectedItems.filter((item) => item.url && isRemoteMediaUrl(item.url) && !isTransientMediaUrl(item.url));
 
-    if (providerModel) {
-      selectedRemoteItems = resolveCurrentReferenceProjections(selectedRemoteItems, availableMedia, providerModel);
+    if (modelRule.modelId.endsWith("_international")) {
+      selectedRemoteItems = resolveCurrentReferenceProjections(selectedRemoteItems, availableMedia, referenceBindingProfileId);
       try {
         selectedRemoteItems = await Promise.all(selectedRemoteItems.map(async (item) => {
           if (!item.privateReference || !item.assetId) return item;
@@ -305,7 +305,7 @@ export function UploadBox({
             model: modelRule.modelId,
             type: item.type,
           });
-          return applyCurrentPrivateReferencePresentation(item, presentation, providerModel);
+          return applyCurrentPrivateReferencePresentation(item, presentation, referenceBindingProfileId);
         }));
         selectedRemoteItems = mergeSelectedReferenceMedia([], selectedRemoteItems);
       } catch {
@@ -391,7 +391,7 @@ export function UploadBox({
         onFiles={(files) => void handleFiles(files)}
         onNotice={setPickerNotice}
         onRemove={removeMedia}
-        providerModel={providerModel}
+        referenceBindingProfileId={referenceBindingProfileId}
         referenceMedia={media}
         reusableMedia={reusableMedia}
         slot={uploadSlot}

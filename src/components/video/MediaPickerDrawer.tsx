@@ -111,7 +111,7 @@ export function MediaPickerDrawer({
   onRemove,
   referenceMedia,
   reusableMedia = [],
-  providerModel = "",
+  referenceBindingProfileId = "",
   slot,
 }: {
   anchorElement: HTMLElement | null;
@@ -129,7 +129,7 @@ export function MediaPickerDrawer({
   onRemove: (id: string) => void;
   referenceMedia: UploadMediaItem[];
   reusableMedia?: UploadMediaItem[];
-  providerModel?: string;
+  referenceBindingProfileId?: string;
   slot: string;
 }) {
   const { locale, t, tf } = useI18n();
@@ -475,7 +475,7 @@ export function MediaPickerDrawer({
   }
 
   async function refreshPrivatePreview(item: UploadMediaItem) {
-    const refreshKey = `${providerModel || modelRule.modelId}:${item.type}:${item.assetId || ""}`;
+    const refreshKey = `${referenceBindingProfileId || modelRule.modelId}:${item.type}:${item.assetId || ""}`;
     if (!item.privateReference || !item.assetId || refreshingPreviewsRef.current.has(refreshKey)) return;
     refreshingPreviewsRef.current.add(refreshKey);
     try {

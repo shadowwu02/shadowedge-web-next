@@ -9,13 +9,15 @@ import type { UploadMediaItem, VideoModel } from "@/types/video";
 
 const ASSET_ID = "33333333-3333-4333-8333-333333333333";
 const SIGNED_PREVIEW = "https://api.shadowedge.example/api/internal/fluxproxy-assets/receipt/expires/signature";
-const PROVIDER_MODEL = "dreamina-seedance-2-5-260628-df";
+const PUBLIC_PROVIDER_MODEL_ALIAS = "seedance_2_5_international";
+const REFERENCE_BINDING_PROFILE = "rbp_d3c7a4198e5f2b60";
 
 const model = {
   id: "seedance_2_5_international",
   label: "Seedance 2.5 International",
   provider: "fluxproxy",
-  providerModel: PROVIDER_MODEL,
+  providerModel: PUBLIC_PROVIDER_MODEL_ALIAS,
+  referenceBindingProfileId: REFERENCE_BINDING_PROFILE,
   productLine: "international",
   customerPricingStatus: "READY",
   credits: 18,
@@ -52,7 +54,7 @@ function record(status: "ACTIVE" | "PROCESSING" | "FAILED" = "ACTIVE"): MediaAss
     displayName: "Private reference",
     mimeType: "image/png",
     sizeBytes: 1024,
-    providerAssetReview: { provider: "fluxproxy", providerModel: PROVIDER_MODEL, status, isCurrent: true, authoritySource: "SUPERSEDING", authorityGeneration: 2 },
+    providerAssetReview: { referenceBindingProfileId: REFERENCE_BINDING_PROFILE, assetType: "image", status, isCurrent: true, authoritySource: "SUPERSEDING", authorityGeneration: 2 },
   };
 }
 
@@ -68,8 +70,8 @@ describe("private canonical Asset media-library bridge", () => {
       privateReference: true,
       uploadStatus: "ready",
     });
-    expect(item?.providerAssetReview).toMatchObject({ providerModel: PROVIDER_MODEL, status: "ACTIVE" });
-    expect(getFluxProxyReviewSummary([item as UploadMediaItem], PROVIDER_MODEL).ready).toBe(true);
+    expect(item?.providerAssetReview).toMatchObject({ referenceBindingProfileId: REFERENCE_BINDING_PROFILE, assetType: "image", status: "ACTIVE" });
+    expect(getFluxProxyReviewSummary([item as UploadMediaItem], REFERENCE_BINDING_PROFILE).ready).toBe(true);
     expect(listFluxProxyMentionBindings([item as UploadMediaItem])[0]).toMatchObject({ assetId: ASSET_ID, type: "image" });
   });
 
@@ -123,7 +125,7 @@ describe("private canonical Asset media-library bridge", () => {
     expect(source).toMatch(/listMediaAssets\(\{[^}]*model:\s*modelRule\.modelId/);
     expect(source).toMatch(/refreshPrivateMediaAssetPreview\(item\.assetId/);
     expect(source).toMatch(/candidate\.assetId === item\.assetId/);
-    expect(source).toMatch(/refreshKey = `\$\{providerModel \|\| modelRule\.modelId\}:\$\{item\.type\}:\$\{item\.assetId/);
+    expect(source).toMatch(/refreshKey = `\$\{referenceBindingProfileId \|\| modelRule\.modelId\}:\$\{item\.type\}:\$\{item\.assetId/);
     expect(source).toMatch(/refreshingPreviewsRef\.current\.delete\(refreshKey\)/);
     expect(source).toMatch(/onError=\{\(\) => void refreshPrivatePreview\(item\)\}/);
   });
@@ -131,8 +133,8 @@ describe("private canonical Asset media-library bridge", () => {
   it("replaces a selected historical binding projection with the refreshed current projection", () => {
     const source = fs.readFileSync(path.join(process.cwd(), "src/components/video/UploadBox.tsx"), "utf8");
     expect(source).toMatch(/refreshPrivateMediaAssetPreview\(item\.assetId as string/);
-    expect(source).toMatch(/resolveCurrentReferenceProjections\(selectedRemoteItems, availableMedia, providerModel\)/);
+    expect(source).toMatch(/resolveCurrentReferenceProjections\(selectedRemoteItems, availableMedia, referenceBindingProfileId\)/);
     expect(source).toMatch(/mergeSelectedReferenceMedia\(currentItems, selectedRemoteItems\)/);
-    expect(source).toMatch(/providerModel=\{providerModel\}/);
+    expect(source).toMatch(/referenceBindingProfileId=\{referenceBindingProfileId\}/);
   });
 });

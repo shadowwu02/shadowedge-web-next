@@ -7,7 +7,7 @@ import type { UploadMediaItem, VideoModel } from "@/types/video";
 export function FluxProxyInternationalReferencePanel({ media, model }: { media: UploadMediaItem[]; model: VideoModel }) {
   const { locale } = useI18n();
   const zh = locale === "zh";
-  const counts = getFluxProxyMediaCounters(media); const limits = getFluxProxyMediaLimits(model); const review = getFluxProxyReviewSummary(media, model.providerModel);
+  const counts = getFluxProxyMediaCounters(media); const limits = getFluxProxyMediaLimits(model); const review = getFluxProxyReviewSummary(media, model.referenceBindingProfileId);
   const slots = getFluxProxyInputSlots(model);
   const format = (value: number, max: number | null) => max === null ? `${value}/unverified` : `${value}/${max}`;
   return (
@@ -25,7 +25,7 @@ export function FluxProxyInternationalReferencePanel({ media, model }: { media: 
       {limits.videoTotalDuration !== null ? <p className="mt-2 text-[11px] text-[#b9b9b9]/70">{zh ? "视频" : "Video"} {counts.videoDuration.toFixed(1)}/{limits.videoTotalDuration}s · {zh ? "音频" : "Audio"} {counts.audioDuration.toFixed(1)}/{limits.audioTotalDuration}s</p> : <p className="mt-2 text-[11px] text-amber-200/80">{zh ? "Seedance 2.0 国际版采用保守 Beta 素材上限。" : "Seedance 2.0 International uses conservative Beta media limits."}</p>}
       {media.length ? <p className="mt-2 break-words text-[11px] text-[#b9b9b9]/75">Mention order: {listFluxProxyMentionTokens(media, locale === "zh" ? "zh" : "en").join(" ")}</p> : null}
       {review.preparing ? <p className="mt-2 text-amber-200">{zh ? `正在准备 ${review.preparing} 个参考素材…` : `Preparing ${review.preparing} asset${review.preparing === 1 ? "" : "s"} for this model…`}</p> : null}
-      {review.failed || review.modelMismatch ? <p className="mt-2 text-red-300">{zh ? "素材审核失败或不属于当前模型，生成已阻止。" : "Asset review failed or belongs to another provider model. Generation is blocked."}</p> : null}
+      {review.failed || review.modelMismatch || review.assetTypeMismatch ? <p className="mt-2 text-red-300">{zh ? "素材审核失败或不属于当前模型，生成已阻止。" : "Asset review failed or does not match the current model. Generation is blocked."}</p> : null}
       {review.ready && media.length ? <p className="mt-2 text-emerald-300">{zh ? "所有参考素材已对当前模型生效。" : "All reference assets are ACTIVE for this exact model."}</p> : null}
     </section>
   );

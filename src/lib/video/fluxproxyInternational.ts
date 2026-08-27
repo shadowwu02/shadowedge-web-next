@@ -107,16 +107,18 @@ export function listFluxProxyMentionTokens(media: UploadMediaItem[], locale: "en
   return listFluxProxyMentionBindings(media, locale).map((binding) => binding.token);
 }
 
-export function getFluxProxyReviewSummary(media: UploadMediaItem[], providerModel?: string) {
-  let preparing = 0; let failed = 0; let active = 0; let modelMismatch = 0; let staleAuthority = 0;
+export function getFluxProxyReviewSummary(media: UploadMediaItem[], referenceBindingProfileId?: string) {
+  let preparing = 0; let failed = 0; let active = 0; let modelMismatch = 0; let staleAuthority = 0; let assetTypeMismatch = 0;
+  const expectedProfileIsOpaque = typeof referenceBindingProfileId === "string" && /^rbp_[a-f0-9]{16,64}$/.test(referenceBindingProfileId);
   for (const item of media) {
     const review = item.providerAssetReview;
     if (!review) preparing += 1;
-    else if (review.providerModel !== providerModel) modelMismatch += 1;
+    else if (!expectedProfileIsOpaque || !/^rbp_[a-f0-9]{16,64}$/.test(review.referenceBindingProfileId) || review.referenceBindingProfileId !== referenceBindingProfileId) modelMismatch += 1;
+    else if (review.assetType !== item.type) assetTypeMismatch += 1;
     else if (review.isCurrent !== true) { staleAuthority += 1; preparing += 1; }
     else if (review.status === "NOT_SUBMITTED" || review.status === "PROCESSING") preparing += 1;
     else if (review.status === "FAILED") failed += 1;
-    else active += 1;
+    else if (review.status === "ACTIVE") active += 1;
   }
-  return Object.freeze({ preparing, failed, active, modelMismatch, staleAuthority, ready: media.length === active });
+  return Object.freeze({ preparing, failed, active, modelMismatch, staleAuthority, assetTypeMismatch, ready: media.length === active });
 }

@@ -13,22 +13,37 @@ export function getReferenceSelectionIdentity(item: Pick<UploadMediaItem, "asset
   return item.url ? `url:${item.url}` : "";
 }
 
+export function isOpaqueReferenceBindingProfileId(value: unknown): value is string {
+  return typeof value === "string" && /^rbp_[a-f0-9]{16,64}$/.test(value);
+}
+
 export function isCurrentProviderBindingProjection(
-  item: Pick<UploadMediaItem, "providerAssetReview">,
-  providerModel: string,
+  item: Pick<UploadMediaItem, "providerAssetReview" | "type">,
+  referenceBindingProfileId: string,
 ) {
   const review = item.providerAssetReview;
-  return Boolean(review && review.isCurrent === true && review.providerModel === providerModel);
+  return Boolean(
+    isOpaqueReferenceBindingProfileId(referenceBindingProfileId) &&
+    review &&
+    isOpaqueReferenceBindingProfileId(review.referenceBindingProfileId) &&
+    review.referenceBindingProfileId === referenceBindingProfileId &&
+    review.assetType === item.type &&
+    review.status === "ACTIVE" &&
+    review.isCurrent === true,
+  );
 }
 
 export function applyCurrentPrivateReferencePresentation(
   item: UploadMediaItem,
   presentation: PrivateReferencePresentation,
-  providerModel: string,
+  referenceBindingProfileId: string,
 ) {
   const previewUrl = String(presentation.previewUrl || "").trim();
   const review = presentation.providerAssetReview;
-  const currentReview = review?.isCurrent === true && review.providerModel === providerModel ? review : undefined;
+  const currentReview = isCurrentProviderBindingProjection(
+    { providerAssetReview: review || undefined, type: item.type },
+    referenceBindingProfileId,
+  ) ? review || undefined : undefined;
 
   return {
     ...item,
@@ -42,16 +57,14 @@ export function applyCurrentPrivateReferencePresentation(
 export function resolveCurrentReferenceProjections(
   selectedItems: UploadMediaItem[],
   availableMedia: UploadMediaItem[],
-  providerModel: string,
+  referenceBindingProfileId: string,
 ) {
-  if (!providerModel) return selectedItems;
-
   return selectedItems.map((selected) => {
     if (!selected.assetId) return selected;
     const current = availableMedia.find(
       (candidate) =>
         candidate.assetId === selected.assetId &&
-        isCurrentProviderBindingProjection(candidate, providerModel),
+        isCurrentProviderBindingProjection(candidate, referenceBindingProfileId),
     );
     if (current) {
       return {
@@ -62,7 +75,7 @@ export function resolveCurrentReferenceProjections(
       };
     }
 
-    if (selected.providerAssetReview && !isCurrentProviderBindingProjection(selected, providerModel)) {
+    if (selected.providerAssetReview && !isCurrentProviderBindingProjection(selected, referenceBindingProfileId)) {
       return { ...selected, providerAssetReview: undefined };
     }
     return selected;
