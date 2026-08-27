@@ -440,6 +440,25 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
   };
 }
 
+export type InternationalExecutionCapability = {
+  canExecuteInternational: boolean;
+  reasonCode?: string;
+};
+
+export function applyInternationalExecutionCapability(
+  model: VideoModel,
+  capability: InternationalExecutionCapability | null,
+): VideoModel {
+  if (model.productLine !== "international" || capability?.canExecuteInternational !== true) return model;
+  return {
+    ...model,
+    available: true,
+    customerExecutionEnabled: true,
+    availability: "authenticated_customer_capability",
+    maintenanceMessage: "",
+  };
+}
+
 function getReverseAnalyzeErrorMessage(payload: unknown) {
   const record = asRecord(payload);
   return pickString(record.message, record.error, record.code) || "Reverse analyze API request failed.";
@@ -1130,7 +1149,24 @@ export async function getVideoModels() {
   const envelope = await apiRequest<{ models: RawModel[] }>("/api/video/models", {
     method: "GET",
   });
-  return filterRetiredHiggsfieldModels((envelope.data?.models || []).map(normalizeVideoModel));
+  const models = filterRetiredHiggsfieldModels((envelope.data?.models || []).map(normalizeVideoModel));
+  if (!getStoredAuthToken()) return models;
+
+  const projected = await Promise.all(models.map(async (model) => {
+    if (model.productLine !== "international" || model.customerExecutionEnabled !== false) return model;
+    try {
+      const capability = await apiRequest<InternationalExecutionCapability>(
+        `/api/video/international-execution-capability?model=${encodeURIComponent(model.id)}`,
+        { method: "GET" },
+      );
+      return applyInternationalExecutionCapability(model, capability.data || null);
+    } catch {
+      // Capability lookup is strictly fail-closed. The public catalog remains
+      // visible, but Generate stays disabled when server authority is unknown.
+      return model;
+    }
+  }));
+  return projected;
 }
 
 function assertRemoteMediaUrl(url: string) {
