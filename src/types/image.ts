@@ -120,6 +120,7 @@ export type ImageGenerateRequest = {
   referenceImageAssetIds?: string[];
   reference_image_asset_ids?: string[];
   idempotencyKey?: string;
+  clientRequestId?: string;
   meta?: Record<string, unknown>;
 };
 

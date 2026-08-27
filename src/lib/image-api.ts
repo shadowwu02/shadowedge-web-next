@@ -152,6 +152,10 @@ export async function generateImage(payload: ImageGenerateRequest) {
   const idempotencyKey = payload.idempotencyKey || crypto.randomUUID();
   const request = {
     ...payload,
+    // Idempotency-Key is the canonical authority. These body fields are an
+    // identical compatibility projection, never independently generated.
+    idempotencyKey,
+    clientRequestId: idempotencyKey,
     prompt: String(payload.prompt || "").trim(),
     model: payload.model || payload.modelId || "",
     ratio: payload.ratio || payload.aspect_ratio,

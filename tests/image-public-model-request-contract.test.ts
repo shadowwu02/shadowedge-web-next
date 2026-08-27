@@ -9,8 +9,11 @@ describe.each(["gpt_image_2", "nano_banana", "nano_banana_lite"])("%s browser re
   it("uses the shared image endpoint with idempotency and correlation headers", async () => {
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       const headers = new Headers(init?.headers);
+      const body = JSON.parse(String(init?.body || "{}"));
       expect(url).toBe("https://api.shadowedgeai.com/api/image/generate");
       expect(headers.get("Idempotency-Key")).toBe(`idempotency-${model}`);
+      expect(body.idempotencyKey).toBe(`idempotency-${model}`);
+      expect(body.clientRequestId).toBe(`idempotency-${model}`);
       expect(headers.get("X-Correlation-Id")).toMatch(/^[a-zA-Z0-9._:-]+$/);
       return new Response(JSON.stringify({
         ok: true,
@@ -30,6 +33,25 @@ describe.each(["gpt_image_2", "nano_banana", "nano_banana_lite"])("%s browser re
       idempotencyKey: `idempotency-${model}`,
     });
 
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("generates one canonical identity and projects that exact value into header and body", async () => {
+    const generated = `generated-${model}-request`;
+    vi.stubGlobal("crypto", { randomUUID: vi.fn(() => generated) });
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      const body = JSON.parse(String(init?.body || "{}"));
+      expect(headers.get("Idempotency-Key")).toBe(generated);
+      expect(body.idempotencyKey).toBe(generated);
+      expect(body.clientRequestId).toBe(generated);
+      return new Response(JSON.stringify({
+        ok: true,
+        data: { jobId: `job-${model}`, status: "queued", model, params: {} },
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await generateImage({ prompt: "A ceramic cup", model });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 

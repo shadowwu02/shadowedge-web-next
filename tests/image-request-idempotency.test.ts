@@ -54,5 +54,7 @@ describe("image generation idempotency lifecycle", () => {
     expect(retry.idempotencyKey).toBe("operation-key-refresh");
     clearPendingImageGenerationOperation();
     expect(readPendingImageGenerationOperation()).toBeNull();
+    const newIntent = resolveImageGenerationOperation(readPendingImageGenerationOperation(), identity, () => "operation-key-new-intent");
+    expect(newIntent.idempotencyKey).toBe("operation-key-new-intent");
   });
 });
