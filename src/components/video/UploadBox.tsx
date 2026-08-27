@@ -28,6 +28,7 @@ import {
 } from "@/lib/video/videoReferenceRules";
 import { uploadMedia } from "@/lib/video-api";
 import { getCanonicalReferenceStatus } from "@/lib/video/canonicalReferenceAssets";
+import { refreshPrivateMediaAssetPreview } from "@/lib/assets-api";
 import type { UploadMediaItem } from "@/types/video";
 import type { VideoModelRule } from "@/lib/video/videoModelRules";
 import { useI18n } from "@/i18n/useI18n";
@@ -87,6 +88,48 @@ export function UploadBox({
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [drawerAnchorEl, setDrawerAnchorEl] = useState<HTMLElement | null>(null);
   const [pickerNotice, setPickerNotice] = useState("");
+  const mediaRef = useRef(media);
+
+  useEffect(() => {
+    mediaRef.current = media;
+  }, [media]);
+
+  useEffect(() => {
+    if (!modelRule.modelId.endsWith("_international")) return;
+    let cancelled = false;
+    const selectedPrivateAssets = mediaRef.current.filter((item) => item.privateReference && item.assetId);
+    if (!selectedPrivateAssets.length) return;
+
+    void Promise.all(selectedPrivateAssets.map(async (item) => {
+      try {
+        const presentation = await refreshPrivateMediaAssetPreview(item.assetId as string, {
+          model: modelRule.modelId,
+          type: item.type,
+        });
+        return { assetId: item.assetId, presentation };
+      } catch {
+        return null;
+      }
+    })).then((updates) => {
+      if (cancelled) return;
+      const byAssetId = new Map(updates.filter(Boolean).map((update) => [update!.assetId, update!.presentation]));
+      if (!byAssetId.size) return;
+      onChange((currentItems) => currentItems.map((item) => {
+        const presentation = item.assetId ? byAssetId.get(item.assetId) : null;
+        if (!presentation) return item;
+        const previewUrl = String(presentation.previewUrl || "").trim();
+        return {
+          ...item,
+          url: previewUrl || item.url,
+          previewUrl: previewUrl || item.previewUrl,
+          previewExpiresAt: presentation.previewExpiresAt || item.previewExpiresAt,
+          providerAssetReview: presentation.providerAssetReview || undefined,
+        };
+      }));
+    });
+
+    return () => { cancelled = true; };
+  }, [modelRule.modelId, onChange]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -275,12 +318,17 @@ export function UploadBox({
       return false;
     }
 
-    onChange((currentItems) =>
-      mergeMediaAssets(
-        currentItems,
-        selectedRemoteItems.map((item) => ({ ...item, role: item.role || "reference", source: "reference_selected" })),
-      ).slice(0, 12),
-    );
+    onChange((currentItems) => {
+      const selectedByAssetId = new Map(selectedRemoteItems.filter((item) => item.assetId).map((item) => [item.assetId, item]));
+      const refreshedCurrentItems = currentItems.map((current) => {
+        const selected = current.assetId ? selectedByAssetId.get(current.assetId) : null;
+        return selected ? { ...current, ...selected, role: selected.role || current.role || "reference", source: "reference_selected" as const } : current;
+      });
+      return mergeMediaAssets(
+        refreshedCurrentItems,
+        selectedRemoteItems.map((item) => ({ ...item, role: item.role || "reference", source: "reference_selected" as const })),
+      ).slice(0, 12);
+    });
 
     return true;
   }

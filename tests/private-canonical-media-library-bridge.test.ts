@@ -52,7 +52,7 @@ function record(status: "ACTIVE" | "PROCESSING" | "FAILED" = "ACTIVE"): MediaAss
     displayName: "Private reference",
     mimeType: "image/png",
     sizeBytes: 1024,
-    providerAssetReview: { provider: "fluxproxy", providerModel: PROVIDER_MODEL, status },
+    providerAssetReview: { provider: "fluxproxy", providerModel: PROVIDER_MODEL, status, isCurrent: true, authoritySource: "SUPERSEDING", authorityGeneration: 2 },
   };
 }
 
@@ -123,6 +123,16 @@ describe("private canonical Asset media-library bridge", () => {
     expect(source).toMatch(/listMediaAssets\(\{[^}]*model:\s*modelRule\.modelId/);
     expect(source).toMatch(/refreshPrivateMediaAssetPreview\(item\.assetId/);
     expect(source).toMatch(/candidate\.assetId === item\.assetId/);
+    expect(source).toMatch(/refreshKey = `\$\{modelRule\.modelId\}:\$\{item\.type\}:\$\{item\.assetId/);
+    expect(source).toMatch(/refreshingPreviewsRef\.current\.delete\(refreshKey\)/);
     expect(source).toMatch(/onError=\{\(\) => void refreshPrivatePreview\(item\)\}/);
+  });
+
+  it("replaces a selected historical binding projection with the refreshed current projection", () => {
+    const source = fs.readFileSync(path.join(process.cwd(), "src/components/video/UploadBox.tsx"), "utf8");
+    expect(source).toMatch(/refreshPrivateMediaAssetPreview\(item\.assetId as string/);
+    expect(source).toMatch(/providerAssetReview:\s*presentation\.providerAssetReview \|\| undefined/);
+    expect(source).toMatch(/selectedByAssetId/);
+    expect(source).toMatch(/return selected \? \{ \.\.\.current, \.\.\.selected/);
   });
 });

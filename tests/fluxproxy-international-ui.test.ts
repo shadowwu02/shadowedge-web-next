@@ -4,7 +4,7 @@ import { getFluxProxyInputSlots, getFluxProxyInternationalDisplayName, getFluxPr
 import type { UploadMediaItem, VideoModel } from "@/types/video";
 
 const model = { id: "seedance_2_5_international", label: "Seedance 2.5 International", provider: "fluxproxy", providerModel: "dreamina-seedance-2-5-260628-df", productLine: "international", customerPricingStatus: "READY", credits: 23, maxPromptLength: 10000, durations: Array.from({ length: 27 }, (_value, index) => index + 4), durationDefault: 5, durationPolicy: { type: "range", selection: "discrete_range", min: 4, max: 30, step: 1 }, ratios: ["16:9"], qualities: ["480p", "720p"], referenceImages: true, referenceVideos: true, referenceAudios: true, maxReferenceImages: 30, maxReferenceVideos: 10, maxReferenceAudios: 10, maxTotalReferences: 50, internationalCapabilities: { family: "2.5", imageMax: 30, videoMax: 10, audioMax: 10, videoTotalDurationMax: 30, audioTotalDurationMax: 30, referenceCountLimitsVerified: true }, creditRules: { pricingVersion: "FLUXPROXY_INTERNATIONAL_PRICING_V1_20260826", baseCredits: 23, table: { "5": { "720p": 23 } }, referenceSurchargeCredits: 0 }, tupleCapabilities: [{ duration: 5, resolution: "720p", allowedAspectRatios: ["16:9"], audio: { supported: false, default: false }, pricing: { status: "READY", pricingVersion: "FLUXPROXY_INTERNATIONAL_PRICING_V1_20260826", currentCustomerCredits: 23 } }] } satisfies VideoModel;
-const media = (type: UploadMediaItem["type"], id: string, role?: UploadMediaItem["role"]): UploadMediaItem => ({ id, assetId: id, type, role, name: id, url: `https://api.shadowedge.example/assets/${id}`, duration: type === "image" ? 0 : 3, uploadStatus: "ready", providerAssetReview: { provider: "fluxproxy", providerModel: model.providerModel!, status: "ACTIVE" } });
+const media = (type: UploadMediaItem["type"], id: string, role?: UploadMediaItem["role"]): UploadMediaItem => ({ id, assetId: id, type, role, name: id, url: `https://api.shadowedge.example/assets/${id}`, duration: type === "image" ? 0 : 3, uploadStatus: "ready", providerAssetReview: { provider: "fluxproxy", providerModel: model.providerModel!, status: "ACTIVE", isCurrent: true } });
 
 describe("FluxProxy International frontend contract", () => {
   it("identifies only the International product line", () => {
@@ -43,6 +43,7 @@ describe("FluxProxy International frontend contract", () => {
     const active = media("image", "i");
     expect(getFluxProxyReviewSummary([active], model.providerModel).ready).toBe(true);
     expect(getFluxProxyReviewSummary([{ ...active, providerAssetReview: { ...active.providerAssetReview!, providerModel: "other" } }], model.providerModel)).toMatchObject({ ready: false, modelMismatch: 1 });
+    expect(getFluxProxyReviewSummary([{ ...active, providerAssetReview: { ...active.providerAssetReview!, isCurrent: false, status: "FAILED" } }], model.providerModel)).toMatchObject({ ready: false, failed: 0, staleAuthority: 1 });
   });
   it("builds an exact Pricing V1 customer request with canonical references", () => {
     const image = media("image", "00000000-0000-4000-8000-000000000001", "reference");

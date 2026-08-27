@@ -108,13 +108,15 @@ export function listFluxProxyMentionTokens(media: UploadMediaItem[], locale: "en
 }
 
 export function getFluxProxyReviewSummary(media: UploadMediaItem[], providerModel?: string) {
-  let preparing = 0; let failed = 0; let active = 0; let modelMismatch = 0;
+  let preparing = 0; let failed = 0; let active = 0; let modelMismatch = 0; let staleAuthority = 0;
   for (const item of media) {
     const review = item.providerAssetReview;
-    if (!review || review.status === "NOT_SUBMITTED" || review.status === "PROCESSING") preparing += 1;
-    else if (review.status === "FAILED") failed += 1;
+    if (!review) preparing += 1;
     else if (review.providerModel !== providerModel) modelMismatch += 1;
+    else if (review.isCurrent !== true) { staleAuthority += 1; preparing += 1; }
+    else if (review.status === "NOT_SUBMITTED" || review.status === "PROCESSING") preparing += 1;
+    else if (review.status === "FAILED") failed += 1;
     else active += 1;
   }
-  return Object.freeze({ preparing, failed, active, modelMismatch, ready: media.length === active });
+  return Object.freeze({ preparing, failed, active, modelMismatch, staleAuthority, ready: media.length === active });
 }

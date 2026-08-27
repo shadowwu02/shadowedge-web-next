@@ -471,26 +471,28 @@ export function MediaPickerDrawer({
   }
 
   async function refreshPrivatePreview(item: UploadMediaItem) {
-    if (!item.privateReference || !item.assetId || refreshingPreviewsRef.current.has(item.assetId)) return;
-    refreshingPreviewsRef.current.add(item.assetId);
+    const refreshKey = `${modelRule.modelId}:${item.type}:${item.assetId || ""}`;
+    if (!item.privateReference || !item.assetId || refreshingPreviewsRef.current.has(refreshKey)) return;
+    refreshingPreviewsRef.current.add(refreshKey);
     try {
       const refreshed = await refreshPrivateMediaAssetPreview(item.assetId, {
         model: modelRule.modelId,
         type: item.type,
       });
       const previewUrl = String(refreshed.previewUrl || "").trim();
-      if (!previewUrl) return;
       setAssetLibraryMedia((current) => current.map((candidate) => candidate.assetId === item.assetId
         ? {
             ...candidate,
-            url: previewUrl,
-            previewUrl,
+            url: previewUrl || candidate.url,
+            previewUrl: previewUrl || candidate.previewUrl,
             previewExpiresAt: refreshed.previewExpiresAt || undefined,
-            providerAssetReview: refreshed.providerAssetReview || candidate.providerAssetReview,
+            providerAssetReview: refreshed.providerAssetReview || undefined,
           }
         : candidate));
     } catch {
       // The canonical UUID remains selected authority; a preview failure does not forge a replacement Asset.
+    } finally {
+      refreshingPreviewsRef.current.delete(refreshKey);
     }
   }
 

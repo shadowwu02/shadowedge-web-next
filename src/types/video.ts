@@ -57,6 +57,9 @@ export type UploadMediaItem = {
     provider: "fluxproxy";
     providerModel: string;
     status: "NOT_SUBMITTED" | "PROCESSING" | "ACTIVE" | "FAILED";
+    isCurrent?: boolean;
+    authoritySource?: "BASE" | "SUPERSEDING";
+    authorityGeneration?: number;
     safeErrorCategory?: string;
   };
 };
