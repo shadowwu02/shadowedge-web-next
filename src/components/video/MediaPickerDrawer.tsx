@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, DragEvent, RefObject } from "react";
-import { listMediaAssets, mediaAssetToUploadMediaItem } from "@/lib/assets-api";
+import { listMediaAssets, mediaAssetToUploadMediaItem, refreshPrivateMediaAssetPreview } from "@/lib/assets-api";
 import { getMediaUploadErrorDisplayKeys, getSafeMediaItemDisplayName, mergeMediaAssets, normalizeMediaAssetUrl } from "@/lib/media-assets";
 import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
 import { slotAllowsAssetType } from "@/lib/upload-rules";
@@ -136,6 +136,7 @@ export function MediaPickerDrawer({
   const [assetLibraryMedia, setAssetLibraryMedia] = useState<UploadMediaItem[]>([]);
   const [assetLibraryStatus, setAssetLibraryStatus] = useState<"idle" | "loading" | "auth" | "error">("idle");
   const previousStatusesRef = useRef<Map<string, UploadMediaItem["uploadStatus"]>>(new Map());
+  const refreshingPreviewsRef = useRef<Set<string>>(new Set());
   const rafRef = useRef<number | null>(null);
 
   function localizedMediaTypeLabel(type: UploadMediaItem["type"]) {
@@ -336,7 +337,7 @@ export function MediaPickerDrawer({
       setAssetLibraryStatus("loading");
 
       try {
-        const result = await listMediaAssets({ limit: 100, status: "ready" });
+        const result = await listMediaAssets({ limit: 100, status: "ready", model: modelRule.modelId });
         if (cancelled) return;
         setAssetLibraryMedia(
           result.assets
@@ -357,7 +358,7 @@ export function MediaPickerDrawer({
     return () => {
       cancelled = true;
     };
-  }, [isOpen]);
+  }, [isOpen, modelRule.modelId]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -467,6 +468,30 @@ export function MediaPickerDrawer({
       }
       return next;
     });
+  }
+
+  async function refreshPrivatePreview(item: UploadMediaItem) {
+    if (!item.privateReference || !item.assetId || refreshingPreviewsRef.current.has(item.assetId)) return;
+    refreshingPreviewsRef.current.add(item.assetId);
+    try {
+      const refreshed = await refreshPrivateMediaAssetPreview(item.assetId, {
+        model: modelRule.modelId,
+        type: item.type,
+      });
+      const previewUrl = String(refreshed.previewUrl || "").trim();
+      if (!previewUrl) return;
+      setAssetLibraryMedia((current) => current.map((candidate) => candidate.assetId === item.assetId
+        ? {
+            ...candidate,
+            url: previewUrl,
+            previewUrl,
+            previewExpiresAt: refreshed.previewExpiresAt || undefined,
+            providerAssetReview: refreshed.providerAssetReview || candidate.providerAssetReview,
+          }
+        : candidate));
+    } catch {
+      // The canonical UUID remains selected authority; a preview failure does not forge a replacement Asset.
+    }
   }
 
   function removeAsset(id: string) {
@@ -643,9 +668,9 @@ export function MediaPickerDrawer({
                       <span className="relative grid aspect-square place-items-center overflow-hidden bg-white/[.045]">
                         {item.type === "image" && previewUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img alt="" className="h-full w-full object-cover" src={previewUrl} />
+                          <img alt="" className="h-full w-full object-cover" onError={() => void refreshPrivatePreview(item)} src={previewUrl} />
                         ) : item.type === "video" && item.url ? (
-                          <video className="h-full w-full object-cover" muted playsInline preload="metadata" src={item.url} />
+                          <video className="h-full w-full object-cover" muted onError={() => void refreshPrivatePreview(item)} playsInline preload="metadata" src={item.url} />
                         ) : (
                           <span className="grid size-11 place-items-center rounded-2xl border border-white/10 bg-[#111318]/78 text-[#ffd08a]/78 shadow-inner shadow-black/20">
                             <MediaTypeIcon type={item.type} />

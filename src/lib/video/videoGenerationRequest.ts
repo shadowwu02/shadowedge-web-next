@@ -91,7 +91,8 @@ export function buildVideoGenerationRequest(
   const imageAssetIds = referencedMediaItems.filter((item) => item.type === "image").map((item) => item.assetId!);
   const videoAssetIds = referencedMediaItems.filter((item) => item.type === "video").map((item) => item.assetId!);
   const audioAssetIds = referencedMediaItems.filter((item) => item.type === "audio").map((item) => item.assetId!);
-  const fluxProxyReferences = isFluxProxyInternationalModel(options.model)
+  const isFluxProxyInternational = isFluxProxyInternationalModel(options.model);
+  const fluxProxyReferences = isFluxProxyInternational
     ? referencedMediaItems.map((item) => ({
         assetId: item.assetId!,
         type: item.type,
@@ -104,8 +105,12 @@ export function buildVideoGenerationRequest(
     mentionBindings,
     { aspectRatio: options.ratio },
   );
-  const primaryImageUrl = images[0] || "";
-  const primaryVideoUrl = videos[0] || "";
+  const transportMediaList = isFluxProxyInternational ? [] : mediaList;
+  const transportImages = isFluxProxyInternational ? [] : images;
+  const transportVideos = isFluxProxyInternational ? [] : videos;
+  const transportAudios = isFluxProxyInternational ? [] : audios;
+  const primaryImageUrl = transportImages[0] || "";
+  const primaryVideoUrl = transportVideos[0] || "";
   const estimatedCredits = catalogPricing?.creditAmount ?? (
     typeof options.estimatedCredits === "number" && Number.isFinite(options.estimatedCredits)
       ? options.estimatedCredits
@@ -128,30 +133,30 @@ export function buildVideoGenerationRequest(
     frontendModel: options.model.label,
     model: options.model.id,
     modelId: options.model.id,
-    providerModel: options.model.providerModel || "",
+    providerModel: isFluxProxyInternational ? "" : options.model.providerModel || "",
     duration: options.duration,
     aspect_ratio: options.ratio,
     ratio: options.ratio,
     resolution: options.quality,
     quality: options.quality,
     generate_audio: options.generateAudio,
-    assets: { images, videos, audios },
+    assets: { images: transportImages, videos: transportVideos, audios: transportAudios },
     first_frame_image: "",
     last_frame_image: "",
-    reference_images: images,
-    reference_videos: videos,
-    reference_audios: audios,
+    reference_images: transportImages,
+    reference_videos: transportVideos,
+    reference_audios: transportAudios,
     reference_image_asset_ids: imageAssetIds,
     reference_video_asset_ids: videoAssetIds,
     reference_audio_asset_ids: audioAssetIds,
     ...(fluxProxyReferences ? { references: fluxProxyReferences } : {}),
-    mediaList,
-    mode: mediaList.length ? "media-to-video" : "text-to-video",
+    mediaList: transportMediaList,
+    mode: referencedMediaItems.length ? "media-to-video" : "text-to-video",
     image: primaryImageUrl,
     imageUrl: primaryImageUrl,
     video: primaryVideoUrl,
     videoUrl: primaryVideoUrl,
-    upload_assets: { media: mediaList },
+    upload_assets: { media: transportMediaList },
     clientCost: estimatedCredits,
     ...(catalogPricing ? {
       pricingVersion: catalogPricing.pricingVersion,
@@ -174,12 +179,12 @@ export function buildVideoGenerationRequest(
       } : {}),
       original_prompt: options.prompt,
       enhanced_prompt: enhancedPrompt,
-      mode: mediaList.length ? "media-to-video" : "text-to-video",
-      assets: { images, videos, audios },
-      reference_images: images,
-      reference_videos: videos,
-      reference_audios: audios,
-      mediaList,
+      mode: referencedMediaItems.length ? "media-to-video" : "text-to-video",
+      assets: { images: transportImages, videos: transportVideos, audios: transportAudios },
+      reference_images: transportImages,
+      reference_videos: transportVideos,
+      reference_audios: transportAudios,
+      mediaList: transportMediaList,
       mentionBindings,
       ...(options.meta || {}),
     },

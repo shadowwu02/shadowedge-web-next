@@ -11,6 +11,8 @@ export type MediaAssetRecord = {
   status?: "ready" | "failed" | "unavailable" | "deleted" | string;
   url?: string | null;
   publicUrl?: string | null;
+  previewUrl?: string | null;
+  previewExpiresAt?: string | null;
   filename?: string | null;
   displayName?: string | null;
   mimeType?: string | null;
@@ -22,6 +24,7 @@ export type MediaAssetRecord = {
   lastUsedAt?: string | null;
   metadata?: Record<string, unknown> | null;
   privateReference?: boolean;
+  providerAssetReview?: UploadMediaItem["providerAssetReview"] | null;
 };
 
 export type ListMediaAssetsParams = {
@@ -31,6 +34,7 @@ export type ListMediaAssetsParams = {
   source?: string;
   status?: string;
   type?: UploadMediaType;
+  model?: string;
 };
 
 export type ListMediaAssetsResult = {
@@ -139,6 +143,7 @@ export async function listMediaAssets(options: ListMediaAssetsParams = {}): Prom
   appendParam(params, "source", options.source);
   appendParam(params, "status", options.status);
   appendParam(params, "type", options.type);
+  appendParam(params, "model", options.model);
 
   const query = params.toString();
   const envelope = await apiRequest<ListMediaAssetsResult>(`/api/assets${query ? `?${query}` : ""}`);
@@ -148,6 +153,19 @@ export async function listMediaAssets(options: ListMediaAssetsParams = {}): Prom
     assets: Array.isArray(payload.assets) ? payload.assets : [],
     nextCursor: payload.nextCursor || null,
   };
+}
+
+export async function refreshPrivateMediaAssetPreview(
+  assetId: string,
+  options: { model: string; type: UploadMediaType },
+): Promise<Pick<MediaAssetRecord, "previewUrl" | "previewExpiresAt" | "providerAssetReview">> {
+  const params = new URLSearchParams();
+  appendParam(params, "model", options.model);
+  appendParam(params, "type", options.type);
+  const envelope = await apiRequest<Pick<MediaAssetRecord, "previewUrl" | "previewExpiresAt" | "providerAssetReview">>(
+    `/api/assets/${encodeURIComponent(assetId)}/private-preview?${params.toString()}`,
+  );
+  return (envelope.data || envelope || {}) as Pick<MediaAssetRecord, "previewUrl" | "previewExpiresAt" | "providerAssetReview">;
 }
 
 export async function saveAssetFromJob(jobId: string, input: SaveAssetFromJobInput): Promise<SaveAssetFromJobResult> {
@@ -212,7 +230,7 @@ export function mapMediaAssetsToUserAssets(assets: MediaAssetRecord[]): UserAsse
 
 export function mediaAssetToUploadMediaItem(asset: MediaAssetRecord): UploadMediaItem | null {
   const publicUrl = String(
-    asset.publicUrl || asset.url || (asset.privateReference && asset.type === "audio"
+    asset.previewUrl || asset.publicUrl || asset.url || (asset.privateReference && asset.type === "audio"
       ? `${getApiBaseUrl()}/api/assets/${encodeURIComponent(asset.id)}/private-audio-reference`
       : ""),
   ).trim();
@@ -222,7 +240,7 @@ export function mediaAssetToUploadMediaItem(asset: MediaAssetRecord): UploadMedi
       displayName: asset.displayName,
       durationSeconds: asset.durationSeconds,
       filename: asset.filename,
-      id: publicUrl,
+      id: asset.id,
       mimeType: asset.mimeType,
       name: asset.displayName || asset.filename || "",
       publicUrl,
@@ -238,11 +256,15 @@ export function mediaAssetToUploadMediaItem(asset: MediaAssetRecord): UploadMedi
 
   return {
     ...normalized,
+    id: asset.id,
     assetId: asset.id,
     canonicalReferenceStatus: getCanonicalReferenceStatus({ assetId: asset.id }),
     source: "asset-library",
     uploadStatus: asset.status === "ready" || !asset.status ? "ready" : "failed",
     errorMessage: asset.status === "ready" || !asset.status ? "" : "Media unavailable",
+    previewExpiresAt: asset.previewExpiresAt || undefined,
+    privateReference: Boolean(asset.privateReference),
+    providerAssetReview: asset.providerAssetReview || undefined,
   };
 }
 
