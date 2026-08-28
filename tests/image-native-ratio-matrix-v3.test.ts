@@ -104,6 +104,8 @@ describe("IMAGE_NATIVE_RATIO_MATRIX_V3", () => {
     expect(capability.effectivePixelSize).toBe("1152x2048");
     expect(generationHookSource).toContain("setParams((current) => resolveImageCustomerCapabilities({");
     expect(generationHookSource).toContain("referenceCount: references.length");
+    expect(generationHookSource).toContain("params: draft || {}");
+    expect(generationHookSource).toContain("referenceCount: nextReferences.length");
   });
 
   it("does not contaminate Nano or Nano Lite with GPT Image 2 ratios", () => {

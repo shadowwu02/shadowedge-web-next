@@ -261,8 +261,12 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
         const nextUrlPrompt = getImagePromptFromUrl().trim();
         const draftModel = draft ? getExactImageModelById(nextModels, draft.modelId) : null;
         const nextModel = draftModel || defaultModel;
-        const nextParams = normalizeImageGenerationParams(nextModel, draft || {});
         const nextReferences = draft ? getImageReferencesFromDraft(draft, nextModel.capabilities.maxReferences) : [];
+        const nextParams = resolveImageCustomerCapabilities({
+          model: nextModel,
+          params: draft || {},
+          referenceCount: nextReferences.length,
+        }).normalizedParams;
         const nextPrompt = nextUrlPrompt || draft?.prompt || "";
 
         setSelectedModelIdState(nextModel.id);
