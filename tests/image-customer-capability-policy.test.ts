@@ -45,6 +45,26 @@ function params(resolution: string, quality = "medium"): ImageGenerationParams {
   return { aspectRatio, ratio: aspectRatio, resolution, quality, batchCount: 1 };
 }
 
+function nanoModel(id: "nano_banana" | "nano_banana_lite", overrides: Partial<ImageModel> = {}): ImageModel {
+  return model({
+    id,
+    name: id === "nano_banana" ? "Nano Banana" : "Nano Banana Lite",
+    label: id === "nano_banana" ? "Nano Banana" : "Nano Banana Lite",
+    provider: "shadowedge",
+    providerModel: id,
+    capabilities: {
+      ...model().capabilities,
+      maxReferences: 14,
+      ratios: ["1:1"],
+      resolutions: ["1K"],
+      qualities: [],
+    },
+    creditRules: { baseCredits: 2 },
+    defaults: { ratio: "1:1", resolution: "1K", quality: "", batchCount: 1 },
+    ...overrides,
+  });
+}
+
 describe("GPT Image 2 reduced customer capability policy", () => {
   it("keeps Medium and hides Low/High from the selectable quality projection", () => {
     const policy = resolveImageCustomerCapabilities({ model: model(), params: params("1K") });
@@ -201,5 +221,63 @@ describe("model-specific normalization and shared UI guard", () => {
     expect(dictionarySource).toContain('"image.capability.singleReferenceLimit": "Currently supports 1 reference image"');
     expect(dictionarySource).toContain('"image.capability.singleReferenceLimit": "当前支持 1 张参考图"');
     expect(`${promptPanelSource}\n${referenceTraySource}`).not.toMatch(/DeRouter|Xinhankr|OOBB/i);
+  });
+});
+
+describe("public provider identity decoupling", () => {
+  it("keeps Nano Banana ready when the public provider is redacted to shadowedge", () => {
+    const policy = resolveImageCustomerCapabilities({ model: nanoModel("nano_banana"), params: params("1K", "") });
+    expect(policy).toMatchObject({ canGenerate: true, maxReferences: 14, effectiveAspectRatio: "1:1", creditPreview: 2 });
+  });
+
+  it("keeps Nano Banana Lite ready when the public provider is redacted to shadowedge", () => {
+    const policy = resolveImageCustomerCapabilities({ model: nanoModel("nano_banana_lite"), params: params("1K", "") });
+    expect(policy).toMatchObject({ canGenerate: true, maxReferences: 14, effectiveAspectRatio: "1:1", creditPreview: 2 });
+  });
+
+  it("uses complete public capability metadata when the provider field is absent", () => {
+    const policy = resolveImageCustomerCapabilities({
+      model: nanoModel("nano_banana", { provider: "" }),
+      params: params("1K", ""),
+    });
+    expect(policy.canGenerate).toBe(true);
+    expect(policy.providerEligibility).toBe("oobb_catalog_certified");
+  });
+
+  it.each(["shadowedge", "public", "customer-safe-display"])(
+    "does not change customer capability for arbitrary public provider display value %s",
+    (provider) => {
+      const policy = resolveImageCustomerCapabilities({
+        model: nanoModel("nano_banana", { provider }),
+        params: params("1K", ""),
+      });
+      expect(policy.canGenerate).toBe(true);
+    },
+  );
+
+  it("still fails closed when the public catalog marks the model unavailable", () => {
+    const policy = resolveImageCustomerCapabilities({
+      model: nanoModel("nano_banana", { available: false }),
+      params: params("1K", ""),
+    });
+    expect(policy.canGenerate).toBe(false);
+    expect(policy.blockReason).toBe("provider_unavailable");
+  });
+
+  it("normalizes model switches without carrying provider-dependent readiness", () => {
+    const nano = resolveImageCustomerCapabilities({ model: nanoModel("nano_banana"), params: params("4K", "high") });
+    const lite = resolveImageCustomerCapabilities({ model: nanoModel("nano_banana_lite"), params: nano.normalizedParams });
+    const gpt = resolveImageCustomerCapabilities({ model: model(), params: lite.normalizedParams });
+    expect(nano.normalizedParams).toMatchObject({ resolution: "1K", aspectRatio: "1:1", quality: "", batchCount: 1 });
+    expect(lite.canGenerate).toBe(true);
+    expect(gpt.normalizedParams).toMatchObject({ resolution: "1K", aspectRatio: "1:1", quality: "medium", batchCount: 1 });
+  });
+
+  it("keeps GPT Image 2 readiness provider-agnostic", () => {
+    for (const provider of ["shadowedge", "", "public-display"]) {
+      const policy = resolveImageCustomerCapabilities({ model: model({ provider }), params: params("2K") });
+      expect(policy.canGenerate).toBe(true);
+      expect(policy.providerEligibility).toBe("xinhankr_certified");
+    }
   });
 });

@@ -196,7 +196,10 @@ export function resolveImageCustomerCapabilities({
     if (!sameOption(params.aspectRatio ?? params.ratio ?? catalogParams.aspectRatio, "1:1")) adjustments.push("aspect_ratio_normalized");
     if (safeReferenceCount > maxReferences) adjustments.push("excess_references_removed");
     if (Number(params.batchCount ?? catalogParams.batchCount) !== 1) adjustments.push("quantity_normalized");
-    const catalogUnavailable = model.available === false || normalizedKey(model.provider) !== "oobb";
+    // Customer readiness is a public catalog decision. The browser must not
+    // couple capability admission to an internal provider/routing identity,
+    // which is intentionally redacted by the backend public model contract.
+    const catalogUnavailable = model.available === false;
     const blockReason: ImageCustomerCapabilityBlockReason | null = catalogUnavailable
       ? "provider_unavailable"
       : !oneK
