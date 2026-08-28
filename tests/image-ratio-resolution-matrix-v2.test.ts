@@ -115,6 +115,7 @@ describe("IMAGE_RATIO_RESOLUTION_MATRIX_V2", () => {
 
   it("keeps resolution separate from derived ratio and exposes exact output dimensions", () => {
     expect(panelSource).toContain('"image.params.resolution"');
+    expect(panelSource).not.toContain('t(usesGenerationTiers ? "image.params.generationTier"');
     expect(panelSource).toContain('t("image.params.effectiveRatio")');
     expect(panelSource).toContain('data-image-output-dimensions={customerCapabilities.effectivePixelSize}');
     expect(panelSource).not.toContain("independentAspectRatio");

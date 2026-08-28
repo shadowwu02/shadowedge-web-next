@@ -235,7 +235,7 @@ export function ImagePromptPanel({
             {resolutions.length ? (
               <label className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
                 <span className="flex items-center justify-between gap-2">
-                  {t(usesGenerationTiers ? "image.params.generationTier" : "image.params.resolution")}
+                  {t("image.params.resolution")}
                   <span className="text-[10px] font-medium text-[#b9b9b9]/38">{resolutions.join(" / ")}</span>
                 </span>
                 <select
@@ -249,9 +249,6 @@ export function ImagePromptPanel({
                     </option>
                   ))}
                 </select>
-                {usesGenerationTiers ? (
-                  <span className="text-[10px] font-medium leading-4 text-[#b9b9b9]/42">{t("image.params.generationTierHint")}</span>
-                ) : null}
               </label>
             ) : null}
 

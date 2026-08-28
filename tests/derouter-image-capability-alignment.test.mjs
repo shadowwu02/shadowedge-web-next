@@ -16,14 +16,17 @@ test("Image Workspace sends only explicitly selected reference images", () => {
   const api = source("src", "lib", "image-api.ts");
   assert.match(hook, /referenceImageAssetIds\s*=\s*readyReferences/);
   assert.match(hook, /referenceImageAssetIds,/);
-  assert.match(api, /reference_image_asset_ids:\s*\(input\.referenceImageAssetIds\s*\|\|\s*\[\]\)\.filter/);
+  assert.match(api, /const referenceImageAssetIds = \(input\.referenceImageAssetIds \|\| \[\]\)\.filter/);
+  assert.match(api, /reference_image_asset_ids: referenceImageAssetIds/);
   assert.doesNotMatch(hook, /allReadyReferences|allAttachments/);
 });
 
-test("unsupported ratio UI is hidden and stale ratio values normalize to empty", () => {
+test("ratio UI is derived read-only and stale unsupported values normalize through capability policy", () => {
   const panel = source("src", "components", "image", "ImagePromptPanel.tsx");
   const rules = source("src", "lib", "image", "imageModelRules.ts");
-  assert.match(panel, /\{ratios\.length\s*\?\s*\(/);
+  assert.match(panel, /customerCapabilities\.effectiveAspectRatio/);
+  assert.match(panel, /image\.params\.derivedReadOnly/);
+  assert.doesNotMatch(panel, /onUpdateParams\(\{ aspectRatio:/);
   assert.match(rules, /if \(!allowed\.length\) return ""/);
   assert.match(rules, /ratios\[0\] \|\| ""/);
 });
@@ -44,8 +47,9 @@ test("resolution UI remains capability-driven instead of hard-coded", () => {
   assert.match(panel, /resolutionLabel\(resolution\)/);
   assert.match(rules, /pickResolutionOptions/);
   assert.match(panel, /generation_cost_tier/);
-  assert.match(panel, /image\.params\.generationTier/);
-  assert.match(panel, /image\.params\.generationTierHint/);
+  assert.match(panel, /image\.params\.resolution/);
+  assert.match(panel, /image\.params\.outputDimensions/);
+  assert.doesNotMatch(panel, /t\(usesGenerationTiers \? "image\.params\.generationTier"/);
   assert.doesNotMatch(panel, /\[\s*["']1k["']\s*,\s*["']2k["']\s*,\s*["']4k["']\s*\]/i);
 });
 
