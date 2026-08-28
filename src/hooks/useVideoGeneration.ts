@@ -92,6 +92,12 @@ function findTaskByJobId(records: VideoTaskRecord[], jobId: string) {
   return records.find((record) => videoHistoryRecordHasJobId(record, jobId));
 }
 
+export function getSafeVideoGenerationErrorMessage(error: unknown, fallback: string) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  if (!message || /\breferenceerror\b|\bis not defined\b/i.test(message)) return fallback;
+  return message;
+}
+
 function mergeStatusIntoTask(base: VideoTaskRecord, result: VideoStatusResponse): VideoTaskRecord {
   const candidate = {
     ...base,
@@ -161,6 +167,10 @@ export function useVideoGeneration() {
   const activeTaskCount = useMemo(() => {
     return getVideoHistoryStatusCounts(visibleHistory, task).active;
   }, [task, visibleHistory]);
+
+  const clearError = useCallback(() => {
+    setError("");
+  }, []);
 
   const refreshCredits = useCallback(async () => {
     try {
@@ -276,7 +286,7 @@ export function useVideoGeneration() {
         submitError instanceof ApiError && submitError.kind === "maintenance"
           ? t("maintenance.errors.generationPaused")
           : formatGenerationConcurrencyLimitError(submitError, t, tf) ||
-            (submitError instanceof Error ? submitError.message : t("video.errors.generationRequestFailed"));
+            getSafeVideoGenerationErrorMessage(submitError, t("video.errors.generationRequestFailed"));
       setError(message);
       options.onSubmitError?.(message);
       return null;
@@ -343,6 +353,7 @@ export function useVideoGeneration() {
 
   return {
     activeTaskCount,
+    clearError,
     task,
     history: visibleHistory,
     historyError,

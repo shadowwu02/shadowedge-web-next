@@ -1240,6 +1240,7 @@ export function VideoWorkspace() {
   const { credits, maxConcurrency } = useCredits();
   const {
     activeTaskCount,
+    clearError,
     error,
     history,
     isHistoryLoading,
@@ -1609,9 +1610,10 @@ export function VideoWorkspace() {
   }, [isAuthLoading, isSignedIn, remakeQueueUserKeyHash, remakeStoryboard, t, token]);
 
   const handleModelChange = useCallback((model: VideoModel) => {
+    clearError();
     setSelectedModel(model);
     setParams((current) => buildParamsForModel(model, current));
-  }, []);
+  }, [clearError]);
 
   const localizedMediaTypeLabel = useCallback(
     (type: UploadMediaItem["type"]) => {
