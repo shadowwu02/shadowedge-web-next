@@ -1,7 +1,7 @@
 import type { ImageGenerationParams, ImageReferenceItem } from "@/types/image";
 
 export const IMAGE_WORKSPACE_DRAFT_KEY = "shadowedge_image_workspace_draft_v1";
-export const IMAGE_WORKSPACE_DRAFT_VERSION = 2;
+export const IMAGE_WORKSPACE_DRAFT_VERSION = 3;
 export const IMAGE_WORKSPACE_DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
 
 const SENSITIVE_URL_PARAMS = ["access_token", "refresh_token", "token", "api_key", "apikey", "authorization", "session", "cookie"];
@@ -134,7 +134,7 @@ function sanitizeReferences(value: unknown, maxReferences = 20) {
 
 function normalizeDraft(raw: unknown): ImageWorkspaceDraft | null {
   const record = asRecord(raw);
-  if (record.version !== 1 && record.version !== IMAGE_WORKSPACE_DRAFT_VERSION) return null;
+  if (![1, 2, IMAGE_WORKSPACE_DRAFT_VERSION].includes(Number(record.version))) return null;
 
   const updatedAt = asString(record.updatedAt, 80);
   const updatedTime = Date.parse(updatedAt);

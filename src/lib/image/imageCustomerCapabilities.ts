@@ -3,23 +3,12 @@ import type { ImageGenerationParams, ImageModel } from "@/types/image";
 
 export type ImageCustomerMode = "T2I" | "I2I";
 export type ImageProviderEligibility = "xinhankr_certified" | "oobb_catalog_certified" | "catalog_only" | "blocked";
-
 export type ImageCustomerCapabilityBlockReason =
-  | "catalog_unavailable"
-  | "quality_unavailable"
-  | "resolution_unavailable"
-  | "aspect_ratio_unavailable"
-  | "reference_limit_exceeded"
-  | "quantity_unavailable"
-  | "provider_unavailable";
-
+  | "catalog_unavailable" | "quality_unavailable" | "resolution_unavailable"
+  | "aspect_ratio_unavailable" | "reference_limit_exceeded" | "quantity_unavailable" | "provider_unavailable";
 export type ImageCustomerCapabilityAdjustment =
-  | "quality_normalized"
-  | "single_reference_resolution_normalized"
-  | "resolution_normalized"
-  | "aspect_ratio_normalized"
-  | "quantity_normalized"
-  | "excess_references_removed";
+  | "quality_normalized" | "single_reference_resolution_normalized" | "resolution_normalized"
+  | "aspect_ratio_normalized" | "quantity_normalized" | "excess_references_removed";
 
 export type ImageCustomerResolutionOption = {
   value: string;
@@ -29,6 +18,13 @@ export type ImageCustomerResolutionOption = {
   mode: ImageCustomerMode;
 };
 
+export type ImageCustomerAspectRatioOption = {
+  value: string;
+  providerSize: string;
+  effectivePixelSize: string;
+  evidence: "direct" | "existing_direct" | "direct_provider_remap" | "symmetry";
+};
+
 export type ImageCustomerCapabilities = {
   model: string;
   modelId: string;
@@ -36,13 +32,16 @@ export type ImageCustomerCapabilities = {
   mode: ImageCustomerMode;
   availableQualities: string[];
   availableResolutions: string[];
+  availableAspectRatios: string[];
   resolutionOptions: ImageCustomerResolutionOption[];
+  aspectRatioOptions: ImageCustomerAspectRatioOption[];
   quality: string;
   resolution: string;
   aspectRatio: string;
   effectiveAspectRatio: string;
   effectivePixelSize: string;
-  aspectRatioUiMode: "DERIVED_READ_ONLY";
+  providerSize: string;
+  aspectRatioUiMode: "SELECTABLE" | "DERIVED_READ_ONLY";
   referenceLimit: number;
   maxReferences: number;
   quantity: 1;
@@ -61,148 +60,121 @@ export type ImageCustomerCapabilities = {
   isNanoPolicy: boolean;
 };
 
-type ResolveImageCustomerCapabilitiesInput = {
-  model: ImageModel;
-  params?: Partial<ImageGenerationParams>;
-  referenceCount?: number;
-};
+type ResolveImageCustomerCapabilitiesInput = { model: ImageModel; params?: Partial<ImageGenerationParams>; referenceCount?: number };
+type NativeTuple = Omit<ImageCustomerAspectRatioOption, "value">;
 
 const GPT_IMAGE_2_ALIASES = new Set(["gpt_image_2", "gpt-image-2", "gpt image 2"]);
-const NANO_ALIASES = new Set([
-  "nano_banana", "nano-banana", "nano banana",
-  "nano_banana_lite", "nano-banana-lite", "nano banana lite",
-]);
-const GPT_IMAGE_2_CUSTOMER_QUALITIES = ["medium"];
-const GPT_IMAGE_2_T2I_RESOLUTIONS = ["1k", "2k", "4k"];
-const GPT_IMAGE_2_I2I_RESOLUTIONS = ["1k"];
-const RESOLUTION_CONTRACT = Object.freeze({
-  "1k": Object.freeze({ aspectRatio: "1:1", providerSize: "1024x1024" }),
-  "2k": Object.freeze({ aspectRatio: "1:1", providerSize: "2048x2048" }),
-  "4k": Object.freeze({ aspectRatio: "16:9", providerSize: "3840x2160" }),
-});
+const NANO_ALIASES = new Set(["nano_banana", "nano-banana", "nano banana", "nano_banana_lite", "nano-banana-lite", "nano banana lite"]);
+const TARGET_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"] as const;
+
+function tuple(providerSize: string, effectivePixelSize = providerSize, evidence: NativeTuple["evidence"] = "direct"): NativeTuple {
+  return { providerSize, effectivePixelSize, evidence };
+}
+
+export const GPT_IMAGE_2_NATIVE_RATIO_MATRIX = {
+  T2I: {
+    "1k": {
+      "1:1": tuple("1024x1024", "1024x1024", "existing_direct"), "16:9": tuple("1024x576"),
+      "9:16": tuple("576x1024"), "4:3": tuple("1024x768"),
+      "3:4": tuple("768x1024", "1086x1448", "direct_provider_remap"), "3:2": tuple("1024x688"),
+      "2:3": tuple("688x1024", "688x1024", "symmetry"),
+    },
+    "2k": {
+      "1:1": tuple("2048x2048", "2048x2048", "existing_direct"), "16:9": tuple("2048x1152"),
+      "9:16": tuple("1152x2048"), "4:3": tuple("2048x1536"), "3:4": tuple("1536x2048"),
+      "3:2": tuple("2048x1360"), "2:3": tuple("1360x2048", "1360x2048", "symmetry"),
+    },
+    "4k": {
+      "1:1": tuple("3840x3840"), "16:9": tuple("3840x2160", "3840x2160", "existing_direct"),
+      "9:16": tuple("2160x3840"), "4:3": tuple("3840x2880"), "3:4": tuple("2880x3840"),
+      "3:2": tuple("3840x2560"), "2:3": tuple("2560x3840", "2560x3840", "symmetry"),
+    },
+  },
+  I2I: {
+    "1k": {
+      "1:1": tuple("1024x1024", "1024x1024", "existing_direct"), "16:9": tuple("1024x576"),
+      "9:16": tuple("576x1024"), "4:3": tuple("1024x768"), "3:4": tuple("768x1024"),
+    },
+    "2k": { "1:1": tuple("2048x2048") },
+    "4k": { "1:1": tuple("3840x3840") },
+  },
+} as const;
+
+const LEGACY_DEFAULT_RATIO = {
+  T2I: { "1k": "1:1", "2k": "1:1", "4k": "16:9" },
+  I2I: { "1k": "1:1", "2k": "1:1", "4k": "1:1" },
+} as const;
 
 export const GPT_IMAGE_2_CUSTOMER_REFERENCE_LIMIT = 1;
 export const NANO_BANANA_CUSTOMER_REFERENCE_LIMIT = 14;
 export const IMAGE_OUTPUT_QUANTITY_MAX = 1;
 
-function normalizedKey(value: unknown) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function modelKeys(model: ImageModel) {
-  return [model.id, model.providerModel, model.name, model.label].map(normalizedKey);
-}
-
-function isGptImage2(model: ImageModel) {
-  return modelKeys(model).some((value) => GPT_IMAGE_2_ALIASES.has(value));
-}
-
-function isNanoModel(model: ImageModel) {
-  return modelKeys(model).some((value) => NANO_ALIASES.has(value));
-}
-
-function selectCatalogOptions(catalogOptions: string[], approvedOptions: string[]) {
-  const approved = new Set(approvedOptions.map(normalizedKey));
-  return catalogOptions.filter((option) => approved.has(normalizedKey(option)));
-}
-
+function normalizedKey(value: unknown) { return String(value || "").trim().toLowerCase(); }
+function modelKeys(model: ImageModel) { return [model.id, model.providerModel, model.name, model.label].map(normalizedKey); }
+function isGptImage2(model: ImageModel) { return modelKeys(model).some((value) => GPT_IMAGE_2_ALIASES.has(value)); }
+function isNanoModel(model: ImageModel) { return modelKeys(model).some((value) => NANO_ALIASES.has(value)); }
+function sameOption(left: string, right: string) { return normalizedKey(left) === normalizedKey(right); }
 function findOption(options: string[], requested: string) {
   const key = normalizedKey(requested);
   return options.find((option) => normalizedKey(option) === key) || "";
 }
-
-function sameOption(left: string, right: string) {
-  return normalizedKey(left) === normalizedKey(right);
+function selectCatalogOptions(catalogOptions: string[], approvedOptions: readonly string[]) {
+  const approved = new Set(approvedOptions.map(normalizedKey));
+  return catalogOptions.filter((option) => approved.has(normalizedKey(option)));
 }
-
-function resolutionContract(value: string) {
-  return RESOLUTION_CONTRACT[normalizedKey(value) as keyof typeof RESOLUTION_CONTRACT] || null;
+function matrixFor(mode: ImageCustomerMode, resolution: string): Record<string, NativeTuple> {
+  return (GPT_IMAGE_2_NATIVE_RATIO_MATRIX[mode] as Record<string, Record<string, NativeTuple>>)[normalizedKey(resolution)] || {};
 }
-
-function buildResolutionOptions(resolutions: string[], mode: ImageCustomerMode) {
+function ratioOptions(mode: ImageCustomerMode, resolution: string, catalogRatios: readonly string[] = TARGET_RATIOS): ImageCustomerAspectRatioOption[] {
+  const matrix = matrixFor(mode, resolution);
+  const catalog = new Set(catalogRatios.map(normalizedKey));
+  return TARGET_RATIOS.filter((ratio) => matrix[ratio] && catalog.has(normalizedKey(ratio))).map((value) => ({ value, ...matrix[value] }));
+}
+function buildResolutionOptions(resolutions: string[], mode: ImageCustomerMode, aspectRatio: string, catalogRatios: readonly string[] = TARGET_RATIOS) {
   return resolutions.map((resolution) => {
-    const contract = resolutionContract(resolution);
-    return {
-      value: resolution,
-      label: `${resolution.toUpperCase()} · ${contract?.aspectRatio || "1:1"}`,
-      aspectRatio: contract?.aspectRatio || "1:1",
-      providerSize: contract?.providerSize || "",
-      mode,
-    } satisfies ImageCustomerResolutionOption;
+    const options = ratioOptions(mode, resolution, catalogRatios);
+    const option = options.find((item) => item.value === aspectRatio) || options[0];
+    return { value: resolution, label: `${resolution.toUpperCase()} · ${option?.value || ""}`, aspectRatio: option?.value || "", providerSize: option?.providerSize || "", mode };
   });
 }
-
 export function getDerivedImageAspectRatio(resolution: string, mode: ImageCustomerMode = "T2I") {
-  if (mode === "I2I") return normalizedKey(resolution) === "1k" ? "1:1" : "";
-  return resolutionContract(resolution)?.aspectRatio || "";
+  return (LEGACY_DEFAULT_RATIO[mode] as Record<string, string>)[normalizedKey(resolution)] || "";
 }
 
 function baseCapability(model: ImageModel, catalogParams: ImageGenerationParams, referenceCount: number): ImageCustomerCapabilities {
   const mode: ImageCustomerMode = referenceCount > 0 ? "I2I" : "T2I";
   const maxReferences = Math.max(0, model.capabilities.maxReferences || 0);
-  const normalizedParams = {
-    ...catalogParams,
-    aspectRatio: catalogParams.aspectRatio || catalogParams.ratio,
-    ratio: catalogParams.aspectRatio || catalogParams.ratio,
-    batchCount: 1,
-  };
+  const normalizedParams = { ...catalogParams, aspectRatio: catalogParams.aspectRatio || catalogParams.ratio, ratio: catalogParams.aspectRatio || catalogParams.ratio, batchCount: 1 };
   const referenceLimitExceeded = referenceCount > maxReferences;
   const catalogUnavailable = model.available === false;
   const quantityInvalid = catalogParams.batchCount !== 1;
-  const blockReason: ImageCustomerCapabilityBlockReason | null = catalogUnavailable
-    ? "catalog_unavailable"
-    : referenceLimitExceeded
-      ? "reference_limit_exceeded"
-      : quantityInvalid
-        ? "quantity_unavailable"
-        : null;
+  const blockReason: ImageCustomerCapabilityBlockReason | null = catalogUnavailable ? "catalog_unavailable" : referenceLimitExceeded ? "reference_limit_exceeded" : quantityInvalid ? "quantity_unavailable" : null;
+  const effectivePixelSize = model.capabilities.resolutionOptions?.find((item) => sameOption(item.id, normalizedParams.resolution))?.providerSize || "";
   return {
-    model: model.id,
-    modelId: model.id,
-    modes: model.capabilities.imageToImage ? ["T2I", "I2I"] : ["T2I"],
-    mode,
-    availableQualities: [...model.capabilities.qualities],
-    availableResolutions: [...model.capabilities.resolutions],
+    model: model.id, modelId: model.id, modes: model.capabilities.imageToImage ? ["T2I", "I2I"] : ["T2I"], mode,
+    availableQualities: [...model.capabilities.qualities], availableResolutions: [...model.capabilities.resolutions],
+    availableAspectRatios: normalizedParams.aspectRatio ? [normalizedParams.aspectRatio] : [],
     resolutionOptions: model.capabilities.resolutions.map((resolution) => ({
       value: resolution,
-      label: `${resolution.toUpperCase()} · ${normalizedParams.aspectRatio || "1:1"}`,
+      label: resolution.toUpperCase(),
       aspectRatio: normalizedParams.aspectRatio || "1:1",
       providerSize: model.capabilities.resolutionOptions?.find((item) => sameOption(item.id, resolution))?.providerSize || "",
       mode,
     })),
-    quality: normalizedParams.quality,
-    resolution: normalizedParams.resolution,
-    aspectRatio: normalizedParams.aspectRatio,
-    effectiveAspectRatio: normalizedParams.aspectRatio,
-    effectivePixelSize: model.capabilities.resolutionOptions?.find((item) => sameOption(item.id, normalizedParams.resolution))?.providerSize || "",
-    aspectRatioUiMode: "DERIVED_READ_ONLY",
-    referenceLimit: maxReferences,
-    maxReferences,
-    quantity: 1,
-    quantityMax: 1,
-    credit: estimateImageCredits(model, normalizedParams),
-    creditPreview: estimateImageCredits(model, normalizedParams),
-    availability: !catalogUnavailable,
-    customerSelectable: blockReason === null,
-    providerEligibilityCategory: catalogUnavailable ? "blocked" : "catalog_only",
-    providerEligibility: catalogUnavailable ? "blocked" : "catalog_only",
-    normalizedParams,
-    canGenerate: blockReason === null,
-    blockReason,
-    adjustments: [
-      ...(referenceLimitExceeded ? ["excess_references_removed" as const] : []),
-      ...(quantityInvalid ? ["quantity_normalized" as const] : []),
-    ],
-    isReducedGptImage2Policy: false,
-    isNanoPolicy: false,
+    aspectRatioOptions: normalizedParams.aspectRatio ? [{ value: normalizedParams.aspectRatio, providerSize: effectivePixelSize, effectivePixelSize, evidence: "existing_direct" }] : [],
+    quality: normalizedParams.quality, resolution: normalizedParams.resolution, aspectRatio: normalizedParams.aspectRatio,
+    effectiveAspectRatio: normalizedParams.aspectRatio, effectivePixelSize, providerSize: effectivePixelSize,
+    aspectRatioUiMode: "DERIVED_READ_ONLY", referenceLimit: maxReferences, maxReferences, quantity: 1, quantityMax: 1,
+    credit: estimateImageCredits(model, normalizedParams), creditPreview: estimateImageCredits(model, normalizedParams),
+    availability: !catalogUnavailable, customerSelectable: blockReason === null,
+    providerEligibilityCategory: catalogUnavailable ? "blocked" : "catalog_only", providerEligibility: catalogUnavailable ? "blocked" : "catalog_only",
+    normalizedParams, canGenerate: blockReason === null, blockReason,
+    adjustments: [...(referenceLimitExceeded ? ["excess_references_removed" as const] : []), ...(quantityInvalid ? ["quantity_normalized" as const] : [])],
+    isReducedGptImage2Policy: false, isNanoPolicy: false,
   };
 }
 
-export function resolveImageCustomerCapabilities({
-  model,
-  params = {},
-  referenceCount = 0,
-}: ResolveImageCustomerCapabilitiesInput): ImageCustomerCapabilities {
+export function resolveImageCustomerCapabilities({ model, params = {}, referenceCount = 0 }: ResolveImageCustomerCapabilitiesInput): ImageCustomerCapabilities {
   const safeReferenceCount = Math.max(0, Math.floor(Number(referenceCount) || 0));
   const catalogParams = normalizeImageGenerationParams(model, params);
 
@@ -216,145 +188,67 @@ export function resolveImageCustomerCapabilities({
     if (!sameOption(params.aspectRatio ?? params.ratio ?? catalogParams.aspectRatio, "1:1")) adjustments.push("aspect_ratio_normalized");
     if (safeReferenceCount > maxReferences) adjustments.push("excess_references_removed");
     if (Number(params.batchCount ?? catalogParams.batchCount) !== 1) adjustments.push("quantity_normalized");
-    // Customer readiness is a public catalog decision. The browser must not
-    // couple capability admission to an internal provider/routing identity,
-    // which is intentionally redacted by the backend public model contract.
     const catalogUnavailable = model.available === false;
-    const blockReason: ImageCustomerCapabilityBlockReason | null = catalogUnavailable
-      ? "provider_unavailable"
-      : !oneK
-        ? "resolution_unavailable"
-        : safeReferenceCount > maxReferences
-          ? "reference_limit_exceeded"
-          : adjustments.length
-            ? "aspect_ratio_unavailable"
-            : null;
+    const blockReason: ImageCustomerCapabilityBlockReason | null = catalogUnavailable ? "provider_unavailable" : !oneK ? "resolution_unavailable" : safeReferenceCount > maxReferences ? "reference_limit_exceeded" : adjustments.length ? "aspect_ratio_unavailable" : null;
+    const oneKTuple = tuple("1024x1024", "1024x1024", "existing_direct");
     return {
-      model: model.id,
-      modelId: model.id,
-      modes: ["T2I", "I2I"],
-      mode,
-      availableQualities: [...model.capabilities.qualities],
-      availableResolutions: oneK ? [oneK] : [],
-      resolutionOptions: oneK ? buildResolutionOptions([oneK], mode) : [],
-      quality: normalizedParams.quality,
-      resolution: normalizedParams.resolution,
-      aspectRatio: "1:1",
-      effectiveAspectRatio: "1:1",
-      effectivePixelSize: resolutionContract(oneK)?.providerSize || "1024x1024",
-      aspectRatioUiMode: "DERIVED_READ_ONLY",
-      referenceLimit: maxReferences,
-      maxReferences,
-      quantity: 1,
-      quantityMax: 1,
-      credit: estimateImageCredits(model, normalizedParams),
-      creditPreview: estimateImageCredits(model, normalizedParams),
-      availability: !catalogUnavailable,
-      customerSelectable: blockReason === null,
-      providerEligibilityCategory: catalogUnavailable ? "blocked" : "oobb_catalog_certified",
-      providerEligibility: catalogUnavailable ? "blocked" : "oobb_catalog_certified",
-      normalizedParams,
-      canGenerate: blockReason === null,
-      blockReason,
-      adjustments,
-      isReducedGptImage2Policy: false,
-      isNanoPolicy: true,
+      model: model.id, modelId: model.id, modes: ["T2I", "I2I"], mode,
+      availableQualities: [...model.capabilities.qualities], availableResolutions: oneK ? [oneK] : [], availableAspectRatios: ["1:1"],
+      resolutionOptions: oneK ? buildResolutionOptions([oneK], mode, "1:1") : [], aspectRatioOptions: [{ value: "1:1", ...oneKTuple }],
+      quality: normalizedParams.quality, resolution: normalizedParams.resolution, aspectRatio: "1:1", effectiveAspectRatio: "1:1",
+      effectivePixelSize: "1024x1024", providerSize: "1024x1024", aspectRatioUiMode: "DERIVED_READ_ONLY",
+      referenceLimit: maxReferences, maxReferences, quantity: 1, quantityMax: 1,
+      credit: estimateImageCredits(model, normalizedParams), creditPreview: estimateImageCredits(model, normalizedParams),
+      availability: !catalogUnavailable, customerSelectable: blockReason === null,
+      providerEligibilityCategory: catalogUnavailable ? "blocked" : "oobb_catalog_certified", providerEligibility: catalogUnavailable ? "blocked" : "oobb_catalog_certified",
+      normalizedParams, canGenerate: blockReason === null, blockReason, adjustments, isReducedGptImage2Policy: false, isNanoPolicy: true,
     };
   }
 
   if (!isGptImage2(model)) return baseCapability(model, catalogParams, safeReferenceCount);
 
   const mode: ImageCustomerMode = safeReferenceCount > 0 ? "I2I" : "T2I";
-  const availableQualities = selectCatalogOptions(model.capabilities.qualities, GPT_IMAGE_2_CUSTOMER_QUALITIES);
-  const maxReferences = model.capabilities.imageToImage
-    ? Math.min(GPT_IMAGE_2_CUSTOMER_REFERENCE_LIMIT, Math.max(0, model.capabilities.maxReferences || 0))
-    : 0;
-  const allowedResolutionKeys = mode === "I2I" ? GPT_IMAGE_2_I2I_RESOLUTIONS : GPT_IMAGE_2_T2I_RESOLUTIONS;
-  const availableResolutions = selectCatalogOptions(model.capabilities.resolutions, allowedResolutionKeys);
+  const availableQualities = selectCatalogOptions(model.capabilities.qualities, ["medium"]);
+  const maxReferences = model.capabilities.imageToImage ? Math.min(GPT_IMAGE_2_CUSTOMER_REFERENCE_LIMIT, Math.max(0, model.capabilities.maxReferences || 0)) : 0;
+  const matrixResolutions = Object.keys(GPT_IMAGE_2_NATIVE_RATIO_MATRIX[mode]);
+  const availableResolutions = selectCatalogOptions(model.capabilities.resolutions, matrixResolutions);
   const medium = findOption(availableQualities, "medium");
   const requestedQuality = String(params.quality ?? catalogParams.quality);
   const requestedResolution = String(params.resolution ?? catalogParams.resolution);
-  const normalizedQuality = medium || "";
-  const normalizedResolution = mode === "I2I"
-    ? findOption(availableResolutions, "1k")
-    : findOption(availableResolutions, requestedResolution) || availableResolutions[0] || "";
-  const derivedAspectRatio = getDerivedImageAspectRatio(normalizedResolution, mode);
+  const normalizedResolution = findOption(availableResolutions, requestedResolution) || availableResolutions[0] || "";
+  const options = ratioOptions(mode, normalizedResolution, model.capabilities.ratios);
+  const availableAspectRatios = options.map((item) => item.value);
   const requestedAspectRatio = String(params.aspectRatio ?? params.ratio ?? catalogParams.aspectRatio);
+  const legacyRatio = getDerivedImageAspectRatio(normalizedResolution, mode);
+  const normalizedAspectRatio = findOption(availableAspectRatios, requestedAspectRatio) || findOption(availableAspectRatios, legacyRatio) || availableAspectRatios[0] || "";
+  const selectedTuple = options.find((item) => item.value === normalizedAspectRatio);
   const requestedQuantity = Number(params.batchCount ?? catalogParams.batchCount);
   const adjustments: ImageCustomerCapabilityAdjustment[] = [];
-
-  if (normalizedQuality && !sameOption(requestedQuality, normalizedQuality)) adjustments.push("quality_normalized");
-  if (mode === "I2I" && normalizedResolution && !sameOption(requestedResolution, normalizedResolution)) {
-    adjustments.push("single_reference_resolution_normalized");
-  } else if (mode === "T2I" && normalizedResolution && !sameOption(requestedResolution, normalizedResolution)) {
-    adjustments.push("resolution_normalized");
-  }
-  if (derivedAspectRatio && !sameOption(requestedAspectRatio, derivedAspectRatio)) adjustments.push("aspect_ratio_normalized");
+  if (medium && !sameOption(requestedQuality, medium)) adjustments.push("quality_normalized");
+  if (normalizedResolution && !sameOption(requestedResolution, normalizedResolution)) adjustments.push(mode === "I2I" ? "single_reference_resolution_normalized" : "resolution_normalized");
+  if (normalizedAspectRatio && !sameOption(requestedAspectRatio, normalizedAspectRatio)) adjustments.push("aspect_ratio_normalized");
   if (requestedQuantity !== 1) adjustments.push("quantity_normalized");
   if (safeReferenceCount > maxReferences) adjustments.push("excess_references_removed");
-
-  const normalizedParams = {
-    ...catalogParams,
-    aspectRatio: derivedAspectRatio,
-    ratio: derivedAspectRatio,
-    quality: normalizedQuality,
-    resolution: normalizedResolution,
-    batchCount: 1,
-  };
+  const normalizedParams = { ...catalogParams, aspectRatio: normalizedAspectRatio, ratio: normalizedAspectRatio, quality: medium || "", resolution: normalizedResolution, batchCount: 1 };
   const catalogUnavailable = model.available === false;
-  const blockReason: ImageCustomerCapabilityBlockReason | null = catalogUnavailable
-    ? "catalog_unavailable"
-    : !normalizedQuality || adjustments.includes("quality_normalized")
-      ? "quality_unavailable"
-      : !normalizedResolution || adjustments.includes("single_reference_resolution_normalized") || adjustments.includes("resolution_normalized")
-        ? "resolution_unavailable"
-        : !derivedAspectRatio || adjustments.includes("aspect_ratio_normalized")
-          ? "aspect_ratio_unavailable"
-          : safeReferenceCount > maxReferences
-            ? "reference_limit_exceeded"
-            : requestedQuantity !== 1
-              ? "quantity_unavailable"
-              : null;
-
+  const blockReason: ImageCustomerCapabilityBlockReason | null = catalogUnavailable ? "catalog_unavailable"
+    : !medium || adjustments.includes("quality_normalized") ? "quality_unavailable"
+    : !normalizedResolution || adjustments.includes("single_reference_resolution_normalized") || adjustments.includes("resolution_normalized") ? "resolution_unavailable"
+    : !selectedTuple || adjustments.includes("aspect_ratio_normalized") ? "aspect_ratio_unavailable"
+    : safeReferenceCount > maxReferences ? "reference_limit_exceeded" : requestedQuantity !== 1 ? "quantity_unavailable" : null;
   return {
-    model: model.id,
-    modelId: model.id,
-    modes: ["T2I", "I2I"],
-    mode,
-    availableQualities,
-    availableResolutions,
-    resolutionOptions: buildResolutionOptions(availableResolutions, mode),
-    quality: normalizedQuality,
-    resolution: normalizedResolution,
-    aspectRatio: derivedAspectRatio,
-    effectiveAspectRatio: derivedAspectRatio,
-    effectivePixelSize: resolutionContract(normalizedResolution)?.providerSize || "",
-    aspectRatioUiMode: "DERIVED_READ_ONLY",
-    referenceLimit: maxReferences,
-    maxReferences,
-    quantity: 1,
-    quantityMax: 1,
-    credit: estimateImageCredits(model, normalizedParams),
-    creditPreview: estimateImageCredits(model, normalizedParams),
-    availability: !catalogUnavailable,
-    customerSelectable: blockReason === null,
-    providerEligibilityCategory: catalogUnavailable ? "blocked" : "xinhankr_certified",
-    providerEligibility: catalogUnavailable ? "blocked" : "xinhankr_certified",
-    normalizedParams,
-    canGenerate: blockReason === null,
-    blockReason,
-    adjustments,
-    isReducedGptImage2Policy: true,
-    isNanoPolicy: false,
+    model: model.id, modelId: model.id, modes: ["T2I", "I2I"], mode,
+    availableQualities, availableResolutions, availableAspectRatios, resolutionOptions: buildResolutionOptions(availableResolutions, mode, normalizedAspectRatio, model.capabilities.ratios), aspectRatioOptions: options,
+    quality: medium || "", resolution: normalizedResolution, aspectRatio: normalizedAspectRatio, effectiveAspectRatio: normalizedAspectRatio,
+    effectivePixelSize: selectedTuple?.effectivePixelSize || "", providerSize: selectedTuple?.providerSize || "", aspectRatioUiMode: "SELECTABLE",
+    referenceLimit: maxReferences, maxReferences, quantity: 1, quantityMax: 1,
+    credit: estimateImageCredits(model, normalizedParams), creditPreview: estimateImageCredits(model, normalizedParams),
+    availability: !catalogUnavailable, customerSelectable: blockReason === null,
+    providerEligibilityCategory: catalogUnavailable ? "blocked" : "xinhankr_certified", providerEligibility: catalogUnavailable ? "blocked" : "xinhankr_certified",
+    normalizedParams, canGenerate: blockReason === null, blockReason, adjustments, isReducedGptImage2Policy: true, isNanoPolicy: false,
   };
 }
 
 export function areImageGenerationParamsEqual(left: ImageGenerationParams, right: ImageGenerationParams) {
-  return (
-    sameOption(left.aspectRatio, right.aspectRatio) &&
-    sameOption(left.ratio, right.ratio) &&
-    sameOption(left.resolution, right.resolution) &&
-    sameOption(left.quality, right.quality) &&
-    left.batchCount === right.batchCount
-  );
+  return sameOption(left.aspectRatio, right.aspectRatio) && sameOption(left.ratio, right.ratio) && sameOption(left.resolution, right.resolution) && sameOption(left.quality, right.quality) && left.batchCount === right.batchCount;
 }

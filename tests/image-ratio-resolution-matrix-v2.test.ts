@@ -68,14 +68,14 @@ describe("IMAGE_RATIO_RESOLUTION_MATRIX_V2", () => {
       creditPreview: 2,
       availability: true,
       canGenerate: true,
-      aspectRatioUiMode: "DERIVED_READ_ONLY",
+      aspectRatioUiMode: id === "gpt_image_2" ? "SELECTABLE" : "DERIVED_READ_ONLY",
     });
   });
 
   it.each([
-    ["1K", "9:16", 0, 1],
-    ["4K", "1:1", 0, 1],
-    ["2K", "1:1", 1, 1],
+    ["1K", "21:9", 0, 1],
+    ["1K", "3:2", 1, 1],
+    ["2K", "16:9", 1, 1],
     ["1K", "1:1", 2, 1],
     ["1K", "1:1", 0, 2],
   ])("normalizes UI state but blocks explicit unsupported %s/%s refs=%i quantity=%i", (resolution, ratio, refs, quantity) => {
@@ -113,12 +113,11 @@ describe("IMAGE_RATIO_RESOLUTION_MATRIX_V2", () => {
     });
   });
 
-  it("keeps resolution separate from derived ratio and exposes exact output dimensions", () => {
+  it("keeps resolution separate from native ratio and exposes certified output dimensions", () => {
     expect(panelSource).toContain('"image.params.resolution"');
     expect(panelSource).not.toContain('t(usesGenerationTiers ? "image.params.generationTier"');
-    expect(panelSource).toContain('t("image.params.effectiveRatio")');
+    expect(panelSource).toContain('data-image-aspect-ratio-selector="native-v3"');
     expect(panelSource).toContain('data-image-output-dimensions={customerCapabilities.effectivePixelSize}');
-    expect(panelSource).not.toContain("independentAspectRatio");
     expect(dictionarySource).toContain('"image.params.resolution": "Resolution"');
     expect(dictionarySource).toContain('"image.params.resolution": "清晰度"');
     expect(dictionarySource).toContain('"image.params.outputDimensions": "Output dimensions"');

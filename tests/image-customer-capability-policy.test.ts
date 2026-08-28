@@ -27,7 +27,7 @@ function model(overrides: Partial<ImageModel> = {}): ImageModel {
       maxReferences: 16,
       maxPromptLength: 4000,
       maxBatchCount: 1,
-      ratios: ["1:1", "16:9"],
+      ratios: ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"],
       resolutions: ["1K", "2K", "4K"],
       qualities: ["low", "medium", "high"],
     },
@@ -81,19 +81,19 @@ describe("GPT Image 2 reduced customer capability policy", () => {
     expect(policy.canGenerate).toBe(true);
   });
 
-  it("limits one-reference image-to-image to 1K and safely normalizes 2K/4K", () => {
+  it("keeps one-reference 2K/4K restricted to their independently certified 1:1 tuple", () => {
     for (const resolution of ["2K", "4K"]) {
-      const policy = resolveImageCustomerCapabilities({ model: model(), params: params(resolution), referenceCount: 1 });
-      expect(policy.availableResolutions).toEqual(["1K"]);
-      expect(policy.normalizedParams.resolution).toBe("1K");
-      expect(policy.adjustments).toContain("single_reference_resolution_normalized");
-      expect(policy.canGenerate).toBe(false);
+      const policy = resolveImageCustomerCapabilities({ model: model(), params: { ...params(resolution), aspectRatio: "1:1", ratio: "1:1" }, referenceCount: 1 });
+      expect(policy.availableResolutions).toEqual(["1K", "2K", "4K"]);
+      expect(policy.normalizedParams.resolution).toBe(resolution);
+      expect(policy.availableAspectRatios).toEqual(["1:1"]);
+      expect(policy.canGenerate).toBe(true);
     }
   });
 
   it("keeps one-reference 1K generation ready", () => {
     const policy = resolveImageCustomerCapabilities({ model: model(), params: params("1K"), referenceCount: 1 });
-    expect(policy.availableResolutions).toEqual(["1K"]);
+    expect(policy.availableResolutions).toEqual(["1K", "2K", "4K"]);
     expect(policy.canGenerate).toBe(true);
   });
 
@@ -181,7 +181,7 @@ describe("model-specific normalization and shared UI guard", () => {
     const nano = model({ id: "nano_banana", name: "Nano Banana", label: "Nano Banana", providerModel: "nano_banana" });
     expect(resolveImageCustomerCapabilities({ model: nano, params: params("4K", "high") }).isReducedGptImage2Policy).toBe(false);
     const restored = resolveImageCustomerCapabilities({ model: model(), params: params("4K", "high"), referenceCount: 1 });
-    expect(restored.normalizedParams).toMatchObject({ quality: "medium", resolution: "1K" });
+    expect(restored.normalizedParams).toMatchObject({ quality: "medium", resolution: "4K", aspectRatio: "1:1" });
   });
 
   it("uses the shared policy for options, references, normalization, and the submit boundary", () => {

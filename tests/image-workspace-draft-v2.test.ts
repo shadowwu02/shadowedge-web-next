@@ -29,18 +29,18 @@ afterEach(() => {
   Object.defineProperty(globalThis, "window", { configurable: true, value: originalWindow, writable: true });
 });
 
-describe("Image draft v2 capability persistence", () => {
+describe("Image draft v3 native-ratio persistence", () => {
   it("persists canonical aspectRatio and quantity", () => {
     const values = installStorage();
     const saved = saveImageWorkspaceDraft({
       prompt: "A safe scene",
       modelId: "gpt_image_2",
-      params: { aspectRatio: "16:9", ratio: "16:9", resolution: "4K", quality: "medium", batchCount: 1 },
+      params: { aspectRatio: "9:16", ratio: "9:16", resolution: "2K", quality: "medium", batchCount: 1 },
       references: [],
     });
     expect(saved.ok).toBe(true);
     const raw = JSON.parse(values.get(IMAGE_WORKSPACE_DRAFT_KEY) || "{}");
-    expect(raw).toMatchObject({ version: IMAGE_WORKSPACE_DRAFT_VERSION, aspectRatio: "16:9", quantity: 1 });
+    expect(raw).toMatchObject({ version: IMAGE_WORKSPACE_DRAFT_VERSION, aspectRatio: "9:16", resolution: "2K", quantity: 1 });
   });
 
   it("migrates a fresh legacy v1 ratio without guessing a different value", () => {
@@ -57,6 +57,6 @@ describe("Image draft v2 capability persistence", () => {
     }));
     const result = readImageWorkspaceDraft();
     expect(result.status).toBe("ok");
-    expect(result.draft).toMatchObject({ version: 2, aspectRatio: "1:1", ratio: "1:1", quantity: 1 });
+    expect(result.draft).toMatchObject({ version: 3, aspectRatio: "1:1", ratio: "1:1", quantity: 1 });
   });
 });

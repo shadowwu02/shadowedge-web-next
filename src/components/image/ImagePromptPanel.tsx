@@ -71,6 +71,7 @@ export function ImagePromptPanel({
   const { locale, t, tf } = useI18n();
   const isZh = getPromptStudioDraftLocale(locale) === "zh";
   const resolutions = customerCapabilities.availableResolutions;
+  const aspectRatios = customerCapabilities.availableAspectRatios;
   const resolutionOptions = selectedModel?.capabilities.resolutionOptions || [];
   const usesGenerationTiers = selectedModel?.capabilities.resolutionSemantics === "generation_cost_tier" ||
     selectedModel?.capabilities.exactPixelsGuaranteed === false;
@@ -252,21 +253,41 @@ export function ImagePromptPanel({
               </label>
             ) : null}
 
-            <div className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
-              <span className="flex items-center justify-between gap-2">
-                {t("image.params.effectiveRatio")}
-                <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-[#b9b9b9]/38">
-                  {t("image.params.derivedReadOnly")}
+            {customerCapabilities.aspectRatioUiMode === "SELECTABLE" ? (
+              <label className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
+                <span className="flex items-center justify-between gap-2">
+                  {t("image.params.ratio")}
+                  <span className="max-w-[65%] truncate text-[10px] font-medium text-[#b9b9b9]/38">{aspectRatios.join(" / ")}</span>
                 </span>
-              </span>
-              <div
-                aria-label={t("image.params.effectiveRatio")}
-                className="se-control flex min-h-10 items-center rounded-[15px] px-3 text-sm font-semibold text-[#f4f4f4]"
-                data-image-effective-ratio={customerCapabilities.effectiveAspectRatio}
-              >
-                {customerCapabilities.effectiveAspectRatio || t("image.params.default")}
+                <select
+                  aria-label={t("image.params.ratio")}
+                  className="se-control h-10 min-w-0 w-full rounded-[15px] px-3 text-sm text-[#f4f4f4] outline-none"
+                  data-image-aspect-ratio-selector="native-v3"
+                  onChange={(event) => onUpdateParams({ aspectRatio: event.target.value, ratio: event.target.value })}
+                  value={params.aspectRatio}
+                >
+                  {aspectRatios.map((aspectRatio) => (
+                    <option key={aspectRatio} value={aspectRatio}>{aspectRatio}</option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <div className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
+                <span className="flex items-center justify-between gap-2">
+                  {t("image.params.effectiveRatio")}
+                  <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-[#b9b9b9]/38">
+                    {t("image.params.derivedReadOnly")}
+                  </span>
+                </span>
+                <div
+                  aria-label={t("image.params.effectiveRatio")}
+                  className="se-control flex min-h-10 items-center rounded-[15px] px-3 text-sm font-semibold text-[#f4f4f4]"
+                  data-image-effective-ratio={customerCapabilities.effectiveAspectRatio}
+                >
+                  {customerCapabilities.effectiveAspectRatio || t("image.params.default")}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
               <span>{t("image.params.outputDimensions")}</span>

@@ -50,7 +50,7 @@ describe("IMAGE_CAPABILITY_MATRIX_V1", () => {
     expect(capability.mode).toBe(mode);
     expect(capability.effectiveAspectRatio).toBe(aspectRatio);
     expect(capability.resolutionOptions.some((option) => option.label === label)).toBe(true);
-    expect(capability.aspectRatioUiMode).toBe("DERIVED_READ_ONLY");
+    expect(capability.aspectRatioUiMode).toBe("SELECTABLE");
     expect(capability.quantityMax).toBe(1);
     expect(capability.creditPreview).toBe(2);
   });
@@ -58,9 +58,9 @@ describe("IMAGE_CAPABILITY_MATRIX_V1", () => {
   it.each([
     ["low", "1K", "1:1", 0, 1],
     ["high", "1K", "1:1", 0, 1],
-    ["medium", "1K", "9:16", 0, 1],
-    ["medium", "4K", "1:1", 0, 1],
-    ["medium", "2K", "1:1", 1, 1],
+    ["medium", "1K", "21:9", 0, 1],
+    ["medium", "1K", "3:2", 1, 1],
+    ["medium", "2K", "16:9", 1, 1],
     ["medium", "1K", "1:1", 2, 1],
     ["medium", "1K", "1:1", 0, 2],
     ["medium", "8K", "1:1", 0, 1],
