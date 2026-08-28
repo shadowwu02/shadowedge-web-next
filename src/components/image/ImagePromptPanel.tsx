@@ -90,7 +90,7 @@ export function ImagePromptPanel({
   const optionLabel = (value: string) => value || t("image.params.default");
   const resolutionLabel = (value: string) => {
     const contract = customerCapabilities.resolutionOptions.find((option) => option.value.toLowerCase() === value.toLowerCase());
-    if (contract) return contract.label;
+    if (contract) return contract.value.toUpperCase();
     return usesGenerationTiers
       ? value.toUpperCase()
       : resolutionOptions.find((option) => option.id.toLowerCase() === value.toLowerCase())?.label || optionLabel(value);
@@ -268,6 +268,20 @@ export function ImagePromptPanel({
                 data-image-effective-ratio={customerCapabilities.effectiveAspectRatio}
               >
                 {customerCapabilities.effectiveAspectRatio || t("image.params.default")}
+              </div>
+            </div>
+
+            <div className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
+              <span>{t("image.params.outputDimensions")}</span>
+              <div
+                aria-label={t("image.params.outputDimensions")}
+                className="se-control flex min-h-10 items-center justify-between gap-3 rounded-[15px] px-3 text-sm font-semibold text-[#f4f4f4]"
+                data-image-output-dimensions={customerCapabilities.effectivePixelSize}
+              >
+                <span>{customerCapabilities.effectivePixelSize.replace("x", " × ") || t("image.params.default")}</span>
+                <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-[#b9b9b9]/38">
+                  {t("image.params.output")}
+                </span>
               </div>
             </div>
 

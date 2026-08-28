@@ -30,18 +30,28 @@ export type ImageCustomerResolutionOption = {
 };
 
 export type ImageCustomerCapabilities = {
+  model: string;
   modelId: string;
   modes: ImageCustomerMode[];
   mode: ImageCustomerMode;
   availableQualities: string[];
   availableResolutions: string[];
   resolutionOptions: ImageCustomerResolutionOption[];
+  quality: string;
+  resolution: string;
+  aspectRatio: string;
   effectiveAspectRatio: string;
+  effectivePixelSize: string;
   aspectRatioUiMode: "DERIVED_READ_ONLY";
+  referenceLimit: number;
   maxReferences: number;
+  quantity: 1;
   quantityMax: 1;
+  credit: number;
   creditPreview: number;
+  availability: boolean;
   customerSelectable: boolean;
+  providerEligibilityCategory: ImageProviderEligibility;
   providerEligibility: ImageProviderEligibility;
   normalizedParams: ImageGenerationParams;
   canGenerate: boolean;
@@ -147,6 +157,7 @@ function baseCapability(model: ImageModel, catalogParams: ImageGenerationParams,
         ? "quantity_unavailable"
         : null;
   return {
+    model: model.id,
     modelId: model.id,
     modes: model.capabilities.imageToImage ? ["T2I", "I2I"] : ["T2I"],
     mode,
@@ -159,12 +170,21 @@ function baseCapability(model: ImageModel, catalogParams: ImageGenerationParams,
       providerSize: model.capabilities.resolutionOptions?.find((item) => sameOption(item.id, resolution))?.providerSize || "",
       mode,
     })),
+    quality: normalizedParams.quality,
+    resolution: normalizedParams.resolution,
+    aspectRatio: normalizedParams.aspectRatio,
     effectiveAspectRatio: normalizedParams.aspectRatio,
+    effectivePixelSize: model.capabilities.resolutionOptions?.find((item) => sameOption(item.id, normalizedParams.resolution))?.providerSize || "",
     aspectRatioUiMode: "DERIVED_READ_ONLY",
+    referenceLimit: maxReferences,
     maxReferences,
+    quantity: 1,
     quantityMax: 1,
+    credit: estimateImageCredits(model, normalizedParams),
     creditPreview: estimateImageCredits(model, normalizedParams),
+    availability: !catalogUnavailable,
     customerSelectable: blockReason === null,
+    providerEligibilityCategory: catalogUnavailable ? "blocked" : "catalog_only",
     providerEligibility: catalogUnavailable ? "blocked" : "catalog_only",
     normalizedParams,
     canGenerate: blockReason === null,
@@ -210,18 +230,28 @@ export function resolveImageCustomerCapabilities({
             ? "aspect_ratio_unavailable"
             : null;
     return {
+      model: model.id,
       modelId: model.id,
       modes: ["T2I", "I2I"],
       mode,
       availableQualities: [...model.capabilities.qualities],
       availableResolutions: oneK ? [oneK] : [],
       resolutionOptions: oneK ? buildResolutionOptions([oneK], mode) : [],
+      quality: normalizedParams.quality,
+      resolution: normalizedParams.resolution,
+      aspectRatio: "1:1",
       effectiveAspectRatio: "1:1",
+      effectivePixelSize: resolutionContract(oneK)?.providerSize || "1024x1024",
       aspectRatioUiMode: "DERIVED_READ_ONLY",
+      referenceLimit: maxReferences,
       maxReferences,
+      quantity: 1,
       quantityMax: 1,
+      credit: estimateImageCredits(model, normalizedParams),
       creditPreview: estimateImageCredits(model, normalizedParams),
+      availability: !catalogUnavailable,
       customerSelectable: blockReason === null,
+      providerEligibilityCategory: catalogUnavailable ? "blocked" : "oobb_catalog_certified",
       providerEligibility: catalogUnavailable ? "blocked" : "oobb_catalog_certified",
       normalizedParams,
       canGenerate: blockReason === null,
@@ -287,18 +317,28 @@ export function resolveImageCustomerCapabilities({
               : null;
 
   return {
+    model: model.id,
     modelId: model.id,
     modes: ["T2I", "I2I"],
     mode,
     availableQualities,
     availableResolutions,
     resolutionOptions: buildResolutionOptions(availableResolutions, mode),
+    quality: normalizedQuality,
+    resolution: normalizedResolution,
+    aspectRatio: derivedAspectRatio,
     effectiveAspectRatio: derivedAspectRatio,
+    effectivePixelSize: resolutionContract(normalizedResolution)?.providerSize || "",
     aspectRatioUiMode: "DERIVED_READ_ONLY",
+    referenceLimit: maxReferences,
     maxReferences,
+    quantity: 1,
     quantityMax: 1,
+    credit: estimateImageCredits(model, normalizedParams),
     creditPreview: estimateImageCredits(model, normalizedParams),
+    availability: !catalogUnavailable,
     customerSelectable: blockReason === null,
+    providerEligibilityCategory: catalogUnavailable ? "blocked" : "xinhankr_certified",
     providerEligibility: catalogUnavailable ? "blocked" : "xinhankr_certified",
     normalizedParams,
     canGenerate: blockReason === null,
