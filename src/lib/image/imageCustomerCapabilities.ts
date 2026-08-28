@@ -127,7 +127,11 @@ function matrixFor(mode: ImageCustomerMode, resolution: string): Record<string, 
 }
 function ratioOptions(mode: ImageCustomerMode, resolution: string, catalogRatios: readonly string[] = TARGET_RATIOS): ImageCustomerAspectRatioOption[] {
   const matrix = matrixFor(mode, resolution);
-  const catalog = new Set(catalogRatios.map(normalizedKey));
+  // V2 Catalog intentionally projected an empty GPT Image ratio array. During
+  // the V3 rolling transition, the certified client matrix is the safe source;
+  // once V3 Catalog is deployed, a non-empty list narrows it normally.
+  const effectiveCatalogRatios = catalogRatios.length ? catalogRatios : TARGET_RATIOS;
+  const catalog = new Set(effectiveCatalogRatios.map(normalizedKey));
   return TARGET_RATIOS.filter((ratio) => matrix[ratio] && catalog.has(normalizedKey(ratio))).map((value) => ({ value, ...matrix[value] }));
 }
 function buildResolutionOptions(resolutions: string[], mode: ImageCustomerMode, aspectRatio: string, catalogRatios: readonly string[] = TARGET_RATIOS) {

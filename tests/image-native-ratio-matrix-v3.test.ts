@@ -90,6 +90,19 @@ describe("IMAGE_NATIVE_RATIO_MATRIX_V3", () => {
     expect(panelSource).toContain('onUpdateParams({ aspectRatio: event.target.value, ratio: event.target.value })');
   });
 
+  it("remains rollout-compatible with the V2 Catalog empty-ratio projection", () => {
+    const legacyCatalogModel = model("gpt_image_2");
+    legacyCatalogModel.capabilities.ratios = [];
+    const capability = resolveImageCustomerCapabilities({
+      model: legacyCatalogModel,
+      params: params("2K", "9:16"),
+      referenceCount: 0,
+    });
+    expect(capability.availableAspectRatios).toEqual(["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"]);
+    expect(capability.normalizedParams).toMatchObject({ resolution: "2K", aspectRatio: "9:16" });
+    expect(capability.effectivePixelSize).toBe("1152x2048");
+  });
+
   it("does not contaminate Nano or Nano Lite with GPT Image 2 ratios", () => {
     for (const id of ["nano_banana", "nano_banana_lite"] as const) {
       const capability = resolveImageCustomerCapabilities({
