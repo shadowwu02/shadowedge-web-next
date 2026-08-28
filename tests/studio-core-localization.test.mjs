@@ -37,7 +37,9 @@ test("Studio core surfaces consume the shared useI18n hook", () => {
 });
 
 test("English remains the default and per-key fallback locale", () => {
-  assert.match(i18nSource, /useState<Locale>\("en"\)/);
+  assert.match(i18nSource, /const defaultLocale: Locale = "en"/);
+  assert.match(i18nSource, /useState<Locale>\(initialLocale\)/);
+  assert.match(i18nSource, /createContext<I18nValue>/);
   assert.match(i18nSource, /dictionary\[locale\]\[key\] \|\| dictionary\.en\[key\]/);
 });
 

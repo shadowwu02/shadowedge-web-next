@@ -14,8 +14,9 @@ function source(...parts) {
 test("Image Workspace sends only explicitly selected reference images", () => {
   const hook = source("src", "hooks", "useImageGeneration.ts");
   const api = source("src", "lib", "image-api.ts");
-  assert.match(hook, /referenceImages:\s*readyReferences\.map/);
-  assert.match(api, /reference_images:\s*input\.referenceImages\s*\|\|\s*\[\]/);
+  assert.match(hook, /referenceImageAssetIds\s*=\s*readyReferences/);
+  assert.match(hook, /referenceImageAssetIds,/);
+  assert.match(api, /reference_image_asset_ids:\s*\(input\.referenceImageAssetIds\s*\|\|\s*\[\]\)\.filter/);
   assert.doesNotMatch(hook, /allReadyReferences|allAttachments/);
 });
 
@@ -37,7 +38,7 @@ test("batch UI is rendered only when Provider capability supports more than one 
 test("resolution UI remains capability-driven instead of hard-coded", () => {
   const panel = source("src", "components", "image", "ImagePromptPanel.tsx");
   const rules = source("src", "lib", "image", "imageModelRules.ts");
-  assert.match(panel, /selectedModel\?\.capabilities\.resolutions/);
+  assert.match(panel, /customerCapabilities\.availableResolutions/);
   assert.match(panel, /selectedModel\?\.capabilities\.resolutionOptions/);
   assert.match(panel, /resolutions\.map\(\(resolution\)/);
   assert.match(panel, /resolutionLabel\(resolution\)/);
