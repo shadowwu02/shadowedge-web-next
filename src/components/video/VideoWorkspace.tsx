@@ -110,7 +110,7 @@ import { getReusableVideoOutputUrl, readVideoDraftNotice, sendVideoFailedJobToVi
 import { getVideoUserFacingErrorDisplay } from "@/lib/video/videoErrorDisplay";
 import { estimateVideoCreditsForParams, getVideoModelRule, getVideoModelRuleFromRegistry, hasVideoModelRule, normalizeVideoParamsForRule } from "@/lib/video/videoModelRules";
 import { countVideoPromptCharacters, formatVideoPromptLimit, getVideoPromptLimit } from "@/lib/video/videoPromptLimits";
-import { getVideoTupleCapability, getVideoTupleCredits, getVideoTuplePricingDecision } from "@/lib/video/videoTupleAuthority";
+import { getVideoTupleCapability, getVideoTupleCredits, getVideoTuplePricingDecision, normalizeVideoTupleAudio } from "@/lib/video/videoTupleAuthority";
 import {
   parseMentionBindings,
   remapVideoMentionReferencesForMediaOrder,
@@ -118,7 +118,7 @@ import {
   serializeMentionBindings,
   type VideoMentionBinding,
 } from "@/lib/video/videoMentionBindings";
-import { getReferenceRoleIssue, validateReferenceSelectionForRule } from "@/lib/video/videoReferenceRules";
+import { getReferenceRoleIssue, normalizeAudioReferenceBindingsForRule, validateReferenceSelectionForRule } from "@/lib/video/videoReferenceRules";
 import { selectWorkspaceProductionCatalog } from "@/lib/video/workspaceProductionCatalog";
 import { LEGACY_REFERENCE_REUPLOAD_REQUIRED } from "@/lib/video/canonicalReferenceAssets";
 import { isVideoActiveStatus, isVideoFailedStatus } from "@/lib/utils";
@@ -663,12 +663,12 @@ function buildParamsForModel(model: VideoModel, current?: Partial<VideoParams>):
     generateAudio: current?.generateAudio ?? (model.audioDefault === true),
   });
 
-  return {
+  return normalizeVideoTupleAudio(model, {
     duration: normalized.duration,
     ratio: normalized.ratio,
     quality: normalized.quality,
     generateAudio: Boolean(normalized.generateAudio),
-  };
+  });
 }
 
 function normalizeModelLookup(value: string | undefined) {
@@ -1613,7 +1613,13 @@ export function VideoWorkspace() {
     clearError();
     setSelectedModel(model);
     setParams((current) => buildParamsForModel(model, current));
+    const nextRule = getVideoModelRuleFromRegistry(model);
+    setMedia((current) => normalizeAudioReferenceBindingsForRule(nextRule, current));
   }, [clearError]);
+
+  const handleParamsChange = useCallback((nextParams: VideoParams) => {
+    setParams(normalizeVideoTupleAudio(selectedModel, nextParams));
+  }, [selectedModel]);
 
   const localizedMediaTypeLabel = useCallback(
     (type: UploadMediaItem["type"]) => {
@@ -2779,8 +2785,6 @@ export function VideoWorkspace() {
     [params.duration, params.quality, selectedModel],
   );
   const isAudioSupported = selectedTuple?.audio.supported ?? (hasTupleAuthority ? false : selectedModel.supportsAudio === true);
-  // Preserve the user's explicit audio choice. An incompatible resolution is
-  // shown as invalid and blocked; it is never silently serialized as false.
   const effectiveGenerateAudio = params.generateAudio;
   const audioTupleInvalid = effectiveGenerateAudio && !isAudioSupported;
   const tuplePricingDecision = useMemo(
@@ -2885,8 +2889,8 @@ export function VideoWorkspace() {
     if (isUploadingMedia) return t("video.actions.uploadingMedia");
     if (isProcessing) return t("video.status.processing");
     if (!token && !isSignedIn) return t("video.errors.signInRequired");
-    if (!tuplePricingReady) return "Pricing approval required";
-    if (audioTupleInvalid) return "Turn off audio to continue";
+    if (audioTupleInvalid) return t("video.actions.turnOffAudio");
+    if (!tuplePricingReady) return t("video.actions.configurationUnavailable");
     if (!hasEnoughCredits) return t("video.credits.notEnough");
     return tf("video.actions.generateWithCredits", { credits: estimatedCredits });
   }, [audioTupleInvalid, catalogStatus, estimatedCredits, hasEnoughCredits, internationalExecutionUnavailable, isProcessing, isSignedIn, isUploadingMedia, t, tf, token, tuplePricingReady]);
@@ -2902,8 +2906,8 @@ export function VideoWorkspace() {
     if (isUploadingMedia) return t("video.errors.mediaUploading");
     if (isProcessing) return concurrencyLimitNotice;
     if (!token && !isSignedIn) return t("video.errors.signInRequired");
-    if (!tuplePricingReady) return "This verified capability needs an approved customer Credit price before generation.";
-    if (audioTupleInvalid) return "Generated audio is unavailable at this resolution. Turn audio off before generation.";
+    if (audioTupleInvalid) return t("video.errors.generatedAudioUnavailable");
+    if (!tuplePricingReady) return t("video.actions.configurationUnavailable");
     if (!hasEnoughCredits) return t("video.credits.notEnough");
     if (isPromptTooLong) return tf("video.errors.promptTooLong", { limit: selectedPromptLimitLabel });
     return t("video.credits.beforeSubmit");
@@ -4321,7 +4325,7 @@ export function VideoWorkspace() {
               <VideoParamsPanel
                 modelId={selectedModelRuleId}
                 modelRule={selectedModelRule}
-                onChange={setParams}
+                onChange={handleParamsChange}
                 value={params}
               />
               {isFluxProxyInternationalModel(selectedModel) ? (

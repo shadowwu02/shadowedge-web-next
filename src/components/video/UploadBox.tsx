@@ -22,10 +22,9 @@ import {
   validateSelectedMediaForSlot,
 } from "@/lib/upload-rules";
 import {
-  getReferenceAccept,
-  validateFilesForReferenceRule,
   validateReferenceSelectionForRule,
 } from "@/lib/video/videoReferenceRules";
+import { getMediaLibraryUploadAccept, validateAudioUploadFile } from "@/lib/video/audioUploadContract";
 import { uploadMedia } from "@/lib/video-api";
 import { getCanonicalReferenceStatus } from "@/lib/video/canonicalReferenceAssets";
 import { refreshPrivateMediaAssetPreview } from "@/lib/assets-api";
@@ -63,13 +62,6 @@ function validateFileSize(file: File, maximum: number, message: string) {
   }
 
   return "";
-}
-
-function sumAudioDuration(items: UploadMediaItem[]) {
-  return items.reduce((total, item) => {
-    if (item.type !== "audio") return total;
-    return total + (Number(item.duration || 0) || 0);
-  }, 0);
 }
 
 export function UploadBox({
@@ -164,9 +156,9 @@ export function UploadBox({
   }, []);
 
   async function buildUploadableItems(files: File[]) {
-    const ruleError = validateFilesForReferenceRule(modelRule, files, media);
-    if (ruleError) {
-      setPickerNotice(ruleError);
+    const audioTypeError = files.map(validateAudioUploadFile).find(Boolean) || "";
+    if (audioTypeError) {
+      setPickerNotice(audioTypeError);
       return [];
     }
 
@@ -181,33 +173,16 @@ export function UploadBox({
       setPickerNotice(typeLimitResult.error);
     }
 
-    const currentAudioDuration = sumAudioDuration(media);
-    let nextAudioDuration = currentAudioDuration;
-    const audioCapability = modelRule.audioReference;
-
     const items = await Promise.all(
       typeLimitResult.files.map(async (file, index) => {
         const isAudio = file.type.startsWith("audio/");
-        const sizeLimit = isAudio && audioCapability?.enabled && audioCapability.maxFileBytes
-          ? audioCapability.maxFileBytes
-          : maxFileSizeBytes;
-        const sizeError = validateFileSize(file, sizeLimit, isAudio ? t("video.upload.audioFileTooLarge") : t("video.upload.fileTooLarge"));
+        const sizeError = validateFileSize(file, maxFileSizeBytes, isAudio ? t("video.upload.audioFileTooLarge") : t("video.upload.fileTooLarge"));
         const duration = isAudio ? await getAudioDuration(file) : 0;
 
         if (sizeError) {
           return createLocalMediaItem(file, index, duration, sizeError);
         }
 
-        if (isAudio && audioCapability?.enabled && (
-          !duration ||
-          duration < audioCapability.minDurationSeconds ||
-          duration > audioCapability.maxDurationSeconds ||
-          nextAudioDuration + duration > audioCapability.maxDurationSeconds
-        )) {
-          return createLocalMediaItem(file, index, duration, t("video.upload.maxAudioDuration"));
-        }
-
-        if (duration) nextAudioDuration += duration;
         return createLocalMediaItem(file, index, duration);
       }),
     );
@@ -348,7 +323,7 @@ export function UploadBox({
   return (
     <>
       <input
-        accept={getReferenceAccept(modelRule)}
+        accept={getMediaLibraryUploadAccept()}
         className="hidden"
         multiple
         onChange={(event) => {

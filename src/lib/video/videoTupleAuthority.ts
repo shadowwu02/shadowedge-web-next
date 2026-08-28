@@ -21,13 +21,23 @@ export function getVideoTuplePricingDecision(
   input: { duration: number; resolution: string; generateAudio: boolean },
 ): VideoTuplePricingDecision | null {
   const tuple = getVideoTupleCapability(model, input);
-  if (!tuple || (input.generateAudio && !tuple.audio.supported)) return null;
+  if (!tuple) return null;
   if (tuple.pricing.status !== "READY" || !tuple.pricing.pricingVersion ||
       tuple.pricing.currentCustomerCredits === null) return null;
   return {
     pricingVersion: tuple.pricing.pricingVersion,
     creditAmount: tuple.pricing.currentCustomerCredits,
   };
+}
+
+export function normalizeVideoTupleAudio<T extends { duration: number; quality: string; generateAudio: boolean }>(
+  model: VideoModel,
+  input: T,
+): T {
+  if (!input.generateAudio) return input;
+  const tuple = getVideoTupleCapability(model, { duration: input.duration, resolution: input.quality });
+  const supported = tuple?.audio.supported ?? ((model.tupleCapabilities?.length || 0) === 0 && model.supportsAudio === true);
+  return supported ? input : { ...input, generateAudio: false };
 }
 
 function tupleError(code: string, message: string) {

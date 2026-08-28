@@ -18,6 +18,7 @@ import type {
   VideoAnalysisCanonicalResult,
 } from "@/components/video/remake/remakeTypes";
 import { getSafeHistoryOutputUrl, getSafeHistoryThumbnailUrl } from "@/lib/video/historyUtils";
+import { configureAudioUploadContract } from "@/lib/video/audioUploadContract";
 import type {
   UploadedMediaResponse,
   UploadMediaType,
@@ -1147,9 +1148,10 @@ export async function getRemakeAnalysisStatusForRecovery(analysisJobId: string):
 }
 
 export async function getVideoModels() {
-  const envelope = await apiRequest<{ models: RawModel[] }>("/api/video/models", {
+  const envelope = await apiRequest<{ models: RawModel[]; uploadContract?: { audio?: unknown } }>("/api/video/models", {
     method: "GET",
   });
+  configureAudioUploadContract(envelope.data?.uploadContract?.audio);
   const models = filterRetiredHiggsfieldModels((envelope.data?.models || []).map(normalizeVideoModel));
   if (!getStoredAuthToken()) return models;
 
@@ -1532,8 +1534,7 @@ export async function uploadMedia(file: File) {
   const formData = new FormData();
   formData.append("file", file);
 
-  const endpoint = file.type.startsWith("audio/") ? "/api/upload-audio-reference" : "/api/upload-media";
-  const envelope = await apiRequest<Record<string, unknown>>(endpoint, {
+  const envelope = await apiRequest<Record<string, unknown>>("/api/upload-media", {
     method: "POST",
     body: formData,
   });

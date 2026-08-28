@@ -104,6 +104,11 @@ export function isReferenceTypeSupported(rule: VideoModelRule, type: UploadMedia
   return !getUnsupportedReferenceTypeReason(rule, type);
 }
 
+export function normalizeAudioReferenceBindingsForRule(rule: VideoModelRule, items: UploadMediaItem[]) {
+  if (isReferenceTypeSupported(rule, "audio")) return items;
+  return items.filter((item) => item.type !== "audio");
+}
+
 export function validateFilesForReferenceRule(rule: VideoModelRule, files: File[], currentItems: UploadMediaItem[] = []) {
   const unsupported = files.find((file) => !isReferenceTypeSupported(rule, getFileTypeFromFile(file, "media")));
   if (unsupported) {

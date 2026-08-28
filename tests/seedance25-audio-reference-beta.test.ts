@@ -129,10 +129,11 @@ describe("Seedance 2.5 Audio Reference Beta", () => {
     expect(validateFilesForReferenceRule(rule, [new File(["unsafe"], "unsafe.m4a", { type: "audio/mp4" })])).toContain("WAV or MP3");
   });
 
-  it("uses the dedicated private audio upload route and renders the Beta label", () => {
+  it("uses the canonical media upload route and renders the Beta label", () => {
     const apiSource = readFileSync(join(process.cwd(), "src/lib/video-api.ts"), "utf8");
     const traySource = readFileSync(join(process.cwd(), "src/components/video/ReferenceMediaTray.tsx"), "utf8");
-    expect(apiSource).toContain('"/api/upload-audio-reference"');
+    expect(apiSource).toContain('apiRequest<Record<string, unknown>>("/api/upload-media"');
+    expect(apiSource).not.toContain('"/api/upload-audio-reference"');
     expect(traySource).toContain('t("video.references.audioReferenceBeta")');
   });
 });

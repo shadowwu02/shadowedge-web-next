@@ -7,7 +7,6 @@ import { getMediaUploadErrorDisplayKeys, getSafeMediaItemDisplayName, mergeMedia
 import { MediaTypeIcon } from "@/components/video/MediaTypeIcon";
 import { slotAllowsAssetType } from "@/lib/upload-rules";
 import {
-  getAllowedReferenceTypes,
   getReferenceLimitSummary,
   getUnsupportedReferenceTypeReason,
   isReferenceTypeSupported,
@@ -18,6 +17,7 @@ import type { VideoModelRule } from "@/lib/video/videoModelRules";
 import { LEGACY_REFERENCE_REUPLOAD_REQUIRED } from "@/lib/video/canonicalReferenceAssets";
 import { ApiError } from "@/types/api";
 import { useI18n } from "@/i18n/useI18n";
+import { getMediaLibraryUploadTypes } from "@/lib/video/audioUploadContract";
 
 type MediaFilter = "uploads" | "assets" | "history" | "generated" | UploadMediaType | "elements" | "liked";
 
@@ -226,7 +226,7 @@ export function MediaPickerDrawer({
   const nonAssetMedia = useMemo(() => mergeMediaAssets(currentMedia, localMedia, reusableMedia), [currentMedia, localMedia, reusableMedia]);
   const allMedia = useMemo(() => mergeMediaAssets(nonAssetMedia, assetLibraryMedia), [assetLibraryMedia, nonAssetMedia]);
   const selectionMedia = useMemo(() => [...assetLibraryMedia, ...allMedia], [allMedia, assetLibraryMedia]);
-  const allowedTypes = useMemo(() => getAllowedReferenceTypes(modelRule), [modelRule]);
+  const uploadTypes = getMediaLibraryUploadTypes();
   const limitSummary = useMemo(() => getReferenceLimitSummary(modelRule), [modelRule]);
   const visibleMedia = useMemo(() => {
     if (activeFilter === "uploads") return nonAssetMedia;
@@ -237,7 +237,6 @@ export function MediaPickerDrawer({
     return allMedia.filter((item) => item.type === activeFilter);
   }, [activeFilter, allMedia, assetLibraryMedia, nonAssetMedia]);
 
-  const allowedTypeLabel = allowedTypes.length ? allowedTypes.map((type) => localizedMediaTypeLabel(type).toLowerCase()).join(", ") : "";
   const selectionIssueById = useMemo(() => {
     const issues = new Map<string, string>();
     const selectedItems = selectionMedia.filter((item) => selectedIds.has(item.id));
@@ -437,10 +436,6 @@ export function MediaPickerDrawer({
 
   function handleDrop(event: DragEvent) {
     event.preventDefault();
-    if (!allowedTypes.length) {
-      onNotice?.(t("video.references.modelDoesNotAccept"));
-      return;
-    }
     const files = Array.from(event.dataTransfer.files || []);
     if (files.length) {
       onClearNotice?.();
@@ -560,10 +555,6 @@ export function MediaPickerDrawer({
           <button
             className="grid min-h-[94px] w-full place-items-center rounded-[20px] border border-dashed border-[#ffb44d]/32 bg-[#ffb44d]/8 px-4 text-center transition hover:bg-[#ffb44d]/12"
             onClick={() => {
-              if (!allowedTypes.length) {
-                onNotice?.(t("video.references.modelDoesNotAccept"));
-                return;
-              }
               onClearNotice?.();
               inputRef.current?.click();
             }}
@@ -576,7 +567,7 @@ export function MediaPickerDrawer({
                 +
               </span>
               <span className="mb-2 flex justify-center gap-1.5">
-                {(allowedTypes.length ? allowedTypes : (["image", "video", "audio"] as UploadMediaType[])).map((item) => (
+                {uploadTypes.map((item) => (
                   <span className="rounded-full border border-white/10 bg-black/24 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[.12em] text-white/54" key={item}>
                     {localizedMediaTypeLabel(item)}
                   </span>
@@ -584,7 +575,7 @@ export function MediaPickerDrawer({
               </span>
               <span className="block text-sm font-black text-white">{t("video.upload.new")}</span>
               <span className="mt-1 block text-xs text-white/48">
-                {allowedTypes.length ? tf("video.drawer.allowedTypes", { types: allowedTypeLabel }) : t("video.references.modelDoesNotAccept")}
+                {tf("video.drawer.allowedTypes", { types: uploadTypes.map((type) => localizedMediaTypeLabel(type).toLowerCase()).join(", ") })}
               </span>
             </span>
           </button>
