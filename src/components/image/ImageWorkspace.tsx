@@ -146,7 +146,7 @@ export function ImageWorkspace() {
 
     const existingReference = image.references.find((item) => item.assetId === reference.assetId);
     if (existingReference) return existingReference;
-    const maxReferences = Math.max(0, image.selectedModel?.capabilities.maxReferences || 0);
+    const maxReferences = image.customerCapabilities.maxReferences;
     if (!maxReferences || image.references.length >= maxReferences) return null;
     image.addReferenceItems([reference]);
 
@@ -221,7 +221,7 @@ export function ImageWorkspace() {
         return;
       }
 
-      const maxReferences = Math.max(0, image.selectedModel?.capabilities.maxReferences || 0);
+      const maxReferences = image.customerCapabilities.maxReferences;
       if (!maxReferences) {
         setPromptStudioNotice("The selected Image model does not accept reference images.");
         focusPromptStudioImportTarget();
@@ -244,7 +244,7 @@ export function ImageWorkspace() {
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [focusPromptStudioImportTarget, image, image.draftReady, image.references, image.selectedModel?.capabilities.maxReferences]);
+  }, [focusPromptStudioImportTarget, image, image.customerCapabilities.maxReferences, image.draftReady, image.references]);
 
   useEffect(() => {
     if (!image.draftReady) return;
@@ -304,7 +304,8 @@ export function ImageWorkspace() {
         ref={promptStudioImportTargetRef}
       >
         <ImagePromptPanel
-          draftNotice={promptStudioNotice || image.draftNotice}
+          customerCapabilities={image.customerCapabilities}
+          draftNotice={image.capabilityNotice || promptStudioNotice || image.draftNotice}
           error={localizedError}
           estimatedCredits={image.estimatedCredits}
           isActiveJob={Boolean(image.currentJob && isImageActiveStatus(image.currentJob.status))}

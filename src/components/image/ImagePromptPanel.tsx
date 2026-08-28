@@ -10,6 +10,7 @@ import {
   getImagePromptWarningThreshold,
 } from "@/lib/image/imagePromptLimits";
 import { getPromptStudioDraftLocale } from "@/lib/prompt-studio-draft-bridge";
+import type { ImageCustomerCapabilities } from "@/lib/image/imageCustomerCapabilities";
 import type { ImageGenerationParams, ImageModel, ImageReferenceItem } from "@/types/image";
 
 export function ImagePromptPanel({
@@ -27,6 +28,7 @@ export function ImagePromptPanel({
   promptStudioDraftPending,
   references,
   selectedModel,
+  customerCapabilities,
   onGenerate,
   onClearDraft,
   onIgnorePromptStudioDraft,
@@ -53,6 +55,7 @@ export function ImagePromptPanel({
   promptStudioDraftPending?: boolean;
   references: ImageReferenceItem[];
   selectedModel: ImageModel | null;
+  customerCapabilities: ImageCustomerCapabilities;
   onGenerate: () => void;
   onClearDraft: () => void;
   onIgnorePromptStudioDraft?: () => void;
@@ -68,11 +71,11 @@ export function ImagePromptPanel({
   const { locale, t, tf } = useI18n();
   const isZh = getPromptStudioDraftLocale(locale) === "zh";
   const ratios = selectedModel?.capabilities.ratios || [];
-  const resolutions = selectedModel?.capabilities.resolutions || [];
+  const resolutions = customerCapabilities.availableResolutions;
   const resolutionOptions = selectedModel?.capabilities.resolutionOptions || [];
   const usesGenerationTiers = selectedModel?.capabilities.resolutionSemantics === "generation_cost_tier" ||
     selectedModel?.capabilities.exactPixelsGuaranteed === false;
-  const qualities = selectedModel?.capabilities.qualities || [];
+  const qualities = customerCapabilities.availableQualities;
   const maxBatchCount = selectedModel?.capabilities.maxBatchCount || 1;
   const hasUploadingReferences = references.some((reference) => reference.uploadStatus === "uploading");
   const hasIneligibleReferences = references.some((reference) => reference.uploadStatus === "not_reference_eligible" || reference.uploadStatus === "failed");
@@ -84,7 +87,7 @@ export function ImagePromptPanel({
   const isPromptNearLimit = promptLength >= getImagePromptWarningThreshold(selectedModel);
   const hasExistingDraft = hasPrompt || references.length > 0;
   const modelUnavailable = selectedModel?.available === false;
-  const disabled = modelUnavailable || isGenerating || loadingModels || hasUploadingReferences || hasIneligibleReferences || isPolling || isActiveJob || !hasPrompt || isPromptTooLong;
+  const disabled = modelUnavailable || !customerCapabilities.canGenerate || isGenerating || loadingModels || hasUploadingReferences || hasIneligibleReferences || isPolling || isActiveJob || !hasPrompt || isPromptTooLong;
   const optionLabel = (value: string) => value || t("image.params.default");
   const resolutionLabel = (value: string) => usesGenerationTiers
     ? value.toUpperCase()
@@ -100,6 +103,8 @@ export function ImagePromptPanel({
     ? t("image.generate.disabled.promptEmpty")
     : modelUnavailable
       ? t("generation.modelTemporarilyUnavailable")
+    : !customerCapabilities.canGenerate
+      ? t("image.capability.invalidCombination")
     : isPromptTooLong
       ? tf("image.errors.promptTooLong", { limit: promptLimitLabel })
     : hasUploadingReferences
@@ -308,11 +313,12 @@ export function ImagePromptPanel({
         </section>
 
         <ImageReferenceTray
-          model={selectedModel}
+          maxReferences={customerCapabilities.maxReferences}
           onAddReferences={onAddReferences}
           onRemove={onRemoveReference}
           onUploadFile={onUploadReference}
           references={references}
+          showSingleReferencePolicy={customerCapabilities.isReducedGptImage2Policy && customerCapabilities.maxReferences === 1}
         />
 
         {error ? <div className="min-w-0 max-w-full overflow-hidden rounded-[18px] border border-[#8c4632]/42 bg-[#2a1012]/72 px-3 py-2 text-xs leading-5 text-[#f2b3a1] [overflow-wrap:anywhere]">{error}</div> : null}

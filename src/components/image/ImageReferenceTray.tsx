@@ -5,7 +5,7 @@ import { useI18n } from "@/i18n/useI18n";
 import { listMediaAssets, mediaAssetToImageReferenceItem } from "@/lib/assets-api";
 import { getMediaUploadErrorDisplayKeys, getSafeMediaItemDisplayName, normalizeMediaAssetUrl } from "@/lib/media-assets";
 import { ApiError } from "@/types/api";
-import type { ImageModel, ImageReferenceItem } from "@/types/image";
+import type { ImageReferenceItem } from "@/types/image";
 
 function ImageIcon() {
   return (
@@ -53,17 +53,19 @@ function getReferencePreviewUrl(reference: ImageReferenceItem) {
 }
 
 export function ImageReferenceTray({
-  model,
+  maxReferences,
   onAddReferences,
   references,
   onRemove,
   onUploadFile,
+  showSingleReferencePolicy = false,
 }: {
-  model: ImageModel | null;
+  maxReferences: number;
   onAddReferences: (references: ImageReferenceItem[]) => boolean;
   references: ImageReferenceItem[];
   onRemove: (referenceId: string) => void;
   onUploadFile: (file: File) => void;
+  showSingleReferencePolicy?: boolean;
 }) {
   const { locale, t, tf } = useI18n();
   const displayLocale = locale === "zh" ? "zh" : "en";
@@ -73,7 +75,6 @@ export function ImageReferenceTray({
   const [assetStatus, setAssetStatus] = useState<"idle" | "loading" | "auth" | "error">("idle");
   const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set());
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
-  const maxReferences = model?.capabilities.maxReferences || 0;
   const canUpload = references.length < maxReferences;
   const remainingSlots = Math.max(0, maxReferences - references.length);
   const uploadTitle = !maxReferences
@@ -186,6 +187,9 @@ export function ImageReferenceTray({
           <p className="mt-1 text-xs text-[#b9b9b9]/55">
             {maxReferences ? tf("image.references.count", { current: references.length, max: maxReferences }) : t("image.references.textOnly")}
           </p>
+          {showSingleReferencePolicy ? (
+            <p className="mt-1 text-[11px] font-medium leading-4 text-[#ffd08a]/68">{t("image.capability.singleReferenceLimit")}</p>
+          ) : null}
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end">
           <button

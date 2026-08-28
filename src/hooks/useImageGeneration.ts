@@ -24,13 +24,16 @@ import {
   upsertImageHistoryRecord,
 } from "@/lib/image/imageHistoryUtils";
 import {
-  canAddImageReference,
   estimateImageCredits,
   getDefaultImageModel,
   getDefaultImageParams,
   getImageModelById,
   normalizeImageGenerationParams,
 } from "@/lib/image/imageModelRules";
+import {
+  areImageGenerationParamsEqual,
+  resolveImageCustomerCapabilities,
+} from "@/lib/image/imageCustomerCapabilities";
 import {
   clearImageWorkspaceDraft,
   getImageReferencesFromDraft,
@@ -156,6 +159,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
   const [error, setError] = useState("");
   const [recoveredJobId, setRecoveredJobId] = useState("");
   const [draftNotice, setDraftNotice] = useState("");
+  const [capabilityNotice, setCapabilityNotice] = useState("");
   const [draftReady, setDraftReady] = useState(false);
   const currentJobRef = useRef<ImageHistoryItem | null>(null);
   const localJobsRef = useRef<ImageHistoryItem[]>([]);
@@ -168,9 +172,16 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
   const pendingGenerationOperationRef = useRef<PendingImageGenerationOperation | null>(null);
 
   const selectedModel = useMemo(() => getImageModelById(models, selectedModelId), [models, selectedModelId]);
+  const customerCapabilities = useMemo(
+    () => resolveImageCustomerCapabilities({ model: selectedModel, params, referenceCount: references.length }),
+    [params, references.length, selectedModel],
+  );
   const mergedHistory = useMemo(() => mergeImageHistory(history, localJobs), [history, localJobs]);
   const outputs = useMemo(() => mergedHistory.filter((item) => item.outputUrls.length || isImageTerminalStatus(item.status)), [mergedHistory]);
-  const estimatedCredits = useMemo(() => estimateImageCredits(selectedModel, params), [params, selectedModel]);
+  const estimatedCredits = useMemo(
+    () => estimateImageCredits(selectedModel, customerCapabilities.normalizedParams),
+    [customerCapabilities.normalizedParams, selectedModel],
+  );
 
   const formatImageError = useCallback(
     (labelKey: Parameters<typeof t>[0], error: unknown, fallback: string) => {
@@ -207,6 +218,36 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
   useEffect(() => {
     selectedModelIdRef.current = selectedModelId;
   }, [selectedModelId]);
+
+  useEffect(() => {
+    const { adjustments, maxReferences, normalizedParams } = customerCapabilities;
+    if (!adjustments.length) return;
+
+    const timer = window.setTimeout(() => {
+      if (!areImageGenerationParamsEqual(params, normalizedParams)) {
+        setParams(normalizedParams);
+      }
+      if (references.length > maxReferences) {
+        setReferences((current) => {
+          if (maxReferences === 1) {
+            const canonicalReference = current.find(isCanonicalImageReferenceReady);
+            return canonicalReference ? [canonicalReference] : current.slice(0, 1);
+          }
+          return current.slice(0, maxReferences);
+        });
+      }
+
+      if (adjustments.includes("excess_references_removed")) {
+        setCapabilityNotice(tf("image.capability.referencesTrimmed", { count: maxReferences }));
+      } else if (adjustments.includes("single_reference_resolution_normalized")) {
+        setCapabilityNotice(t("image.capability.singleReferenceResolutionNormalized"));
+      } else if (adjustments.includes("quality_normalized")) {
+        setCapabilityNotice(t("image.capability.qualityNormalized"));
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [customerCapabilities, params, references.length, t, tf]);
 
   const loadModels = useCallback(async () => {
     setLoadingModels(true);
@@ -344,17 +385,19 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
   }, [draftReady, params, prompt, references, selectedModel]);
 
   const setSelectedModelId = useCallback((modelId: string) => {
+    setCapabilityNotice("");
     setSelectedModelIdState(modelId);
     setParams((current) => normalizeImageGenerationParams(getImageModelById(models, modelId), current));
   }, [models]);
 
   const updateParams = useCallback((nextParams: Partial<ImageGenerationParams>) => {
+    setCapabilityNotice("");
     setParams((current) => normalizeImageGenerationParams(selectedModel, { ...current, ...nextParams }));
   }, [selectedModel]);
 
   const addReferenceFile = useCallback((file: File) => {
-    if (!canAddImageReference(selectedModel, references.length)) {
-      const message = tf("image.errors.referenceLimitReachedWithCount", { count: selectedModel.capabilities.maxReferences });
+    if (references.length >= customerCapabilities.maxReferences) {
+      const message = tf("image.errors.referenceLimitReachedWithCount", { count: customerCapabilities.maxReferences });
       setError(message);
       return null;
     }
@@ -362,11 +405,11 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     const localReference = createLocalReference(file);
     setReferences((current) => [...current, localReference]);
     return localReference;
-  }, [references.length, selectedModel, tf]);
+  }, [customerCapabilities.maxReferences, references.length, tf]);
 
   const uploadReferenceFile = useCallback(async (file: File) => {
-    if (!canAddImageReference(selectedModel, references.length)) {
-      const message = tf("image.errors.referenceLimitReachedWithCount", { count: selectedModel.capabilities.maxReferences });
+    if (references.length >= customerCapabilities.maxReferences) {
+      const message = tf("image.errors.referenceLimitReachedWithCount", { count: customerCapabilities.maxReferences });
       setError(message);
       return null;
     }
@@ -393,7 +436,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       setError(message);
       return null;
     }
-  }, [references.length, selectedModel, t, tf]);
+  }, [customerCapabilities.maxReferences, references.length, t, tf]);
 
   const addReferenceItems = useCallback((items: ImageReferenceItem[]) => {
     const candidates = items.filter(isCanonicalImageReferenceReady);
@@ -403,7 +446,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     let reachedLimit = false;
 
     setReferences((current) => {
-      const maxReferences = Math.max(0, selectedModel.capabilities.maxReferences || 0);
+      const maxReferences = customerCapabilities.maxReferences;
       if (!maxReferences || current.length >= maxReferences) {
         reachedLimit = true;
         return current;
@@ -437,15 +480,16 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     });
 
     if (reachedLimit) {
-      setError(tf("image.errors.referenceLimitReachedWithCount", { count: selectedModel.capabilities.maxReferences }));
+      setError(tf("image.errors.referenceLimitReachedWithCount", { count: customerCapabilities.maxReferences }));
     } else if (addedCount > 0) {
       setError("");
     }
 
     return addedCount > 0;
-  }, [selectedModel, tf]);
+  }, [customerCapabilities.maxReferences, tf]);
 
   const removeReference = useCallback((referenceId: string) => {
+    setCapabilityNotice("");
     setReferences((current) => current.filter((item) => item.id !== referenceId));
   }, []);
 
@@ -565,8 +609,17 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       if (effectiveModel.available === false) {
         throw new Error(t("generation.modelTemporarilyUnavailable"));
       }
-      const effectiveParams = normalizeImageGenerationParams(effectiveModel, overrides.params || params);
       const effectiveReferences = overrides.references || references;
+      const requestedParams = normalizeImageGenerationParams(effectiveModel, overrides.params || params);
+      const effectiveCapabilities = resolveImageCustomerCapabilities({
+        model: effectiveModel,
+        params: requestedParams,
+        referenceCount: effectiveReferences.length,
+      });
+      if (!effectiveCapabilities.canGenerate || !areImageGenerationParamsEqual(requestedParams, effectiveCapabilities.normalizedParams)) {
+        throw new Error(t("image.capability.invalidCombination"));
+      }
+      const effectiveParams = effectiveCapabilities.normalizedParams;
       const readyReferences = await ensureReadyReferences(effectiveReferences);
       if (readyReferences.length !== effectiveReferences.length || readyReferences.some((item) => !isCanonicalImageReferenceReady(item))) {
         throw new Error("Some reference images are from a legacy version and must be re-uploaded before generation.");
@@ -641,6 +694,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     setReferences([]);
     setPrompt("");
     setDraftNotice(t("image.draftCleared"));
+    setCapabilityNotice("");
     setError("");
   }, [models, t]);
 
@@ -648,6 +702,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     models,
     loadingModels,
     selectedModel,
+    customerCapabilities,
     selectedModelId,
     setSelectedModelId,
     params,
@@ -668,6 +723,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     isGenerating,
     isPolling,
     error,
+    capabilityNotice,
     draftNotice,
     draftReady,
     recoveredJobId,
