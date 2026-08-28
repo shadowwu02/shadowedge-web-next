@@ -388,8 +388,12 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
 
   const updateParams = useCallback((nextParams: Partial<ImageGenerationParams>) => {
     setCapabilityNotice("");
-    setParams((current) => normalizeImageGenerationParams(selectedModel, { ...current, ...nextParams }));
-  }, [selectedModel]);
+    setParams((current) => resolveImageCustomerCapabilities({
+      model: selectedModel,
+      params: { ...current, ...nextParams },
+      referenceCount: references.length,
+    }).normalizedParams);
+  }, [references.length, selectedModel]);
 
   const addReferenceFile = useCallback((file: File) => {
     if (references.length >= customerCapabilities.maxReferences) {

@@ -8,6 +8,7 @@ import { buildImageGenerateRequest } from "@/lib/image-api";
 import type { ImageGenerationParams, ImageModel } from "@/types/image";
 
 const panelSource = readFileSync(new URL("../src/components/image/ImagePromptPanel.tsx", import.meta.url), "utf8");
+const generationHookSource = readFileSync(new URL("../src/hooks/useImageGeneration.ts", import.meta.url), "utf8");
 
 function model(id: "gpt_image_2" | "nano_banana" | "nano_banana_lite"): ImageModel {
   const nano = id !== "gpt_image_2";
@@ -101,6 +102,8 @@ describe("IMAGE_NATIVE_RATIO_MATRIX_V3", () => {
     expect(capability.availableAspectRatios).toEqual(["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"]);
     expect(capability.normalizedParams).toMatchObject({ resolution: "2K", aspectRatio: "9:16" });
     expect(capability.effectivePixelSize).toBe("1152x2048");
+    expect(generationHookSource).toContain("setParams((current) => resolveImageCustomerCapabilities({");
+    expect(generationHookSource).toContain("referenceCount: references.length");
   });
 
   it("does not contaminate Nano or Nano Lite with GPT Image 2 ratios", () => {
