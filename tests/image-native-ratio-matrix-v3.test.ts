@@ -25,9 +25,20 @@ function model(id: "gpt_image_2" | "nano_banana" | "nano_banana_lite"): ImageMod
       maxReferences: nano ? 14 : 16,
       maxPromptLength: 4000,
       maxBatchCount: 1,
-      ratios: nano ? ["1:1"] : ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"],
+      ratios: ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"],
       resolutions: nano ? ["1K"] : ["1K", "2K", "4K"],
       qualities: nano ? [] : ["low", "medium", "high"],
+      nativeRatioOptionsByMode: nano ? {
+        T2I: [
+          ["1:1", "1024x1024"], ["16:9", "1376x768"], ["9:16", "768x1376"],
+          ["4:3", "1200x896"], ["3:4", "896x1200"], ["3:2", "1264x848"], ["2:3", "848x1264"],
+        ].map(([value, effectivePixelSize]) => ({ value, effectivePixelSize, evidence: "direct", maxReferences: 0 })),
+        I2I: [
+          { value: "1:1", effectivePixelSize: "1024x1024", evidence: "existing_direct", maxReferences: 14 },
+          { value: "16:9", effectivePixelSize: "1376x768", evidence: "direct", maxReferences: 1 },
+          { value: "9:16", effectivePixelSize: "768x1376", evidence: "direct", maxReferences: 1 },
+        ],
+      } : undefined,
     },
     creditRules: { baseCredits: 2, qualityCredits: nano ? undefined : { medium: 2 } },
     defaults: { ratio: "1:1", resolution: "1K", quality: nano ? "" : "medium", batchCount: 1 },
@@ -108,15 +119,38 @@ describe("IMAGE_NATIVE_RATIO_MATRIX_V3", () => {
     expect(generationHookSource).toContain("referenceCount: nextReferences.length");
   });
 
-  it("does not contaminate Nano or Nano Lite with GPT Image 2 ratios", () => {
+  it("uses each Nano model's server-projected native ratios and dimensions", () => {
     for (const id of ["nano_banana", "nano_banana_lite"] as const) {
       const capability = resolveImageCustomerCapabilities({
         model: model(id), params: { ...params("1K", "16:9"), quality: "" }, referenceCount: 0,
       });
-      expect(capability.aspectRatioUiMode).toBe("DERIVED_READ_ONLY");
-      expect(capability.availableAspectRatios).toEqual(["1:1"]);
-      expect(capability.aspectRatio).toBe("1:1");
-      expect(capability.canGenerate).toBe(false);
+      expect(capability.aspectRatioUiMode).toBe("SELECTABLE");
+      expect(capability.availableAspectRatios).toEqual(["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"]);
+      expect(capability.aspectRatio).toBe("16:9");
+      expect(capability.effectivePixelSize).toBe("1376x768");
+      expect(capability.canGenerate).toBe(true);
+      const request = buildImageGenerateRequest({
+        prompt: "Safe Nano scene", model: model(id), params: capability.normalizedParams,
+        referenceImageAssetIds: [], idempotencyKey: `${id}-16-9`,
+      });
+      expect(request).toMatchObject({ aspectRatio: "16:9", ratio: "16:9", resolution: "1K", quantity: 1 });
+    }
+  });
+
+  it("keeps Nano reference ratios independently certified by reference count", () => {
+    for (const id of ["nano_banana", "nano_banana_lite"] as const) {
+      const oneReference = resolveImageCustomerCapabilities({
+        model: model(id), params: { ...params("1K", "9:16"), quality: "" }, referenceCount: 1,
+      });
+      expect(oneReference.availableAspectRatios).toEqual(["1:1", "16:9", "9:16"]);
+      expect(oneReference.effectivePixelSize).toBe("768x1376");
+      expect(oneReference.canGenerate).toBe(true);
+      const twoReferences = resolveImageCustomerCapabilities({
+        model: model(id), params: { ...params("1K", "16:9"), quality: "" }, referenceCount: 2,
+      });
+      expect(twoReferences.availableAspectRatios).toEqual(["1:1"]);
+      expect(twoReferences.canGenerate).toBe(false);
+      expect(twoReferences.blockReason).toBe("aspect_ratio_unavailable");
     }
   });
 });

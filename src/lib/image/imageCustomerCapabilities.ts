@@ -186,25 +186,39 @@ export function resolveImageCustomerCapabilities({ model, params = {}, reference
     const mode: ImageCustomerMode = safeReferenceCount > 0 ? "I2I" : "T2I";
     const oneK = findOption(model.capabilities.resolutions, "1k");
     const maxReferences = Math.min(NANO_BANANA_CUSTOMER_REFERENCE_LIMIT, Math.max(0, model.capabilities.maxReferences || 0));
-    const normalizedParams = { ...catalogParams, aspectRatio: "1:1", ratio: "1:1", resolution: oneK, batchCount: 1 };
+    const catalogNativeOptions = model.capabilities.nativeRatioOptionsByMode?.[mode] || [];
+    const safeNativeOptions = (catalogNativeOptions.length ? catalogNativeOptions : [{
+      value: "1:1", effectivePixelSize: "1024x1024", evidence: "existing_direct", maxReferences: maxReferences
+    }]).filter((option) => safeReferenceCount <= option.maxReferences);
+    const availableAspectRatios = safeNativeOptions.map((option) => option.value);
+    const requestedAspectRatio = String((params.aspectRatio ?? params.ratio ?? catalogParams.aspectRatio) || "1:1");
+    const normalizedAspectRatio = findOption(availableAspectRatios, requestedAspectRatio)
+      || findOption(availableAspectRatios, "1:1") || availableAspectRatios[0] || "";
+    const selectedNativeOption = safeNativeOptions.find((option) => sameOption(option.value, normalizedAspectRatio));
+    const normalizedParams = { ...catalogParams, aspectRatio: normalizedAspectRatio, ratio: normalizedAspectRatio, resolution: oneK, batchCount: 1 };
     const adjustments: ImageCustomerCapabilityAdjustment[] = [];
     if (!sameOption(params.resolution ?? catalogParams.resolution, oneK)) adjustments.push("single_reference_resolution_normalized");
-    if (!sameOption(params.aspectRatio ?? params.ratio ?? catalogParams.aspectRatio, "1:1")) adjustments.push("aspect_ratio_normalized");
+    if (!sameOption(requestedAspectRatio, normalizedAspectRatio)) adjustments.push("aspect_ratio_normalized");
     if (safeReferenceCount > maxReferences) adjustments.push("excess_references_removed");
     if (Number(params.batchCount ?? catalogParams.batchCount) !== 1) adjustments.push("quantity_normalized");
     const catalogUnavailable = model.available === false;
-    const blockReason: ImageCustomerCapabilityBlockReason | null = catalogUnavailable ? "provider_unavailable" : !oneK ? "resolution_unavailable" : safeReferenceCount > maxReferences ? "reference_limit_exceeded" : adjustments.length ? "aspect_ratio_unavailable" : null;
-    const oneKTuple = tuple("1024x1024", "1024x1024", "existing_direct");
+    const blockReason: ImageCustomerCapabilityBlockReason | null = catalogUnavailable ? "provider_unavailable" : !oneK ? "resolution_unavailable" : safeReferenceCount > maxReferences ? "reference_limit_exceeded" : !selectedNativeOption || adjustments.includes("aspect_ratio_normalized") ? "aspect_ratio_unavailable" : null;
+    const aspectRatioOptions: ImageCustomerAspectRatioOption[] = safeNativeOptions.map((option) => ({
+      value: option.value,
+      providerSize: option.effectivePixelSize,
+      effectivePixelSize: option.effectivePixelSize,
+      evidence: option.evidence as ImageCustomerAspectRatioOption["evidence"],
+    }));
     return {
       model: model.id, modelId: model.id, modes: ["T2I", "I2I"], mode,
-      availableQualities: [...model.capabilities.qualities], availableResolutions: oneK ? [oneK] : [], availableAspectRatios: ["1:1"],
-      resolutionOptions: oneK ? buildResolutionOptions([oneK], mode, "1:1") : [], aspectRatioOptions: [{ value: "1:1", ...oneKTuple }],
-      quality: normalizedParams.quality, resolution: normalizedParams.resolution, aspectRatio: "1:1", effectiveAspectRatio: "1:1",
-      effectivePixelSize: "1024x1024", providerSize: "1024x1024", aspectRatioUiMode: "DERIVED_READ_ONLY",
+      availableQualities: [...model.capabilities.qualities], availableResolutions: oneK ? [oneK] : [], availableAspectRatios,
+      resolutionOptions: oneK ? [{ value: oneK, label: `${oneK.toUpperCase()} · ${normalizedAspectRatio}`, aspectRatio: normalizedAspectRatio, providerSize: selectedNativeOption?.effectivePixelSize || "", mode }] : [], aspectRatioOptions,
+      quality: normalizedParams.quality, resolution: normalizedParams.resolution, aspectRatio: normalizedAspectRatio, effectiveAspectRatio: normalizedAspectRatio,
+      effectivePixelSize: selectedNativeOption?.effectivePixelSize || "", providerSize: selectedNativeOption?.effectivePixelSize || "", aspectRatioUiMode: availableAspectRatios.length > 1 ? "SELECTABLE" : "DERIVED_READ_ONLY",
       referenceLimit: maxReferences, maxReferences, quantity: 1, quantityMax: 1,
       credit: estimateImageCredits(model, normalizedParams), creditPreview: estimateImageCredits(model, normalizedParams),
       availability: !catalogUnavailable, customerSelectable: blockReason === null,
-      providerEligibilityCategory: catalogUnavailable ? "blocked" : "oobb_catalog_certified", providerEligibility: catalogUnavailable ? "blocked" : "oobb_catalog_certified",
+      providerEligibilityCategory: catalogUnavailable ? "blocked" : "xinhankr_certified", providerEligibility: catalogUnavailable ? "blocked" : "xinhankr_certified",
       normalizedParams, canGenerate: blockReason === null, blockReason, adjustments, isReducedGptImage2Policy: false, isNanoPolicy: true,
     };
   }

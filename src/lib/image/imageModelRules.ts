@@ -51,6 +51,17 @@ function pickResolutionOptions(value: unknown) {
   })).filter((entry) => entry.id && entry.providerSize);
 }
 
+function pickNativeRatioOptions(value: unknown) {
+  const source = asRecord(value);
+  const parse = (entries: unknown) => Array.isArray(entries) ? entries.map(asRecord).map((entry) => ({
+    value: String(entry.value || ""),
+    effectivePixelSize: String(entry.effectivePixelSize || entry.effective_pixel_size || ""),
+    evidence: String(entry.evidence || "direct"),
+    maxReferences: Math.max(0, pickNumber(entry.maxReferences ?? entry.max_references, 0)),
+  })).filter((entry) => entry.value && /^\d+x\d+$/i.test(entry.effectivePixelSize)) : [];
+  return { T2I: parse(source.T2I ?? source.t2i), I2I: parse(source.I2I ?? source.i2i) };
+}
+
 function pickBoolean(value: unknown, fallback = false) {
   return typeof value === "boolean" ? value : fallback;
 }
@@ -97,6 +108,7 @@ export function normalizeImageModel(rawModel: unknown): ImageModel {
       ratios: pickArray(capabilities.ratios ?? raw.ratios),
       resolutions: pickArray(capabilities.resolutions ?? raw.resolutions),
       resolutionOptions: pickResolutionOptions(capabilities.resolutionOptions ?? raw.resolutionOptions),
+      nativeRatioOptionsByMode: pickNativeRatioOptions(capabilities.nativeRatioOptionsByMode ?? raw.nativeRatioOptionsByMode),
       resolutionSemantics: String(capabilities.resolutionSemantics ?? raw.resolutionSemantics ?? "exact_pixels"),
       exactPixelsGuaranteed: pickBoolean(capabilities.exactPixelsGuaranteed ?? raw.exactPixelsGuaranteed, true),
       qualities: pickArray(capabilities.qualities ?? raw.qualities),

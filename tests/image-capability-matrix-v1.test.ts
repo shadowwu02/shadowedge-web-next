@@ -127,7 +127,7 @@ describe.each(["nano_banana", "nano_banana_lite"])("%s exact OOBB contract", (id
     });
     expect(capability).toMatchObject({
       canGenerate: true,
-      providerEligibility: "oobb_catalog_certified",
+      providerEligibility: "xinhankr_certified",
       effectiveAspectRatio: "1:1",
       maxReferences: NANO_BANANA_CUSTOMER_REFERENCE_LIMIT,
       quantityMax: 1,

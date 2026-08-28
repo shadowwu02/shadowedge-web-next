@@ -34,6 +34,13 @@ export type ImageResolutionCapability = {
   costTier: string;
 };
 
+export type ImageNativeRatioCapability = {
+  value: string;
+  effectivePixelSize: string;
+  evidence: "direct" | "existing_direct" | "direct_provider_remap" | "symmetry" | string;
+  maxReferences: number;
+};
+
 export type ImageModelCapabilities = {
   textToImage: boolean;
   imageToImage: boolean;
@@ -43,6 +50,7 @@ export type ImageModelCapabilities = {
   ratios: string[];
   resolutions: string[];
   resolutionOptions?: ImageResolutionCapability[];
+  nativeRatioOptionsByMode?: Partial<Record<"T2I" | "I2I", ImageNativeRatioCapability[]>>;
   resolutionSemantics?: "exact_pixels" | "generation_cost_tier" | string;
   exactPixelsGuaranteed?: boolean;
   qualities: string[];

@@ -55,9 +55,20 @@ function nanoModel(id: "nano_banana" | "nano_banana_lite", overrides: Partial<Im
     capabilities: {
       ...model().capabilities,
       maxReferences: 14,
-      ratios: ["1:1"],
+      ratios: ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"],
       resolutions: ["1K"],
       qualities: [],
+      nativeRatioOptionsByMode: {
+        T2I: [
+          ["1:1", "1024x1024"], ["16:9", "1376x768"], ["9:16", "768x1376"],
+          ["4:3", "1200x896"], ["3:4", "896x1200"], ["3:2", "1264x848"], ["2:3", "848x1264"],
+        ].map(([value, effectivePixelSize]) => ({ value, effectivePixelSize, evidence: "direct", maxReferences: 0 })),
+        I2I: [
+          { value: "1:1", effectivePixelSize: "1024x1024", evidence: "existing_direct", maxReferences: 14 },
+          { value: "16:9", effectivePixelSize: "1376x768", evidence: "direct", maxReferences: 1 },
+          { value: "9:16", effectivePixelSize: "768x1376", evidence: "direct", maxReferences: 1 },
+        ],
+      },
     },
     creditRules: { baseCredits: 2 },
     defaults: { ratio: "1:1", resolution: "1K", quality: "", batchCount: 1 },
@@ -241,7 +252,7 @@ describe("public provider identity decoupling", () => {
       params: params("1K", ""),
     });
     expect(policy.canGenerate).toBe(true);
-    expect(policy.providerEligibility).toBe("oobb_catalog_certified");
+    expect(policy.providerEligibility).toBe("xinhankr_certified");
   });
 
   it.each(["shadowedge", "public", "customer-safe-display"])(
@@ -268,9 +279,9 @@ describe("public provider identity decoupling", () => {
     const nano = resolveImageCustomerCapabilities({ model: nanoModel("nano_banana"), params: params("4K", "high") });
     const lite = resolveImageCustomerCapabilities({ model: nanoModel("nano_banana_lite"), params: nano.normalizedParams });
     const gpt = resolveImageCustomerCapabilities({ model: model(), params: lite.normalizedParams });
-    expect(nano.normalizedParams).toMatchObject({ resolution: "1K", aspectRatio: "1:1", quality: "", batchCount: 1 });
+    expect(nano.normalizedParams).toMatchObject({ resolution: "1K", aspectRatio: "16:9", quality: "", batchCount: 1 });
     expect(lite.canGenerate).toBe(true);
-    expect(gpt.normalizedParams).toMatchObject({ resolution: "1K", aspectRatio: "1:1", quality: "medium", batchCount: 1 });
+    expect(gpt.normalizedParams).toMatchObject({ resolution: "1K", aspectRatio: "16:9", quality: "medium", batchCount: 1 });
   });
 
   it("keeps GPT Image 2 readiness provider-agnostic", () => {
