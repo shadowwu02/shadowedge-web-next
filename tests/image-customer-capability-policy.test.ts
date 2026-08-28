@@ -246,6 +246,21 @@ describe("public provider identity decoupling", () => {
     expect(policy).toMatchObject({ canGenerate: true, maxReferences: 14, effectiveAspectRatio: "1:1", creditPreview: 2 });
   });
 
+  it.each(["nano_banana", "nano_banana_lite"] as const)(
+    "uses the selected %s ratio as the reference limit authority",
+    (id) => {
+      expect(resolveImageCustomerCapabilities({
+        model: nanoModel(id), params: { ...params("1K", ""), aspectRatio: "1:1", ratio: "1:1" }, referenceCount: 0,
+      }).maxReferences).toBe(14);
+      expect(resolveImageCustomerCapabilities({
+        model: nanoModel(id), params: { ...params("1K", ""), aspectRatio: "16:9", ratio: "16:9" }, referenceCount: 0,
+      }).maxReferences).toBe(1);
+      expect(resolveImageCustomerCapabilities({
+        model: nanoModel(id), params: { ...params("1K", ""), aspectRatio: "4:3", ratio: "4:3" }, referenceCount: 0,
+      }).maxReferences).toBe(0);
+    },
+  );
+
   it("uses complete public capability metadata when the provider field is absent", () => {
     const policy = resolveImageCustomerCapabilities({
       model: nanoModel("nano_banana", { provider: "" }),

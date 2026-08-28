@@ -185,16 +185,22 @@ export function resolveImageCustomerCapabilities({ model, params = {}, reference
   if (isNanoModel(model)) {
     const mode: ImageCustomerMode = safeReferenceCount > 0 ? "I2I" : "T2I";
     const oneK = findOption(model.capabilities.resolutions, "1k");
-    const maxReferences = Math.min(NANO_BANANA_CUSTOMER_REFERENCE_LIMIT, Math.max(0, model.capabilities.maxReferences || 0));
+    const catalogReferenceMaximum = Math.min(NANO_BANANA_CUSTOMER_REFERENCE_LIMIT, Math.max(0, model.capabilities.maxReferences || 0));
+    const i2iNativeOptions = model.capabilities.nativeRatioOptionsByMode?.I2I || [];
     const catalogNativeOptions = model.capabilities.nativeRatioOptionsByMode?.[mode] || [];
     const safeNativeOptions = (catalogNativeOptions.length ? catalogNativeOptions : [{
-      value: "1:1", effectivePixelSize: "1024x1024", evidence: "existing_direct", maxReferences: maxReferences
-    }]).filter((option) => safeReferenceCount <= option.maxReferences);
+      value: "1:1", effectivePixelSize: "1024x1024", evidence: "existing_direct", maxReferences: catalogReferenceMaximum
+    }]);
     const availableAspectRatios = safeNativeOptions.map((option) => option.value);
     const requestedAspectRatio = String((params.aspectRatio ?? params.ratio ?? catalogParams.aspectRatio) || "1:1");
     const normalizedAspectRatio = findOption(availableAspectRatios, requestedAspectRatio)
       || findOption(availableAspectRatios, "1:1") || availableAspectRatios[0] || "";
     const selectedNativeOption = safeNativeOptions.find((option) => sameOption(option.value, normalizedAspectRatio));
+    const selectedReferenceOption = i2iNativeOptions.find((option) => sameOption(option.value, normalizedAspectRatio));
+    const selectedReferenceMaximum = i2iNativeOptions.length
+      ? Math.max(0, selectedReferenceOption?.maxReferences || 0)
+      : sameOption(normalizedAspectRatio, "1:1") ? catalogReferenceMaximum : 0;
+    const maxReferences = Math.min(catalogReferenceMaximum, selectedReferenceMaximum);
     const normalizedParams = { ...catalogParams, aspectRatio: normalizedAspectRatio, ratio: normalizedAspectRatio, resolution: oneK, batchCount: 1 };
     const adjustments: ImageCustomerCapabilityAdjustment[] = [];
     if (!sameOption(params.resolution ?? catalogParams.resolution, oneK)) adjustments.push("single_reference_resolution_normalized");

@@ -139,18 +139,34 @@ describe("IMAGE_NATIVE_RATIO_MATRIX_V3", () => {
 
   it("keeps Nano reference ratios independently certified by reference count", () => {
     for (const id of ["nano_banana", "nano_banana_lite"] as const) {
+      const squareNoReference = resolveImageCustomerCapabilities({
+        model: model(id), params: { ...params("1K", "1:1"), quality: "" }, referenceCount: 0,
+      });
+      expect(squareNoReference.maxReferences).toBe(14);
+      const landscapeNoReference = resolveImageCustomerCapabilities({
+        model: model(id), params: { ...params("1K", "16:9"), quality: "" }, referenceCount: 0,
+      });
+      expect(landscapeNoReference.maxReferences).toBe(1);
+      const uncertifiedReferenceRatio = resolveImageCustomerCapabilities({
+        model: model(id), params: { ...params("1K", "4:3"), quality: "" }, referenceCount: 0,
+      });
+      expect(uncertifiedReferenceRatio.maxReferences).toBe(0);
       const oneReference = resolveImageCustomerCapabilities({
         model: model(id), params: { ...params("1K", "9:16"), quality: "" }, referenceCount: 1,
       });
       expect(oneReference.availableAspectRatios).toEqual(["1:1", "16:9", "9:16"]);
       expect(oneReference.effectivePixelSize).toBe("768x1376");
+      expect(oneReference.maxReferences).toBe(1);
       expect(oneReference.canGenerate).toBe(true);
       const twoReferences = resolveImageCustomerCapabilities({
         model: model(id), params: { ...params("1K", "16:9"), quality: "" }, referenceCount: 2,
       });
-      expect(twoReferences.availableAspectRatios).toEqual(["1:1"]);
+      expect(twoReferences.availableAspectRatios).toEqual(["1:1", "16:9", "9:16"]);
+      expect(twoReferences.aspectRatio).toBe("16:9");
+      expect(twoReferences.maxReferences).toBe(1);
       expect(twoReferences.canGenerate).toBe(false);
-      expect(twoReferences.blockReason).toBe("aspect_ratio_unavailable");
+      expect(twoReferences.blockReason).toBe("reference_limit_exceeded");
+      expect(twoReferences.adjustments).toContain("excess_references_removed");
     }
   });
 });
