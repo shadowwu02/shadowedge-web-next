@@ -139,7 +139,8 @@ function normalizeGenerateResponse(payload: unknown): ImageGenerateResponse {
     asyncRuntime: pickString(data.asyncRuntime, data.async_runtime),
     outboxId: pickString(data.outboxId, data.outbox_id),
     params: {
-      ratio: String(params.ratio || data.ratio || ""),
+      aspectRatio: String(params.aspectRatio || params.aspect_ratio || params.ratio || data.aspectRatio || data.aspect_ratio || data.ratio || ""),
+      ratio: String(params.aspectRatio || params.aspect_ratio || params.ratio || data.aspectRatio || data.aspect_ratio || data.ratio || ""),
       resolution: String(params.resolution || data.resolution || ""),
       quality: String(params.quality || data.quality || ""),
       batchCount: Number(params.batchCount || data.batchCount || 1) || 1,
@@ -158,8 +159,9 @@ export async function generateImage(payload: ImageGenerateRequest) {
     clientRequestId: idempotencyKey,
     prompt: String(payload.prompt || "").trim(),
     model: payload.model || payload.modelId || "",
-    ratio: payload.ratio || payload.aspect_ratio,
-    aspect_ratio: payload.aspect_ratio || payload.ratio,
+    aspectRatio: payload.aspectRatio || payload.aspect_ratio || payload.ratio,
+    ratio: payload.aspectRatio || payload.aspect_ratio || payload.ratio,
+    aspect_ratio: payload.aspectRatio || payload.aspect_ratio || payload.ratio,
     referenceImages: [],
     reference_images: [],
     referenceImageAssetIds: (payload.referenceImageAssetIds || payload.reference_image_asset_ids || []).filter((value) => typeof value === "string" && canonicalAssetIdPattern.test(value)),
@@ -201,37 +203,46 @@ export function buildImageGenerateRequest(input: {
   meta?: Record<string, unknown>;
 }): ImageGenerateRequest {
   const normalizedParams = normalizeImageGenerationParams(input.model, {
+    aspectRatio: input.params.aspectRatio || input.params.aspect_ratio || input.params.ratio,
     ratio: input.params.ratio,
     resolution: input.params.resolution,
     quality: input.params.quality,
     batchCount: input.params.batchCount,
   });
 
+  const referenceImageAssetIds = (input.referenceImageAssetIds || []).filter((value) => canonicalAssetIdPattern.test(value));
+  const mode = referenceImageAssetIds.length ? "I2I" : "T2I";
   return {
     idempotencyKey: input.idempotencyKey || crypto.randomUUID(),
     prompt: input.prompt.trim(),
     model: input.model.id,
     modelId: input.model.id,
     providerModel: input.model.providerModel,
+    aspectRatio: normalizedParams.aspectRatio,
     ratio: normalizedParams.ratio,
-    aspect_ratio: normalizedParams.ratio,
+    aspect_ratio: normalizedParams.aspectRatio,
     resolution: normalizedParams.resolution,
     quality: normalizedParams.quality,
     batchCount: normalizedParams.batchCount,
+    quantity: normalizedParams.batchCount,
+    mode,
     referenceImages: [],
     reference_images: [],
-    referenceImageAssetIds: (input.referenceImageAssetIds || []).filter((value) => canonicalAssetIdPattern.test(value)),
-    reference_image_asset_ids: (input.referenceImageAssetIds || []).filter((value) => canonicalAssetIdPattern.test(value)),
+    referenceImageAssetIds,
+    reference_image_asset_ids: referenceImageAssetIds,
     meta: {
       source: "image_workspace",
       model_id: input.model.id,
       provider_model: input.model.providerModel,
+      aspectRatio: normalizedParams.aspectRatio,
       ratio: normalizedParams.ratio,
       resolution: normalizedParams.resolution,
       quality: normalizedParams.quality,
       batchCount: normalizedParams.batchCount,
-      referenceCount: (input.referenceImageAssetIds || []).filter((value) => canonicalAssetIdPattern.test(value)).length,
-      referenceImageAssetIds: (input.referenceImageAssetIds || []).filter((value) => canonicalAssetIdPattern.test(value)),
+      quantity: normalizedParams.batchCount,
+      mode,
+      referenceCount: referenceImageAssetIds.length,
+      referenceImageAssetIds,
       ...(input.meta || {}),
     },
   };

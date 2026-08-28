@@ -142,6 +142,7 @@ export function getDefaultImageParams(model: ImageModel): ImageGenerationParams 
   const qualities = model.capabilities.qualities;
 
   return {
+    aspectRatio: normalizeOption(model.defaults.ratio, ratios, ratios[0] || ""),
     ratio: normalizeOption(model.defaults.ratio, ratios, ratios[0] || ""),
     resolution: normalizeOption(model.defaults.resolution, resolutions, resolutions[0] || ""),
     quality: normalizeOption(model.defaults.quality, qualities, qualities[0] || ""),
@@ -154,8 +155,10 @@ export function normalizeImageGenerationParams(model: ImageModel, input: Partial
   const maxBatchCount = Math.max(1, model.capabilities.maxBatchCount || 1);
   const requestedBatchCount = Number(input.batchCount || defaults.batchCount || 1);
 
+  const aspectRatio = normalizeOption(input.aspectRatio ?? input.ratio, model.capabilities.ratios, defaults.aspectRatio);
   return {
-    ratio: normalizeOption(input.ratio, model.capabilities.ratios, defaults.ratio),
+    aspectRatio,
+    ratio: aspectRatio,
     resolution: normalizeOption(input.resolution, model.capabilities.resolutions, defaults.resolution),
     quality: normalizeOption(input.quality, model.capabilities.qualities, defaults.quality),
     batchCount: Math.max(1, Math.min(maxBatchCount, Number.isFinite(requestedBatchCount) ? Math.floor(requestedBatchCount) : 1)),

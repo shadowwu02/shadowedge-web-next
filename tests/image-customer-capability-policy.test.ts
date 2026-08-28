@@ -41,7 +41,8 @@ function model(overrides: Partial<ImageModel> = {}): ImageModel {
 }
 
 function params(resolution: string, quality = "medium"): ImageGenerationParams {
-  return { ratio: "1:1", resolution, quality, batchCount: 1 };
+  const aspectRatio = resolution.toLowerCase() === "4k" ? "16:9" : "1:1";
+  return { aspectRatio, ratio: aspectRatio, resolution, quality, batchCount: 1 };
 }
 
 describe("GPT Image 2 reduced customer capability policy", () => {
@@ -136,20 +137,23 @@ describe("model-specific normalization and shared UI guard", () => {
       id,
       name: id,
       label: id,
+      provider: "oobb",
       providerModel: id,
       capabilities: {
         ...model().capabilities,
-        maxReferences: 4,
-        resolutions: ["1K", "2K"],
-        qualities: ["standard", "premium"],
+        maxReferences: 14,
+        ratios: ["1:1"],
+        resolutions: ["1K"],
+        qualities: [],
       },
-      defaults: { ratio: "1:1", resolution: "2K", quality: "premium", batchCount: 1 },
+      defaults: { ratio: "1:1", resolution: "1K", quality: "", batchCount: 1 },
     });
-    const policy = resolveImageCustomerCapabilities({ model: nano, params: params("2K", "premium"), referenceCount: 3 });
+    const policy = resolveImageCustomerCapabilities({ model: nano, params: params("1K", ""), referenceCount: 3 });
     expect(policy.isReducedGptImage2Policy).toBe(false);
     expect(policy.availableQualities).toEqual(nano.capabilities.qualities);
     expect(policy.availableResolutions).toEqual(nano.capabilities.resolutions);
-    expect(policy.maxReferences).toBe(4);
+    expect(policy.maxReferences).toBe(14);
+    expect(policy.effectiveAspectRatio).toBe("1:1");
     expect(policy.canGenerate).toBe(true);
   });
 

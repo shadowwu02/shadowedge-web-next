@@ -11,6 +11,7 @@ import { useImageGeneration } from "@/hooks/useImageGeneration";
 import { useI18n } from "@/i18n/useI18n";
 import { assetLibraryImageHandoffToReference, consumeAssetLibraryImageHandoff } from "@/lib/assets/assetLibraryImageHandoff";
 import { getImageUserFacingError } from "@/lib/image/imageErrorDisplay";
+import { createImageHydrationDiagnostic, emitImageHydrationDiagnostic } from "@/lib/image/imageHydrationDiagnostic";
 import { isCanonicalImageReferenceReady } from "@/lib/image-api";
 import { isImageActiveStatus } from "@/lib/image/imageHistoryUtils";
 import { consumeImageUpscaleAssetHandoff } from "@/lib/image/imageUpscaleHandoff";
@@ -75,6 +76,17 @@ export function ImageWorkspace() {
   const router = useRouter();
   const isZh = getPromptStudioDraftLocale(locale) === "zh";
   const image = useImageGeneration();
+  const [hydrationDiagnostic] = useState(() => createImageHydrationDiagnostic({
+    buildSha: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA,
+    language: locale === "zh" ? "zh" : "en",
+    modelStateCategory: image.models.length ? "catalog_ready" : "catalog_pending",
+    catalogLoaded: image.models.length > 0,
+    draftReady: image.draftReady,
+    referenceCount: image.references.length,
+    resolution: image.params.resolution,
+    derivedAspectRatio: image.customerCapabilities.effectiveAspectRatio,
+    authStateCategory: image.authStateCategory,
+  }));
   const assetLibraryHandoffCheckedRef = useRef(false);
   const promptStudioDraftCheckedRef = useRef(false);
   const promptStudioImportTargetRef = useRef<HTMLDivElement | null>(null);
@@ -107,6 +119,12 @@ export function ImageWorkspace() {
     if (normalized.includes("upload failed") || normalized.includes("image upload failed")) return t("image.errors.uploadFailed");
     return getImageUserFacingError(message, t);
   }, [image.error, image.selectedModel, t, tf]);
+
+  useEffect(() => {
+    const serverFingerprint = document.querySelector<HTMLElement>("[data-image-hydration-fingerprint]")
+      ?.dataset.imageHydrationFingerprint || "";
+    emitImageHydrationDiagnostic(serverFingerprint, hydrationDiagnostic);
+  }, [hydrationDiagnostic]);
 
   const handleHistorySelect = useCallback((item: ImageHistoryItem) => {
     image.selectJob(item);
@@ -294,7 +312,11 @@ export function ImageWorkspace() {
   }, [image.prompt, image.selectedModel?.id, isZh, router]);
 
   return (
-    <div className="se-scrollbar grid h-full min-h-0 gap-4 overflow-y-auto overflow-x-hidden xl:grid-cols-[minmax(300px,360px)_minmax(0,1fr)_minmax(300px,380px)] xl:overflow-hidden">
+    <div
+      className="se-scrollbar grid h-full min-h-0 gap-4 overflow-y-auto overflow-x-hidden xl:grid-cols-[minmax(300px,360px)_minmax(0,1fr)_minmax(300px,380px)] xl:overflow-hidden"
+      data-image-hydration-fingerprint={hydrationDiagnostic.fingerprint}
+      data-image-hydration-route={hydrationDiagnostic.route}
+    >
       <div
         className={`min-h-[760px] min-w-0 max-w-full overflow-hidden rounded-[32px] transition-[box-shadow,background-color] duration-500 xl:min-h-0 ${
           isPromptStudioImportHighlighted

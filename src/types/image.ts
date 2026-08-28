@@ -73,6 +73,8 @@ export type ImageModel = {
 };
 
 export type ImageGenerationParams = {
+  /** Canonical product contract. `ratio` remains a compatibility projection. */
+  aspectRatio: string;
   ratio: string;
   resolution: string;
   quality: string;
@@ -110,10 +112,13 @@ export type ImageGenerateRequest = {
   modelId?: string;
   providerModel?: string;
   ratio?: string;
+  aspectRatio?: string;
   aspect_ratio?: string;
   resolution?: string;
   quality?: string;
   batchCount?: number;
+  quantity?: number;
+  mode?: "T2I" | "I2I";
   count?: number;
   referenceImages?: string[];
   reference_images?: string[];

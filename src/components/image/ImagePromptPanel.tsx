@@ -70,13 +70,12 @@ export function ImagePromptPanel({
 }) {
   const { locale, t, tf } = useI18n();
   const isZh = getPromptStudioDraftLocale(locale) === "zh";
-  const ratios = selectedModel?.capabilities.ratios || [];
   const resolutions = customerCapabilities.availableResolutions;
   const resolutionOptions = selectedModel?.capabilities.resolutionOptions || [];
   const usesGenerationTiers = selectedModel?.capabilities.resolutionSemantics === "generation_cost_tier" ||
     selectedModel?.capabilities.exactPixelsGuaranteed === false;
   const qualities = customerCapabilities.availableQualities;
-  const maxBatchCount = selectedModel?.capabilities.maxBatchCount || 1;
+  const maxBatchCount = customerCapabilities.quantityMax;
   const hasUploadingReferences = references.some((reference) => reference.uploadStatus === "uploading");
   const hasIneligibleReferences = references.some((reference) => reference.uploadStatus === "not_reference_eligible" || reference.uploadStatus === "failed");
   const hasPrompt = Boolean(prompt.trim());
@@ -89,9 +88,13 @@ export function ImagePromptPanel({
   const modelUnavailable = selectedModel?.available === false;
   const disabled = modelUnavailable || !customerCapabilities.canGenerate || isGenerating || loadingModels || hasUploadingReferences || hasIneligibleReferences || isPolling || isActiveJob || !hasPrompt || isPromptTooLong;
   const optionLabel = (value: string) => value || t("image.params.default");
-  const resolutionLabel = (value: string) => usesGenerationTiers
-    ? value.toUpperCase()
-    : resolutionOptions.find((option) => option.id.toLowerCase() === value.toLowerCase())?.label || optionLabel(value);
+  const resolutionLabel = (value: string) => {
+    const contract = customerCapabilities.resolutionOptions.find((option) => option.value.toLowerCase() === value.toLowerCase());
+    if (contract) return contract.label;
+    return usesGenerationTiers
+      ? value.toUpperCase()
+      : resolutionOptions.find((option) => option.id.toLowerCase() === value.toLowerCase())?.label || optionLabel(value);
+  };
   const generateLabel = hasUploadingReferences
     ? t("image.workspace.uploadingReferences")
     : isGenerating
@@ -229,26 +232,6 @@ export function ImagePromptPanel({
           </div>
 
           <div className="grid gap-2">
-            {ratios.length ? (
-              <label className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
-                <span className="flex items-center justify-between gap-2">
-                  {t("image.params.ratio")}
-                  <span className="text-[10px] font-medium text-[#b9b9b9]/38">{tf("image.params.options", { count: ratios.length })}</span>
-                </span>
-                <select
-                  className="se-control h-10 rounded-[15px] px-3 text-sm text-[#f4f4f4] outline-none"
-                  onChange={(event) => onUpdateParams({ ratio: event.target.value })}
-                  value={params.ratio}
-                >
-                  {ratios.map((ratio) => (
-                    <option key={ratio} value={ratio}>
-                      {optionLabel(ratio)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-
             {resolutions.length ? (
               <label className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
                 <span className="flex items-center justify-between gap-2">
@@ -271,6 +254,22 @@ export function ImagePromptPanel({
                 ) : null}
               </label>
             ) : null}
+
+            <div className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">
+              <span className="flex items-center justify-between gap-2">
+                {t("image.params.effectiveRatio")}
+                <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-[#b9b9b9]/38">
+                  {t("image.params.derivedReadOnly")}
+                </span>
+              </span>
+              <div
+                aria-label={t("image.params.effectiveRatio")}
+                className="se-control flex min-h-10 items-center rounded-[15px] px-3 text-sm font-semibold text-[#f4f4f4]"
+                data-image-effective-ratio={customerCapabilities.effectiveAspectRatio}
+              >
+                {customerCapabilities.effectiveAspectRatio || t("image.params.default")}
+              </div>
+            </div>
 
             {qualities.length ? (
               <label className="grid gap-1.5 text-xs font-semibold text-[#b9b9b9]/70">

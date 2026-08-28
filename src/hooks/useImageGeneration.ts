@@ -24,7 +24,6 @@ import {
   upsertImageHistoryRecord,
 } from "@/lib/image/imageHistoryUtils";
 import {
-  estimateImageCredits,
   getDefaultImageModel,
   getDefaultImageParams,
   getImageModelById,
@@ -178,10 +177,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
   );
   const mergedHistory = useMemo(() => mergeImageHistory(history, localJobs), [history, localJobs]);
   const outputs = useMemo(() => mergedHistory.filter((item) => item.outputUrls.length || isImageTerminalStatus(item.status)), [mergedHistory]);
-  const estimatedCredits = useMemo(
-    () => estimateImageCredits(selectedModel, customerCapabilities.normalizedParams),
-    [customerCapabilities.normalizedParams, selectedModel],
-  );
+  const estimatedCredits = customerCapabilities.creditPreview;
 
   const formatImageError = useCallback(
     (labelKey: Parameters<typeof t>[0], error: unknown, fallback: string) => {
@@ -630,7 +626,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       const pendingOperation = resolveImageGenerationOperation(pendingGenerationOperationRef.current || readPendingImageGenerationOperation(), {
         prompt: effectivePrompt,
         modelId: effectiveModel.id,
-        ratio: effectiveParams.ratio,
+        ratio: effectiveParams.aspectRatio,
         resolution: effectiveParams.resolution,
         quality: effectiveParams.quality,
         batchCount: effectiveParams.batchCount,
@@ -726,6 +722,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     capabilityNotice,
     draftNotice,
     draftReady,
+    authStateCategory: (authLoading ? "loading" : isSignedIn ? "authenticated" : "anonymous") as "loading" | "authenticated" | "anonymous",
     recoveredJobId,
     estimatedCredits,
     clearDraft,

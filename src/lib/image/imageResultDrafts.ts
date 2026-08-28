@@ -225,6 +225,7 @@ function createImageResultReference(image: ImageHistoryItem, url: string, output
 
 function normalizeParams(image: ImageHistoryItem): ImageGenerationParams {
   return {
+    aspectRatio: image.ratio || "auto",
     ratio: image.ratio || "auto",
     resolution: image.resolution || "",
     quality: image.quality || "",

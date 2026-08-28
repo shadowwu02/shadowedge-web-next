@@ -1,7 +1,7 @@
 import type { ImageGenerationParams, ImageReferenceItem } from "@/types/image";
 
 export const IMAGE_WORKSPACE_DRAFT_KEY = "shadowedge_image_workspace_draft_v1";
-export const IMAGE_WORKSPACE_DRAFT_VERSION = 1;
+export const IMAGE_WORKSPACE_DRAFT_VERSION = 2;
 export const IMAGE_WORKSPACE_DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
 
 const SENSITIVE_URL_PARAMS = ["access_token", "refresh_token", "token", "api_key", "apikey", "authorization", "session", "cookie"];
@@ -27,10 +27,12 @@ export type ImageWorkspaceDraft = {
   updatedAt: string;
   prompt: string;
   modelId: string;
+  aspectRatio: string;
   ratio: string;
   resolution?: string;
   quality?: string;
   batchCount?: number;
+  quantity: number;
   references: ImageWorkspaceDraftReference[];
 };
 
@@ -132,21 +134,25 @@ function sanitizeReferences(value: unknown, maxReferences = 20) {
 
 function normalizeDraft(raw: unknown): ImageWorkspaceDraft | null {
   const record = asRecord(raw);
-  if (record.version !== IMAGE_WORKSPACE_DRAFT_VERSION) return null;
+  if (record.version !== 1 && record.version !== IMAGE_WORKSPACE_DRAFT_VERSION) return null;
 
   const updatedAt = asString(record.updatedAt, 80);
   const updatedTime = Date.parse(updatedAt);
   if (!updatedAt || !Number.isFinite(updatedTime)) return null;
 
+  const aspectRatio = asString(record.aspectRatio ?? record.aspect_ratio ?? record.ratio, 80);
+  const quantity = Math.max(1, Math.floor(asNumber(record.quantity ?? record.batchCount) || 1));
   return {
     version: IMAGE_WORKSPACE_DRAFT_VERSION,
     updatedAt,
     prompt: asString(record.prompt),
     modelId: asString(record.modelId, 240),
+    aspectRatio,
     ratio: asString(record.ratio, 80),
     resolution: asString(record.resolution, 80),
     quality: asString(record.quality, 80),
     batchCount: asNumber(record.batchCount),
+    quantity,
     references: sanitizeReferences(record.references),
   };
 }
@@ -184,10 +190,12 @@ export function saveImageWorkspaceDraft(input: SaveImageWorkspaceDraftInput) {
     updatedAt: new Date().toISOString(),
     prompt: input.prompt,
     modelId: input.modelId,
+    aspectRatio: input.params.aspectRatio,
     ratio: input.params.ratio,
     resolution: input.params.resolution,
     quality: input.params.quality,
     batchCount: input.params.batchCount,
+    quantity: input.params.batchCount,
     references: input.references
       .filter((item) => item.url && item.uploadStatus !== "failed")
       .map((item) => sanitizeReference({
