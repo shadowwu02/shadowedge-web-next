@@ -89,7 +89,7 @@ describe("Certified domestic Audio Reference", () => {
         generateAudio: false,
         media,
         model,
-        prompt: "使用 @音频1 作为音频参考",
+        prompt: id === "seedance_2_5" ? "使用 @音频1 作为音频参考" : "使用 @图1 和 @音频1 作为参考",
         quality: "720p",
         ratio: "16:9",
       });

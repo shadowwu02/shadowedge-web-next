@@ -121,10 +121,10 @@ import {
 import {
   getGeneratedAudioReferenceIssue,
   getReferenceRoleIssue,
-  normalizeAudioReferenceBindingsForRule,
   normalizeGeneratedAudioForReferences,
   validateReferenceSelectionForRule,
 } from "@/lib/video/videoReferenceRules";
+import { resolveVideoPromptBoundReferences } from "@/lib/video/videoPromptBoundReferences";
 import { selectWorkspaceProductionCatalog } from "@/lib/video/workspaceProductionCatalog";
 import { LEGACY_REFERENCE_REUPLOAD_REQUIRED } from "@/lib/video/canonicalReferenceAssets";
 import { isVideoActiveStatus, isVideoFailedStatus } from "@/lib/utils";
@@ -681,11 +681,18 @@ function buildParamsForModelAndReferences(
   model: VideoModel,
   current: Partial<VideoParams> | undefined,
   referenceMedia: UploadMediaItem[],
+  prompt = "",
+  mentionBindings: VideoMentionBinding[] = [],
 ) {
+  const activeReferences = resolveVideoPromptBoundReferences({
+    media: referenceMedia,
+    mentionBindings,
+    prompt,
+  }).activeItems;
   return normalizeGeneratedAudioForReferences(
     getVideoModelRuleFromRegistry(model),
     buildParamsForModel(model, current),
-    referenceMedia,
+    activeReferences,
   );
 }
 
@@ -1284,6 +1291,10 @@ export function VideoWorkspace() {
     () => sanitizeVideoMentionBindings(prompt, serializeMentionBindings(mentionBindings), media).mentionBindings,
     [media, mentionBindings, prompt],
   );
+  const promptBoundReferences = useMemo(
+    () => resolveVideoPromptBoundReferences({ media, mentionBindings: reconciledMentionBindings, prompt }),
+    [media, prompt, reconciledMentionBindings],
+  );
 
   useEffect(() => {
     remakeShotGenerationsRef.current = remakeShotGenerations;
@@ -1300,7 +1311,13 @@ export function VideoWorkspace() {
       const draftModel = findDraftModel(draft, availableModels);
       const nextModel = draftModel || availableModels[0];
       const draftMedia = draft?.referenceMedia || [];
-      const nextParams = buildParamsForModelAndReferences(nextModel, draft?.params, draftMedia);
+      const nextParams = buildParamsForModelAndReferences(
+        nextModel,
+        draft?.params,
+        draftMedia,
+        draft?.prompt,
+        draft?.mentionBindings,
+      );
 
       setModels(availableModels);
       setSelectedModel(nextModel);
@@ -1311,7 +1328,12 @@ export function VideoWorkspace() {
         setMedia(draftMedia);
         setMentionBindings(draft.mentionBindings);
         const draftNotice = readVideoDraftNotice();
-        if (getGeneratedAudioReferenceIssue(getVideoModelRuleFromRegistry(nextModel), Boolean(draft.params.generateAudio), draftMedia)) {
+        const draftActiveReferences = resolveVideoPromptBoundReferences({
+          media: draftMedia,
+          mentionBindings: draft.mentionBindings,
+          prompt: draft.prompt,
+        }).activeItems;
+        if (getGeneratedAudioReferenceIssue(getVideoModelRuleFromRegistry(nextModel), Boolean(draft.params.generateAudio), draftActiveReferences)) {
           setWorkspaceNotice(t("video.errors.audioReferenceGeneratedAudioConflict"));
         } else if (!draftModel && [draft.modelId, draft.providerModel, draft.modelLabel].some(isRetiredHiggsfieldVideoAlias)) {
           setWorkspaceNotice(HIGGSFIELD_RETIRED_MODEL_MESSAGE);
@@ -1340,7 +1362,13 @@ export function VideoWorkspace() {
           setCatalogStatus("unavailable");
           setModels([unavailableCatalogModel]);
           setSelectedModel(unavailableCatalogModel);
-          setParams(buildParamsForModelAndReferences(unavailableCatalogModel, draft?.params, draft?.referenceMedia || []));
+          setParams(buildParamsForModelAndReferences(
+            unavailableCatalogModel,
+            draft?.params,
+            draft?.referenceMedia || [],
+            draft?.prompt,
+            draft?.mentionBindings,
+          ));
           if (draft) {
             setPrompt(draft.prompt);
             setMedia(draft.referenceMedia);
@@ -1633,19 +1661,15 @@ export function VideoWorkspace() {
 
   const handleModelChange = useCallback((model: VideoModel) => {
     clearError();
-    const nextRule = getVideoModelRuleFromRegistry(model);
-    const nextMedia = normalizeAudioReferenceBindingsForRule(nextRule, media);
     setSelectedModel(model);
-    setParams((current) => buildParamsForModelAndReferences(model, current, nextMedia));
-    setMedia(nextMedia);
-  }, [clearError, media]);
-
-  const handleReferencesBound = useCallback((items: UploadMediaItem[]) => {
-    const rule = getVideoModelRuleFromRegistry(selectedModel);
-    if (!getGeneratedAudioReferenceIssue(rule, params.generateAudio, items)) return;
-    setParams((current) => normalizeGeneratedAudioForReferences(rule, current, items));
-    setWorkspaceNotice(t("video.errors.audioReferenceGeneratedAudioConflict"));
-  }, [params.generateAudio, selectedModel, t]);
+    setParams((current) => buildParamsForModelAndReferences(
+      model,
+      current,
+      media,
+      prompt,
+      reconciledMentionBindings,
+    ));
+  }, [clearError, media, prompt, reconciledMentionBindings]);
 
   const handleParamsChange = useCallback((nextParams: VideoParams) => {
     setParams(normalizeVideoTupleAudio(selectedModel, nextParams));
@@ -2796,7 +2820,8 @@ export function VideoWorkspace() {
     router.push("/prompt-studio?from=video-workspace");
   }, [isZh, prompt, router, selectedModel.id, selectedModel.providerModel]);
 
-  const isUploadingMedia = isAssetPickerUploading || media.some((item) => item.uploadStatus === "uploading");
+  const isUploadingMedia = promptBoundReferences.unresolvedMentions.length > 0 &&
+    (isAssetPickerUploading || media.some((item) => item.uploadStatus === "uploading"));
   const isCurrentTaskProcessing = Boolean(task && isVideoActiveStatus(task.status) && !isVideoStaleActiveRecord(task));
   const effectiveMaxConcurrency = Math.max(1, Math.floor(Number(maxConcurrency || 1)));
   const visibleActiveTaskCount = Math.max(activeTaskCount, isCurrentTaskProcessing ? 1 : 0);
@@ -2815,7 +2840,16 @@ export function VideoWorkspace() {
     [params.duration, params.quality, selectedModel],
   );
   const isAudioSupported = selectedTuple?.audio.supported ?? (hasTupleAuthority ? false : selectedModel.supportsAudio === true);
-  const effectiveGenerateAudio = params.generateAudio;
+  const generatedAudioBlockedByReference = useMemo(
+    () => Boolean(getGeneratedAudioReferenceIssue(selectedModelRule, true, promptBoundReferences.activeItems)),
+    [promptBoundReferences.activeItems, selectedModelRule],
+  );
+  useEffect(() => {
+    if (!generatedAudioBlockedByReference || !params.generateAudio) return;
+    setParams((current) => current.generateAudio ? { ...current, generateAudio: false } : current);
+    setWorkspaceNotice(t("video.errors.audioReferenceGeneratedAudioConflict"));
+  }, [generatedAudioBlockedByReference, params.generateAudio, t]);
+  const effectiveGenerateAudio = generatedAudioBlockedByReference ? false : params.generateAudio;
   const audioTupleInvalid = effectiveGenerateAudio && !isAudioSupported;
   const tuplePricingDecision = useMemo(
     () => getVideoTuplePricingDecision(selectedModel, {
@@ -2853,20 +2887,31 @@ export function VideoWorkspace() {
   const selectedPromptLimitLabel = formatVideoPromptLimit(selectedModel);
   const isPromptTooLong = countVideoPromptCharacters(prompt) > selectedPromptLimit;
   const hasPromptForGenerate = Boolean(prompt.trim());
-  const referenceSelectionIssue = useMemo(
-    () => validateReferenceSelectionForRule(selectedModelRule, [], media),
-    [media, selectedModelRule],
-  );
-  const generatedAudioBlockedByReference = useMemo(
-    () => Boolean(getGeneratedAudioReferenceIssue(selectedModelRule, true, media)),
-    [media, selectedModelRule],
-  );
+  const referenceSelectionIssue = useMemo(() => {
+    if (promptBoundReferences.unresolvedMentions.length) return "VIDEO_PROMPT_REFERENCE_UNRESOLVED";
+    if (promptBoundReferences.invalidCanonicalItems.length) return LEGACY_REFERENCE_REUPLOAD_REQUIRED;
+    return validateReferenceSelectionForRule(selectedModelRule, [], promptBoundReferences.activeItems);
+  }, [promptBoundReferences, selectedModelRule]);
+  const localizedReferenceSelectionIssue = useMemo(() => {
+    if (!referenceSelectionIssue) return "";
+    if (referenceSelectionIssue === LEGACY_REFERENCE_REUPLOAD_REQUIRED) {
+      return t("video.errors.legacyReferencesBeforeGenerate");
+    }
+    if (referenceSelectionIssue === "VIDEO_PROMPT_REFERENCE_UNRESOLVED") {
+      return t("video.errors.promptReferenceUnavailable");
+    }
+    if (referenceSelectionIssue.includes("requires one image with an Audio Reference")) {
+      return t("video.errors.audioReferenceRequiresBoundImage");
+    }
+    return t("video.errors.unsupportedReferenceCombination");
+  }, [referenceSelectionIssue, t]);
   const generatedAudioReferenceIssue = useMemo(
-    () => getGeneratedAudioReferenceIssue(selectedModelRule, effectiveGenerateAudio, media),
-    [effectiveGenerateAudio, media, selectedModelRule],
+    () => getGeneratedAudioReferenceIssue(selectedModelRule, effectiveGenerateAudio, promptBoundReferences.activeItems),
+    [effectiveGenerateAudio, promptBoundReferences.activeItems, selectedModelRule],
   );
   const internationalReferenceReviewReady = !isFluxProxyInternationalModel(selectedModel) ||
-    media.length === 0 || getFluxProxyReviewSummary(media, selectedModel.referenceBindingProfileId).ready;
+    promptBoundReferences.activeItems.length === 0 ||
+    getFluxProxyReviewSummary(promptBoundReferences.activeItems, selectedModel.referenceBindingProfileId).ready;
   const selectedModelWorkspaceState = getVideoWorkspaceModelState(selectedModel);
   const internationalExecutionUnavailable = selectedModelWorkspaceState.executionBlockedReason === "INTERNATIONAL_BETA_GATE_OFF";
   const modelUnavailable = catalogStatus !== "ready" || !selectedModelWorkspaceState.configurationEnabled;
@@ -2877,11 +2922,7 @@ export function VideoWorkspace() {
     [history, task],
   );
   const displayNotice = useMemo(() => {
-    const message = workspaceNotice || error || modelError || (referenceSelectionIssue
-      ? referenceSelectionIssue === LEGACY_REFERENCE_REUPLOAD_REQUIRED
-        ? t("video.errors.legacyReferencesBeforeGenerate")
-        : t("video.errors.unsupportedReferenceCombination")
-      : "");
+    const message = workspaceNotice || error || modelError || localizedReferenceSelectionIssue;
     if (!message) return "";
 
     const exactMessages: Record<string, string> = {
@@ -2919,7 +2960,7 @@ export function VideoWorkspace() {
     }
 
     return message;
-  }, [error, modelError, referenceSelectionIssue, selectedPromptLimitLabel, t, tf, workspaceNotice]);
+  }, [error, localizedReferenceSelectionIssue, modelError, selectedPromptLimitLabel, t, tf, workspaceNotice]);
 
   const generateButtonLabel = useMemo(() => {
     if (catalogStatus !== "ready") return t("video.model.catalogUnavailable");
@@ -2939,9 +2980,7 @@ export function VideoWorkspace() {
     if (!hasPromptForGenerate) return t("video.errors.promptRequired");
     if (modelUnavailable) return t("generation.modelTemporarilyUnavailable");
     if (tenantMembershipReviewRequired) return t("account.tenantMembershipReviewRequired");
-    if (referenceSelectionIssue) return referenceSelectionIssue === LEGACY_REFERENCE_REUPLOAD_REQUIRED
-      ? t("video.errors.legacyReferencesBeforeGenerate")
-      : t("video.errors.unsupportedReferenceCombination");
+    if (referenceSelectionIssue) return localizedReferenceSelectionIssue;
     if (generatedAudioReferenceIssue) return t("video.errors.audioReferenceGeneratedAudioConflict");
     if (isUploadingMedia) return t("video.errors.mediaUploading");
     if (isProcessing) return concurrencyLimitNotice;
@@ -2951,7 +2990,7 @@ export function VideoWorkspace() {
     if (!hasEnoughCredits) return t("video.credits.notEnough");
     if (isPromptTooLong) return tf("video.errors.promptTooLong", { limit: selectedPromptLimitLabel });
     return t("video.credits.beforeSubmit");
-  }, [audioTupleInvalid, catalogStatus, concurrencyLimitNotice, generatedAudioReferenceIssue, hasEnoughCredits, hasPromptForGenerate, internationalExecutionUnavailable, isProcessing, isPromptTooLong, isSignedIn, isUploadingMedia, modelUnavailable, referenceSelectionIssue, selectedPromptLimitLabel, t, tenantMembershipReviewRequired, tf, token, tuplePricingReady]);
+  }, [audioTupleInvalid, catalogStatus, concurrencyLimitNotice, generatedAudioReferenceIssue, hasEnoughCredits, hasPromptForGenerate, internationalExecutionUnavailable, isProcessing, isPromptTooLong, isSignedIn, isUploadingMedia, localizedReferenceSelectionIssue, modelUnavailable, referenceSelectionIssue, selectedPromptLimitLabel, t, tenantMembershipReviewRequired, tf, token, tuplePricingReady]);
 
   const handleGenerateRemakeShot = useCallback(
     async (shot: RemakeShot, queueMeta?: RemakeShotQueueMeta) => {
@@ -3710,6 +3749,11 @@ export function VideoWorkspace() {
   const submitCurrent = useCallback(() => {
     setWorkspaceNotice("");
 
+    if (referenceSelectionIssue) {
+      setWorkspaceNotice(localizedReferenceSelectionIssue);
+      return;
+    }
+
     if (generatedAudioReferenceIssue) {
       setWorkspaceNotice(t("video.errors.audioReferenceGeneratedAudioConflict"));
       return;
@@ -3762,7 +3806,7 @@ export function VideoWorkspace() {
       media,
       mentionBindings: reconciledMentionBindings,
     });
-  }, [concurrencyLimitNotice, effectiveGenerateAudio, generatedAudioReferenceIssue, hasEnoughCredits, internationalExecutionUnavailable, isProcessing, isSignedIn, isUploadingMedia, maxConcurrency, media, modelUnavailable, params, prompt, reconciledMentionBindings, selectedModel, submit, t, tenantMembershipReviewRequired, token]);
+  }, [concurrencyLimitNotice, effectiveGenerateAudio, generatedAudioReferenceIssue, hasEnoughCredits, internationalExecutionUnavailable, isProcessing, isSignedIn, isUploadingMedia, localizedReferenceSelectionIssue, maxConcurrency, media, modelUnavailable, params, prompt, reconciledMentionBindings, referenceSelectionIssue, selectedModel, submit, t, tenantMembershipReviewRequired, token]);
 
   const getGeneratedResultReferenceIssue = useCallback(
     (record: (typeof history)[number]) => {
@@ -3846,7 +3890,6 @@ export function VideoWorkspace() {
       setPrompt(nextPrompt);
       if (acceptedReferences.length) {
         setMedia((current) => mergeMediaAssets(current, acceptedReferences));
-        handleReferencesBound(acceptedReferences);
       }
 
       if (!hasExistingDraft) {
@@ -3858,7 +3901,7 @@ export function VideoWorkspace() {
             generateAudio: params.generateAudio,
             quality: handoff.quality,
             ratio: handoff.ratio,
-          }, acceptedReferences),
+          }, acceptedReferences, nextPrompt),
         );
       }
 
@@ -3872,7 +3915,6 @@ export function VideoWorkspace() {
   }, [
     draftReady,
     fromQuery,
-    handleReferencesBound,
     localizeReferenceIssue,
     media,
     models,
@@ -3919,10 +3961,9 @@ export function VideoWorkspace() {
       };
 
       setMedia((currentItems) => mergeMediaAssets(currentItems, [nextAsset]));
-      handleReferencesBound([nextAsset]);
       setWorkspaceNotice(t("video.generation.referenceAdded"));
     },
-    [getHistoryReferenceAssetIssue, handleReferencesBound, t],
+    [getHistoryReferenceAssetIssue, t],
   );
 
   const handleUseResultAsReference = useCallback(
@@ -3940,7 +3981,13 @@ export function VideoWorkspace() {
       }
 
       const draftModel = findDraftModel(draft, models) || selectedModel;
-      const draftParams = buildParamsForModelAndReferences(draftModel, draft.params, draft.referenceMedia);
+      const draftParams = buildParamsForModelAndReferences(
+        draftModel,
+        draft.params,
+        draft.referenceMedia,
+        draft.prompt,
+        draft.mentionBindings,
+      );
       const nextSnapshot = {
         media: draft.referenceMedia,
         mentionBindings: draft.mentionBindings,
@@ -3984,12 +4031,20 @@ export function VideoWorkspace() {
       const draft = sendVideoFailedJobToVideoDraft({ video: record }, restoreNotice);
       const draftModel = findDraftModel(draft, models) || findRetryModel(record) || selectedModel;
       const draftMedia = draft?.referenceMedia || [];
-      const draftParams = buildParamsForModelAndReferences(draftModel, draft?.params, draftMedia);
+      const draftPrompt = draft?.prompt || String(record.meta?.original_prompt || record.prompt || "").trim();
+      const draftBindings = draft?.mentionBindings || [];
+      const draftParams = buildParamsForModelAndReferences(
+        draftModel,
+        draft?.params,
+        draftMedia,
+        draftPrompt,
+        draftBindings,
+      );
       const nextSnapshot = {
         media: draftMedia,
-        mentionBindings: draft?.mentionBindings || [],
+        mentionBindings: draftBindings,
         params: draftParams,
-        prompt: draft?.prompt || String(record.meta?.original_prompt || record.prompt || "").trim(),
+        prompt: draftPrompt,
         selectedModel: draftModel,
       };
 
@@ -4023,7 +4078,7 @@ export function VideoWorkspace() {
         generateAudio: getVideoHistoryGenerateAudio(record) === true,
         quality: record.quality,
         ratio: record.ratio,
-      }, nextMedia);
+      }, nextMedia, promptText, nextMentionBindings);
 
       setSelectedModel(fillModel);
       setParams(nextParams);
@@ -4278,11 +4333,11 @@ export function VideoWorkspace() {
                       modelRule={selectedModelRule}
                       onBusyChange={setIsAssetPickerUploading}
                       onChange={setMedia}
-                      onReferencesBound={handleReferencesBound}
                       referenceBindingProfileId={selectedModel.referenceBindingProfileId}
                       reusableMedia={reusableMedia}
                     />
                     <ReferenceMediaTray
+                      activeMedia={promptBoundReferences.activeItems}
                       media={media}
                       modelRule={selectedModelRule}
                       onRemove={removeMedia}
@@ -4365,8 +4420,8 @@ export function VideoWorkspace() {
                   </span>
                 </button>
                 <AudioToggle
-                  checked={params.generateAudio}
-                  disabled={generatedAudioBlockedByReference || (!isAudioSupported && !params.generateAudio)}
+                  checked={effectiveGenerateAudio}
+                  disabled={generatedAudioBlockedByReference || (!isAudioSupported && !effectiveGenerateAudio)}
                   disabledReason={generatedAudioBlockedByReference ? t("video.params.audioReferenceBound") : undefined}
                   onChange={(checked) => {
                     if (checked && generatedAudioBlockedByReference) {

@@ -1,21 +1,11 @@
-import {
-  buildMediaAwarePrompt,
-  findPromptMentions,
-  getReadyMentionableMediaItems,
-  getReferencePromptBindings,
-  toGenerationMediaList,
-} from "@/lib/video-mentions";
+import { buildMediaAwarePrompt, toGenerationMediaList } from "@/lib/video-mentions";
 import {
   assertVideoGenerationParamsForRule,
   estimateVideoCreditsForParams,
   getVideoModelRuleFromRegistry,
 } from "@/lib/video/videoModelRules";
 import { assertCanonicalReferenceItems } from "@/lib/video/canonicalReferenceAssets";
-import {
-  sanitizeVideoMentionBindings,
-  serializeMentionBindings,
-  type VideoMentionBinding,
-} from "@/lib/video/videoMentionBindings";
+import { type VideoMentionBinding } from "@/lib/video/videoMentionBindings";
 import type {
   UploadMediaItem,
   VideoGenerationRequest,
@@ -24,6 +14,11 @@ import type {
 import { createVideoClientRequestId, normalizeVideoClientRequestId } from "@/lib/video/videoClientRequestId";
 import { assertVideoTupleForGeneration, getVideoTuplePricingDecision } from "@/lib/video/videoTupleAuthority";
 import { isFluxProxyInternationalModel, toFluxProxyReferenceRole } from "@/lib/video/fluxproxyInternational";
+import { resolveVideoPromptBoundReferences } from "@/lib/video/videoPromptBoundReferences";
+import {
+  getGeneratedAudioReferenceIssue,
+  validateReferenceSelectionForRule,
+} from "@/lib/video/videoReferenceRules";
 
 export type BuildVideoGenerationRequestInput = {
   prompt: string;
@@ -66,19 +61,36 @@ export function buildVideoGenerationRequest(
     });
   }
   const clientRequestId = normalizeVideoClientRequestId(options.clientRequestId) || createVideoClientRequestId();
-  const mentionMediaItems = getReadyMentionableMediaItems(options.media);
-  const mentionBindings = sanitizeVideoMentionBindings(
-    options.prompt,
-    serializeMentionBindings(options.mentionBindings || []),
-    options.media,
-  ).mentionBindings;
-  // Reference transport is opt-in: ready attachments are sent only when the
-  // prompt explicitly binds them through @Image/@Video/@Audio mentions.
-  const referencedMediaItems = findPromptMentions(options.prompt).length
-    ? getReferencePromptBindings(options.prompt, mentionMediaItems, mentionBindings)
-    : [];
+  const promptReferences = resolveVideoPromptBoundReferences({
+    media: options.media,
+    mentionBindings: options.mentionBindings,
+    prompt: options.prompt,
+  });
+  const mentionBindings = promptReferences.mentionBindings;
+  if (promptReferences.unresolvedMentions.length) {
+    throw Object.assign(new Error("One or more Prompt references are no longer available."), {
+      code: "VIDEO_PROMPT_REFERENCE_UNRESOLVED",
+    });
+  }
+  assertCanonicalReferenceItems(promptReferences.resolvedItems);
+  const referencedMediaItems = promptReferences.activeBindings;
+  const referenceSelectionIssue = validateReferenceSelectionForRule(modelRule, [], promptReferences.activeItems);
+  if (referenceSelectionIssue) {
+    throw Object.assign(new Error(referenceSelectionIssue), {
+      code: "VIDEO_PROMPT_REFERENCE_SELECTION_INVALID",
+    });
+  }
+  const generatedAudioReferenceIssue = getGeneratedAudioReferenceIssue(
+    modelRule,
+    options.generateAudio,
+    referencedMediaItems,
+  );
+  if (generatedAudioReferenceIssue) {
+    throw Object.assign(new Error(generatedAudioReferenceIssue), {
+      code: "VIDEO_AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT",
+    });
+  }
   const mediaList = toGenerationMediaList(referencedMediaItems);
-  assertCanonicalReferenceItems(referencedMediaItems);
   const images = mediaList
     .filter((item) => item.type === "image")
     .map((item) => item.url);

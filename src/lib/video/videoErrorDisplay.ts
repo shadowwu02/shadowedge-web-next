@@ -30,6 +30,7 @@ const audioReferenceCustomerErrorKeys = {
   VIDEO_AUDIO_REFERENCE_ACCESS_DENIED: "video.audioReference.error.access",
   VIDEO_AUDIO_REFERENCE_UNSUPPORTED_FORMAT: "video.audioReference.error.unsupportedFormat",
   VIDEO_AUDIO_REFERENCE_VERIFICATION_FAILED: "video.audioReference.error.probeFailed",
+  XINHANKR_ARTSDANCE_AUDIO_REFERENCE_COMBINATION_UNVERIFIED: "video.audioReference.error.unsupportedCombination",
 } as const satisfies Record<string, DictionaryKey>;
 
 export function getAudioReferenceCustomerErrorMessage(error: unknown, t: VideoErrorTranslator) {

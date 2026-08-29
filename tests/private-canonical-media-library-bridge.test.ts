@@ -113,6 +113,10 @@ describe("private canonical Asset media-library bridge", () => {
       durationDefault: 5,
       ratios: ["16:9"],
       qualities: ["720p"],
+      uploadSlots: ["reference_images"],
+      referenceImages: true,
+      maxReferenceImages: 9,
+      maxTotalReferences: 9,
     } satisfies VideoModel;
     const item = { ...(mediaAssetToUploadMediaItem(record()) as UploadMediaItem), privateReference: false };
     const request = buildVideoGenerationRequest({ prompt: "Use @Image 1", model: xinhankr, duration: 5, ratio: "16:9", quality: "720p", generateAudio: false, media: [item] });

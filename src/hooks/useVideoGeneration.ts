@@ -24,6 +24,7 @@ import {
   videoHistoryRecordHasJobId,
 } from "@/lib/video/historyUtils";
 import type { VideoMentionBinding } from "@/lib/video/videoMentionBindings";
+import { resolveVideoPromptBoundReferences } from "@/lib/video/videoPromptBoundReferences";
 import { isVideoActiveStatus } from "@/lib/utils";
 import { ApiError } from "@/types/api";
 import type { UploadMediaItem, VideoHistoryItem, VideoModel, VideoStatusResponse, VideoTaskRecord } from "@/types/video";
@@ -70,19 +71,21 @@ function validateSubmitOptions(options: SubmitVideoOptions, copy: SubmitValidati
     return copy.promptTooLong(formatVideoPromptLimit(options.model));
   }
 
-  if (options.media.some((item) => item.uploadStatus === "uploading")) {
-    return copy.mediaUploading;
+  const promptReferences = resolveVideoPromptBoundReferences({
+    media: options.media,
+    mentionBindings: options.mentionBindings,
+    prompt: options.prompt,
+  });
+  if (promptReferences.unresolvedMentions.length) {
+    if (options.media.some((item) => item.uploadStatus === "uploading")) return copy.mediaUploading;
+    if (options.media.some((item) => item.uploadStatus === "failed")) return copy.mediaFailedBeforeGenerate;
+    if (options.media.some((item) => item.previewUrl?.startsWith("blob:") && !item.url && !isPrivateCanonicalReference(item))) {
+      return copy.localPreviewMedia;
+    }
+    return copy.remoteMediaOnly;
   }
 
-  if (options.media.some((item) => item.uploadStatus === "failed")) {
-    return copy.mediaFailedBeforeGenerate;
-  }
-
-  if (options.media.some((item) => item.previewUrl?.startsWith("blob:") && !item.url && !isPrivateCanonicalReference(item))) {
-    return copy.localPreviewMedia;
-  }
-
-  if (options.media.some((item) => item.url && !isRemoteUrl(item.url) && !isPrivateCanonicalReference(item))) {
+  if (promptReferences.activeItems.some((item) => item.url && !isRemoteUrl(item.url) && !isPrivateCanonicalReference(item))) {
     return copy.remoteMediaOnly;
   }
 

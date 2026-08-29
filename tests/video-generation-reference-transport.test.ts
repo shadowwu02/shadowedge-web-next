@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { buildVideoGenerationRequest } from "@/lib/video/videoGenerationRequest";
+import { normalizeVideoModel } from "@/lib/video-api";
 import type { UploadMediaItem, VideoModel } from "@/types/video";
 
-const model: VideoModel = {
+const model: VideoModel = normalizeVideoModel({
   id: "seedance_2_0",
   label: "Seedance 2.0",
   providerModel: "seedance_2_0",
@@ -13,7 +14,31 @@ const model: VideoModel = {
   durationDefault: 5,
   ratios: ["16:9"],
   qualities: ["720p"],
-};
+  uploadSlots: ["reference_images", "reference_videos", "reference_audios"],
+  referenceImages: true,
+  maxReferenceImages: 9,
+  referenceVideos: true,
+  maxReferenceVideos: 2,
+  referenceAudios: true,
+  maxReferenceAudios: 1,
+  maxTotalReferences: 12,
+  mixedReference: { imageVideo: true, maxImages: 9, maxVideos: 2, imageAudio: true, videoAudio: true, imageVideoAudio: true },
+  audioReference: {
+    enabled: true,
+    max: 1,
+    formats: ["wav"],
+    mimeTypes: ["audio/wav"],
+    maxFileBytes: 15728640,
+    minDurationSeconds: 0,
+    maxDurationSeconds: 60,
+    surchargeCredits: 0,
+    audioOnly: true,
+    requiresImage: false,
+    maxMixedImages: 9,
+    maxMixedVideos: 2,
+    generatedAudioCompatible: true,
+  },
+});
 
 const media: UploadMediaItem[] = [
   { id: "image-1", assetId: "10000000-0000-4000-8000-000000000001", type: "image", name: "image.png", url: "https://api.shadowedgeai.com/uploads/image.png", uploadStatus: "ready" },
@@ -28,7 +53,7 @@ function build(prompt: string) {
     duration: 5,
     ratio: "16:9",
     quality: "720p",
-    generateAudio: true,
+    generateAudio: false,
     media,
   });
 }

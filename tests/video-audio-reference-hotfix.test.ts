@@ -101,11 +101,12 @@ describe("generated-audio and Audio Reference mutual exclusion", () => {
 
   it("wires normalization, toggle blocking, readiness, and submit guard to the same helper", () => {
     const source = readFileSync(join(process.cwd(), "src/components/video/VideoWorkspace.tsx"), "utf8");
-    expect(source).toContain("getGeneratedAudioReferenceIssue(selectedModelRule, effectiveGenerateAudio, media)");
-    expect(source).toContain("buildParamsForModelAndReferences(nextModel, draft?.params, draftMedia)");
-    expect(source).toContain("onReferencesBound={handleReferencesBound}");
+    expect(source).toContain("getGeneratedAudioReferenceIssue(selectedModelRule, effectiveGenerateAudio, promptBoundReferences.activeItems)");
+    expect(source).toContain("resolveVideoPromptBoundReferences({ media, mentionBindings: reconciledMentionBindings, prompt })");
+    expect(source).toContain("activeMedia={promptBoundReferences.activeItems}");
+    expect(source).not.toContain("onReferencesBound={handleReferencesBound}");
     expect(source).toContain("!generatedAudioReferenceIssue && internationalReferenceReviewReady");
-    expect(source).toContain("disabled={generatedAudioBlockedByReference || (!isAudioSupported && !params.generateAudio)}");
+    expect(source).toContain("disabled={generatedAudioBlockedByReference || (!isAudioSupported && !effectiveGenerateAudio)}");
     expect(source).toContain("if (generatedAudioReferenceIssue)");
   });
 });

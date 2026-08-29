@@ -135,12 +135,14 @@ function formatDurationLabel(duration?: number) {
 }
 
 export function ReferenceMediaTray({
+  activeMedia,
   media,
   modelRule,
   onRemove,
   onReorder,
   onRoleChange,
 }: {
+  activeMedia: UploadMediaItem[];
   media: UploadMediaItem[];
   modelRule: VideoModelRule;
   onRemove: (id: string) => void;
@@ -151,7 +153,7 @@ export function ReferenceMediaTray({
   const displayLocale = locale === "zh" ? "zh" : "en";
   const mentionItems = getReadyMentionableMediaItems(media);
   const mentionById = useMemo(() => new Map(mentionItems.map((item) => [item.id, item])), [mentionItems]);
-  const mediaIssues = useMemo(() => getReferenceMediaIssues(modelRule, media), [media, modelRule]);
+  const mediaIssues = useMemo(() => getReferenceMediaIssues(modelRule, activeMedia), [activeMedia, modelRule]);
   const limitSummary = useMemo(() => getReferenceLimitSummary(modelRule), [modelRule]);
   const allowedTypes = useMemo(() => getAllowedReferenceTypes(modelRule), [modelRule]);
   const [openRoleId, setOpenRoleId] = useState("");
@@ -362,10 +364,10 @@ export function ReferenceMediaTray({
   const unsupportedItems = unsupportedMedia.slice(0, 1);
   const hiddenUnsupportedCount = Math.max(0, unsupportedMedia.length - unsupportedItems.length);
   const mediaCounts = useMemo(() => ({
-    image: media.filter((item) => item.type === "image").length,
-    video: media.filter((item) => item.type === "video").length,
-    audio: media.filter((item) => item.type === "audio").length,
-  }), [media]);
+    image: activeMedia.filter((item) => item.type === "image").length,
+    video: activeMedia.filter((item) => item.type === "video").length,
+    audio: activeMedia.filter((item) => item.type === "audio").length,
+  }), [activeMedia]);
 
   return (
     <section className="se-card min-w-0 max-w-full overflow-hidden rounded-[24px] p-3.5" ref={rootRef}>
@@ -381,7 +383,7 @@ export function ReferenceMediaTray({
             ) : null}
           </div>
           <span className="shrink-0 rounded-full border border-[rgba(244,244,244,0.08)] bg-[#111318]/70 px-2.5 py-1 text-[11px] font-medium text-[#b9b9b9]/56">
-            {tf("video.references.referencesCount", { count: media.length, total: limitSummary.total })}
+            {tf("video.references.referencesCount", { count: activeMedia.length, total: limitSummary.total })}
           </span>
         </div>
         <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
@@ -420,6 +422,9 @@ export function ReferenceMediaTray({
         ) : null}
         <p className="mt-1 text-[11px] leading-4 text-[#b9b9b9]/45">
           {t("video.references.tokenHelper")} {media.length > 1 ? t("video.references.reorderHint") : ""}
+        </p>
+        <p className="mt-1 text-[11px] leading-4 text-[#b9b9b9]/45">
+          {tf("video.references.availableCount", { count: media.length })}
         </p>
         {showFrameSlotsByDefault ? (
           <div className="mt-2 grid grid-cols-2 gap-2">
@@ -618,7 +623,7 @@ export function ReferenceMediaTray({
                 {t("video.references.compact.references")}
               </span>
               <span className="min-w-0 flex-1 truncate text-[#f4f4f4]/72">
-                {media.length} / {limitSummary.total}
+                {activeMedia.length} / {limitSummary.total}
               </span>
             </div>
             <div className="flex min-w-0 items-center gap-2">
