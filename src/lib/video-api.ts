@@ -427,6 +427,10 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
       surchargeCredits: Math.max(0, Number(audioReferenceCapability.surchargeCredits || 0)),
       consumptionEvidence: String(audioReferenceCapability.consumptionEvidence || ""),
       semanticEffect: String(audioReferenceCapability.semanticEffect || ""),
+      audioOnly: audioReferenceCapability.audioOnly === true,
+      requiresImage: audioReferenceCapability.requiresImage === true,
+      maxMixedImages: Math.max(0, Number(audioReferenceCapability.maxMixedImages || 0)),
+      maxMixedVideos: Math.max(0, Number(audioReferenceCapability.maxMixedVideos || 0)),
     } : undefined,
     maxTotalReferences: Math.max(0, Number(model.maxTotalReferences || 0)),
     mixedReference: {

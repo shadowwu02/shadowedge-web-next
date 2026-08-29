@@ -980,6 +980,12 @@ export function getVideoModelRuleFromRegistry(model: VideoModel): VideoModelRule
       videoAudio: model.mixedReference?.videoAudio === true,
       imageVideoAudio: model.mixedReference?.imageVideoAudio === true,
     },
+    constraints: model.audioReference?.enabled ? [
+      "Production supports up to nine image, two video, and one certified WAV Audio Reference.",
+      model.audioReference.requiresImage
+        ? "Audio Reference requires exactly one image and cannot be combined with video or generated audio."
+        : "Audio Reference supports audio-only or one video plus audio and cannot be combined with images or generated audio.",
+    ] : base.constraints,
     credits: model.credits || creditRules.baseCredits || base.credits,
     creditRules,
   };

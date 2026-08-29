@@ -12,6 +12,8 @@ import type { VideoTaskRecord } from "@/types/video";
 
 const DB_JOB_ID = "c1be9ef6-bcd5-4cc6-a9f7-e2e4c0120577";
 const PROVIDER_JOB_ID = "xinhankr:video-task-20260822";
+const TEST_NOW = Date.now();
+const timestamp = (offsetMs = 0) => new Date(TEST_NOW + offsetMs).toISOString();
 
 function task(overrides: Partial<VideoTaskRecord> = {}): VideoTaskRecord {
   return {
@@ -19,8 +21,8 @@ function task(overrides: Partial<VideoTaskRecord> = {}): VideoTaskRecord {
     providerJobId: PROVIDER_JOB_ID,
     dbJobId: DB_JOB_ID,
     status: "processing",
-    createdAt: "2026-08-22T12:00:00.000Z",
-    updatedAt: "2026-08-22T12:00:00.000Z",
+    createdAt: timestamp(),
+    updatedAt: timestamp(),
     ...overrides,
   };
 }
@@ -32,7 +34,7 @@ describe("video workspace job identity dedup", () => {
 
   it("replaces the pending optimistic item when polling updates the same job", () => {
     const optimistic = task({ status: "starting" });
-    const polling = task({ status: "processing", updatedAt: "2026-08-22T12:00:01.000Z" });
+    const polling = task({ status: "processing", updatedAt: timestamp(1_000) });
 
     const records = upsertVideoHistoryRecord([optimistic], polling);
 
@@ -47,8 +49,8 @@ describe("video workspace job identity dedup", () => {
       jobId: PROVIDER_JOB_ID,
       status: "completed",
       outputUrl: "https://cdn.example.test/video.mp4",
-      createdAt: "2026-08-22T12:00:00.000Z",
-      updatedAt: "2026-08-22T12:01:00.000Z",
+      createdAt: timestamp(),
+      updatedAt: timestamp(60_000),
     } as unknown as VideoTaskRecord;
 
     const records = mergeVideoHistory([local], [server]);
@@ -66,7 +68,7 @@ describe("video workspace job identity dedup", () => {
       provider_job_id: PROVIDER_JOB_ID,
       jobId: PROVIDER_JOB_ID,
       status: "processing",
-      createdAt: "2026-08-22T12:00:00.000Z",
+      createdAt: timestamp(),
     } as unknown as VideoTaskRecord;
 
     expect(isSameVideoGenerationJob(current, server)).toBe(true);
@@ -82,7 +84,7 @@ describe("video workspace job identity dedup", () => {
       jobId: PROVIDER_JOB_ID,
       status: "completed",
       outputUrl: "https://cdn.example.test/video.mp4",
-      createdAt: "2026-08-22T12:00:00.000Z",
+      createdAt: timestamp(),
     } as unknown as VideoTaskRecord;
 
     expect(getVideoHistoryStatusCounts([refreshedServer], staleCurrent)).toEqual({ active: 0, failed: 0 });
@@ -112,7 +114,7 @@ describe("video workspace job identity dedup", () => {
       provider_task_id: PROVIDER_JOB_ID,
       jobId: DB_JOB_ID,
       status: "queued",
-      createdAt: "2026-08-22T12:00:00.000Z",
+      createdAt: timestamp(),
     } as unknown as VideoTaskRecord;
 
     const records = mergeVideoHistory([local], [server]);

@@ -111,6 +111,10 @@ export type VideoAudioReferenceCapability = {
   surchargeCredits: number;
   consumptionEvidence?: string;
   semanticEffect?: string;
+  audioOnly?: boolean;
+  requiresImage?: boolean;
+  maxMixedImages?: number;
+  maxMixedVideos?: number;
 };
 
 export type VideoTuplePricingStatus = "READY" | "MISSING_REQUIRES_OWNER_DECISION";
