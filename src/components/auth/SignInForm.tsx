@@ -4,7 +4,7 @@ import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { activeBrand } from "@/config/brand";
-import { isAuthRateLimitError, signInWithPassword } from "@/lib/auth-api";
+import { isAuthRateLimitError, isAuthUnavailableError, signInWithPassword } from "@/lib/auth-api";
 import { getSafeAuthNext } from "@/lib/auth-routes";
 import { useI18n } from "@/i18n/useI18n";
 
@@ -60,7 +60,15 @@ export function SignInForm() {
       router.replace(nextPath);
       router.refresh();
     } catch (error) {
-      setStatus(isAuthRateLimitError(error) ? t("auth.tooManyAttempts") : error instanceof Error ? error.message : t("auth.signInFailed"));
+      setStatus(
+        isAuthRateLimitError(error)
+          ? t("auth.tooManyAttempts")
+          : isAuthUnavailableError(error)
+            ? t("auth.signInUnavailable")
+            : error instanceof Error
+              ? error.message
+              : t("auth.signInFailed"),
+      );
     } finally {
       setIsLoading(false);
     }

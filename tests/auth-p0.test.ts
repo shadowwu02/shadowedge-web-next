@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { apiRequest } from "@/lib/api";
-import { signInWithPassword } from "@/lib/auth-api";
+import { apiRequest, getApiBaseUrl } from "@/lib/api";
+import { isAuthUnavailableError, signInWithPassword } from "@/lib/auth-api";
+import { ApiError } from "@/types/api";
 import {
   AUTH_PROFILE_KEY,
   AUTH_REFRESH_TOKEN_KEY,
@@ -64,6 +65,7 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 beforeEach(() => {
+  vi.unstubAllEnvs();
   const localStorage = new MemoryStorage();
   vi.stubGlobal("window", {
     localStorage,
@@ -76,6 +78,27 @@ beforeEach(() => {
 });
 
 describe("P0 Auth session behavior", () => {
+  it("falls back to the canonical production API when a local prebuild contains a sensitive placeholder", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "[SENSITIVE]");
+    expect(getApiBaseUrl()).toBe("https://api.shadowedgeai.com");
+  });
+
+  it("does not expose a raw HTML login response to the customer", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.shadowedgeai.com");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("<!DOCTYPE html><html>wrong host</html>", {
+      status: 404,
+      headers: { "content-type": "text/html; charset=utf-8" },
+    })));
+
+    const error = await signInWithPassword("user@example.test", "correct-password").catch((caught) => caught);
+    expect(error).toMatchObject({
+      code: "UNEXPECTED_API_RESPONSE",
+    });
+    expect(String(error?.message || "")).toContain("The service returned an unexpected response. Please try again.");
+    expect(String(error?.message || "")).not.toMatch(/DOCTYPE|<html/i);
+    expect(isAuthUnavailableError(new ApiError("unexpected", { code: "UNEXPECTED_API_RESPONSE" }))).toBe(true);
+  });
+
   it("does not send an old Bearer token during Login and replaces it after verification", async () => {
     window.localStorage.setItem(AUTH_TOKEN_KEY, "old-token");
     window.localStorage.setItem("access_token", "older-token");

@@ -188,6 +188,13 @@ export function isAuthRateLimitError(error: unknown) {
   return message.includes("too many") || message.includes("rate limit");
 }
 
+export function isAuthUnavailableError(error: unknown) {
+  return error instanceof ApiError && (
+    error.code === "NETWORK_REQUEST_FAILED" ||
+    error.code === "UNEXPECTED_API_RESPONSE"
+  );
+}
+
 export function isInvalidResetLinkError(error: unknown) {
   if (error instanceof ApiError) {
     return error.status === 401 || error.code === "INVALID_RESET_LINK";

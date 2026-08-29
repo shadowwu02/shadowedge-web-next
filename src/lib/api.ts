@@ -5,8 +5,20 @@ import { shouldReplayRequestAfterAuthRefresh } from "@/lib/apiAuthReplayPolicy";
 const fallbackApiBaseUrl = "https://api.shadowedgeai.com";
 
 export function getApiBaseUrl() {
-  const value = process.env.NEXT_PUBLIC_API_BASE_URL || fallbackApiBaseUrl;
-  return value.replace(/\/$/, "");
+  const value = String(process.env.NEXT_PUBLIC_API_BASE_URL || "").trim();
+
+  try {
+    const parsed = new URL(value);
+    if ((parsed.protocol === "https:" || (process.env.NODE_ENV !== "production" && parsed.protocol === "http:")) &&
+        !parsed.username && !parsed.password) {
+      return value.replace(/\/$/, "");
+    }
+  } catch {
+    // Vercel cannot export sensitive environment values for local prebuilt
+    // builds and writes [SENSITIVE]. Fail closed to the canonical API host.
+  }
+
+  return fallbackApiBaseUrl;
 }
 
 function resolveUrl(path: string) {
@@ -154,11 +166,19 @@ export function normalizeApiError(status: number, payload: ApiEnvelope<unknown> 
 async function readJsonEnvelope<T>(response: Response) {
   const text = await response.text();
   let payload: ApiEnvelope<T> | null = null;
+  const contentType = String(response.headers.get("content-type") || "").toLowerCase();
 
   try {
+    if (text && !contentType.includes("application/json") && !contentType.includes("+json")) {
+      throw new SyntaxError("Unexpected API response content type");
+    }
     payload = text ? (JSON.parse(text) as ApiEnvelope<T>) : null;
   } catch {
-    payload = { ok: false, message: text };
+    payload = {
+      ok: false,
+      code: "UNEXPECTED_API_RESPONSE",
+      message: "The service returned an unexpected response. Please try again.",
+    };
   }
 
   return payload;
