@@ -8,6 +8,8 @@ import {
 
 type ReferenceCountMap = Record<UploadMediaType, number>;
 
+export const AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT = "Audio Reference cannot be combined with generated audio.";
+
 const mediaTypeLabels: Record<UploadMediaType, string> = {
   audio: "audio references",
   image: "image references",
@@ -30,6 +32,31 @@ function countMediaTypes(items: Array<Pick<UploadMediaItem, "type">>): Reference
     },
     { audio: 0, image: 0, video: 0 },
   );
+}
+
+export function hasAudioReference(items: Array<Pick<UploadMediaItem, "type">>) {
+  return items.some((item) => item.type === "audio");
+}
+
+export function getGeneratedAudioReferenceIssue(
+  rule: VideoModelRule,
+  generateAudio: boolean,
+  items: Array<Pick<UploadMediaItem, "type">>,
+) {
+  if (!generateAudio || !hasAudioReference(items)) return "";
+  return rule.audioReference?.generatedAudioCompatible === true
+    ? ""
+    : AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT;
+}
+
+export function normalizeGeneratedAudioForReferences<T extends { generateAudio: boolean }>(
+  rule: VideoModelRule,
+  params: T,
+  items: Array<Pick<UploadMediaItem, "type">>,
+): T {
+  return getGeneratedAudioReferenceIssue(rule, params.generateAudio, items)
+    ? { ...params, generateAudio: false }
+    : params;
 }
 
 function getMixedImageVideoIssue(rule: VideoModelRule, counts: ReferenceCountMap) {
@@ -204,7 +231,11 @@ export function validateReferenceSelectionForRule(
   if (unsupported) return getUnsupportedReferenceTypeReason(rule, unsupported.type);
 
   const combined = [...uniqueCurrent, ...uniqueNext];
-  if (combined.some((item) => !isCanonicalReferenceItem(item))) {
+  // Existing legacy references keep final readiness fail-closed, but must not
+  // misclassify a newly selected canonical Asset as legacy. Picker candidate
+  // identity is checked here; full-draft readiness calls this with no current
+  // items and still validates every reference.
+  if (uniqueNext.some((item) => !isCanonicalReferenceItem(item))) {
     return LEGACY_REFERENCE_REUPLOAD_REQUIRED;
   }
   const totalLimit = getTotalLimit(rule);

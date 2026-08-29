@@ -5,11 +5,13 @@ import { useI18n } from "@/i18n/useI18n";
 export function AudioToggle({
   checked,
   disabled,
+  disabledReason,
   onChange,
   unsupported,
 }: {
   checked: boolean;
   disabled?: boolean;
+  disabledReason?: string;
   onChange: (checked: boolean) => void;
   unsupported?: boolean;
 }) {
@@ -33,7 +35,7 @@ export function AudioToggle({
       <span className="min-w-0">
         <span className="block text-xs font-semibold leading-4">{t("video.params.audio")}</span>
         <span className="mt-0.5 block truncate text-[11px] leading-4 text-[#b9b9b9]/58">
-          {unsupported ? t("video.params.audioUnsupported") : checked ? t("video.params.audioOn") : t("video.params.audioOff")}
+          {disabledReason || (unsupported ? t("video.params.audioUnsupported") : checked ? t("video.params.audioOn") : t("video.params.audioOff"))}
         </span>
       </span>
       <span

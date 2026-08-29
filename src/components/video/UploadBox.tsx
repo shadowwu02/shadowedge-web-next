@@ -69,6 +69,7 @@ export function UploadBox({
   modelRule,
   onBusyChange,
   onChange,
+  onReferencesBound,
   referenceBindingProfileId = "",
   reusableMedia = [],
 }: {
@@ -76,6 +77,7 @@ export function UploadBox({
   modelRule: VideoModelRule;
   onBusyChange?: (isBusy: boolean) => void;
   onChange: Dispatch<SetStateAction<UploadMediaItem[]>>;
+  onReferencesBound?: (items: UploadMediaItem[]) => void;
   referenceBindingProfileId?: string;
   reusableMedia?: UploadMediaItem[];
 }) {
@@ -316,6 +318,7 @@ export function UploadBox({
     }
 
     onChange((currentItems) => mergeSelectedReferenceMedia(currentItems, selectedRemoteItems));
+    onReferencesBound?.(selectedRemoteItems);
 
     return true;
   }

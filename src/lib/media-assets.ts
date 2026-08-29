@@ -1,7 +1,7 @@
 import type { UploadMediaItem, UploadMediaRole, UploadMediaSource, UploadMediaType, VideoTaskRecord } from "@/types/video";
 import { getApiBaseUrl } from "@/lib/api";
 import { getMediaTypeFromUrl, isRemoteMediaUrl, isTransientMediaUrl } from "@/lib/upload-rules";
-import { getCanonicalReferenceStatus } from "@/lib/video/canonicalReferenceAssets";
+import { getCanonicalReferenceStatus, isCanonicalAssetId } from "@/lib/video/canonicalReferenceAssets";
 
 export const LOCAL_MEDIA_ASSETS_KEY = "shadowedge_local_upload_assets_v1";
 export const LOCAL_MEDIA_ASSETS_MAX = 80;
@@ -456,6 +456,7 @@ function fileSignature(item: Partial<UploadMediaItem>) {
 
 export function getMediaAssetKeys(item: UploadMediaItem) {
   return [
+    item.assetId ? `asset:${item.assetId}` : "",
     item.id ? `id:${item.id}` : "",
     item.url && !isTransientMediaUrl(item.url) ? `url:${item.url}` : "",
     fileSignature(item),
@@ -521,11 +522,12 @@ export function normalizeMediaAsset(item: unknown, source: MediaAssetSourceInput
     type === "image"
       ? pickString(raw.previewUrl, raw.preview_url, raw.thumbnailUrl, raw.thumbnail_url, url) || url
       : pickString(raw.previewUrl, raw.preview_url, raw.thumbnailUrl, raw.thumbnail_url) || "";
+  const assetId = pickString(raw.assetId, raw.asset_id);
 
   return {
-    id: pickString(raw.id, raw.mediaId, raw.media_id, raw.key, url) || url,
-    assetId: pickString(raw.assetId, raw.asset_id),
-    canonicalReferenceStatus: getCanonicalReferenceStatus({ assetId: pickString(raw.assetId, raw.asset_id) }),
+    id: assetId || pickString(raw.id, raw.mediaId, raw.media_id, raw.key, url) || url,
+    assetId,
+    canonicalReferenceStatus: getCanonicalReferenceStatus({ assetId }),
     type,
     name,
     url,
@@ -543,15 +545,27 @@ export function normalizeMediaAsset(item: unknown, source: MediaAssetSourceInput
 }
 
 export function mergeMediaAssets(...groups: UploadMediaItem[][]) {
-  const seen = new Set<string>();
+  const keyOwners = new Map<string, number>();
   const merged: UploadMediaItem[] = [];
 
   groups.flat().forEach((item) => {
     if (!item) return;
     const keys = getMediaAssetKeys(item);
-    if (!keys.length || keys.some((key) => seen.has(key))) return;
-    keys.forEach((key) => seen.add(key));
-    merged.push(item);
+    if (!keys.length) return;
+    const existingIndex = keys.map((key) => keyOwners.get(key)).find((index) => index !== undefined);
+    if (existingIndex === undefined) {
+      const nextIndex = merged.length;
+      merged.push(item);
+      keys.forEach((key) => keyOwners.set(key, nextIndex));
+      return;
+    }
+
+    const existing = merged[existingIndex];
+    if (!isCanonicalAssetId(existing.assetId) && isCanonicalAssetId(item.assetId)) {
+      merged[existingIndex] = item;
+      getMediaAssetKeys(existing).forEach((key) => keyOwners.set(key, existingIndex));
+      keys.forEach((key) => keyOwners.set(key, existingIndex));
+    }
   });
 
   return merged;

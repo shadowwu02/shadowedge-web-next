@@ -115,6 +115,7 @@ export type VideoAudioReferenceCapability = {
   requiresImage?: boolean;
   maxMixedImages?: number;
   maxMixedVideos?: number;
+  generatedAudioCompatible?: boolean;
 };
 
 export type VideoTuplePricingStatus = "READY" | "MISSING_REQUIRES_OWNER_DECISION";

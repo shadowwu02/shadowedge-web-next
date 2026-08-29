@@ -431,6 +431,7 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
       requiresImage: audioReferenceCapability.requiresImage === true,
       maxMixedImages: Math.max(0, Number(audioReferenceCapability.maxMixedImages || 0)),
       maxMixedVideos: Math.max(0, Number(audioReferenceCapability.maxMixedVideos || 0)),
+      generatedAudioCompatible: audioReferenceCapability.generatedAudioCompatible === true,
     } : undefined,
     maxTotalReferences: Math.max(0, Number(model.maxTotalReferences || 0)),
     mixedReference: {
@@ -1517,10 +1518,11 @@ export function normalizeUploadResponse(payload: unknown, sourceFile?: File): Up
   const mimeType = pickString(data.mimeType, data.mime_type, data.mimetype, data.type, sourceFile?.type) || "";
   const filename = pickString(data.filename, data.fileName, data.name, sourceFile?.name) || sourceFile?.name || "media";
   const originalName = pickString(data.originalname, data.originalName, sourceFile?.name, filename) || filename;
+  const assetId = pickString(data.assetId, data.asset_id);
 
   return {
-    id: pickString(data.id, data.mediaId, data.media_id, data.key, url) || url,
-    assetId: pickString(data.assetId, data.asset_id),
+    id: assetId || pickString(data.id, data.mediaId, data.media_id, data.key, url) || url,
+    assetId,
     type: inferUploadType(data.type || data.mimeType || data.mimetype, sourceFile?.type),
     name: originalName,
     url,
