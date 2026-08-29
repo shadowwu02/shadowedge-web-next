@@ -43,8 +43,8 @@ export type UploadMediaItem = {
   file?: File;
   name: string;
   previewUrl?: string;
-  previewExpiresAt?: string;
   privateReference?: boolean;
+  previewExpiresAt?: string;
   url?: string;
   size?: number;
   mimeType?: string;
@@ -75,6 +75,7 @@ export type UploadedMediaResponse = {
   filename?: string;
   originalName?: string;
   previewUrl?: string;
+  privateReference?: boolean;
   duration?: number;
   raw?: unknown;
 };

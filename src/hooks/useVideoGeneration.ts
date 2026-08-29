@@ -7,6 +7,7 @@ import { formatGenerationConcurrencyLimitError } from "@/lib/generationConcurren
 import { createVideoTask, getVideoHistory, getVideoStatus, saveVideoHistory } from "@/lib/video-api";
 import { buildVideoGenerationRequest } from "@/lib/video/videoGenerationRequest";
 import { createVideoClientRequestId } from "@/lib/video/videoClientRequestId";
+import { getAudioReferenceCustomerErrorMessage } from "@/lib/video/videoErrorDisplay";
 import { countVideoPromptCharacters, formatVideoPromptLimit, getVideoPromptLimit } from "@/lib/video/videoPromptLimits";
 import {
   getSafeHistoryOutputUrl,
@@ -56,6 +57,10 @@ function isRemoteUrl(url: string) {
   return /^https?:\/\//i.test(url);
 }
 
+function isPrivateCanonicalReference(item: UploadMediaItem) {
+  return item.privateReference === true && item.canonicalReferenceStatus === "CANONICAL" && Boolean(item.assetId);
+}
+
 function validateSubmitOptions(options: SubmitVideoOptions, copy: SubmitValidationCopy) {
   if (!options.prompt.trim()) {
     return copy.promptRequired;
@@ -73,11 +78,11 @@ function validateSubmitOptions(options: SubmitVideoOptions, copy: SubmitValidati
     return copy.mediaFailedBeforeGenerate;
   }
 
-  if (options.media.some((item) => item.previewUrl?.startsWith("blob:") && !item.url)) {
+  if (options.media.some((item) => item.previewUrl?.startsWith("blob:") && !item.url && !isPrivateCanonicalReference(item))) {
     return copy.localPreviewMedia;
   }
 
-  if (options.media.some((item) => item.url && !isRemoteUrl(item.url))) {
+  if (options.media.some((item) => item.url && !isRemoteUrl(item.url) && !isPrivateCanonicalReference(item))) {
     return copy.remoteMediaOnly;
   }
 
@@ -286,6 +291,7 @@ export function useVideoGeneration() {
         submitError instanceof ApiError && submitError.kind === "maintenance"
           ? t("maintenance.errors.generationPaused")
           : formatGenerationConcurrencyLimitError(submitError, t, tf) ||
+            getAudioReferenceCustomerErrorMessage(submitError, t) ||
             getSafeVideoGenerationErrorMessage(submitError, t("video.errors.generationRequestFailed"));
       setError(message);
       options.onSubmitError?.(message);

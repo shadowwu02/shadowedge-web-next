@@ -637,7 +637,8 @@ export function MediaPickerDrawer({
                 const selectIssue = selectionIssueById.get(item.id) || "";
                 const isRawSelected = selectedIds.has(item.id);
                 const isSelected = validSelectedIds.has(item.id);
-                const isSelectable = item.uploadStatus === "ready" && Boolean(item.url) && !selectIssue;
+                const isSelectable = item.uploadStatus === "ready" &&
+                  (Boolean(item.url) || (item.privateReference === true && Boolean(item.assetId))) && !selectIssue;
                 const isFailed = item.uploadStatus === "failed";
                 const isAlreadyAdded = selectIssue === "Already added to references.";
                 const isUnsupported = Boolean(selectIssue) && !isAlreadyAdded && !isFailed && item.uploadStatus !== "uploading";

@@ -223,6 +223,7 @@ export function UploadBox({
             mimeType: uploaded.mimeType || item.mimeType,
             name: uploaded.name || item.name,
             originalName: uploaded.originalName,
+            privateReference: uploaded.privateReference,
             previewUrl:
               uploaded.type === "image"
                 ? uploaded.previewUrl || uploaded.url || item.previewUrl
@@ -270,8 +271,14 @@ export function UploadBox({
   async function addSelectedToReferences(ids: string[], availableMedia = allPickerMedia) {
     setPickerNotice("");
 
-    const selectedItems = mergeMediaAssets(availableMedia.filter((item) => ids.includes(item.id) && item.uploadStatus === "ready" && item.url));
-    let selectedRemoteItems = selectedItems.filter((item) => item.url && isRemoteMediaUrl(item.url) && !isTransientMediaUrl(item.url));
+    const selectedItems = mergeMediaAssets(availableMedia.filter((item) =>
+      ids.includes(item.id) && item.uploadStatus === "ready" &&
+      (Boolean(item.url) || (item.privateReference === true && Boolean(item.assetId))),
+    ));
+    let selectedRemoteItems = selectedItems.filter((item) =>
+      (item.url && isRemoteMediaUrl(item.url) && !isTransientMediaUrl(item.url)) ||
+      (item.privateReference === true && Boolean(item.assetId)),
+    );
 
     if (modelRule.modelId.endsWith("_international")) {
       selectedRemoteItems = resolveCurrentReferenceProjections(selectedRemoteItems, availableMedia, referenceBindingProfileId);

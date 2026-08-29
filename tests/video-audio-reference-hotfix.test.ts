@@ -126,6 +126,22 @@ describe("canonical WAV identity across upload, refresh, picker, and Prompt @", 
     expect(uploaded).toMatchObject({ id: AUDIO_ASSET_ID, assetId: AUDIO_ASSET_ID, type: "audio" });
   });
 
+  it("accepts a private canonical WAV upload without a public URL", () => {
+    const uploaded = normalizeUploadResponse({
+      ok: true,
+      data: {
+        assetId: AUDIO_ASSET_ID,
+        privateReference: true,
+        type: "audios",
+        originalname: "private.wav",
+        mimetype: "audio/wav",
+        durationSeconds: 5,
+        url: null,
+      },
+    });
+    expect(uploaded).toMatchObject({ id: AUDIO_ASSET_ID, assetId: AUDIO_ASSET_ID, type: "audio", url: "", privateReference: true });
+  });
+
   it("keeps the same UUID after local-cache normalization and Asset Library refresh", () => {
     const local = normalizeMediaAsset({
       id: AUDIO_URL,
@@ -187,6 +203,22 @@ describe("canonical WAV identity across upload, refresh, picker, and Prompt @", 
     });
     expect(request.reference_audio_asset_ids).toEqual([AUDIO_ASSET_ID]);
     expect(request.reference_audio_asset_ids).not.toContain(AUDIO_URL);
+  });
+
+  it("binds a private canonical WAV by UUID without requiring a public URL", () => {
+    const request = buildVideoGenerationRequest({
+      duration: 5,
+      generateAudio: false,
+      media: [audio({ privateReference: true, url: "" })],
+      model: model("seedance_2_5"),
+      prompt: "Use @音频1",
+      quality: "720p",
+      ratio: "16:9",
+    });
+    expect(request.reference_audio_asset_ids).toEqual([AUDIO_ASSET_ID]);
+    expect(request.reference_audios).toEqual([]);
+    expect(request.mediaList).toEqual([]);
+    expect(request.prompt).toContain("【@音频1】 = reference audio 1");
   });
 
   it("keeps a truly URL-only WAV fail-closed", () => {

@@ -19,6 +19,8 @@ export type MentionableMediaItem = {
   mimeType?: string;
   size?: number;
   duration?: number;
+  privateReference?: boolean;
+  canonicalReferenceStatus?: UploadMediaItem["canonicalReferenceStatus"];
 };
 
 export type PromptMention = {
@@ -61,6 +63,14 @@ const mentionRegex = /【@(图片|图|视频|音频|Image|Video|Audio)\s*(\d+)�
 
 function isRemoteUrl(url: string) {
   return /^https?:\/\//i.test(url);
+}
+
+function isPrivateCanonicalReference(item: Pick<UploadMediaItem, "assetId" | "canonicalReferenceStatus" | "privateReference">) {
+  return item.privateReference === true && item.canonicalReferenceStatus === "CANONICAL" && Boolean(item.assetId);
+}
+
+function isUsableMentionItem(item: Pick<MentionableMediaItem, "assetId" | "canonicalReferenceStatus" | "privateReference" | "url">) {
+  return (Boolean(item.url) && isRemoteUrl(item.url)) || isPrivateCanonicalReference(item);
 }
 
 function getReferenceKindLabel(type: UploadMediaType, index: number) {
@@ -133,7 +143,7 @@ export function getReadyMentionableMediaItems(media: UploadMediaItem[]): Mention
       previewUrl: normalizeMediaAssetUrl(item.previewUrl) || normalizeMediaAssetUrl(item.url),
       url: normalizeMediaAssetUrl(item.url),
     }))
-    .filter(({ item, url }) => item.uploadStatus === "ready" && url && isRemoteUrl(url))
+    .filter(({ item, url }) => item.uploadStatus === "ready" && ((url && isRemoteUrl(url)) || isPrivateCanonicalReference(item)))
     .map(({ item, previewUrl, url }) => {
       counters[item.type] += 1;
       const index = counters[item.type];
@@ -155,6 +165,8 @@ export function getReadyMentionableMediaItems(media: UploadMediaItem[]): Mention
         mimeType: item.mimeType,
         size: item.size,
         duration: item.duration,
+        privateReference: item.privateReference,
+        canonicalReferenceStatus: item.canonicalReferenceStatus,
       };
     });
 }
@@ -221,7 +233,7 @@ function getMediaAwarePromptItemsFromPrompt(
   mediaItems: MentionableMediaItem[],
   mentionBindings: VideoMentionBinding[],
 ) {
-  const validItems = mediaItems.filter((item) => item.url && isRemoteUrl(item.url));
+  const validItems = mediaItems.filter(isUsableMentionItem);
   const mentions = findPromptMentions(promptText);
   const mappedItems: MentionableMediaItem[] = [];
   const seen = new Set<string>();
@@ -251,7 +263,7 @@ export function getReferencePromptBindings(
   mediaItems: MentionableMediaItem[],
   mentionBindings: VideoMentionBinding[] = [],
 ): ReferencePromptBinding[] {
-  const validItems = mediaItems.filter((item) => item.url && isRemoteUrl(item.url));
+  const validItems = mediaItems.filter(isUsableMentionItem);
   const promptSource = extractUserPromptFromStructuredPrompt(promptText);
   const mentions = findPromptMentions(promptSource);
   const promptMappedItems = getMediaAwarePromptItemsFromPrompt(promptSource, mediaItems, mentionBindings);
@@ -328,7 +340,7 @@ export function buildMediaAwarePrompt(
 }
 
 export function toGenerationMediaList(items: MentionableMediaItem[]): VideoGenerationRequest["mediaList"] {
-  return items.map((item) => ({
+  return items.filter((item) => item.url && isRemoteUrl(item.url)).map((item) => ({
     id: item.id,
     type: item.type,
     url: item.url,

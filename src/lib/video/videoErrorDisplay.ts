@@ -15,6 +15,30 @@ export type VideoUserFacingErrorDisplay = {
 
 type VideoErrorTranslator = (key: DictionaryKey) => string;
 
+const audioReferenceCustomerErrorKeys = {
+  AUDIO_REFERENCE_ASSET_NOT_CANONICAL: "video.audioReference.error.reupload",
+  AUDIO_REFERENCE_NOT_READY: "video.audioReference.error.notReady",
+  AUDIO_REFERENCE_OWNER_MISMATCH: "video.audioReference.error.access",
+  AUDIO_REFERENCE_TENANT_MISMATCH: "video.audioReference.error.access",
+  AUDIO_REFERENCE_UNSUPPORTED_FORMAT: "video.audioReference.error.unsupportedFormat",
+  AUDIO_REFERENCE_FORMAT_UNSUPPORTED: "video.audioReference.error.unsupportedFormat",
+  AUDIO_REFERENCE_PROBE_FAILED: "video.audioReference.error.probeFailed",
+  AUDIO_METADATA_PROBE_FAILED: "video.audioReference.error.probeFailed",
+  AUDIO_METADATA_PROBE_INCOMPLETE: "video.audioReference.error.probeFailed",
+  VIDEO_AUDIO_REFERENCE_REUPLOAD_REQUIRED: "video.audioReference.error.reupload",
+  VIDEO_AUDIO_REFERENCE_NOT_READY: "video.audioReference.error.notReady",
+  VIDEO_AUDIO_REFERENCE_ACCESS_DENIED: "video.audioReference.error.access",
+  VIDEO_AUDIO_REFERENCE_UNSUPPORTED_FORMAT: "video.audioReference.error.unsupportedFormat",
+  VIDEO_AUDIO_REFERENCE_VERIFICATION_FAILED: "video.audioReference.error.probeFailed",
+} as const satisfies Record<string, DictionaryKey>;
+
+export function getAudioReferenceCustomerErrorMessage(error: unknown, t: VideoErrorTranslator) {
+  const record = error && typeof error === "object" ? error as { code?: unknown } : {};
+  const code = String(record.code || "").trim().toUpperCase();
+  const key = audioReferenceCustomerErrorKeys[code as keyof typeof audioReferenceCustomerErrorKeys];
+  return key ? t(key) : "";
+}
+
 type VideoErrorDisplayOptions = {
   classificationMessage?: string | null;
   context?: "remake" | "video";

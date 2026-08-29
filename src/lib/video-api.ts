@@ -1494,6 +1494,9 @@ export function normalizeUploadResponse(payload: unknown, sourceFile?: File): Up
     imageUrl?: unknown;
   };
   const data = (envelope.data || envelope || {}) as Record<string, unknown>;
+  const assetId = pickString(data.assetId, data.asset_id);
+  const inferredType = inferUploadType(data.type || data.mimeType || data.mimetype, sourceFile?.type);
+  const privateReference = data.privateReference === true || data.private_reference === true;
   const url = pickString(
     data.url,
     data.mediaUrl,
@@ -1511,26 +1514,25 @@ export function normalizeUploadResponse(payload: unknown, sourceFile?: File): Up
     envelope.imageUrl,
   );
 
-  if (!url) {
+  if (!url && !(privateReference && inferredType === "audio" && isCanonicalAssetId(assetId))) {
     throw new Error("Upload succeeded but no media URL was returned.");
   }
 
   const mimeType = pickString(data.mimeType, data.mime_type, data.mimetype, data.type, sourceFile?.type) || "";
   const filename = pickString(data.filename, data.fileName, data.name, sourceFile?.name) || sourceFile?.name || "media";
   const originalName = pickString(data.originalname, data.originalName, sourceFile?.name, filename) || filename;
-  const assetId = pickString(data.assetId, data.asset_id);
-
   return {
-    id: assetId || pickString(data.id, data.mediaId, data.media_id, data.key, url) || url,
+    id: assetId || pickString(data.id, data.mediaId, data.media_id, data.key, url) || url || "",
     assetId,
-    type: inferUploadType(data.type || data.mimeType || data.mimetype, sourceFile?.type),
+    type: inferredType,
     name: originalName,
-    url,
+    url: url || "",
+    privateReference,
     size: Number(data.size || data.bytes || sourceFile?.size || 0) || undefined,
     mimeType,
     filename,
     originalName,
-    previewUrl: pickString(data.previewUrl, data.preview_url, data.thumbnailUrl, data.thumbnail_url, url) || url,
+    previewUrl: pickString(data.previewUrl, data.preview_url, data.thumbnailUrl, data.thumbnail_url, url) || url || "",
     duration: Number(data.duration || data.durationSeconds || 0) || undefined,
     raw: payload,
   };
