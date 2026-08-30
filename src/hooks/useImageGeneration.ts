@@ -155,7 +155,8 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setErrorState] = useState("");
+  const [errorJobId, setErrorJobId] = useState("");
   const [recoveredJobId, setRecoveredJobId] = useState("");
   const [draftNotice, setDraftNotice] = useState("");
   const [capabilityNotice, setCapabilityNotice] = useState("");
@@ -169,6 +170,14 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
   const skipNextDraftSaveRef = useRef(false);
   const appliedUrlPromptRef = useRef("");
   const pendingGenerationOperationRef = useRef<PendingImageGenerationOperation | null>(null);
+  const errorJobIdRef = useRef("");
+
+  const setError = useCallback((message: string, jobId = "") => {
+    const scope = String(jobId || "").trim();
+    errorJobIdRef.current = scope;
+    setErrorJobId(scope);
+    setErrorState(message);
+  }, []);
 
   const selectedModel = useMemo(() => getImageModelById(models, selectedModelId), [models, selectedModelId]);
   const customerCapabilities = useMemo(
@@ -178,6 +187,12 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
   const mergedHistory = useMemo(() => mergeImageHistory(history, localJobs), [history, localJobs]);
   const outputs = useMemo(() => mergedHistory.filter((item) => item.outputUrls.length || isImageTerminalStatus(item.status)), [mergedHistory]);
   const estimatedCredits = customerCapabilities.creditPreview;
+  const visibleError = useMemo(() => {
+    if (!errorJobId) return error;
+    if (!currentJob) return "";
+    const identities = [currentJob.dbJobId, currentJob.jobId, currentJob.id].filter(Boolean).map(String);
+    return identities.includes(errorJobId) ? error : "";
+  }, [currentJob, error, errorJobId]);
 
   const formatImageError = useCallback(
     (labelKey: Parameters<typeof t>[0], error: unknown, fallback: string) => {
@@ -540,6 +555,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
 
     try {
       const status = await getImageStatus(jobId);
+      if (errorJobIdRef.current === String(jobId)) setError("");
       const baseJob =
         [currentJobRef.current, ...localJobsRef.current, ...historyRef.current]
           .filter((item): item is ImageHistoryItem => Boolean(item))
@@ -563,7 +579,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       }
       return status;
     } catch (statusError) {
-      setError(formatImageError("image.errors.statusRefreshFailed", statusError, "Failed to refresh image status."));
+      setError(formatImageError("image.errors.statusRefreshFailed", statusError, "Failed to refresh image status."), jobId);
       return null;
     } finally {
       setIsPolling(false);
@@ -679,10 +695,12 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
   }, [mergedHistory]);
 
   const selectJob = useCallback((job: ImageHistoryItem | null) => {
+    const nextJobId = String(job?.dbJobId || job?.jobId || job?.id || "");
+    if (errorJobIdRef.current && errorJobIdRef.current !== nextJobId) setError("");
     setCurrentJob(job);
     setRecoveredJobId("");
     return job;
-  }, []);
+  }, [setError]);
 
   const clearDraft = useCallback(() => {
     if (draftSaveTimerRef.current) {
@@ -726,7 +744,8 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
     loadingHistory,
     isGenerating,
     isPolling,
-    error,
+    error: visibleError,
+    errorJobId,
     capabilityNotice,
     draftNotice,
     draftReady,

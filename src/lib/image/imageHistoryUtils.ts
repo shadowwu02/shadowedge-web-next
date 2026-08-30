@@ -176,8 +176,7 @@ function getSafeImageHistoryErrorMessage(record: unknown) {
   const publicMessages = getSafeImageHistoryPublicErrorMessages(record);
   const raw = asRecord(record);
   const meta = asRecord(raw.meta);
-  const rawMessage =
-    pickString(
+  const rawMessage = pickString(
       publicMessages.en,
       publicMessages.zh,
       raw.error_message,
@@ -192,9 +191,9 @@ function getSafeImageHistoryErrorMessage(record: unknown) {
       raw.error_code,
       meta.errorCode,
       meta.error_code,
-    ) || "Image generation failed. Please try again later or replace the image.";
+    ) || "";
 
-  return truncateText(rawMessage.split(/\r?\n/)[0] || rawMessage);
+  return rawMessage ? truncateText(rawMessage.split(/\r?\n/)[0] || rawMessage) : "";
 }
 
 function getSafeImageHistoryErrorClassificationMessage(record: unknown) {

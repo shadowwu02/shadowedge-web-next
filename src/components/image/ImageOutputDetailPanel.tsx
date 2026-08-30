@@ -109,6 +109,7 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
     refundStatus: job.refundStatus,
   });
   const statusLabel = (() => {
+    if (status.toLowerCase() === "uncertain") return t("image.status.uncertain");
     if (isImageFailedStatus(status)) return t("image.status.failed");
     if (isImageCompletedStatus(status)) return t("image.status.completed");
     if (isImageActiveStatus(status)) return t("image.status.processing");
@@ -185,8 +186,6 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
               ) : null}
             </div>
           </div>
-        ) : !isCompleted && job.errorMessage ? (
-          <div className="rounded-[18px] border border-[#8c4632]/42 bg-[#2a1012]/72 px-3 py-2 text-xs leading-5 text-[#f2b3a1]">{failureDisplay.message}</div>
         ) : null}
 
         {job.outputUrls.length ? (
