@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { SaveToAssetsButton } from "@/components/assets/SaveToAssetsButton";
 import { useI18n } from "@/i18n/useI18n";
-import { downloadBrowserFile } from "@/lib/browserDownload";
+import { downloadCanonicalImageAsset } from "@/lib/image/imageDownload";
 import { getImageUserFacingErrorDisplay } from "@/lib/image/imageErrorDisplay";
 import {
   getImageHistoryStableKey,
@@ -88,12 +88,12 @@ export function ImageResultStack({
     return normalized || t("image.status.unknown");
   };
 
-  const handleDownload = async (job: ImageHistoryItem, url: string, index: number) => {
+  const handleDownload = async (job: ImageHistoryItem, index: number) => {
     const actionKey = `download:${getImageHistoryStableKey(job)}:${index}`;
     setBusyAction(actionKey);
     setActionMessage("");
     try {
-      await downloadBrowserFile({ filename: safeImageFilename(job, index), url });
+      await downloadCanonicalImageAsset({ assetId: job.assetId, filename: safeImageFilename(job, index) });
     } catch {
       setActionMessage(t("image.actions.downloadFailed"));
     } finally {
@@ -178,7 +178,7 @@ export function ImageResultStack({
                             <img alt={tf("image.output.label", { index: index + 1 })} className="h-full w-full object-contain" src={url} />
                           </button>
                           <div className="flex flex-wrap gap-2 border-t border-white/8 p-3">
-                            <button className={resultActionClass("primary")} disabled={Boolean(busyAction)} onClick={() => void handleDownload(job, url, index)} type="button">
+                            <button className={resultActionClass("primary")} disabled={!job.assetId || Boolean(busyAction)} onClick={() => void handleDownload(job, index)} title={job.assetId ? undefined : t("image.actions.downloadUnavailable")} type="button">
                               {busyAction === downloadKey ? t("image.actions.downloading") : t("image.actions.download")}
                             </button>
                             <button className={resultActionClass("normal")} disabled={!reusableUrl || Boolean(busyAction)} onClick={() => void handleReuseReference(job, url, index)} type="button">

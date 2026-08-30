@@ -307,6 +307,7 @@ export function normalizeImageHistoryItem(item: unknown): ImageHistoryItem {
   const publicErrorMessages = getSafeImageHistoryPublicErrorMessages(raw);
 
   return {
+    assetId: pickString(raw.assetId, raw.asset_id, meta.assetId, meta.asset_id),
     id: pickString(raw.id, jobId) || jobId,
     jobId,
     dbJobId: pickString(raw.dbJobId, raw.db_job_id, raw.id, jobId) || jobId,

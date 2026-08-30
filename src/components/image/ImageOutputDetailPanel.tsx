@@ -8,7 +8,7 @@ import { getLocalizedImageHistoryPublicErrorMessage, isImageActiveStatus, isImag
 import { getImageHistoryModelLogoLookup } from "@/lib/image/imageModelLogo";
 import { useI18n } from "@/i18n/useI18n";
 import { formatTime } from "@/lib/utils";
-import { downloadBrowserFile } from "@/lib/browserDownload";
+import { downloadCanonicalImageAsset } from "@/lib/image/imageDownload";
 import type { ImageHistoryItem } from "@/types/image";
 
 function CopyIcon() {
@@ -115,10 +115,10 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
     if (isImageActiveStatus(status)) return t("image.status.processing");
     return status || t("image.status.unknown");
   })();
-  const handleDownload = async (url: string, index: number) => {
+  const handleDownload = async (index: number) => {
     setDownloadError("");
     try {
-      await downloadBrowserFile({ filename: `shadowedge-image-${index + 1}.png`, url });
+      await downloadCanonicalImageAsset({ assetId: job.assetId, filename: `shadowedge-image-${index + 1}.png` });
     } catch {
       setDownloadError(t("image.actions.downloadFailed"));
     }
@@ -219,7 +219,9 @@ export function ImageOutputDetailPanel({ job }: { job: ImageHistoryItem | null }
                     ) : null}
                     <button
                       className="se-button-secondary inline-flex min-h-7 items-center gap-1.5 rounded-full px-2 text-[10px] font-semibold"
-                      onClick={() => void handleDownload(url, index)}
+                      disabled={!job.assetId}
+                      onClick={() => void handleDownload(index)}
+                      title={job.assetId ? undefined : t("image.actions.downloadUnavailable")}
                       type="button"
                     >
                       <DownloadIcon />
