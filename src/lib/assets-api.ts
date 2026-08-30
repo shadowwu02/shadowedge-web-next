@@ -196,9 +196,7 @@ export async function saveAssetFromJob(jobId: string, input: SaveAssetFromJobInp
 }
 
 export function mapMediaAssetToUserAsset(asset: MediaAssetRecord): UserAsset | null {
-  const publicUrl = normalizeMediaAssetUrl(
-    pickString(asset.publicUrl, asset.url) || "",
-  );
+  const publicUrl = normalizeMediaAssetUrl(pickString(asset.previewUrl, asset.publicUrl, asset.url) || "");
   const kind = normalizeAssetKind(asset.type);
   if (!asset.id || !kind) return null;
 
@@ -273,7 +271,7 @@ export function mediaAssetToUploadMediaItem(asset: MediaAssetRecord): UploadMedi
 }
 
 export function mediaAssetToImageReferenceItem(asset: MediaAssetRecord): ImageReferenceItem | null {
-  const publicUrl = String(asset.publicUrl || asset.url || "").trim();
+  const publicUrl = String(asset.previewUrl || asset.publicUrl || asset.url || "").trim();
   if (!publicUrl || asset.type !== "image") return null;
 
   return {

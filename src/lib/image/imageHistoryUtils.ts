@@ -308,6 +308,7 @@ export function normalizeImageHistoryItem(item: unknown): ImageHistoryItem {
 
   return {
     assetId: pickString(raw.assetId, raw.asset_id, meta.assetId, meta.asset_id),
+    previewExpiresAt: pickString(raw.previewExpiresAt, raw.preview_expires_at),
     id: pickString(raw.id, jobId) || jobId,
     jobId,
     dbJobId: pickString(raw.dbJobId, raw.db_job_id, raw.id, jobId) || jobId,
