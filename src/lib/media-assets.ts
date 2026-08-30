@@ -2,6 +2,7 @@ import type { UploadMediaItem, UploadMediaRole, UploadMediaSource, UploadMediaTy
 import { getApiBaseUrl } from "@/lib/api";
 import { getMediaTypeFromUrl, isRemoteMediaUrl, isTransientMediaUrl } from "@/lib/upload-rules";
 import { getCanonicalReferenceStatus, isCanonicalAssetId } from "@/lib/video/canonicalReferenceAssets";
+import type { VideoWorkspaceAuthorityScope } from "@/lib/video/videoWorkspaceAuthority";
 
 export const LOCAL_MEDIA_ASSETS_KEY = "shadowedge_local_upload_assets_v1";
 export const LOCAL_MEDIA_ASSETS_MAX = 80;
@@ -571,13 +572,25 @@ export function mergeMediaAssets(...groups: UploadMediaItem[][]) {
   return merged;
 }
 
-export function readLocalMediaAssets() {
+function mediaWorkspaceScopeKey(scope?: VideoWorkspaceAuthorityScope | null) {
+  const userId = String(scope?.userId || "").trim();
+  const tenantId = String(scope?.tenantId || "").trim();
+  return userId && tenantId ? `${userId}:${tenantId}` : "";
+}
+
+export function readLocalMediaAssets(scope?: VideoWorkspaceAuthorityScope | null) {
   const storage = safeLocalStorage();
   if (!storage) return [];
 
   try {
     const raw = storage.getItem(LOCAL_MEDIA_ASSETS_KEY);
-    const list = raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    const expectedScopeKey = mediaWorkspaceScopeKey(scope);
+    const list = Array.isArray(parsed)
+      ? expectedScopeKey ? [] : parsed
+      : parsed && typeof parsed === "object" && parsed.scopeKey === expectedScopeKey
+        ? parsed.items
+        : [];
     return Array.isArray(list)
       ? list.map((item) => normalizeMediaAsset(item, "uploads")).filter(isMediaAsset).slice(0, LOCAL_MEDIA_ASSETS_MAX)
       : [];
@@ -586,7 +599,7 @@ export function readLocalMediaAssets() {
   }
 }
 
-export function saveLocalMediaAssets(items: UploadMediaItem[]) {
+export function saveLocalMediaAssets(items: UploadMediaItem[], scope?: VideoWorkspaceAuthorityScope | null) {
   const storage = safeLocalStorage();
   const normalized = mergeMediaAssets(
     items
@@ -598,10 +611,10 @@ export function saveLocalMediaAssets(items: UploadMediaItem[]) {
   if (!storage) return normalized;
 
   try {
-    storage.setItem(LOCAL_MEDIA_ASSETS_KEY, JSON.stringify(normalized));
+    storage.setItem(LOCAL_MEDIA_ASSETS_KEY, JSON.stringify({ version: 2, scopeKey: mediaWorkspaceScopeKey(scope), items: normalized }));
   } catch {
     try {
-      storage.setItem(LOCAL_MEDIA_ASSETS_KEY, JSON.stringify(normalized.slice(0, 40)));
+      storage.setItem(LOCAL_MEDIA_ASSETS_KEY, JSON.stringify({ version: 2, scopeKey: mediaWorkspaceScopeKey(scope), items: normalized.slice(0, 40) }));
     } catch {
       // Ignore local asset cache quota failures; uploads should still work.
     }
@@ -610,13 +623,13 @@ export function saveLocalMediaAssets(items: UploadMediaItem[]) {
   return normalized;
 }
 
-export function appendLocalMediaAssets(items: UploadMediaItem[]) {
-  return saveLocalMediaAssets(mergeMediaAssets(items, readLocalMediaAssets()));
+export function appendLocalMediaAssets(items: UploadMediaItem[], scope?: VideoWorkspaceAuthorityScope | null) {
+  return saveLocalMediaAssets(mergeMediaAssets(items, readLocalMediaAssets(scope)), scope);
 }
 
-export function removeLocalMediaAsset(idOrUrl: string) {
-  const nextItems = readLocalMediaAssets().filter((item) => item.id !== idOrUrl && item.url !== idOrUrl);
-  return saveLocalMediaAssets(nextItems);
+export function removeLocalMediaAsset(idOrUrl: string, scope?: VideoWorkspaceAuthorityScope | null) {
+  const nextItems = readLocalMediaAssets(scope).filter((item) => item.id !== idOrUrl && item.url !== idOrUrl);
+  return saveLocalMediaAssets(nextItems, scope);
 }
 
 export function collectCurrentMediaAssets(currentUploads: UploadMediaItem[]) {
@@ -627,8 +640,8 @@ export function collectReferenceMediaAssets(referenceMedia: UploadMediaItem[]) {
   return referenceMedia.filter(Boolean).map((item) => ({ ...item, source: "reference_selected" as const }));
 }
 
-export function collectLocalMediaAssets() {
-  return readLocalMediaAssets();
+export function collectLocalMediaAssets(scope?: VideoWorkspaceAuthorityScope | null) {
+  return readLocalMediaAssets(scope);
 }
 
 function getHistoryRecordId(record: ReusableHistoryRecord, index: number) {

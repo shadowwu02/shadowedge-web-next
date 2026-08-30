@@ -19,6 +19,7 @@ import {
   getGeneratedAudioReferenceIssue,
   validateReferenceSelectionForRule,
 } from "@/lib/video/videoReferenceRules";
+import type { VideoWorkspaceAuthority } from "@/lib/video/videoWorkspaceAuthority";
 
 export type BuildVideoGenerationRequestInput = {
   prompt: string;
@@ -32,6 +33,7 @@ export type BuildVideoGenerationRequestInput = {
   meta?: Record<string, unknown>;
   estimatedCredits?: number;
   clientRequestId?: string;
+  workspaceAuthority?: VideoWorkspaceAuthority;
 };
 
 export function buildVideoGenerationRequest(
@@ -65,7 +67,13 @@ export function buildVideoGenerationRequest(
     media: options.media,
     mentionBindings: options.mentionBindings,
     prompt: options.prompt,
+    workspaceAuthority: options.workspaceAuthority,
   });
+  if (promptReferences.unauthorizedItems.length) {
+    throw Object.assign(new Error("This media is not available in the current workspace. Please choose it again from My Assets."), {
+      code: "VIDEO_WORKSPACE_REFERENCE_ACCESS_CHANGED",
+    });
+  }
   const mentionBindings = promptReferences.mentionBindings;
   if (promptReferences.unresolvedMentions.length) {
     throw Object.assign(new Error("One or more Prompt references are no longer available."), {

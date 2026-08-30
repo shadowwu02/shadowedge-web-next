@@ -4,6 +4,15 @@ export type ShadowEdgeUser = {
   name?: string;
 };
 
+export type ShadowEdgeTenantAccess = {
+  status?: "READY" | "REVIEW_REQUIRED" | "DENIED" | "UNAVAILABLE";
+  code?: string;
+  tenant?: {
+    id?: string;
+    slug?: string;
+  } | null;
+};
+
 export type ShadowEdgeProfile = {
   canUseLongVideoRealAnalysis?: boolean;
   longVideoRealAnalysisAccessMode?: "allowlist" | "authenticated";

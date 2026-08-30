@@ -18,6 +18,10 @@ import { LEGACY_REFERENCE_REUPLOAD_REQUIRED } from "@/lib/video/canonicalReferen
 import { ApiError } from "@/types/api";
 import { useI18n } from "@/i18n/useI18n";
 import { getMediaLibraryUploadTypes } from "@/lib/video/audioUploadContract";
+import {
+  reconcileVideoWorkspaceMedia,
+  type VideoWorkspaceAuthority,
+} from "@/lib/video/videoWorkspaceAuthority";
 
 type MediaFilter = "uploads" | "assets" | "history" | "generated" | UploadMediaType | "elements" | "liked";
 
@@ -113,6 +117,7 @@ export function MediaPickerDrawer({
   reusableMedia = [],
   referenceBindingProfileId = "",
   slot,
+  workspaceAuthority,
 }: {
   anchorElement: HTMLElement | null;
   currentMedia: UploadMediaItem[];
@@ -131,6 +136,7 @@ export function MediaPickerDrawer({
   reusableMedia?: UploadMediaItem[];
   referenceBindingProfileId?: string;
   slot: string;
+  workspaceAuthority: VideoWorkspaceAuthority;
 }) {
   const { locale, t, tf } = useI18n();
   const displayLocale = locale === "zh" ? "zh" : "en";
@@ -223,8 +229,15 @@ export function MediaPickerDrawer({
     return t(display.titleKey);
   }
 
-  const nonAssetMedia = useMemo(() => mergeMediaAssets(currentMedia, localMedia, reusableMedia), [currentMedia, localMedia, reusableMedia]);
-  const allMedia = useMemo(() => mergeMediaAssets(nonAssetMedia, assetLibraryMedia), [assetLibraryMedia, nonAssetMedia]);
+  const nonAssetMedia = useMemo(() => {
+    const candidates = mergeMediaAssets(currentMedia, localMedia, reusableMedia);
+    const pendingCurrentUploads = candidates.filter((item) => item.source === "current_upload" && item.uploadStatus !== "ready");
+    return mergeMediaAssets(
+      pendingCurrentUploads,
+      reconcileVideoWorkspaceMedia(candidates.filter((item) => item.uploadStatus === "ready"), workspaceAuthority).authorized,
+    );
+  }, [currentMedia, localMedia, reusableMedia, workspaceAuthority]);
+  const allMedia = useMemo(() => mergeMediaAssets(assetLibraryMedia, nonAssetMedia), [assetLibraryMedia, nonAssetMedia]);
   const selectionMedia = useMemo(() => [...assetLibraryMedia, ...allMedia], [allMedia, assetLibraryMedia]);
   const uploadTypes = getMediaLibraryUploadTypes();
   const limitSummary = useMemo(() => getReferenceLimitSummary(modelRule), [modelRule]);

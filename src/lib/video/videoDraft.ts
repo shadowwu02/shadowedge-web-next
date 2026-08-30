@@ -8,9 +8,14 @@ import {
 } from "@/lib/video/videoMentionBindings";
 import type { UploadMediaItem, UploadMediaRole, UploadMediaSource, UploadMediaType } from "@/types/video";
 import { getCanonicalReferenceStatus } from "@/lib/video/canonicalReferenceAssets";
+import {
+  isSameVideoWorkspaceAuthorityScope,
+  normalizeVideoWorkspaceAuthorityScope,
+  type VideoWorkspaceAuthorityScope,
+} from "@/lib/video/videoWorkspaceAuthority";
 
 export const VIDEO_WORKSPACE_DRAFT_KEY = "shadowedge_video_create_draft_v1";
-export const VIDEO_WORKSPACE_DRAFT_VERSION = 1;
+export const VIDEO_WORKSPACE_DRAFT_VERSION = 2;
 
 export type VideoDraftParams = {
   duration?: number;
@@ -28,6 +33,9 @@ export type VideoWorkspaceDraft = {
   params: VideoDraftParams;
   referenceMedia: UploadMediaItem[];
   mentionBindings: VideoMentionBinding[];
+  workspaceScope: VideoWorkspaceAuthorityScope | null;
+  referenceBindingsDiscarded?: boolean;
+  requiresAuthorityRevalidation?: boolean;
   updatedAt: number;
 };
 
@@ -48,6 +56,7 @@ type DraftWriteInput = {
   params: VideoDraftParams;
   referenceMedia: UploadMediaItem[];
   mentionBindings?: VideoMentionBinding[];
+  workspaceScope?: VideoWorkspaceAuthorityScope | null;
 };
 
 function safeLocalStorage() {
@@ -152,18 +161,29 @@ export function sanitizeVideoDraftMedia(items: UploadMediaItem[]) {
   return mergeMediaAssets(readyRemoteItems);
 }
 
-function normalizeDraft(raw: RawDraft): VideoWorkspaceDraft | null {
-  if (raw.version !== undefined && raw.version !== VIDEO_WORKSPACE_DRAFT_VERSION) return null;
+function normalizeDraft(
+  raw: RawDraft,
+  currentScope?: VideoWorkspaceAuthorityScope | null,
+): VideoWorkspaceDraft | null {
+  const rawVersion = Number(raw.version || 1);
+  if (rawVersion !== 1 && rawVersion !== VIDEO_WORKSPACE_DRAFT_VERSION) return null;
 
   const rawParams = (raw.params && typeof raw.params === "object" ? raw.params : {}) as VideoDraftParams;
-  const referenceMedia = Array.isArray(raw.referenceMedia)
+  const rawReferenceMedia = Array.isArray(raw.referenceMedia)
     ? sanitizeVideoDraftMedia(raw.referenceMedia)
     : sanitizeVideoDraftMedia(flattenLegacyAssets(raw.assets));
-  const mentionBindings = sanitizeVideoMentionBindings(
+  const rawMentionBindings = sanitizeVideoMentionBindings(
     typeof raw.prompt === "string" ? raw.prompt : "",
     parseMentionBindings(raw.mentionBindings),
-    referenceMedia,
+    rawReferenceMedia,
   ).mentionBindings;
+  const rawScope = normalizeVideoWorkspaceAuthorityScope(
+    (raw as RawDraft & { workspaceScope?: Partial<VideoWorkspaceAuthorityScope> }).workspaceScope,
+  );
+  const normalizedCurrentScope = normalizeVideoWorkspaceAuthorityScope(currentScope);
+  const scopeMismatch = Boolean(rawScope && normalizedCurrentScope && !isSameVideoWorkspaceAuthorityScope(rawScope, normalizedCurrentScope));
+  const referenceMedia = scopeMismatch ? [] : rawReferenceMedia;
+  const mentionBindings = scopeMismatch ? [] : rawMentionBindings;
 
   return {
     version: VIDEO_WORKSPACE_DRAFT_VERSION,
@@ -184,11 +204,14 @@ function normalizeDraft(raw: RawDraft): VideoWorkspaceDraft | null {
     },
     referenceMedia,
     mentionBindings,
+    workspaceScope: rawScope,
+    referenceBindingsDiscarded: scopeMismatch,
+    requiresAuthorityRevalidation: !rawScope && rawReferenceMedia.length > 0,
     updatedAt: Number(raw.updatedAt || 0) || 0,
   };
 }
 
-export function readVideoDraft() {
+export function readVideoDraft(currentScope?: VideoWorkspaceAuthorityScope | null) {
   const storage = safeLocalStorage();
   if (!storage) return null;
 
@@ -196,7 +219,7 @@ export function readVideoDraft() {
     const raw = storage.getItem(VIDEO_WORKSPACE_DRAFT_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as RawDraft;
-    return parsed && typeof parsed === "object" ? normalizeDraft(parsed) : null;
+    return parsed && typeof parsed === "object" ? normalizeDraft(parsed, currentScope) : null;
   } catch {
     return null;
   }
@@ -213,6 +236,7 @@ export function saveVideoDraft(input: DraftWriteInput) {
     params: input.params,
     referenceMedia: sanitizeVideoDraftMedia(input.referenceMedia),
     mentionBindings: sanitizeVideoMentionBindings(input.prompt, serializeMentionBindings(input.mentionBindings || []), input.referenceMedia).mentionBindings,
+    workspaceScope: normalizeVideoWorkspaceAuthorityScope(input.workspaceScope),
     updatedAt: Date.now(),
   };
 

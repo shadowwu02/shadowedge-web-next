@@ -36,6 +36,7 @@ import {
 import type { UploadMediaItem } from "@/types/video";
 import type { VideoModelRule } from "@/lib/video/videoModelRules";
 import { useI18n } from "@/i18n/useI18n";
+import type { VideoWorkspaceAuthority } from "@/lib/video/videoWorkspaceAuthority";
 
 const uploadSlot = "media";
 const maxFileSizeBytes = 250 * 1024 * 1024;
@@ -72,6 +73,7 @@ export function UploadBox({
   onReferencesBound,
   referenceBindingProfileId = "",
   reusableMedia = [],
+  workspaceAuthority,
 }: {
   media: UploadMediaItem[];
   modelRule: VideoModelRule;
@@ -80,6 +82,7 @@ export function UploadBox({
   onReferencesBound?: (items: UploadMediaItem[]) => void;
   referenceBindingProfileId?: string;
   reusableMedia?: UploadMediaItem[];
+  workspaceAuthority: VideoWorkspaceAuthority;
 }) {
   const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -127,11 +130,12 @@ export function UploadBox({
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      setLocalStoredMedia(collectLocalMediaAssets());
+      setCurrentUploadMedia([]);
+      setLocalStoredMedia(collectLocalMediaAssets(workspaceAuthority.scope));
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, []);
+  }, [workspaceAuthority]);
 
   const currentMedia = useMemo(
     () => mergeMediaAssets(collectCurrentMediaAssets(currentUploadMedia), collectReferenceMediaAssets(media)),
@@ -238,7 +242,7 @@ export function UploadBox({
           setCurrentUploadMedia((currentItems) =>
             currentItems.map((current) => (current.id === item.id ? uploadedItem : current)),
           );
-          setLocalStoredMedia(appendLocalMediaAssets([uploadedItem]));
+          setLocalStoredMedia(appendLocalMediaAssets([uploadedItem], workspaceAuthority.scope));
         } catch (error) {
           const message = error instanceof Error ? error.message : t("video.upload.failed");
           const display = getMediaUploadErrorDisplayKeys(message, { fallbackKind: "upload" });
@@ -264,7 +268,7 @@ export function UploadBox({
     const url = item?.url || "";
 
     setCurrentUploadMedia((currentItems) => currentItems.filter((current) => current.id !== id && current.url !== url));
-    setLocalStoredMedia(removeLocalMediaAsset(url || id));
+    setLocalStoredMedia(removeLocalMediaAsset(url || id, workspaceAuthority.scope));
     onChange((currentItems) => currentItems.filter((current) => current.id !== id && current.url !== url));
   }
 
@@ -380,6 +384,7 @@ export function UploadBox({
         referenceMedia={media}
         reusableMedia={reusableMedia}
         slot={uploadSlot}
+        workspaceAuthority={workspaceAuthority}
       />
     </>
   );

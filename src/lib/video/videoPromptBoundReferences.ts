@@ -13,6 +13,10 @@ import {
   type VideoMentionBinding,
 } from "@/lib/video/videoMentionBindings";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
+import {
+  reconcileVideoWorkspaceMedia,
+  type VideoWorkspaceAuthority,
+} from "@/lib/video/videoWorkspaceAuthority";
 
 export type VideoPromptReferenceCounts = Record<UploadMediaType, number>;
 
@@ -26,6 +30,7 @@ export type VideoPromptBoundReferenceState = {
   promptMentions: PromptMention[];
   resolvedItems: ReferencePromptBinding[];
   unresolvedMentions: PromptMention[];
+  unauthorizedItems: ReferencePromptBinding[];
 };
 
 function countReferences(items: Array<Pick<MentionableMediaItem, "type">>): VideoPromptReferenceCounts {
@@ -51,18 +56,54 @@ export function resolveVideoPromptBoundReferences({
   media,
   mentionBindings = [],
   prompt,
+  workspaceAuthority,
+  workspaceAuthorityRequired = false,
 }: {
   media: UploadMediaItem[];
   mentionBindings?: VideoMentionBinding[];
   prompt: string;
+  workspaceAuthority?: VideoWorkspaceAuthority;
+  workspaceAuthorityRequired?: boolean;
 }): VideoPromptBoundReferenceState {
-  const availableItems = getReadyMentionableMediaItems(media);
   const promptMentions = findPromptMentions(prompt);
-  const sanitizedBindings = sanitizeVideoMentionBindings(
+  const originalBindings = sanitizeVideoMentionBindings(
     prompt,
     serializeMentionBindings(mentionBindings),
     media,
   ).mentionBindings;
+  const originalAvailableItems = getReadyMentionableMediaItems(media);
+  const originalResolvedItems = promptMentions.length
+    ? getReferencePromptBindings(prompt, originalAvailableItems, originalBindings)
+    : [];
+  const reconciliation = workspaceAuthority
+    ? reconcileVideoWorkspaceMedia(media, workspaceAuthority)
+    : workspaceAuthorityRequired
+      ? { authorized: [], unauthorized: media }
+      : { authorized: media, unauthorized: [] };
+  const authorizedMedia = reconciliation.authorized;
+  const authoritativeIdByOriginalId = new Map<string, string>();
+  if (workspaceAuthority) {
+    const authoritativeByAssetId = new Map(
+      workspaceAuthority.media
+        .filter((item) => item.assetId)
+        .map((item) => [String(item.assetId), item]),
+    );
+    media.forEach((item) => {
+      const authoritative = item.assetId ? authoritativeByAssetId.get(String(item.assetId)) : undefined;
+      if (!authoritative) return;
+      [item.id, item.url].filter(Boolean).forEach((identity) => authoritativeIdByOriginalId.set(String(identity), authoritative.id));
+    });
+  }
+  const authorityRemappedBindings = originalBindings.map((binding) => ({
+    ...binding,
+    mediaId: authoritativeIdByOriginalId.get(binding.mediaId) || binding.mediaId,
+  }));
+  const sanitizedBindings = sanitizeVideoMentionBindings(
+    prompt,
+    authorityRemappedBindings,
+    authorizedMedia,
+  ).mentionBindings;
+  const availableItems = getReadyMentionableMediaItems(authorizedMedia);
   const resolvedItems = promptMentions.length
     ? getReferencePromptBindings(prompt, availableItems, sanitizedBindings)
     : [];
@@ -75,8 +116,12 @@ export function resolveVideoPromptBoundReferences({
   const invalidCanonicalItems = resolvedItems.filter((item) => !isCanonicalReferenceItem(item));
   const activeBindings = resolvedItems.filter(isCanonicalReferenceItem);
   const activeItems = activeBindings
-    .map((binding) => media.find((item) => item.id === binding.id || item.url === binding.url))
+    .map((binding) => authorizedMedia.find((item) => item.id === binding.id || item.url === binding.url))
     .filter((item): item is UploadMediaItem => Boolean(item));
+  const authorizedAssetIds = new Set(authorizedMedia.map((item) => item.assetId).filter(Boolean));
+  const unauthorizedItems = workspaceAuthority || workspaceAuthorityRequired
+    ? originalResolvedItems.filter((item) => !item.assetId || !authorizedAssetIds.has(item.assetId))
+    : [];
 
   return {
     activeBindings,
@@ -88,5 +133,6 @@ export function resolveVideoPromptBoundReferences({
     promptMentions,
     resolvedItems,
     unresolvedMentions,
+    unauthorizedItems,
   };
 }

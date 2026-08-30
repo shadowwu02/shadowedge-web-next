@@ -9,7 +9,7 @@ import {
   type AuthSessionPayload,
 } from "@/lib/auth";
 import { ApiError } from "@/types/api";
-import type { ShadowEdgeProfile, ShadowEdgeUser } from "@/types/user";
+import type { ShadowEdgeProfile, ShadowEdgeTenantAccess, ShadowEdgeUser } from "@/types/user";
 
 type AuthMePayload = {
   user?: ShadowEdgeUser;
@@ -21,15 +21,13 @@ type AuthMePayload = {
   concurrency?: number;
   email?: string;
   name?: string;
-  tenantAccess?: {
-    status?: "READY" | "REVIEW_REQUIRED" | "DENIED" | "UNAVAILABLE";
-    code?: string;
-  };
+  tenantAccess?: ShadowEdgeTenantAccess;
 };
 
 export type AuthMeResult = {
   user: ShadowEdgeUser | null;
   profile: ShadowEdgeProfile | null;
+  tenantAccess: ShadowEdgeTenantAccess | null;
 };
 
 type AuthLoginPayload = {
@@ -97,6 +95,7 @@ export async function getCurrentUserProfile(): Promise<AuthMeResult> {
   return {
     user: user.email || user.id ? user : null,
     profile: profile.email || profile.credits !== undefined ? profile : null,
+    tenantAccess: data.tenantAccess || null,
   };
 }
 

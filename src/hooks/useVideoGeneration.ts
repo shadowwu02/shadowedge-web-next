@@ -25,6 +25,11 @@ import {
 } from "@/lib/video/historyUtils";
 import type { VideoMentionBinding } from "@/lib/video/videoMentionBindings";
 import { resolveVideoPromptBoundReferences } from "@/lib/video/videoPromptBoundReferences";
+import {
+  loadVerifiedVideoWorkspaceAuthority,
+  type VideoWorkspaceAuthority,
+  type VideoWorkspaceAuthorityScope,
+} from "@/lib/video/videoWorkspaceAuthority";
 import { isVideoActiveStatus } from "@/lib/utils";
 import { ApiError } from "@/types/api";
 import type { UploadMediaItem, VideoHistoryItem, VideoModel, VideoStatusResponse, VideoTaskRecord } from "@/types/video";
@@ -42,6 +47,8 @@ type SubmitVideoOptions = {
   maxConcurrency?: number | null;
   onSubmitError?: (message: string) => void;
   clientRequestId?: string;
+  workspaceAuthority: VideoWorkspaceAuthority;
+  workspaceAuthorityScope: VideoWorkspaceAuthorityScope;
 };
 
 type SubmitValidationCopy = {
@@ -52,6 +59,7 @@ type SubmitValidationCopy = {
   promptTooLong: (limit: string) => string;
   promptRequired: string;
   remoteMediaOnly: string;
+  workspaceAccess: string;
 };
 
 function isRemoteUrl(url: string) {
@@ -75,7 +83,9 @@ function validateSubmitOptions(options: SubmitVideoOptions, copy: SubmitValidati
     media: options.media,
     mentionBindings: options.mentionBindings,
     prompt: options.prompt,
+    workspaceAuthority: options.workspaceAuthority,
   });
+  if (promptReferences.unauthorizedItems.length) return copy.workspaceAccess;
   if (promptReferences.unresolvedMentions.length) {
     if (options.media.some((item) => item.uploadStatus === "uploading")) return copy.mediaUploading;
     if (options.media.some((item) => item.uploadStatus === "failed")) return copy.mediaFailedBeforeGenerate;
@@ -104,6 +114,21 @@ export function getSafeVideoGenerationErrorMessage(error: unknown, fallback: str
   const message = error instanceof Error ? error.message : String(error || "");
   if (!message || /\breferenceerror\b|\bis not defined\b/i.test(message)) return fallback;
   return message;
+}
+
+export function validateVideoWorkspaceAuthorityForSubmit(
+  options: Pick<SubmitVideoOptions, "media" | "mentionBindings" | "prompt">,
+  workspaceAuthority: VideoWorkspaceAuthority,
+) {
+  const state = resolveVideoPromptBoundReferences({
+    media: options.media,
+    mentionBindings: options.mentionBindings,
+    prompt: options.prompt,
+    workspaceAuthority,
+  });
+  return state.unauthorizedItems.length || state.unresolvedMentions.length
+    ? "This media is not available in the current workspace. Please choose it again from My Assets."
+    : "";
 }
 
 function mergeStatusIntoTask(base: VideoTaskRecord, result: VideoStatusResponse): VideoTaskRecord {
@@ -196,6 +221,7 @@ export function useVideoGeneration() {
     promptTooLong: (limit) => tf("video.errors.promptTooLong", { limit }),
     promptRequired: t("video.errors.promptRequired"),
     remoteMediaOnly: t("video.errors.remoteMediaOnly"),
+    workspaceAccess: t("video.errors.workspaceReferenceAccess"),
   }), [t, tf]);
 
   const loadHistory = useCallback(async () => {
@@ -244,11 +270,21 @@ export function useVideoGeneration() {
         throw new Error(validationMessage);
       }
 
+      const freshWorkspaceAuthority = await loadVerifiedVideoWorkspaceAuthority(options.workspaceAuthorityScope);
+      const workspaceAuthorityMessage = validateVideoWorkspaceAuthorityForSubmit(options, freshWorkspaceAuthority);
+      if (workspaceAuthorityMessage) {
+        throw new Error(submitValidationCopy.workspaceAccess);
+      }
+
       // Preserve a request ID after an ambiguous browser failure. A later user
       // click is then an idempotent replay, while a completed operation resets it.
       const clientRequestId = options.clientRequestId || pendingClientRequestIdRef.current || createVideoClientRequestId();
       pendingClientRequestIdRef.current = clientRequestId;
-      const request = buildVideoGenerationRequest({ ...options, clientRequestId });
+      const request = buildVideoGenerationRequest({
+        ...options,
+        clientRequestId,
+        workspaceAuthority: freshWorkspaceAuthority,
+      });
       const response = await createVideoTask(request);
       const result = response.data;
 

@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { getCurrentUserProfile } from "@/lib/auth-api";
 import { getCachedAuthSessionState } from "@/lib/auth";
-import type { ShadowEdgeProfile } from "@/types/user";
+import type { ShadowEdgeProfile, ShadowEdgeTenantAccess, ShadowEdgeUser } from "@/types/user";
 
 export function useAuthSession() {
   const [profile, setProfile] = useState<ShadowEdgeProfile | null>(null);
+  const [user, setUser] = useState<ShadowEdgeUser | null>(null);
+  const [tenantAccess, setTenantAccess] = useState<ShadowEdgeTenantAccess | null>(null);
   const [token, setToken] = useState("");
   // Authentication is unresolved until the cached session has been hydrated
   // and, when present, verified with /api/auth/me. Starting in a signed-out
@@ -26,6 +28,8 @@ export function useAuthSession() {
   const refresh = useCallback(async () => {
     const current = getCachedAuthSessionState();
     if (!current.token) {
+      setUser(null);
+      setTenantAccess(null);
       syncCachedSession();
       setIsLoading(false);
       return null;
@@ -36,9 +40,13 @@ export function useAuthSession() {
 
     try {
       const result = await getCurrentUserProfile();
+      setUser(result.user);
+      setTenantAccess(result.tenantAccess);
       syncCachedSession();
       return result.profile;
     } catch (refreshError) {
+      setUser(null);
+      setTenantAccess(null);
       const cached = syncCachedSession();
       setError(refreshError instanceof Error ? refreshError.message : "Profile refresh failed.");
       return cached.profile;
@@ -63,7 +71,15 @@ export function useAuthSession() {
 
     function handleStorageUpdated() {
       const next = syncCachedSession();
-      if (next.token && !next.isProfileVerified) void refresh();
+      if (next.token) {
+        setUser(null);
+        setTenantAccess(null);
+        void refresh();
+      }
+      else {
+        setUser(null);
+        setTenantAccess(null);
+      }
     }
 
     window.addEventListener("shadowedge:profile-updated", handleProfileUpdated);
@@ -80,6 +96,8 @@ export function useAuthSession() {
     isLoading,
     isProfileVerified,
     profile,
+    tenantAccess,
+    user,
     refresh,
     token,
     isSignedIn: Boolean(token && isProfileVerified),
