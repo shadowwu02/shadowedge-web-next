@@ -26,7 +26,7 @@ import {
 } from "@/lib/video/videoReferenceRules";
 import { getMediaLibraryUploadAccept, validateAudioUploadFile } from "@/lib/video/audioUploadContract";
 import { uploadMedia } from "@/lib/video-api";
-import { getCanonicalReferenceStatus } from "@/lib/video/canonicalReferenceAssets";
+import { createCanonicalUploadedMediaItem } from "@/lib/video/videoAudioUploadPersistence";
 import { refreshPrivateMediaAssetPreview } from "@/lib/assets-api";
 import {
   applyCurrentPrivateReferencePresentation,
@@ -90,9 +90,12 @@ export function UploadBox({
   const [currentUploadMedia, setCurrentUploadMedia] = useState<UploadMediaItem[]>([]);
   const [localStoredMedia, setLocalStoredMedia] = useState<UploadMediaItem[]>([]);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [assetLibraryRefreshVersion, setAssetLibraryRefreshVersion] = useState(0);
   const [drawerAnchorEl, setDrawerAnchorEl] = useState<HTMLElement | null>(null);
   const [pickerNotice, setPickerNotice] = useState("");
   const mediaRef = useRef(media);
+  const workspaceAuthorityTenantId = workspaceAuthority.scope.tenantId;
+  const workspaceAuthorityUserId = workspaceAuthority.scope.userId;
 
   useEffect(() => {
     mediaRef.current = media;
@@ -131,11 +134,14 @@ export function UploadBox({
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       setCurrentUploadMedia([]);
-      setLocalStoredMedia(collectLocalMediaAssets(workspaceAuthority.scope));
+      setLocalStoredMedia(collectLocalMediaAssets({
+        tenantId: workspaceAuthorityTenantId,
+        userId: workspaceAuthorityUserId,
+      }));
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [workspaceAuthority]);
+  }, [workspaceAuthorityTenantId, workspaceAuthorityUserId]);
 
   const currentMedia = useMemo(
     () => mergeMediaAssets(collectCurrentMediaAssets(currentUploadMedia), collectReferenceMediaAssets(media)),
@@ -215,34 +221,13 @@ export function UploadBox({
 
         try {
           const uploaded = await uploadMedia(file);
-          const uploadedItem: UploadMediaItem = {
-            ...item,
-            duration: uploaded.duration || item.duration,
-            errorMessage: "",
-            file: undefined,
-            assetId: uploaded.assetId,
-            canonicalReferenceStatus: getCanonicalReferenceStatus({ assetId: uploaded.assetId }),
-            filename: uploaded.filename,
-            id: uploaded.id || item.id,
-            mimeType: uploaded.mimeType || item.mimeType,
-            name: uploaded.name || item.name,
-            originalName: uploaded.originalName,
-            privateReference: uploaded.privateReference,
-            previewUrl:
-              uploaded.type === "image"
-                ? uploaded.previewUrl || uploaded.url || item.previewUrl
-                : item.previewUrl || uploaded.previewUrl,
-            size: uploaded.size || item.size,
-            source: "current_upload",
-            type: uploaded.type || item.type,
-            uploadStatus: "ready",
-            url: uploaded.url,
-          };
+          const uploadedItem = createCanonicalUploadedMediaItem(item, uploaded);
 
           setCurrentUploadMedia((currentItems) =>
             currentItems.map((current) => (current.id === item.id ? uploadedItem : current)),
           );
           setLocalStoredMedia(appendLocalMediaAssets([uploadedItem], workspaceAuthority.scope));
+          setAssetLibraryRefreshVersion((current) => current + 1);
         } catch (error) {
           const message = error instanceof Error ? error.message : t("video.upload.failed");
           const display = getMediaUploadErrorDisplayKeys(message, { fallbackKind: "upload" });
@@ -365,6 +350,7 @@ export function UploadBox({
 
       <MediaPickerDrawer
         anchorElement={drawerAnchorEl}
+        assetLibraryRefreshVersion={assetLibraryRefreshVersion}
         currentMedia={currentMedia}
         inputRef={inputRef}
         isOpen={isPickerOpen}

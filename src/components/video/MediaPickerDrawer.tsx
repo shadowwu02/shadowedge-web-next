@@ -18,10 +18,8 @@ import { LEGACY_REFERENCE_REUPLOAD_REQUIRED } from "@/lib/video/canonicalReferen
 import { ApiError } from "@/types/api";
 import { useI18n } from "@/i18n/useI18n";
 import { getMediaLibraryUploadTypes } from "@/lib/video/audioUploadContract";
-import {
-  reconcileVideoWorkspaceMedia,
-  type VideoWorkspaceAuthority,
-} from "@/lib/video/videoWorkspaceAuthority";
+import { reconcileUploadPickerMedia } from "@/lib/video/videoAudioUploadPersistence";
+import type { VideoWorkspaceAuthority } from "@/lib/video/videoWorkspaceAuthority";
 
 type MediaFilter = "uploads" | "assets" | "history" | "generated" | UploadMediaType | "elements" | "liked";
 
@@ -101,6 +99,7 @@ function getDrawerPosition(anchor: HTMLElement | null): DrawerPosition {
 
 export function MediaPickerDrawer({
   anchorElement,
+  assetLibraryRefreshVersion = 0,
   currentMedia,
   inputRef,
   isOpen,
@@ -120,6 +119,7 @@ export function MediaPickerDrawer({
   workspaceAuthority,
 }: {
   anchorElement: HTMLElement | null;
+  assetLibraryRefreshVersion?: number;
   currentMedia: UploadMediaItem[];
   inputRef: RefObject<HTMLInputElement | null>;
   isOpen: boolean;
@@ -230,12 +230,12 @@ export function MediaPickerDrawer({
   }
 
   const nonAssetMedia = useMemo(() => {
-    const candidates = mergeMediaAssets(currentMedia, localMedia, reusableMedia);
-    const pendingCurrentUploads = candidates.filter((item) => item.source === "current_upload" && item.uploadStatus !== "ready");
-    return mergeMediaAssets(
-      pendingCurrentUploads,
-      reconcileVideoWorkspaceMedia(candidates.filter((item) => item.uploadStatus === "ready"), workspaceAuthority).authorized,
-    );
+    return reconcileUploadPickerMedia({
+      currentMedia,
+      localMedia,
+      reusableMedia,
+      workspaceAuthority,
+    });
   }, [currentMedia, localMedia, reusableMedia, workspaceAuthority]);
   const allMedia = useMemo(() => mergeMediaAssets(assetLibraryMedia, nonAssetMedia), [assetLibraryMedia, nonAssetMedia]);
   const selectionMedia = useMemo(() => [...assetLibraryMedia, ...allMedia], [allMedia, assetLibraryMedia]);
@@ -354,14 +354,19 @@ export function MediaPickerDrawer({
       setAssetLibraryMedia([]);
 
       try {
-        const result = await listMediaAssets({ limit: 100, status: "ready", model: modelRule.modelId });
+        const baseRequest = listMediaAssets({ limit: 100, status: "ready" });
+        const presentationRequest = modelRule.modelId.endsWith("_international")
+          ? listMediaAssets({ limit: 100, status: "ready", model: modelRule.modelId }).catch(() => null)
+          : Promise.resolve(null);
+        const [baseResult, presentationResult] = await Promise.all([baseRequest, presentationRequest]);
+        const results = presentationResult ? [presentationResult, baseResult] : [baseResult];
         if (cancelled) return;
-        setAssetLibraryMedia(
-          result.assets
+        setAssetLibraryMedia(mergeMediaAssets(
+          results.flatMap((result) => result.assets)
             .map(mediaAssetToUploadMediaItem)
             .filter((item): item is UploadMediaItem => Boolean(item))
             .filter((item) => item.type === "image" || item.type === "video" || item.type === "audio"),
-        );
+        ));
         setAssetLibraryStatus("idle");
       } catch (error) {
         if (cancelled) return;
@@ -375,7 +380,7 @@ export function MediaPickerDrawer({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, modelRule.modelId]);
+  }, [assetLibraryRefreshVersion, isOpen, modelRule.modelId]);
 
   useEffect(() => {
     if (!isOpen) return;

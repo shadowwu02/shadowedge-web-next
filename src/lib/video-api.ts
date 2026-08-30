@@ -1,7 +1,7 @@
 import { apiRequest } from "@/lib/api";
 import { LONG_VIDEO_CREATE_AUTH_REPLAY } from "@/lib/video/remakeLongVideoQuoteState";
 import { getStoredAuthToken } from "@/lib/auth";
-import { normalizeMediaAssetUrl } from "@/lib/media-assets";
+import { getPrivateCanonicalAudioReferenceUrl, normalizeMediaAssetUrl } from "@/lib/media-assets";
 import { isCanonicalAssetId } from "@/lib/video/canonicalReferenceAssets";
 import { filterRetiredHiggsfieldModels } from "@/lib/higgsfieldProductionRetirement";
 import { ApiError } from "@/types/api";
@@ -1497,7 +1497,7 @@ export function normalizeUploadResponse(payload: unknown, sourceFile?: File): Up
   const assetId = pickString(data.assetId, data.asset_id);
   const inferredType = inferUploadType(data.type || data.mimeType || data.mimetype, sourceFile?.type);
   const privateReference = data.privateReference === true || data.private_reference === true;
-  const url = pickString(
+  const returnedUrl = pickString(
     data.url,
     data.mediaUrl,
     data.media_url,
@@ -1512,6 +1512,11 @@ export function normalizeUploadResponse(payload: unknown, sourceFile?: File): Up
     envelope.publicUrl,
     envelope.fileUrl,
     envelope.imageUrl,
+  );
+  const url = returnedUrl || (
+    privateReference && inferredType === "audio"
+      ? getPrivateCanonicalAudioReferenceUrl(assetId)
+      : undefined
   );
 
   if (!url && !(privateReference && inferredType === "audio" && isCanonicalAssetId(assetId))) {

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { mediaAssetToUploadMediaItem } from "@/lib/assets-api";
-import { mergeMediaAssets, normalizeMediaAsset } from "@/lib/media-assets";
+import { getPrivateCanonicalAudioReferenceUrl, mergeMediaAssets, normalizeMediaAsset } from "@/lib/media-assets";
 import { normalizeUploadResponse, normalizeVideoModel } from "@/lib/video-api";
 import { LEGACY_REFERENCE_REUPLOAD_REQUIRED } from "@/lib/video/canonicalReferenceAssets";
 import { getVideoModelRuleFromRegistry } from "@/lib/video/videoModelRules";
@@ -142,7 +142,13 @@ describe("canonical WAV identity across upload, refresh, picker, and Prompt @", 
         url: null,
       },
     });
-    expect(uploaded).toMatchObject({ id: AUDIO_ASSET_ID, assetId: AUDIO_ASSET_ID, type: "audio", url: "", privateReference: true });
+    expect(uploaded).toMatchObject({
+      id: AUDIO_ASSET_ID,
+      assetId: AUDIO_ASSET_ID,
+      type: "audio",
+      url: getPrivateCanonicalAudioReferenceUrl(AUDIO_ASSET_ID),
+      privateReference: true,
+    });
   });
 
   it("keeps the same UUID after local-cache normalization and Asset Library refresh", () => {

@@ -96,6 +96,12 @@ function getApiAssetOrigin() {
   }
 }
 
+export function getPrivateCanonicalAudioReferenceUrl(assetId: unknown) {
+  const canonicalAssetId = typeof assetId === "string" ? assetId.trim() : "";
+  if (!isCanonicalAssetId(canonicalAssetId)) return "";
+  return `${getApiAssetOrigin()}/api/assets/${encodeURIComponent(canonicalAssetId)}/private-audio-reference`;
+}
+
 function isUploadApiPath(value: string) {
   return value === "/api/uploads" || value.startsWith("/api/uploads/");
 }
@@ -476,7 +482,11 @@ export function getMediaAssetSourceLabel(source: UploadMediaItem["source"]) {
 
 export function normalizeMediaAsset(item: unknown, source: MediaAssetSourceInput = "uploads"): UploadMediaItem | null {
   const raw = (item || {}) as RawMediaAsset;
-  const url = normalizeMediaAssetUrl(
+  const assetId = pickString(raw.assetId, raw.asset_id);
+  const mimeType = pickString(raw.mimeType, raw.mime_type, raw.mimetype);
+  const hintedType = normalizeType(raw.type, "", mimeType);
+  const privateReference = raw.privateReference === true || raw.private_reference === true;
+  const returnedUrl = normalizeMediaAssetUrl(
     pickString(
       raw.signedUrl,
       raw.signed_url,
@@ -497,10 +507,14 @@ export function normalizeMediaAsset(item: unknown, source: MediaAssetSourceInput
       raw.preview_url,
     ) || "",
   );
+  const url = returnedUrl || (
+    privateReference && hintedType === "audio"
+      ? getPrivateCanonicalAudioReferenceUrl(assetId)
+      : ""
+  );
 
   if (!url || isTransientMediaUrl(url) || !isRemoteMediaUrl(url)) return null;
 
-  const mimeType = pickString(raw.mimeType, raw.mime_type, raw.mimetype);
   const type = normalizeType(raw.type, url, mimeType);
   const role = normalizeRole(raw.role || raw.assetRole);
   const name = sanitizeMediaDisplayNameFromCandidates({
@@ -523,7 +537,6 @@ export function normalizeMediaAsset(item: unknown, source: MediaAssetSourceInput
     type === "image"
       ? pickString(raw.previewUrl, raw.preview_url, raw.thumbnailUrl, raw.thumbnail_url, url) || url
       : pickString(raw.previewUrl, raw.preview_url, raw.thumbnailUrl, raw.thumbnail_url) || "";
-  const assetId = pickString(raw.assetId, raw.asset_id);
 
   return {
     id: assetId || pickString(raw.id, raw.mediaId, raw.media_id, raw.key, url) || url,
@@ -533,6 +546,7 @@ export function normalizeMediaAsset(item: unknown, source: MediaAssetSourceInput
     name,
     url,
     previewUrl: safePreviewUrl(rawPreviewUrl),
+    privateReference,
     role,
     source: normalizeSource(source),
     size: Number(raw.size || raw.bytes || 0) || undefined,
