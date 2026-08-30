@@ -156,6 +156,8 @@ export type ImageGenerateResponse = {
 };
 
 export type ImageJobStatus = {
+  assetId?: string;
+  previewExpiresAt?: string;
   id: string;
   jobId: string;
   dbJobId: string;

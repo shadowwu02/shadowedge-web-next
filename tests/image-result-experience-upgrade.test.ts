@@ -107,14 +107,14 @@ describe("Image Workspace result experience", () => {
     expect({ appended, clicked, removed, revoked }).toEqual({ appended: true, clicked: true, removed: true, revoked: "blob:download-result" });
   });
 
-  it("renders a stacked status lifecycle with direct download, detail, and owned canonical reference reuse", () => {
+  it("renders a stacked status lifecycle with canonical download, detail, and owned canonical reference reuse", () => {
     expect(workspaceSource).toContain("<ImageResultStack");
     expect(workspaceSource).toContain("jobs={image.history}");
     expect(resultStackSource).toContain('t("image.status.queued")');
     expect(resultStackSource).toContain('t("image.status.processing")');
     expect(resultStackSource).toContain('t("image.status.completed")');
     expect(resultStackSource).toContain('t("image.status.failed")');
-    expect(resultStackSource).toContain("downloadBrowserFile");
+    expect(resultStackSource).toContain("downloadCanonicalImageAsset");
     expect(resultStackSource).toContain("onReuseReference");
     expect(resultStackSource).toContain("onSelect(job)");
     expect(workspaceSource).toContain("saveAssetFromJob");
@@ -122,9 +122,10 @@ describe("Image Workspace result experience", () => {
     expect(workspaceSource).toContain("image.addReferenceItems([reference])");
   });
 
-  it("uses direct download behavior in stack, compact history, and detail views", () => {
+  it("uses authorized canonical Asset download behavior in stack, compact history, and detail views", () => {
     for (const source of [resultStackSource, historySource, detailSource]) {
-      expect(source).toContain("downloadBrowserFile");
+      expect(source).toContain("downloadCanonicalImageAsset");
+      expect(source).not.toContain("downloadBrowserFile");
       expect(source).not.toMatch(/<a[^>]+download=/);
     }
   });
