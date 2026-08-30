@@ -119,6 +119,12 @@ export function ImageWorkspace() {
     if (normalized.includes("upload failed") || normalized.includes("image upload failed")) return t("image.errors.uploadFailed");
     return getImageUserFacingError(message, t);
   }, [image.error, image.selectedModel, t, tf]);
+  const selectedActiveJobHasScopedError = useMemo(() => {
+    if (!displayJob || !image.errorJobId || !isImageActiveStatus(displayJob.status)) return false;
+    const identities = [displayJob.dbJobId, displayJob.jobId, displayJob.id].filter(Boolean).map(String);
+    return identities.includes(String(image.errorJobId));
+  }, [displayJob, image.errorJobId]);
+  const presentableError = selectedActiveJobHasScopedError ? "" : localizedError;
 
   useEffect(() => {
     const serverFingerprint = document.querySelector<HTMLElement>("[data-image-hydration-fingerprint]")
@@ -328,7 +334,7 @@ export function ImageWorkspace() {
         <ImagePromptPanel
           customerCapabilities={image.customerCapabilities}
           draftNotice={image.capabilityNotice || promptStudioNotice || image.draftNotice}
-          error={localizedError}
+          error={presentableError}
           estimatedCredits={image.estimatedCredits}
           isActiveJob={Boolean(image.currentJob && isImageActiveStatus(image.currentJob.status))}
           isGenerating={image.isGenerating}
@@ -358,7 +364,7 @@ export function ImageWorkspace() {
       <div className="min-h-[560px] overflow-hidden xl:min-h-0">
         <ImageResultStack
           currentJobId={displayJob?.dbJobId || displayJob?.jobId || displayJob?.id}
-          error={localizedError}
+          error={presentableError}
           isGenerating={image.isGenerating}
           isLoading={image.loadingHistory}
           isPolling={image.isPolling}
@@ -375,7 +381,7 @@ export function ImageWorkspace() {
         <ImageHistoryPanel
           currentJobId={displayJob?.dbJobId || displayJob?.jobId}
           history={image.history}
-          error={localizedError}
+          error={presentableError}
           isLoading={image.loadingHistory}
           onRefreshHistory={() => void image.reloadHistory()}
           onRefreshStatus={handleRefreshStatus}

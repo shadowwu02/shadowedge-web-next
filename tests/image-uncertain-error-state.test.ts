@@ -60,4 +60,13 @@ describe("Image UNCERTAIN fail-closed presentation", () => {
     expect(hook).toMatch(/setError\([^\n]+, jobId\)/);
     expect(hook).toMatch(/errorJobIdRef\.current !== nextJobId\) setError\(""\)/);
   });
+
+  it("does not present a job-scoped terminal error banner while the selected Job is nonterminal", () => {
+    const workspace = fs.readFileSync(path.join(ROOT, "src/components/image/ImageWorkspace.tsx"), "utf8");
+
+    expect(workspace).toMatch(/selectedActiveJobHasScopedError/);
+    expect(workspace).toMatch(/isImageActiveStatus\(displayJob\.status\)/);
+    expect(workspace).toMatch(/presentableError = selectedActiveJobHasScopedError \? "" : localizedError/);
+    expect(workspace.match(/error=\{presentableError\}/g)).toHaveLength(3);
+  });
 });
