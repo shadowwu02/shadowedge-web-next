@@ -46,6 +46,17 @@ export type ListMediaAssetsResult = {
   nextCursor: string | null;
 };
 
+export type VerifyMediaAssetReferencesInput = {
+  model: string;
+  references: Array<{ assetId: string; type: UploadMediaType }>;
+};
+
+export type VerifyMediaAssetReferencesResult = {
+  assets: MediaAssetRecord[];
+  checkedAssetIds: string[];
+  checkedAt: number;
+};
+
 export type SaveAssetFromJobInput = {
   displayName?: string;
   kind: "image" | "video";
@@ -156,6 +167,24 @@ export async function listMediaAssets(options: ListMediaAssetsParams = {}): Prom
   return {
     assets: Array.isArray(payload.assets) ? payload.assets : [],
     nextCursor: payload.nextCursor || null,
+  };
+}
+
+export async function verifyMediaAssetReferences(
+  input: VerifyMediaAssetReferencesInput,
+): Promise<VerifyMediaAssetReferencesResult> {
+  const envelope = await apiRequest<VerifyMediaAssetReferencesResult>("/api/assets/reference-authority", {
+    method: "POST",
+    body: JSON.stringify({
+      model: input.model,
+      references: input.references,
+    }),
+  });
+  const payload = (envelope.data || envelope || {}) as Partial<VerifyMediaAssetReferencesResult>;
+  return {
+    assets: Array.isArray(payload.assets) ? payload.assets : [],
+    checkedAssetIds: Array.isArray(payload.checkedAssetIds) ? payload.checkedAssetIds : [],
+    checkedAt: Number(payload.checkedAt) || Date.now(),
   };
 }
 

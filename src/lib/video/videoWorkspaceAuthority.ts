@@ -1,4 +1,8 @@
-import { listMediaAssets, mediaAssetToUploadMediaItem } from "@/lib/assets-api";
+import {
+  listMediaAssets,
+  mediaAssetToUploadMediaItem,
+  verifyMediaAssetReferences,
+} from "@/lib/assets-api";
 import { getCurrentUserProfile } from "@/lib/auth-api";
 import type { UploadMediaItem } from "@/types/video";
 
@@ -108,4 +112,46 @@ export async function loadVerifiedVideoWorkspaceAuthority(
     throw new Error("This media is not available in the current workspace. Please choose it again from My Assets.");
   }
   return loadVideoWorkspaceAuthority(actualScope);
+}
+
+export function buildVideoReferenceAuthorityRequest(references: UploadMediaItem[]) {
+  const seen = new Set<string>();
+  return references.reduce<Array<{ assetId: string; type: UploadMediaItem["type"] }>>((items, reference) => {
+    const assetId = String(reference.assetId || "").trim();
+    if (!assetId || seen.has(assetId)) return items;
+    seen.add(assetId);
+    items.push({ assetId, type: reference.type });
+    return items;
+  }, []);
+}
+
+export async function loadVerifiedVideoReferenceAuthority(
+  expectedScope: VideoWorkspaceAuthorityScope,
+  references: UploadMediaItem[],
+  model: string,
+): Promise<VideoWorkspaceAuthority> {
+  const auth = await getCurrentUserProfile();
+  const actualScope = normalizeVideoWorkspaceAuthorityScope({
+    userId: auth.user?.id,
+    tenantId: auth.tenantAccess?.tenant?.id,
+  });
+  if (!actualScope || !isSameVideoWorkspaceAuthorityScope(actualScope, expectedScope)) {
+    throw new Error("A referenced media item is unavailable. Please select it again.");
+  }
+  const requested = buildVideoReferenceAuthorityRequest(references);
+  if (!requested.length) return { scope: actualScope, media: [], checkedAt: Date.now() };
+
+  const verified = await verifyMediaAssetReferences({ model, references: requested });
+  const expectedIds = requested.map((reference) => reference.assetId);
+  if (verified.checkedAssetIds.length !== expectedIds.length ||
+      verified.checkedAssetIds.some((assetId, index) => assetId !== expectedIds[index])) {
+    throw new Error("A referenced media item is unavailable. Please select it again.");
+  }
+  const media = verified.assets
+    .map(mediaAssetToUploadMediaItem)
+    .filter((item): item is UploadMediaItem => Boolean(item));
+  if (media.length !== requested.length) {
+    throw new Error("A referenced media item is unavailable. Please select it again.");
+  }
+  return { scope: actualScope, media, checkedAt: verified.checkedAt };
 }

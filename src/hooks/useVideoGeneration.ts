@@ -29,7 +29,7 @@ import {
 import type { VideoMentionBinding } from "@/lib/video/videoMentionBindings";
 import { resolveVideoPromptBoundReferences } from "@/lib/video/videoPromptBoundReferences";
 import {
-  loadVerifiedVideoWorkspaceAuthority,
+  loadVerifiedVideoReferenceAuthority,
   type VideoWorkspaceAuthority,
   type VideoWorkspaceAuthorityScope,
 } from "@/lib/video/videoWorkspaceAuthority";
@@ -273,7 +273,17 @@ export function useVideoGeneration() {
         throw new Error(validationMessage);
       }
 
-      const freshWorkspaceAuthority = await loadVerifiedVideoWorkspaceAuthority(options.workspaceAuthorityScope);
+      const promptBoundReferences = resolveVideoPromptBoundReferences({
+        media: options.media,
+        mentionBindings: options.mentionBindings,
+        prompt: options.prompt,
+        workspaceAuthority: options.workspaceAuthority,
+      });
+      const freshWorkspaceAuthority = await loadVerifiedVideoReferenceAuthority(
+        options.workspaceAuthorityScope,
+        promptBoundReferences.activeItems,
+        options.model.id,
+      );
       const workspaceAuthorityMessage = validateVideoWorkspaceAuthorityForSubmit(options, freshWorkspaceAuthority);
       if (workspaceAuthorityMessage) {
         throw new Error(submitValidationCopy.workspaceAccess);

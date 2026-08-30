@@ -16,6 +16,7 @@ import {
 import { buildVideoGenerationRequest } from "@/lib/video/videoGenerationRequest";
 import { resolveVideoPromptBoundReferences } from "@/lib/video/videoPromptBoundReferences";
 import {
+  buildVideoReferenceAuthorityRequest,
   reconcileVideoWorkspaceMedia,
   type VideoWorkspaceAuthority,
   type VideoWorkspaceAuthorityScope,
@@ -114,8 +115,41 @@ describe("Video Prompt-bound workspace authority", () => {
 
   it("performs the fresh authority check before the Generate API call", () => {
     const source = readFileSync(join(process.cwd(), "src/hooks/useVideoGeneration.ts"), "utf8");
-    expect(source.indexOf("await loadVerifiedVideoWorkspaceAuthority")).toBeGreaterThan(-1);
-    expect(source.indexOf("await loadVerifiedVideoWorkspaceAuthority")).toBeLessThan(source.indexOf("await createVideoTask(request)"));
+    expect(source.indexOf("await loadVerifiedVideoReferenceAuthority")).toBeGreaterThan(-1);
+    expect(source.indexOf("await loadVerifiedVideoReferenceAuthority")).toBeLessThan(source.indexOf("await createVideoTask(request)"));
+    const submitPath = source.slice(source.indexOf("const submit = useCallback"), source.indexOf("const refreshTask = useCallback"));
+    expect(submitPath).not.toContain("loadVerifiedVideoWorkspaceAuthority");
+    expect(submitPath).not.toContain("listMediaAssets");
+  });
+
+  it("builds the server authority request from only the Prompt-bound reference set", () => {
+    const unrelatedImage = {
+      ...currentVideo,
+      id: "40000000-0000-4000-8000-000000000001",
+      assetId: "40000000-0000-4000-8000-000000000001",
+      type: "image" as const,
+      mimeType: "image/png",
+    };
+    const promptBound = resolveVideoPromptBoundReferences({
+      media: [currentVideo, currentAudio],
+      prompt: "Use @Video 1 and @Audio 1",
+      workspaceAuthority: authority,
+    });
+    expect(buildVideoReferenceAuthorityRequest(promptBound.activeItems)).toEqual([
+      { assetId: currentVideo.assetId, type: "video" },
+      { assetId: currentAudio.assetId, type: "audio" },
+    ]);
+    expect(buildVideoReferenceAuthorityRequest(promptBound.activeItems)).not.toContainEqual({
+      assetId: unrelatedImage.assetId,
+      type: "image",
+    });
+  });
+
+  it("keeps the customer-facing bound reference error productized", () => {
+    const authoritySource = readFileSync(join(process.cwd(), "src/lib/video/videoWorkspaceAuthority.ts"), "utf8");
+    expect(authoritySource).toContain("A referenced media item is unavailable. Please select it again.");
+    expect(authoritySource).not.toContain("PRIVATE_IMAGE_ASSET_NOT_ELIGIBLE");
+    expect(authoritySource).not.toContain("VIDEO_REFERENCE_AUTHORITY_OWNER_MISMATCH");
   });
 
   it("keeps active references empty while authenticated workspace authority is loading", () => {
