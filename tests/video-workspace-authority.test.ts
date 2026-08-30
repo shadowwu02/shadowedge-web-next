@@ -104,6 +104,14 @@ afterEach(() => {
 });
 
 describe("Video Prompt-bound workspace authority", () => {
+  it("uses a neutral readiness heading so blocked references are never presented as ready", () => {
+    const dictionary = readFileSync(join(process.cwd(), "src/i18n/dictionary.ts"), "utf8");
+
+    expect(dictionary).toContain('"video.actions.readyCheck": "Generation check"');
+    expect(dictionary).toContain('"video.actions.readyCheck": "生成检查"');
+    expect(dictionary).not.toContain('"video.actions.readyCheck": "Generation ready"');
+  });
+
   it("performs the fresh authority check before the Generate API call", () => {
     const source = readFileSync(join(process.cwd(), "src/hooks/useVideoGeneration.ts"), "utf8");
     expect(source.indexOf("await loadVerifiedVideoWorkspaceAuthority")).toBeGreaterThan(-1);
