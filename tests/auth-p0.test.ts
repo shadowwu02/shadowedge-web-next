@@ -13,6 +13,7 @@ import {
   saveAuthSession,
   saveCachedProfile,
   isVerifiedAuthSession,
+  isAuthSessionStorageKey,
 } from "@/lib/auth";
 
 class MemoryStorage implements Storage {
@@ -78,6 +79,13 @@ beforeEach(() => {
 });
 
 describe("P0 Auth session behavior", () => {
+  it("ignores unrelated workspace storage writes and recognizes real Auth changes", () => {
+    expect(isAuthSessionStorageKey("shadowedge_video_workspace_draft")).toBe(false);
+    expect(isAuthSessionStorageKey("studio_run_history")).toBe(false);
+    expect(isAuthSessionStorageKey(AUTH_TOKEN_KEY)).toBe(true);
+    expect(isAuthSessionStorageKey(AUTH_PROFILE_KEY)).toBe(true);
+    expect(isAuthSessionStorageKey(null)).toBe(true);
+  });
   it("falls back to the canonical production API when a local prebuild contains a sensitive placeholder", () => {
     vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "[SENSITIVE]");
     expect(getApiBaseUrl()).toBe("https://api.shadowedgeai.com");

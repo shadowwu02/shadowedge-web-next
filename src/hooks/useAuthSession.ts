@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getCurrentUserProfile } from "@/lib/auth-api";
-import { getCachedAuthSessionState } from "@/lib/auth";
+import { getCachedAuthSessionState, isAuthSessionStorageKey } from "@/lib/auth";
 import type { ShadowEdgeProfile, ShadowEdgeTenantAccess, ShadowEdgeUser } from "@/types/user";
 
 export function useAuthSession() {
@@ -69,14 +69,15 @@ export function useAuthSession() {
       syncCachedSession();
     }
 
-    function handleStorageUpdated() {
+    function handleStorageUpdated(event: StorageEvent) {
+      if (!isAuthSessionStorageKey(event.key)) return;
       const next = syncCachedSession();
-      if (next.token) {
+      if (next.token && !next.isProfileVerified) {
         setUser(null);
         setTenantAccess(null);
         void refresh();
       }
-      else {
+      else if (!next.token) {
         setUser(null);
         setTenantAccess(null);
       }

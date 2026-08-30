@@ -32,9 +32,21 @@ test("Header and Studio controls use the same verified isSignedIn boundary", () 
 test("cross-tab storage changes revalidate an unverified stored token", () => {
   const hook = read("src/hooks/useAuthSession.ts");
 
+  assert.match(hook, /function handleStorageUpdated\(event: StorageEvent\)/);
+  assert.match(hook, /if \(!isAuthSessionStorageKey\(event\.key\)\) return/);
   assert.match(
     hook,
-    /if \(next\.token && !next\.isProfileVerified\) void refresh\(\)/,
+    /if \(next\.token && !next\.isProfileVerified\) \{[\s\S]*void refresh\(\)/,
   );
+  assert.doesNotMatch(hook, /if \(next\.token\) \{\s*setUser\(null\)/);
   assert.match(hook, /window\.addEventListener\("storage", handleStorageUpdated\)/);
+});
+
+test("verified same-session storage events preserve workspace authority identity", () => {
+  const hook = read("src/hooks/useAuthSession.ts");
+  const auth = read("src/lib/auth.ts");
+  assert.match(auth, /export function isAuthSessionStorageKey/);
+  assert.match(auth, /key === null \|\| AUTH_SESSION_STORAGE_KEYS\.has\(key\)/);
+  assert.match(hook, /if \(next\.token && !next\.isProfileVerified\)/);
+  assert.match(hook, /else if \(!next\.token\)/);
 });

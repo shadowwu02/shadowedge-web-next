@@ -1302,6 +1302,7 @@ export function VideoWorkspace() {
   const [isPromptStudioImportHighlighted, setIsPromptStudioImportHighlighted] = useState(false);
   const promptStudioDraftCheckedRef = useRef(false);
   const remakeVideoHandoffCheckedRef = useRef(false);
+  const readyWorkspaceScopeKeyRef = useRef("");
   const [remakeVideoHandoffSignal, setRemakeVideoHandoffSignal] = useState(0);
   const reconciledMentionBindings = useMemo(
     () => sanitizeVideoMentionBindings(prompt, serializeMentionBindings(mentionBindings), media).mentionBindings,
@@ -1337,6 +1338,7 @@ export function VideoWorkspace() {
     }
 
     const activeWorkspaceScope = workspaceAuthorityScope;
+    const isInitialLoadForScope = readyWorkspaceScopeKeyRef.current !== workspaceAuthorityScopeKey;
 
     function applyModelRegistry(
       nextModels: VideoModel[],
@@ -1362,6 +1364,7 @@ export function VideoWorkspace() {
       setModels(availableModels);
       setWorkspaceAuthority(authority);
       setWorkspaceAuthorityStatus("ready");
+      readyWorkspaceScopeKeyRef.current = workspaceAuthorityScopeKey;
       setSelectedModel(nextModel);
       setParams(nextParams);
 
@@ -1389,12 +1392,14 @@ export function VideoWorkspace() {
     }
 
     async function loadModels() {
-      setDraftReady(false);
-      setWorkspaceAuthority(null);
-      setWorkspaceAuthorityStatus("loading");
-      setModelLoading(true);
+      if (isInitialLoadForScope) {
+        setDraftReady(false);
+        setWorkspaceAuthority(null);
+        setWorkspaceAuthorityStatus("loading");
+        setModelLoading(true);
+        setCatalogStatus("loading");
+      }
       setModelError("");
-      setCatalogStatus("loading");
       const draft = readVideoDraft(activeWorkspaceScope);
 
       try {
@@ -1412,23 +1417,25 @@ export function VideoWorkspace() {
           setModelError(t("video.model.catalogUnavailable"));
           setWorkspaceAuthority(null);
           setWorkspaceAuthorityStatus("unavailable");
-          setCatalogStatus("unavailable");
-          setModels([unavailableCatalogModel]);
-          setSelectedModel(unavailableCatalogModel);
-          setParams(buildParamsForModelAndReferences(
-            unavailableCatalogModel,
-            draft?.params,
-            draft?.referenceMedia || [],
-            draft?.prompt,
-            draft?.mentionBindings,
-          ));
-          setPrompt(draft?.prompt || "");
-          setMedia([]);
-          setMentionBindings([]);
-          setDraftReady(false);
+          if (isInitialLoadForScope) {
+            setCatalogStatus("unavailable");
+            setModels([unavailableCatalogModel]);
+            setSelectedModel(unavailableCatalogModel);
+            setParams(buildParamsForModelAndReferences(
+              unavailableCatalogModel,
+              draft?.params,
+              draft?.referenceMedia || [],
+              draft?.prompt,
+              draft?.mentionBindings,
+            ));
+            setPrompt(draft?.prompt || "");
+            setMedia([]);
+            setMentionBindings([]);
+            setDraftReady(false);
+          }
         }
       } finally {
-        if (!cancelled) setModelLoading(false);
+        if (!cancelled && isInitialLoadForScope) setModelLoading(false);
       }
     }
 

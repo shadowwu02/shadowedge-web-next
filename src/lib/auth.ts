@@ -8,6 +8,20 @@ export const AUTH_REFRESH_TOKEN_KEY = "shadowedge_refresh_token";
 export const AUTH_PROFILE_KEY = "shadowedge_user_profile";
 export const SUPABASE_STORAGE_KEY = "sb-fihauilcdjsfavvjniig-auth-token";
 
+const AUTH_SESSION_STORAGE_KEYS = new Set([
+  AUTH_TOKEN_KEY,
+  AUTH_REFRESH_TOKEN_KEY,
+  AUTH_PROFILE_KEY,
+  SUPABASE_STORAGE_KEY,
+  "shadowedge_access_token",
+  "shadowedge_token",
+  "se_auth_token",
+  "se_access_token",
+  "access_token",
+  "refresh_token",
+  "se_refresh_token",
+]);
+
 type SupabaseAuthCache = {
   access_token?: string;
   refresh_token?: string;
@@ -63,6 +77,12 @@ export function markAuthSessionVerified(token: string) {
 
 export function isAuthTokenVerified(token: string) {
   return Boolean(token && verifiedAuthToken === token);
+}
+
+export function isAuthSessionStorageKey(key: string | null) {
+  // StorageEvent.key is null only for localStorage.clear(), which can remove
+  // the active session and therefore must be treated as an Auth change.
+  return key === null || AUTH_SESSION_STORAGE_KEYS.has(key);
 }
 
 export function getStoredAuthToken() {
@@ -188,19 +208,7 @@ export function clearAuthSession() {
   verifiedAuthToken = "";
   if (typeof window === "undefined") return;
 
-  [
-    AUTH_TOKEN_KEY,
-    AUTH_REFRESH_TOKEN_KEY,
-    AUTH_PROFILE_KEY,
-    SUPABASE_STORAGE_KEY,
-    "shadowedge_access_token",
-    "shadowedge_token",
-    "se_auth_token",
-    "se_access_token",
-    "access_token",
-    "refresh_token",
-    "se_refresh_token",
-  ].forEach((key) => {
+  AUTH_SESSION_STORAGE_KEYS.forEach((key) => {
     try {
       window.localStorage.removeItem(key);
     } catch {
