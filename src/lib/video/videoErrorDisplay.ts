@@ -40,6 +40,48 @@ export function getAudioReferenceCustomerErrorMessage(error: unknown, t: VideoEr
   return key ? t(key) : "";
 }
 
+const providerCustomerErrorCodes = new Set([
+  "XINHANKR_ARTSDANCE_PROVIDER_REJECTED",
+  "POLICY_OR_COPYRIGHT",
+  "VIDEO_CONTENT_POLICY_REJECTED",
+  "VIDEO_CONTENT_REVIEW_FAILED",
+  "PROVIDER_TEMPORARY",
+  "PROVIDER_TEMPORARY_FAILURE",
+  "VIDEO_SERVICE_TEMPORARY",
+  "AUTH",
+  "AUTH_FAILED",
+  "XINHANKR_ARTSDANCE_AUTHENTICATION_FAILED",
+  "VIDEO_SERVICE_AUTHORIZATION_UNAVAILABLE",
+  "ENTITLEMENT",
+  "VIDEO_SERVICE_ENTITLEMENT_UNAVAILABLE",
+  "RESULT_INVALID",
+  "VIDEO_RESULT_INVALID",
+  "TIMEOUT_UNKNOWN",
+  "PROVIDER_SUBMIT_UNCERTAIN",
+  "VIDEO_STATUS_UNKNOWN",
+  "PROVIDER_REQUEST_REJECTED",
+  "VIDEO_REQUEST_NOT_PROCESSED",
+]);
+
+function errorRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function providerErrorPublicMessage(error: unknown) {
+  const payload = errorRecord(errorRecord(error).payload);
+  return String(payload.public_message || payload.publicMessage || "").trim();
+}
+
+export function getVideoProviderCustomerErrorMessage(error: unknown, t: VideoErrorTranslator) {
+  const record = errorRecord(error);
+  const code = String(record.code || "").trim().toUpperCase();
+  if (!providerCustomerErrorCodes.has(code)) return "";
+  return getVideoUserFacingErrorDisplay(String(record.message || ""), t, {
+    errorCode: code,
+    publicMessage: providerErrorPublicMessage(error),
+  }).message;
+}
+
 type VideoErrorDisplayOptions = {
   classificationMessage?: string | null;
   context?: "remake" | "video";
@@ -292,15 +334,26 @@ export function getVideoErrorReasonCode(message: string | null | undefined, opti
     errorCode === "POLICY_OR_COPYRIGHT" ||
     errorCode === "CONTENT_POLICY_REJECTED" ||
     errorCode === "COPYRIGHT_REJECTED" ||
+    errorCode === "VIDEO_CONTENT_REVIEW_FAILED" ||
     includesAnyTerm(combined, policyErrorTerms)
   ) {
     return "policy";
   }
 
   if (
+    errorCode === "XINHANKR_ARTSDANCE_PROVIDER_REJECTED" ||
+    errorCode === "PROVIDER_REQUEST_REJECTED" ||
+    errorCode === "VIDEO_REQUEST_NOT_PROCESSED"
+  ) {
+    return "unknown";
+  }
+
+  if (
     errorCode === "MATERIAL_ISSUE" ||
     errorCode === "MEDIA_INVALID" ||
     errorCode === "MEDIA_PROCESSING_FAILED" ||
+    errorCode === "RESULT_INVALID" ||
+    errorCode === "VIDEO_RESULT_INVALID" ||
     includesAnyTerm(combined, materialErrorTerms)
   ) {
     return "material";
@@ -322,6 +375,16 @@ export function getVideoErrorReasonCode(message: string | null | undefined, opti
   if (
     errorCode === "PROVIDER_TEMPORARY_FAILURE" ||
     errorCode === "PROVIDER_TEMPORARY" ||
+    errorCode === "VIDEO_SERVICE_TEMPORARY" ||
+    errorCode === "AUTH" ||
+    errorCode === "AUTH_FAILED" ||
+    errorCode === "XINHANKR_ARTSDANCE_AUTHENTICATION_FAILED" ||
+    errorCode === "VIDEO_SERVICE_AUTHORIZATION_UNAVAILABLE" ||
+    errorCode === "ENTITLEMENT" ||
+    errorCode === "VIDEO_SERVICE_ENTITLEMENT_UNAVAILABLE" ||
+    errorCode === "TIMEOUT_UNKNOWN" ||
+    errorCode === "PROVIDER_SUBMIT_UNCERTAIN" ||
+    errorCode === "VIDEO_STATUS_UNKNOWN" ||
     errorCode === "RATE_LIMITED" ||
     includesAnyTerm(combined, temporaryErrorTerms) ||
     isProviderInternalVideoError(raw)

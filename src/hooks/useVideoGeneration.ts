@@ -7,7 +7,10 @@ import { formatGenerationConcurrencyLimitError } from "@/lib/generationConcurren
 import { createVideoTask, getVideoHistory, getVideoStatus, saveVideoHistory } from "@/lib/video-api";
 import { buildVideoGenerationRequest } from "@/lib/video/videoGenerationRequest";
 import { createVideoClientRequestId } from "@/lib/video/videoClientRequestId";
-import { getAudioReferenceCustomerErrorMessage } from "@/lib/video/videoErrorDisplay";
+import {
+  getAudioReferenceCustomerErrorMessage,
+  getVideoProviderCustomerErrorMessage,
+} from "@/lib/video/videoErrorDisplay";
 import { countVideoPromptCharacters, formatVideoPromptLimit, getVideoPromptLimit } from "@/lib/video/videoPromptLimits";
 import {
   getSafeHistoryOutputUrl,
@@ -331,6 +334,7 @@ export function useVideoGeneration() {
           ? t("maintenance.errors.generationPaused")
           : formatGenerationConcurrencyLimitError(submitError, t, tf) ||
             getAudioReferenceCustomerErrorMessage(submitError, t) ||
+            getVideoProviderCustomerErrorMessage(submitError, t) ||
             getSafeVideoGenerationErrorMessage(submitError, t("video.errors.generationRequestFailed"));
       setError(message);
       options.onSubmitError?.(message);
