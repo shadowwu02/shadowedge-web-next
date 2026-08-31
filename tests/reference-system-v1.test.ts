@@ -10,6 +10,7 @@ import { assertReferencePipelineParity } from "@/lib/reference/referencePipeline
 import { autoBindSelectedVideoReferences } from "@/lib/video/videoReferenceAutoBind";
 import { resolveVideoPromptBoundReferences } from "@/lib/video/videoPromptBoundReferences";
 import { getImageReferencesFromDraft, type ImageWorkspaceDraft } from "@/lib/image/imageWorkspaceDraft";
+import type { VideoWorkspaceAuthority } from "@/lib/video/videoWorkspaceAuthority";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
 
 function media(type: UploadMediaType, index: number): UploadMediaItem {
@@ -33,6 +34,55 @@ describe("REFERENCE_SYSTEM_V1 frontend invariants", () => {
     const second = media("image", 2);
     expect(getCanonicalReferenceIdentity(first)).toBe(`asset:${first.assetId}`);
     expect(isSameCanonicalReference(first, second)).toBe(false);
+  });
+
+  it("keeps private Video identity, auto-binding, refresh/restore, replacement, and deletion Asset-ID authoritative", () => {
+    const first = media("video", 11);
+    const second = media("video", 12);
+    expect(first.url).toBe("");
+    expect(second.url).toBe("");
+    expect(isSameCanonicalReference(first, second)).toBe(false);
+
+    const bound = autoBindSelectedVideoReferences({
+      media: [first, second],
+      mentionBindings: [],
+      prompt: "Animate",
+      selected: [first],
+    });
+    expect(bound.prompt).toBe("Animate 【@视频1】");
+    expect(bound.mentionBindings).toHaveLength(1);
+    expect(bound.mentionBindings[0].mediaId).toBe(`asset:${first.assetId}`);
+
+    const refreshedFirst = {
+      ...first,
+      id: "refreshed-local-snapshot",
+      url: "https://api.shadowedgeai.com/api/internal/video-reference/refreshed-signature",
+    };
+    const authority: VideoWorkspaceAuthority = {
+      checkedAt: 2,
+      media: [refreshedFirst, second],
+      scope: { tenantId: "tenant", userId: "user" },
+    };
+    const restored = resolveVideoPromptBoundReferences({
+      media: [first, second],
+      mentionBindings: bound.mentionBindings,
+      prompt: bound.prompt,
+      workspaceAuthority: authority,
+    });
+    expect(restored.counts.video).toBe(1);
+    expect(restored.activeItems[0].assetId).toBe(first.assetId);
+    expect(restored.activeItems[0].id).toBe("refreshed-local-snapshot");
+
+    const promptBox = readFileSync(join(process.cwd(), "src/components/video/PromptBox.tsx"), "utf8");
+    expect(promptBox).toContain("binding.tokenId === bindingToUpdate.tokenId ? nextBinding : binding");
+    const deleted = resolveVideoPromptBoundReferences({
+      media: [refreshedFirst, second],
+      mentionBindings: restored.mentionBindings,
+      prompt: bound.prompt.replace("【@视频1】", ""),
+      workspaceAuthority: authority,
+    });
+    expect(deleted.counts.video).toBe(0);
+    expect(deleted.activeItems).toEqual([]);
   });
 
   it("fails closed when selection, binding, authority, serializer, or provider counts diverge", () => {
