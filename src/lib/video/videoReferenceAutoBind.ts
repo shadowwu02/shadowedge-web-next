@@ -4,15 +4,10 @@ import {
   type VideoMentionBinding,
 } from "@/lib/video/videoMentionBindings";
 import type { UploadMediaItem } from "@/types/video";
-
-function mediaIdentities(item: Pick<UploadMediaItem, "assetId" | "id" | "url">) {
-  return [item.id, item.assetId, item.url].map((value) => String(value || "").trim()).filter(Boolean);
-}
-
-function sameMedia(left: UploadMediaItem, right: UploadMediaItem) {
-  const rightIds = new Set(mediaIdentities(right));
-  return mediaIdentities(left).some((identity) => rightIds.has(identity));
-}
+import {
+  getCanonicalReferenceIdentity,
+  isSameCanonicalReference,
+} from "@/lib/reference/referenceIdentity";
 
 export function autoBindSelectedVideoReferences({
   media,
@@ -30,12 +25,12 @@ export function autoBindSelectedVideoReferences({
   const tokens: string[] = [];
 
   selected.forEach((selectedItem) => {
-    const mediaItem = media.find((item) => sameMedia(item, selectedItem));
+    const mediaItem = media.find((item) => isSameCanonicalReference(item, selectedItem));
     if (!mediaItem) return;
-    const mention = mentionItems.find((item) => item.id === mediaItem.id || item.assetId === mediaItem.assetId);
+    const mention = mentionItems.find((item) => isSameCanonicalReference(item, mediaItem));
     if (!mention) return;
-    const identities = new Set(mediaIdentities(mediaItem));
-    if (nextBindings.some((binding) => identities.has(binding.mediaId))) return;
+    const identity = getCanonicalReferenceIdentity(mediaItem);
+    if (!identity || nextBindings.some((binding) => binding.mediaId === identity)) return;
 
     nextBindings.push(createMentionBinding(mediaItem, mention.display, {
       sourceTokenText: mention.token,

@@ -137,6 +137,17 @@ export type VideoTupleCapability = {
   };
 };
 
+export type VideoReferenceSystemV1 = {
+  schemaVersion: "reference_system_v1" | string;
+  identityAuthority: "canonical_asset_id" | string;
+  activationAuthority: "prompt_binding" | string;
+  limits: { image: number; video: number; audio: number; total: number };
+  combinations: Record<string, boolean | number>;
+  audioReference: Record<string, unknown>;
+  generateAudioMutex: "audio_reference_exclusive" | string;
+  privateDelivery: Record<UploadMediaType, { status: string; contracts?: string[] }>;
+};
+
 export type VideoModel = {
   id: string;
   label: string;
@@ -192,6 +203,7 @@ export type VideoModel = {
     imageVideoAudio?: boolean;
   };
   imagePlusGenerateAudio?: boolean;
+  referenceSystemV1?: VideoReferenceSystemV1;
   raw?: unknown;
 };
 

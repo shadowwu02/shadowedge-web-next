@@ -5,6 +5,7 @@ import {
   LEGACY_REFERENCE_REUPLOAD_REQUIRED,
   isCanonicalReferenceItem,
 } from "@/lib/video/canonicalReferenceAssets";
+import { getCanonicalReferenceIdentity } from "@/lib/reference/referenceIdentity";
 
 type ReferenceCountMap = Record<UploadMediaType, number>;
 
@@ -122,7 +123,7 @@ function getAudioAssetIssue(rule: VideoModelRule, item: Pick<UploadMediaItem, "d
 function uniqueReferenceItems(items: UploadMediaItem[]) {
   const seen = new Set<string>();
   return items.filter((item) => {
-    const key = item.url || item.id;
+    const key = getCanonicalReferenceIdentity(item);
     if (!key || seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -224,8 +225,8 @@ export function validateReferenceSelectionForRule(
   nextItems: UploadMediaItem[],
 ) {
   const uniqueCurrent = uniqueReferenceItems(currentItems);
-  const currentKeys = new Set(uniqueCurrent.map((item) => item.url || item.id));
-  const uniqueNext = uniqueReferenceItems(nextItems).filter((item) => !currentKeys.has(item.url || item.id));
+  const currentKeys = new Set(uniqueCurrent.map(getCanonicalReferenceIdentity));
+  const uniqueNext = uniqueReferenceItems(nextItems).filter((item) => !currentKeys.has(getCanonicalReferenceIdentity(item)));
   const unsupported = uniqueNext.find((item) => !isReferenceTypeSupported(rule, item.type));
 
   if (unsupported) return getUnsupportedReferenceTypeReason(rule, unsupported.type);

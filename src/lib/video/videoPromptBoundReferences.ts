@@ -17,6 +17,11 @@ import {
   reconcileVideoWorkspaceMedia,
   type VideoWorkspaceAuthority,
 } from "@/lib/video/videoWorkspaceAuthority";
+import {
+  getCanonicalReferenceIdentity,
+  getCanonicalReferenceIdentityCandidates,
+  isSameCanonicalReference,
+} from "@/lib/reference/referenceIdentity";
 
 export type VideoPromptReferenceCounts = Record<UploadMediaType, number>;
 
@@ -91,7 +96,9 @@ export function resolveVideoPromptBoundReferences({
     media.forEach((item) => {
       const authoritative = item.assetId ? authoritativeByAssetId.get(String(item.assetId)) : undefined;
       if (!authoritative) return;
-      [item.id, item.url].filter(Boolean).forEach((identity) => authoritativeIdByOriginalId.set(String(identity), authoritative.id));
+      getCanonicalReferenceIdentityCandidates(item).forEach((identity) =>
+        authoritativeIdByOriginalId.set(identity, getCanonicalReferenceIdentity(authoritative)),
+      );
     });
   }
   const authorityRemappedBindings = originalBindings.map((binding) => ({
@@ -116,9 +123,7 @@ export function resolveVideoPromptBoundReferences({
   const invalidCanonicalItems = resolvedItems.filter((item) => !isCanonicalReferenceItem(item));
   const activeBindings = resolvedItems.filter(isCanonicalReferenceItem);
   const activeItems = activeBindings
-    .map((binding) => authorizedMedia.find((item) =>
-      item.id === binding.id || Boolean(binding.url && item.url && item.url === binding.url),
-    ))
+    .map((binding) => authorizedMedia.find((item) => isSameCanonicalReference(item, binding)))
     .filter((item): item is UploadMediaItem => Boolean(item));
   const authorizedAssetIds = new Set(authorizedMedia.map((item) => item.assetId).filter(Boolean));
   const unauthorizedItems = workspaceAuthority || workspaceAuthorityRequired

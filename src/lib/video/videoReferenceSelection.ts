@@ -1,5 +1,6 @@
 import { mergeMediaAssets } from "@/lib/media-assets";
 import type { UploadMediaItem } from "@/types/video";
+import { getCanonicalReferenceIdentity } from "@/lib/reference/referenceIdentity";
 
 type PrivateReferencePresentation = {
   previewExpiresAt?: string | null;
@@ -8,9 +9,7 @@ type PrivateReferencePresentation = {
 };
 
 export function getReferenceSelectionIdentity(item: Pick<UploadMediaItem, "assetId" | "id" | "url">) {
-  if (item.assetId) return `asset:${item.assetId}`;
-  if (item.id) return `id:${item.id}`;
-  return item.url ? `url:${item.url}` : "";
+  return getCanonicalReferenceIdentity(item);
 }
 
 export function isOpaqueReferenceBindingProfileId(value: unknown): value is string {

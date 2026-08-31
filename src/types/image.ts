@@ -64,6 +64,16 @@ export type ImageModelDefaults = {
   batchCount?: number;
 };
 
+export type ImageReferenceSystemV1 = {
+  schemaVersion: "reference_system_v1" | string;
+  identityAuthority: "canonical_asset_id" | string;
+  selectionPolicy: "preserve_and_block_when_over_limit" | string;
+  maxReferences: number;
+  ratioLimits: Partial<Record<"T2I" | "I2I", Record<string, number>>>;
+  resolutionRatioLimits?: Partial<Record<"T2I" | "I2I", Record<string, Record<string, number>>>>;
+  privateDelivery?: { status: string; contracts?: string[] };
+};
+
 export type ImageModel = {
   id: string;
   name: string;
@@ -77,6 +87,7 @@ export type ImageModel = {
   capabilities: ImageModelCapabilities;
   creditRules: ImageCreditRules;
   defaults: ImageModelDefaults;
+  referenceSystemV1?: ImageReferenceSystemV1;
   raw?: unknown;
 };
 

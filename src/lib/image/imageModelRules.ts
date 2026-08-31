@@ -127,6 +127,9 @@ export function normalizeImageModel(rawModel: unknown): ImageModel {
       quality: String(defaults.quality || ""),
       batchCount: Math.max(1, Math.min(maxBatchCount, pickNumber(defaults.batchCount, 1))),
     },
+    referenceSystemV1: Object.keys(asRecord(raw.referenceSystemV1)).length
+      ? raw.referenceSystemV1 as ImageModel["referenceSystemV1"]
+      : undefined,
     raw: rawModel,
   };
 }

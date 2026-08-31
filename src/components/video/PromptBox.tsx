@@ -25,6 +25,11 @@ import {
 } from "@/lib/video/videoPromptLimits";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
 import { useI18n } from "@/i18n/useI18n";
+import {
+  getCanonicalReferenceIdentity,
+  getCanonicalReferenceIdentityCandidates,
+  isSameCanonicalReference,
+} from "@/lib/reference/referenceIdentity";
 
 type PromptBoxProps = {
   value: string;
@@ -184,8 +189,8 @@ function expandActiveMentionRange(prompt: string, range: ReplaceRange): ReplaceR
   return { start, end };
 }
 
-function getMediaIdentity(media: Pick<UploadMediaItem, "id" | "url">) {
-  return String(media.id || media.url || "").trim();
+function getMediaIdentity(media: Pick<UploadMediaItem, "assetId" | "id" | "url">) {
+  return getCanonicalReferenceIdentity(media);
 }
 
 function sameMentionBinding(left: VideoMentionBinding, right: VideoMentionBinding) {
@@ -211,7 +216,7 @@ function getMissingMentionsWithBindings(prompt: string, media: UploadMediaItem[]
     seen.add(key);
 
     if (binding) {
-      return !media.some((item) => item.id === binding.mediaId || item.url === binding.mediaId);
+      return !media.some((item) => getCanonicalReferenceIdentityCandidates(item).includes(binding.mediaId));
     }
 
     return !readyItems.some((item) => item.type === mention.type && item.index === mention.index);
@@ -373,16 +378,14 @@ export function PromptBox({ value, maxPromptLength, media, mentionBindings = [],
   function findMediaForMention(input: InsertMentionInput) {
     const mediaId = String(input.mediaId || "").trim();
     if (mediaId) {
-      const mediaItem = media.find((item) => item.id === mediaId || item.url === mediaId);
+      const mediaItem = media.find((item) => getCanonicalReferenceIdentityCandidates(item).includes(mediaId));
       if (mediaItem) return mediaItem;
     }
 
     if (input.type && input.index) {
       const mentionItem = mentionItems.find((item) => item.type === input.type && item.index === input.index);
       if (mentionItem) {
-        return media.find((item) =>
-          item.id === mentionItem.id || Boolean(mentionItem.url && item.url && item.url === mentionItem.url),
-        ) || null;
+        return media.find((item) => isSameCanonicalReference(item, mentionItem)) || null;
       }
     }
 
@@ -406,7 +409,7 @@ export function PromptBox({ value, maxPromptLength, media, mentionBindings = [],
       const existingMediaBinding = current.find((binding) => binding.mediaId === getMediaIdentity(mediaItem));
       const bindingToUpdate = currentExplicitBinding || existingMediaBinding;
       const nextBinding = createMentionBinding(
-        { id: mediaItem.id, type: mediaItem.type, url: mediaItem.url },
+        { assetId: mediaItem.assetId, id: mediaItem.id, type: mediaItem.type, url: mediaItem.url },
         input.display,
         {
           createdAt: bindingToUpdate?.createdAt,

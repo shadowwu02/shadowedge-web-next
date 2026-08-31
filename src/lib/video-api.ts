@@ -443,6 +443,9 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
       imageVideoAudio: mixedReference.imageVideoAudio === true,
     },
     imagePlusGenerateAudio: model.imagePlusGenerateAudio === true,
+    referenceSystemV1: Object.keys(asRecord(model.referenceSystemV1)).length
+      ? model.referenceSystemV1 as VideoModel["referenceSystemV1"]
+      : undefined,
     raw: model,
   };
 }

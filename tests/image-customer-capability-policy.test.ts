@@ -114,7 +114,7 @@ describe("GPT Image 2 reduced customer capability policy", () => {
     expect(policy.maxReferences).toBe(1);
     expect(policy.canGenerate).toBe(false);
     expect(policy.blockReason).toBe("reference_limit_exceeded");
-    expect(policy.adjustments).toContain("excess_references_removed");
+    expect(policy.adjustments).toContain("reference_limit_exceeded");
   });
 
   it.each(["low", "high"])("normalizes a legacy %s draft to Medium", (quality) => {
@@ -212,8 +212,8 @@ describe("model-specific normalization and shared UI guard", () => {
     expect(policyIndex).toBeGreaterThan(-1);
     expect(requestIndex).toBeGreaterThan(policyIndex);
     expect(networkIndex).toBeGreaterThan(requestIndex);
-    expect(hookSource).toContain("current.slice(0, maxReferences)");
-    expect(hookSource).toContain("setCapabilityNotice(tf(\"image.capability.referencesTrimmed\"");
+    expect(hookSource).not.toContain("current.slice(0, maxReferences)");
+    expect(hookSource).toContain("setCapabilityNotice(tf(\"image.capability.referencesRequireRemoval\"");
   });
 
   it("keeps the history and result stack outside the capability projection", () => {

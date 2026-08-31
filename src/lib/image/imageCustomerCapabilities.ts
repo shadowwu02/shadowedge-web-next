@@ -8,7 +8,7 @@ export type ImageCustomerCapabilityBlockReason =
   | "aspect_ratio_unavailable" | "reference_limit_exceeded" | "quantity_unavailable" | "provider_unavailable";
 export type ImageCustomerCapabilityAdjustment =
   | "quality_normalized" | "single_reference_resolution_normalized" | "resolution_normalized"
-  | "aspect_ratio_normalized" | "quantity_normalized" | "excess_references_removed";
+  | "aspect_ratio_normalized" | "quantity_normalized" | "reference_limit_exceeded";
 
 export type ImageCustomerResolutionOption = {
   value: string;
@@ -134,9 +134,13 @@ function ratioOptions(mode: ImageCustomerMode, resolution: string, catalogRatios
   const catalog = new Set(effectiveCatalogRatios.map(normalizedKey));
   return TARGET_RATIOS.filter((ratio) => matrix[ratio] && catalog.has(normalizedKey(ratio))).map((value) => ({ value, ...matrix[value] }));
 }
-function buildResolutionOptions(resolutions: string[], mode: ImageCustomerMode, aspectRatio: string, catalogRatios: readonly string[] = TARGET_RATIOS) {
+function projectedRatios(model: ImageModel, mode: ImageCustomerMode, resolution: string) {
+  const projected = model.referenceSystemV1?.resolutionRatioLimits?.[mode]?.[normalizedKey(resolution)];
+  return projected && Object.keys(projected).length ? Object.keys(projected) : model.capabilities.ratios;
+}
+function buildResolutionOptions(resolutions: string[], mode: ImageCustomerMode, aspectRatio: string, model: ImageModel) {
   return resolutions.map((resolution) => {
-    const options = ratioOptions(mode, resolution, catalogRatios);
+    const options = ratioOptions(mode, resolution, projectedRatios(model, mode, resolution));
     const option = options.find((item) => item.value === aspectRatio) || options[0];
     return { value: resolution, label: `${resolution.toUpperCase()} · ${option?.value || ""}`, aspectRatio: option?.value || "", providerSize: option?.providerSize || "", mode };
   });
@@ -147,7 +151,7 @@ export function getDerivedImageAspectRatio(resolution: string, mode: ImageCustom
 
 function baseCapability(model: ImageModel, catalogParams: ImageGenerationParams, referenceCount: number): ImageCustomerCapabilities {
   const mode: ImageCustomerMode = referenceCount > 0 ? "I2I" : "T2I";
-  const maxReferences = Math.max(0, model.capabilities.maxReferences || 0);
+  const maxReferences = Math.max(0, model.referenceSystemV1?.maxReferences ?? model.capabilities.maxReferences ?? 0);
   const normalizedParams = { ...catalogParams, aspectRatio: catalogParams.aspectRatio || catalogParams.ratio, ratio: catalogParams.aspectRatio || catalogParams.ratio, batchCount: 1 };
   const referenceLimitExceeded = referenceCount > maxReferences;
   const catalogUnavailable = model.available === false;
@@ -173,7 +177,7 @@ function baseCapability(model: ImageModel, catalogParams: ImageGenerationParams,
     availability: !catalogUnavailable, customerSelectable: blockReason === null,
     providerEligibilityCategory: catalogUnavailable ? "blocked" : "catalog_only", providerEligibility: catalogUnavailable ? "blocked" : "catalog_only",
     normalizedParams, canGenerate: blockReason === null, blockReason,
-    adjustments: [...(referenceLimitExceeded ? ["excess_references_removed" as const] : []), ...(quantityInvalid ? ["quantity_normalized" as const] : [])],
+    adjustments: [...(referenceLimitExceeded ? ["reference_limit_exceeded" as const] : []), ...(quantityInvalid ? ["quantity_normalized" as const] : [])],
     isReducedGptImage2Policy: false, isNanoPolicy: false,
   };
 }
@@ -185,7 +189,10 @@ export function resolveImageCustomerCapabilities({ model, params = {}, reference
   if (isNanoModel(model)) {
     const mode: ImageCustomerMode = safeReferenceCount > 0 ? "I2I" : "T2I";
     const oneK = findOption(model.capabilities.resolutions, "1k");
-    const catalogReferenceMaximum = Math.min(NANO_BANANA_CUSTOMER_REFERENCE_LIMIT, Math.max(0, model.capabilities.maxReferences || 0));
+    const catalogReferenceMaximum = Math.min(
+      NANO_BANANA_CUSTOMER_REFERENCE_LIMIT,
+      Math.max(0, model.referenceSystemV1?.maxReferences ?? model.capabilities.maxReferences ?? 0),
+    );
     const i2iNativeOptions = model.capabilities.nativeRatioOptionsByMode?.I2I || [];
     const catalogNativeOptions = model.capabilities.nativeRatioOptionsByMode?.[mode] || [];
     const safeNativeOptions = (catalogNativeOptions.length ? catalogNativeOptions : [{
@@ -205,7 +212,7 @@ export function resolveImageCustomerCapabilities({ model, params = {}, reference
     const adjustments: ImageCustomerCapabilityAdjustment[] = [];
     if (!sameOption(params.resolution ?? catalogParams.resolution, oneK)) adjustments.push("single_reference_resolution_normalized");
     if (!sameOption(requestedAspectRatio, normalizedAspectRatio)) adjustments.push("aspect_ratio_normalized");
-    if (safeReferenceCount > maxReferences) adjustments.push("excess_references_removed");
+    if (safeReferenceCount > maxReferences) adjustments.push("reference_limit_exceeded");
     if (Number(params.batchCount ?? catalogParams.batchCount) !== 1) adjustments.push("quantity_normalized");
     const catalogUnavailable = model.available === false;
     const blockReason: ImageCustomerCapabilityBlockReason | null = catalogUnavailable ? "provider_unavailable" : !oneK ? "resolution_unavailable" : safeReferenceCount > maxReferences ? "reference_limit_exceeded" : !selectedNativeOption || adjustments.includes("aspect_ratio_normalized") ? "aspect_ratio_unavailable" : null;
@@ -233,14 +240,19 @@ export function resolveImageCustomerCapabilities({ model, params = {}, reference
 
   const mode: ImageCustomerMode = safeReferenceCount > 0 ? "I2I" : "T2I";
   const availableQualities = selectCatalogOptions(model.capabilities.qualities, ["medium"]);
-  const maxReferences = model.capabilities.imageToImage ? Math.min(GPT_IMAGE_2_CUSTOMER_REFERENCE_LIMIT, Math.max(0, model.capabilities.maxReferences || 0)) : 0;
+  const maxReferences = model.capabilities.imageToImage
+    ? Math.min(
+        GPT_IMAGE_2_CUSTOMER_REFERENCE_LIMIT,
+        Math.max(0, model.referenceSystemV1?.maxReferences ?? model.capabilities.maxReferences ?? 0),
+      )
+    : 0;
   const matrixResolutions = Object.keys(GPT_IMAGE_2_NATIVE_RATIO_MATRIX[mode]);
   const availableResolutions = selectCatalogOptions(model.capabilities.resolutions, matrixResolutions);
   const medium = findOption(availableQualities, "medium");
   const requestedQuality = String(params.quality ?? catalogParams.quality);
   const requestedResolution = String(params.resolution ?? catalogParams.resolution);
   const normalizedResolution = findOption(availableResolutions, requestedResolution) || availableResolutions[0] || "";
-  const options = ratioOptions(mode, normalizedResolution, model.capabilities.ratios);
+  const options = ratioOptions(mode, normalizedResolution, projectedRatios(model, mode, normalizedResolution));
   const availableAspectRatios = options.map((item) => item.value);
   const requestedAspectRatio = String(params.aspectRatio ?? params.ratio ?? catalogParams.aspectRatio);
   const legacyRatio = getDerivedImageAspectRatio(normalizedResolution, mode);
@@ -252,7 +264,7 @@ export function resolveImageCustomerCapabilities({ model, params = {}, reference
   if (normalizedResolution && !sameOption(requestedResolution, normalizedResolution)) adjustments.push(mode === "I2I" ? "single_reference_resolution_normalized" : "resolution_normalized");
   if (normalizedAspectRatio && !sameOption(requestedAspectRatio, normalizedAspectRatio)) adjustments.push("aspect_ratio_normalized");
   if (requestedQuantity !== 1) adjustments.push("quantity_normalized");
-  if (safeReferenceCount > maxReferences) adjustments.push("excess_references_removed");
+  if (safeReferenceCount > maxReferences) adjustments.push("reference_limit_exceeded");
   const normalizedParams = { ...catalogParams, aspectRatio: normalizedAspectRatio, ratio: normalizedAspectRatio, quality: medium || "", resolution: normalizedResolution, batchCount: 1 };
   const catalogUnavailable = model.available === false;
   const blockReason: ImageCustomerCapabilityBlockReason | null = catalogUnavailable ? "catalog_unavailable"
@@ -262,7 +274,7 @@ export function resolveImageCustomerCapabilities({ model, params = {}, reference
     : safeReferenceCount > maxReferences ? "reference_limit_exceeded" : requestedQuantity !== 1 ? "quantity_unavailable" : null;
   return {
     model: model.id, modelId: model.id, modes: ["T2I", "I2I"], mode,
-    availableQualities, availableResolutions, availableAspectRatios, resolutionOptions: buildResolutionOptions(availableResolutions, mode, normalizedAspectRatio, model.capabilities.ratios), aspectRatioOptions: options,
+    availableQualities, availableResolutions, availableAspectRatios, resolutionOptions: buildResolutionOptions(availableResolutions, mode, normalizedAspectRatio, model), aspectRatioOptions: options,
     quality: medium || "", resolution: normalizedResolution, aspectRatio: normalizedAspectRatio, effectiveAspectRatio: normalizedAspectRatio,
     effectivePixelSize: selectedTuple?.effectivePixelSize || "", providerSize: selectedTuple?.providerSize || "", aspectRatioUiMode: "SELECTABLE",
     referenceLimit: maxReferences, maxReferences, quantity: 1, quantityMax: 1,

@@ -1,6 +1,7 @@
 import type { UploadMediaItem, UploadMediaType, VideoGenerationRequest } from "@/types/video";
 import type { VideoMentionBinding } from "@/lib/video/videoMentionBindings";
 import { normalizeMediaAssetUrl } from "@/lib/media-assets";
+import { getCanonicalReferenceIdentityCandidates } from "@/lib/reference/referenceIdentity";
 
 export type MentionableMediaItem = {
   id: string;
@@ -241,7 +242,7 @@ function getMediaAwarePromptItemsFromPrompt(
   mentions.forEach((mention) => {
     const binding = mentionBindings.find((item) => mentionMatchesBinding(mention, item));
     const mediaItem = binding
-      ? validItems.find((item) => item.id === binding.mediaId || item.url === binding.mediaId)
+      ? validItems.find((item) => getCanonicalReferenceIdentityCandidates(item).includes(binding.mediaId))
       : validItems.find((item) => item.type === mention.type && item.index === mention.index);
     if (!mediaItem) return;
 

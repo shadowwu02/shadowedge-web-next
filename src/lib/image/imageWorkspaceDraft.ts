@@ -229,8 +229,8 @@ export function clearImageWorkspaceDraft() {
   removeStoredDraft(safeLocalStorage());
 }
 
-export function getImageReferencesFromDraft(draft: ImageWorkspaceDraft, maxReferences: number): ImageReferenceItem[] {
-  return draft.references.slice(0, Math.max(0, maxReferences)).map((reference) => ({
+export function getImageReferencesFromDraft(draft: ImageWorkspaceDraft): ImageReferenceItem[] {
+  return draft.references.map((reference) => ({
     id: reference.id,
     assetId: reference.assetId,
     canonicalStatus: reference.canonicalStatus,

@@ -20,6 +20,7 @@ import {
   validateReferenceSelectionForRule,
 } from "@/lib/video/videoReferenceRules";
 import type { VideoWorkspaceAuthority } from "@/lib/video/videoWorkspaceAuthority";
+import { assertReferencePipelineParity } from "@/lib/reference/referencePipelineParity";
 
 export type BuildVideoGenerationRequestInput = {
   prompt: string;
@@ -119,6 +120,24 @@ export function buildVideoGenerationRequest(
         role: toFluxProxyReferenceRole(item),
       }))
     : undefined;
+  const serializedCounts = { image: imageAssetIds, video: videoAssetIds, audio: audioAssetIds };
+  const providerCounts = fluxProxyReferences
+    ? {
+        image: fluxProxyReferences.filter((item) => item.type === "image"),
+        video: fluxProxyReferences.filter((item) => item.type === "video"),
+        audio: fluxProxyReferences.filter((item) => item.type === "audio"),
+      }
+    : serializedCounts;
+  assertReferencePipelineParity({
+    active: promptReferences.counts,
+    bindings: promptReferences.counts,
+    authority: promptReferences.activeItems.reduce<Record<"image" | "video" | "audio", number>>(
+      (counts, item) => ({ ...counts, [item.type]: counts[item.type] + 1 }),
+      { image: 0, video: 0, audio: 0 },
+    ),
+    serializer: serializedCounts,
+    provider: providerCounts,
+  });
   const enhancedPrompt = buildMediaAwarePrompt(
     options.prompt,
     referencedMediaItems,

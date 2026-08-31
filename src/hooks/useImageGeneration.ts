@@ -238,18 +238,8 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
       if (!areImageGenerationParamsEqual(params, normalizedParams)) {
         setParams(normalizedParams);
       }
-      if (references.length > maxReferences) {
-        setReferences((current) => {
-          if (maxReferences === 1) {
-            const canonicalReference = current.find(isCanonicalImageReferenceReady);
-            return canonicalReference ? [canonicalReference] : current.slice(0, 1);
-          }
-          return current.slice(0, maxReferences);
-        });
-      }
-
-      if (adjustments.includes("excess_references_removed")) {
-        setCapabilityNotice(tf("image.capability.referencesTrimmed", { count: maxReferences }));
+      if (adjustments.includes("reference_limit_exceeded")) {
+        setCapabilityNotice(tf("image.capability.referencesRequireRemoval", { count: maxReferences }));
       } else if (adjustments.includes("single_reference_resolution_normalized")) {
         setCapabilityNotice(t("image.capability.singleReferenceResolutionNormalized"));
       } else if (adjustments.includes("quality_normalized")) {
@@ -276,7 +266,7 @@ export function useImageGeneration(options: UseImageGenerationOptions = {}) {
         const nextUrlPrompt = getImagePromptFromUrl().trim();
         const draftModel = draft ? getExactImageModelById(nextModels, draft.modelId) : null;
         const nextModel = draftModel || defaultModel;
-        const nextReferences = draft ? getImageReferencesFromDraft(draft, nextModel.capabilities.maxReferences) : [];
+        const nextReferences = draft ? getImageReferencesFromDraft(draft) : [];
         const nextParams = resolveImageCustomerCapabilities({
           model: nextModel,
           params: draft || {},

@@ -166,7 +166,7 @@ describe("IMAGE_NATIVE_RATIO_MATRIX_V3", () => {
       expect(twoReferences.maxReferences).toBe(1);
       expect(twoReferences.canGenerate).toBe(false);
       expect(twoReferences.blockReason).toBe("reference_limit_exceeded");
-      expect(twoReferences.adjustments).toContain("excess_references_removed");
+      expect(twoReferences.adjustments).toContain("reference_limit_exceeded");
     }
   });
 });

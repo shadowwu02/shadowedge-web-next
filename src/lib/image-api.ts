@@ -2,6 +2,7 @@ import { apiRequest } from "@/lib/api";
 import { normalizeImageHistoryItem } from "@/lib/image/imageHistoryUtils";
 import { normalizeImageGenerationParams, normalizeImageModel } from "@/lib/image/imageModelRules";
 import { filterRetiredHiggsfieldModels } from "@/lib/higgsfieldProductionRetirement";
+import { assertReferencePipelineParity } from "@/lib/reference/referencePipelineParity";
 import type {
   ImageGenerateRequest,
   ImageGenerateResponse,
@@ -210,7 +211,13 @@ export function buildImageGenerateRequest(input: {
     batchCount: input.params.batchCount,
   });
 
-  const referenceImageAssetIds = (input.referenceImageAssetIds || []).filter((value) => canonicalAssetIdPattern.test(value));
+  const selectedReferenceImageAssetIds = input.referenceImageAssetIds || [];
+  const referenceImageAssetIds = selectedReferenceImageAssetIds.filter((value) => canonicalAssetIdPattern.test(value));
+  assertReferencePipelineParity({
+    selectedCanonical: referenceImageAssetIds.length,
+    serializer: referenceImageAssetIds.length,
+    providerRequest: referenceImageAssetIds.length,
+  });
   const mode = referenceImageAssetIds.length ? "I2I" : "T2I";
   return {
     idempotencyKey: input.idempotencyKey || crypto.randomUUID(),

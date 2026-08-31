@@ -4,6 +4,11 @@ import {
   getReadyMentionableMediaItems,
 } from "@/lib/video-mentions";
 import type { UploadMediaItem, UploadMediaType } from "@/types/video";
+import {
+  getCanonicalReferenceIdentity,
+  getCanonicalReferenceIdentityCandidates,
+  isSameCanonicalReference,
+} from "@/lib/reference/referenceIdentity";
 
 export type VideoMentionBinding = {
   tokenId: string;
@@ -57,12 +62,12 @@ function isUploadMediaType(value: unknown): value is UploadMediaType {
   return value === "image" || value === "video" || value === "audio";
 }
 
-function getMediaId(media: Pick<UploadMediaItem, "id" | "url">) {
-  return String(media.id || media.url || "").trim();
+function getMediaId(media: Pick<UploadMediaItem, "assetId" | "id" | "url">) {
+  return getCanonicalReferenceIdentity(media);
 }
 
-function getMediaIdentities(media: Pick<UploadMediaItem, "id" | "url">) {
-  return [media.id, media.url].map((value) => String(value || "").trim()).filter(Boolean);
+function getMediaIdentities(media: Pick<UploadMediaItem, "assetId" | "id" | "url">) {
+  return getCanonicalReferenceIdentityCandidates(media);
 }
 
 function normalizeTokenText(tokenText: string) {
@@ -120,7 +125,7 @@ export function createMentionTokenId() {
 }
 
 export function createMentionBinding(
-  media: Pick<UploadMediaItem, "id" | "type" | "url">,
+  media: Pick<UploadMediaItem, "assetId" | "id" | "type" | "url">,
   displayLabel: string,
   options: CreateMentionBindingOptions = {},
 ): VideoMentionBinding {
@@ -153,7 +158,7 @@ export function findMentionBindingForToken(
   if (!legacyItem) return undefined;
 
   return createMentionBinding(
-    { id: legacyItem.id, type: legacyItem.type, url: legacyItem.url },
+    { assetId: legacyItem.assetId, id: legacyItem.id, type: legacyItem.type, url: legacyItem.url },
     legacyItem.display,
     {
       sourceTokenText: tokenText,
@@ -175,7 +180,7 @@ export function reconcileMentionBindings(
   const readyItems = getReadyMentionableMediaItems(referenceMedia);
 
   return bindings.map((binding) => {
-    const media = referenceMedia.find((item) => item.id === binding.mediaId || item.url === binding.mediaId);
+    const media = findMediaByIdentity(referenceMedia, binding.mediaId);
     const currentMention = readyItems.find((item) => item.id === media?.id);
 
     return {
@@ -212,9 +217,7 @@ export function sanitizeVideoMentionBindings(
   >();
 
   readyItems.forEach((mention) => {
-    const media = referenceMedia.find((item) =>
-      item.id === mention.id || Boolean(mention.url && item.url && item.url === mention.url),
-    );
+    const media = referenceMedia.find((item) => isSameCanonicalReference(item, mention));
     if (!media) return;
 
     const identity = getMediaId(media);
@@ -315,8 +318,7 @@ function findMediaByIdentity(referenceMedia: UploadMediaItem[], mediaId: string)
 }
 
 function findReadyMentionableByMedia(media: UploadMediaItem, readyItems: ReturnType<typeof getReadyMentionableMediaItems>) {
-  const identities = getMediaIdentities(media);
-  return readyItems.find((item) => identities.includes(item.id) || identities.includes(item.url));
+  return readyItems.find((item) => isSameCanonicalReference(item, media));
 }
 
 function findMediaForPromptMention(
@@ -375,7 +377,7 @@ function upsertBindingForMedia(
   map.set(
     identity,
     createMentionBinding(
-      { id: media.id, type: media.type, url: media.url },
+      { assetId: media.assetId, id: media.id, type: media.type, url: media.url },
       displayLabel,
       {
         createdAt: existing?.createdAt,
