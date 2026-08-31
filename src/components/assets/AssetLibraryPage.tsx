@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { listMediaAssets, mapMediaAssetsToUserAssets, type AssetKind, type AssetSource, type UserAsset } from "@/lib/assets-api";
+import { downloadCanonicalVideoAsset } from "@/lib/video/videoDownload";
 import { saveAssetLibraryImageHandoff } from "@/lib/assets/assetLibraryImageHandoff";
 import { saveImageUpscaleAssetHandoff } from "@/lib/image/imageUpscaleHandoff";
 import { useI18n } from "@/i18n/useI18n";
@@ -236,7 +237,15 @@ function AssetCard({
         )}
 
         <div className="flex flex-wrap gap-2">
-          {hasPublicUrl ? (
+          {asset.kind === "video" && hasPublicUrl ? (
+            <button
+              className="rounded-full border border-white/12 bg-white/[.06] px-3 py-2 text-xs font-black text-white/78 transition hover:border-white/22 hover:text-white"
+              onClick={() => void downloadCanonicalVideoAsset(asset.id, asset.filename || `shadowedge-video-${asset.id}.mp4`)}
+              type="button"
+            >
+              Download
+            </button>
+          ) : hasPublicUrl ? (
             <a
               className="rounded-full border border-white/12 bg-white/[.06] px-3 py-2 text-xs font-black text-white/78 transition hover:border-white/22 hover:text-white"
               href={asset.publicUrl}

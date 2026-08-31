@@ -17,6 +17,7 @@ import {
   upsertVideoHistoryRecord,
 } from "@/lib/video/historyUtils";
 import { getVideoUserFacingErrorDisplay } from "@/lib/video/videoErrorDisplay";
+import { downloadVideoResult } from "@/lib/video/videoDownload";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { UploadMediaItem, VideoTaskRecord } from "@/types/video";
 
@@ -296,18 +297,18 @@ function VideoGenerationCard({
                     <FillPromptIcon />
                   </button>
                 ) : null}
-                <a
+                <button
                   aria-label={t("video.history.downloadOpen")}
                   className={canvasActionClass()}
-                  download={safeDownloadFilename(view)}
-                  href={view.outputUrl}
-                  onClick={(event) => event.stopPropagation()}
-                  rel="noreferrer"
-                  target="_blank"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void downloadVideoResult(record, { fallbackUrl: view.outputUrl, filename: safeDownloadFilename(view) });
+                  }}
                   title={t("video.history.downloadOpen")}
+                  type="button"
                 >
                   <DownloadIcon />
-                </a>
+                </button>
               </div>
             </>
           ) : playbackFailed ? (
@@ -435,9 +436,9 @@ function VideoGenerationCard({
                     outputUrl={view.outputUrl}
                   />
                 ) : null}
-                <a className={outputActionClass()} download={safeDownloadFilename(view)} href={view.outputUrl} rel="noreferrer" target="_blank">
+                <button className={outputActionClass()} onClick={() => void downloadVideoResult(record, { fallbackUrl: view.outputUrl, filename: safeDownloadFilename(view) })} type="button">
                   {t("video.generation.downloadResult")}
-                </a>
+                </button>
               </>
             ) : null}
             {(isSuccess || isFailed || isStaleActive) && onFill ? (

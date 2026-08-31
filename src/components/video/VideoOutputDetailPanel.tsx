@@ -8,6 +8,7 @@ import { useI18n } from "@/i18n/useI18n";
 import { collectHistoryInputMediaAssets, normalizeMediaAssetUrl } from "@/lib/media-assets";
 import { getLocalizedVideoHistoryPublicErrorMessage, getSafeVideoHistoryView, getVideoHistoryGenerateAudio, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
 import { getVideoUserFacingErrorDisplay } from "@/lib/video/videoErrorDisplay";
+import { downloadVideoResult } from "@/lib/video/videoDownload";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { UploadMediaItem, VideoTaskRecord } from "@/types/video";
 
@@ -354,18 +355,16 @@ export function VideoOutputDetailPanel({
           </button>
         ) : null}
         {hasOutput ? (
-          <a
+          <button
             aria-label={t("video.generation.downloadResult")}
             className={actionButtonClass("normal")}
-            download={safeDownloadFilename(view)}
-            href={view.outputUrl}
-            rel="noreferrer"
-            target="_blank"
+            onClick={() => void downloadVideoResult(record, { fallbackUrl: view.outputUrl, filename: safeDownloadFilename(view) })}
             title={t("video.generation.downloadResult")}
+            type="button"
           >
             <DownloadIcon />
             {t("video.generation.downloadResult")}
-          </a>
+          </button>
         ) : null}
         {isFailed || isStaleActive ? (
           <button

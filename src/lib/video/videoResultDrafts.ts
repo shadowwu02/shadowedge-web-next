@@ -279,15 +279,18 @@ function createVideoResultMedia(video: VideoTaskRecord, url: string): UploadMedi
   const fileName = inferVideoFileName(url, video);
   const name = fileName || "Generated video";
   const previewUrl = pickString(video.thumbnailUrl, video.thumbnail, meta.thumbnailUrl, meta.thumbnail_url, meta.thumbnail) || "";
+  const assetId = pickString(video.resultAssetId, meta.resultAssetId, meta.materializedAssetId);
 
   return {
-    id: `video-result:${String(jobId).replace(/[^\w.-]+/g, "-")}`,
+    id: assetId || `video-result:${String(jobId).replace(/[^\w.-]+/g, "-")}`,
+    assetId,
     type: "video",
     role: "reference",
     source: "generated_result",
     name,
     url,
     previewUrl,
+    privateReference: Boolean(assetId),
     filename: fileName,
     originalName: fileName,
     mimeType: "video/*",

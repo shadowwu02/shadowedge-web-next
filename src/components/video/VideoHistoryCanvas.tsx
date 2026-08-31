@@ -5,6 +5,7 @@ import { SaveToAssetsButton } from "@/components/assets/SaveToAssetsButton";
 import { useI18n } from "@/i18n/useI18n";
 import { collectHistoryInputMediaAssets } from "@/lib/media-assets";
 import { getVideoUserFacingErrorDisplay } from "@/lib/video/videoErrorDisplay";
+import { downloadVideoResult } from "@/lib/video/videoDownload";
 import { getLocalizedVideoHistoryPublicErrorMessage, getSafeVideoHistoryView, isVideoStaleActiveRecord } from "@/lib/video/historyUtils";
 import { isVideoActiveStatus, isVideoCompletedStatus, isVideoFailedStatus } from "@/lib/utils";
 import type { VideoTaskRecord } from "@/types/video";
@@ -297,16 +298,14 @@ export function VideoHistoryCanvas({
 
                       <div className="mt-auto flex flex-wrap gap-2 border-t border-white/8 pt-3">
                         {isSuccess ? (
-                          <a
+                          <button
                             className={actionButtonClass("normal")}
-                            download={safeDownloadFilename(view)}
-                            href={view.outputUrl}
-                            rel="noreferrer"
-                            target="_blank"
+                            onClick={() => void downloadVideoResult(item, { fallbackUrl: view.outputUrl, filename: safeDownloadFilename(view) })}
                             title={t("video.history.downloadOpen")}
+                            type="button"
                           >
                             {t("video.history.downloadOpen")}
-                          </a>
+                          </button>
                         ) : null}
                         {isSuccess ? (
                           <SaveToAssetsButton
