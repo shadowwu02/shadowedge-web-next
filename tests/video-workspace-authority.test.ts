@@ -17,10 +17,12 @@ import { buildVideoGenerationRequest } from "@/lib/video/videoGenerationRequest"
 import { resolveVideoPromptBoundReferences } from "@/lib/video/videoPromptBoundReferences";
 import {
   buildVideoReferenceAuthorityRequest,
+  getUnavailableVideoReferenceIndexes,
   reconcileVideoWorkspaceMedia,
   type VideoWorkspaceAuthority,
   type VideoWorkspaceAuthorityScope,
 } from "@/lib/video/videoWorkspaceAuthority";
+import { ApiError } from "@/types/api";
 import { validateVideoWorkspaceAuthorityForSubmit } from "@/hooks/useVideoGeneration";
 import type { UploadMediaItem } from "@/types/video";
 
@@ -150,6 +152,18 @@ describe("Video Prompt-bound workspace authority", () => {
     expect(authoritySource).toContain("A referenced media item is unavailable. Please select it again.");
     expect(authoritySource).not.toContain("PRIVATE_IMAGE_ASSET_NOT_ELIGIBLE");
     expect(authoritySource).not.toContain("VIDEO_REFERENCE_AUTHORITY_OWNER_MISMATCH");
+  });
+
+  it("maps a safe one-based authority failure position without exposing an Asset UUID", () => {
+    const error = new ApiError("A referenced media item is unavailable. Please select it again.", {
+      payload: {
+        error: "VIDEO_REFERENCE_UNAVAILABLE",
+        unavailableReferenceIndexes: [2],
+        unavailableReferenceTypes: ["image"],
+      },
+    });
+    expect(getUnavailableVideoReferenceIndexes(error)).toEqual([2]);
+    expect(JSON.stringify(error.payload)).not.toContain(currentVideo.assetId);
   });
 
   it("keeps active references empty while authenticated workspace authority is loading", () => {

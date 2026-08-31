@@ -106,7 +106,8 @@ describe("generated-audio and Audio Reference mutual exclusion", () => {
     expect(source).toContain("mentionBindings: reconciledMentionBindings");
     expect(source).toContain("workspaceAuthority: workspaceAuthority || undefined");
     expect(source).toContain("activeMedia={promptBoundReferences.activeItems}");
-    expect(source).not.toContain("onReferencesBound={handleReferencesBound}");
+    expect(source).toContain("onReferencesBound={handleReferencesBound}");
+    expect(source).toContain("autoBindSelectedVideoReferences({");
     expect(source).toContain("!generatedAudioReferenceIssue && internationalReferenceReviewReady");
     expect(source).toContain("disabled={generatedAudioBlockedByReference || (!isAudioSupported && !effectiveGenerateAudio)}");
     expect(source).toContain("if (generatedAudioReferenceIssue)");

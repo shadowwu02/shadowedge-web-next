@@ -212,7 +212,9 @@ export function sanitizeVideoMentionBindings(
   >();
 
   readyItems.forEach((mention) => {
-    const media = referenceMedia.find((item) => item.id === mention.id || item.url === mention.url);
+    const media = referenceMedia.find((item) =>
+      item.id === mention.id || Boolean(mention.url && item.url && item.url === mention.url),
+    );
     if (!media) return;
 
     const identity = getMediaId(media);

@@ -33,6 +33,7 @@ type PromptBoxProps = {
   mentionBindings?: VideoMentionBinding[];
   onChange: (value: string) => void;
   onMentionBindingsChange?: (next: VideoMentionBinding[] | ((current: VideoMentionBinding[]) => VideoMentionBinding[])) => void;
+  unavailableMediaIds?: string[];
 };
 
 type ReplaceRange = {
@@ -217,7 +218,7 @@ function getMissingMentionsWithBindings(prompt: string, media: UploadMediaItem[]
   });
 }
 
-export function PromptBox({ value, maxPromptLength, media, mentionBindings = [], onChange, onMentionBindingsChange }: PromptBoxProps) {
+export function PromptBox({ value, maxPromptLength, media, mentionBindings = [], onChange, onMentionBindingsChange, unavailableMediaIds = [] }: PromptBoxProps) {
   const { locale, t, tf } = useI18n();
   const displayLocale = locale === "zh" ? "zh" : "en";
   const editorRef = useRef<HTMLDivElement | null>(null);
@@ -379,7 +380,9 @@ export function PromptBox({ value, maxPromptLength, media, mentionBindings = [],
     if (input.type && input.index) {
       const mentionItem = mentionItems.find((item) => item.type === input.type && item.index === input.index);
       if (mentionItem) {
-        return media.find((item) => item.id === mentionItem.id || item.url === mentionItem.url) || null;
+        return media.find((item) =>
+          item.id === mentionItem.id || Boolean(mentionItem.url && item.url && item.url === mentionItem.url),
+        ) || null;
       }
     }
 
@@ -692,6 +695,7 @@ export function PromptBox({ value, maxPromptLength, media, mentionBindings = [],
         </div>
         <div className="se-subtle-scrollbar mt-2 flex max-w-full gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
           {referenceBindings.map((binding) => {
+            const unavailable = unavailableMediaIds.includes(binding.id) || unavailableMediaIds.includes(binding.assetId || "") || unavailableMediaIds.includes(binding.url || "");
             const itemTitle = sanitizeMediaDisplayName({
               index: Math.max(0, binding.index - 1),
               locale: displayLocale,
@@ -705,7 +709,7 @@ export function PromptBox({ value, maxPromptLength, media, mentionBindings = [],
 
             return (
               <button
-                className="group inline-flex min-h-9 max-w-[260px] shrink-0 items-center gap-1.5 rounded-full border border-[#ffb44d]/24 bg-[#0b0d12]/62 px-1.5 py-1 text-left text-[11px] font-semibold text-white/86 shadow-[inset_0_1px_0_rgba(255,255,255,.06)] transition hover:border-[#ffb44d]/44 hover:bg-[#ffb44d]/10 focus:border-[#ffb44d]/64 focus:outline-none"
+                className={`group inline-flex min-h-9 max-w-[260px] shrink-0 items-center gap-1.5 rounded-full border px-1.5 py-1 text-left text-[11px] font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,.06)] transition focus:outline-none ${unavailable ? "border-[#ff6b6b]/45 bg-[#ff6b6b]/10 text-[#ffd0d0] hover:border-[#ff6b6b]/65" : "border-[#ffb44d]/24 bg-[#0b0d12]/62 text-white/86 hover:border-[#ffb44d]/44 hover:bg-[#ffb44d]/10 focus:border-[#ffb44d]/64"}`}
                 key={`${binding.type}-${binding.index}-${binding.id}`}
                 onClick={(event) => handleReferenceBindingClick(binding, event.currentTarget)}
                 title={`${displayToken} · ${itemTitle} · ${canonicalToken}`}
@@ -722,6 +726,7 @@ export function PromptBox({ value, maxPromptLength, media, mentionBindings = [],
                 <span className="shrink-0 font-black text-[#ffd08a]">
                   {displayToken}
                 </span>
+                {unavailable ? <span className="shrink-0 font-bold text-[#ff8b8b]">· {t("video.prompt.referenceUnavailable")}</span> : null}
                 <span className="shrink-0 text-white/28">·</span>
                 <span className="min-w-0 truncate text-white/72">{itemTitle}</span>
                 {localizedToken && localizedToken !== displayToken ? (

@@ -116,7 +116,9 @@ export function resolveVideoPromptBoundReferences({
   const invalidCanonicalItems = resolvedItems.filter((item) => !isCanonicalReferenceItem(item));
   const activeBindings = resolvedItems.filter(isCanonicalReferenceItem);
   const activeItems = activeBindings
-    .map((binding) => authorizedMedia.find((item) => item.id === binding.id || item.url === binding.url))
+    .map((binding) => authorizedMedia.find((item) =>
+      item.id === binding.id || Boolean(binding.url && item.url && item.url === binding.url),
+    ))
     .filter((item): item is UploadMediaItem => Boolean(item));
   const authorizedAssetIds = new Set(authorizedMedia.map((item) => item.assetId).filter(Boolean));
   const unauthorizedItems = workspaceAuthority || workspaceAuthorityRequired

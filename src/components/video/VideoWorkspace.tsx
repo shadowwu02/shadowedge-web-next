@@ -18,6 +18,7 @@ import { type VideoParams, VideoParamsPanel } from "@/components/video/VideoPara
 import { FluxProxyInternationalReferencePanel } from "@/components/video/FluxProxyInternationalReferencePanel";
 import { getFluxProxyReviewSummary, getVideoWorkspaceModelState, isFluxProxyInternationalModel } from "@/lib/video/fluxproxyInternational";
 import { removeReferenceMediaSelection } from "@/lib/video/videoReferenceSelection";
+import { autoBindSelectedVideoReferences } from "@/lib/video/videoReferenceAutoBind";
 import { RemakeStoryboardPanel, type RemakeOutputItem, type RemakeOutputScope } from "@/components/video/remake/RemakeStoryboardPanel";
 import { VideoRemakeWorkspace } from "@/components/video/remake/VideoRemakeWorkspace";
 import { getRemakeShotGenerationKey } from "@/components/video/remake/remakeTypes";
@@ -1283,6 +1284,7 @@ export function VideoWorkspace() {
     activeTaskCount,
     clearError,
     error,
+    unavailableReferenceMediaIds,
     history,
     isHistoryLoading,
     isSubmitting,
@@ -1318,6 +1320,17 @@ export function VideoWorkspace() {
     }),
     [media, prompt, reconciledMentionBindings, workspaceAuthority],
   );
+  const handleReferencesBound = useCallback((selected: UploadMediaItem[]) => {
+    const nextMedia = mergeMediaAssets(media, selected);
+    const next = autoBindSelectedVideoReferences({
+      media: nextMedia,
+      mentionBindings: reconciledMentionBindings,
+      prompt,
+      selected,
+    });
+    setPrompt(next.prompt);
+    setMentionBindings(next.mentionBindings);
+  }, [media, prompt, reconciledMentionBindings]);
 
   useEffect(() => {
     remakeShotGenerationsRef.current = remakeShotGenerations;
@@ -4419,6 +4432,7 @@ export function VideoWorkspace() {
                       modelRule={selectedModelRule}
                       onBusyChange={setIsAssetPickerUploading}
                       onChange={setMedia}
+                      onReferencesBound={handleReferencesBound}
                       referenceBindingProfileId={selectedModel.referenceBindingProfileId}
                       reusableMedia={reusableMedia}
                       workspaceAuthority={workspaceAuthority}
@@ -4439,6 +4453,7 @@ export function VideoWorkspace() {
                   mentionBindings={reconciledMentionBindings}
                   onChange={setPrompt}
                   onMentionBindingsChange={setMentionBindings}
+                  unavailableMediaIds={unavailableReferenceMediaIds}
                   value={prompt}
                 />
                 {pendingPromptStudioDraft ? (

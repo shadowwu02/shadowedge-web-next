@@ -29,6 +29,7 @@ import {
 import type { VideoMentionBinding } from "@/lib/video/videoMentionBindings";
 import { resolveVideoPromptBoundReferences } from "@/lib/video/videoPromptBoundReferences";
 import {
+  getUnavailableVideoReferenceIndexes,
   loadVerifiedVideoReferenceAuthority,
   type VideoWorkspaceAuthority,
   type VideoWorkspaceAuthorityScope,
@@ -182,6 +183,7 @@ export function useVideoGeneration() {
   const [historyError, setHistoryError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [unavailableReferenceMediaIds, setUnavailableReferenceMediaIds] = useState<string[]>([]);
   const [hiddenHistoryKeys, setHiddenHistoryKeys] = useState<Set<string>>(() => new Set());
   const taskRef = useRef<VideoTaskRecord | null>(null);
   const visibleHistoryRef = useRef<VideoTaskRecord[]>([]);
@@ -206,6 +208,7 @@ export function useVideoGeneration() {
 
   const clearError = useCallback(() => {
     setError("");
+    setUnavailableReferenceMediaIds([]);
   }, []);
 
   const refreshCredits = useCallback(async () => {
@@ -256,6 +259,8 @@ export function useVideoGeneration() {
 
     setIsSubmitting(true);
     setError("");
+    setUnavailableReferenceMediaIds([]);
+    let activeReferenceItems: UploadMediaItem[] = [];
 
     try {
       const currentActiveCount = getActiveTaskCount(visibleHistory);
@@ -279,6 +284,7 @@ export function useVideoGeneration() {
         prompt: options.prompt,
         workspaceAuthority: options.workspaceAuthority,
       });
+      activeReferenceItems = promptBoundReferences.activeItems;
       const freshWorkspaceAuthority = await loadVerifiedVideoReferenceAuthority(
         options.workspaceAuthorityScope,
         promptBoundReferences.activeItems,
@@ -339,6 +345,13 @@ export function useVideoGeneration() {
       pendingClientRequestIdRef.current = "";
       return nextTask;
     } catch (submitError) {
+      const unavailableIndexes = getUnavailableVideoReferenceIndexes(submitError);
+      if (unavailableIndexes.length) {
+        setUnavailableReferenceMediaIds(Array.from(new Set(unavailableIndexes.flatMap((index) => {
+          const item = activeReferenceItems[index - 1];
+          return item ? [item.id, item.assetId, item.url].map((value) => String(value || "").trim()).filter(Boolean) : [];
+        }))));
+      }
       const message =
         submitError instanceof ApiError && submitError.kind === "maintenance"
           ? t("maintenance.errors.generationPaused")
@@ -418,6 +431,7 @@ export function useVideoGeneration() {
     historyError,
     isHistoryLoading,
     error,
+    unavailableReferenceMediaIds,
     isSubmitting,
     loadHistory,
     hideHistoryRecord,

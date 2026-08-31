@@ -5,6 +5,7 @@ import {
 } from "@/lib/assets-api";
 import { getCurrentUserProfile } from "@/lib/auth-api";
 import type { UploadMediaItem } from "@/types/video";
+import { ApiError } from "@/types/api";
 
 export type VideoWorkspaceAuthorityScope = {
   userId: string;
@@ -21,6 +22,28 @@ export type VideoWorkspaceMediaReconciliation = {
   authorized: UploadMediaItem[];
   unauthorized: UploadMediaItem[];
 };
+
+export class VideoReferenceAuthorityError extends Error {
+  unavailableReferenceIndexes: number[];
+
+  constructor(message: string, unavailableReferenceIndexes: number[] = []) {
+    super(message);
+    this.name = "VideoReferenceAuthorityError";
+    this.unavailableReferenceIndexes = unavailableReferenceIndexes;
+  }
+}
+
+export function getUnavailableVideoReferenceIndexes(error: unknown) {
+  if (error instanceof VideoReferenceAuthorityError) return error.unavailableReferenceIndexes;
+  const payload = error instanceof ApiError && error.payload && typeof error.payload === "object"
+    ? error.payload as Record<string, unknown>
+    : {};
+  return Array.isArray(payload.unavailableReferenceIndexes)
+    ? payload.unavailableReferenceIndexes
+        .map(Number)
+        .filter((index) => Number.isSafeInteger(index) && index > 0)
+    : [];
+}
 
 export function normalizeVideoWorkspaceAuthorityScope(
   scope?: Partial<VideoWorkspaceAuthorityScope> | null,
@@ -141,7 +164,19 @@ export async function loadVerifiedVideoReferenceAuthority(
   const requested = buildVideoReferenceAuthorityRequest(references);
   if (!requested.length) return { scope: actualScope, media: [], checkedAt: Date.now() };
 
-  const verified = await verifyMediaAssetReferences({ model, references: requested });
+  let verified;
+  try {
+    verified = await verifyMediaAssetReferences({ model, references: requested });
+  } catch (error) {
+    const indexes = getUnavailableVideoReferenceIndexes(error);
+    if (indexes.length) {
+      throw new VideoReferenceAuthorityError(
+        error instanceof Error ? error.message : "A referenced media item is unavailable. Please select it again.",
+        indexes,
+      );
+    }
+    throw error;
+  }
   const expectedIds = requested.map((reference) => reference.assetId);
   if (verified.checkedAssetIds.length !== expectedIds.length ||
       verified.checkedAssetIds.some((assetId, index) => assetId !== expectedIds[index])) {
