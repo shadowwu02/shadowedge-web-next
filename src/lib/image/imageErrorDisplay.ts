@@ -8,7 +8,7 @@ export type ImageUserFacingErrorDisplay = { title: string; message: string; sugg
 function classify(code: string, kind: string | undefined): ImageErrorCategory {
   const value = code.toUpperCase();
   if (kind === "network") return "NETWORK";
-  if (kind === "credits" || /CREDIT|BALANCE|INSUFFICIENT/.test(value)) return "CREDITS";
+  if (kind === "credits" || /(?:^|_)(?:CREDIT|CREDITS)(?:_|$)|(?:^|_)INSUFFICIENT_BALANCE(?:_|$)/.test(value)) return "CREDITS";
   if (kind === "membership" || /TENANT|MEMBERSHIP/.test(value)) return "TENANT";
   if (/POLICY|COPYRIGHT|SAFETY|MODERATION|CONTENT/.test(value)) return "CONTENT_POLICY";
   if (/REFERENCE|ASSET|MIME|UPLOAD/.test(value)) return "REFERENCE";
@@ -32,6 +32,7 @@ const COPY: Record<ImageErrorCategory, string> = {
 
 const CODE_COPY: Record<string, string> = {
   IMAGE_REFERENCES_UNSUPPORTED: "当前模型暂不支持此参考图请求。",
+  IMAGE_REFERENCE_ASSET_URL_UNSAFE: "参考图片不可用，请重新选择或重新上传图片。",
 };
 
 export function getImageGenerationErrorDisplay(error: unknown) {
@@ -44,7 +45,7 @@ export function getImageGenerationErrorDisplay(error: unknown) {
     category,
     code,
     correlationId,
-    message: `${message}${code ? ` Code: ${code}` : ""}${correlationId ? ` Correlation ID: ${correlationId}` : ""}`,
+    message: `${message}${correlationId ? ` Correlation ID: ${correlationId}` : ""}`,
   };
 }
 

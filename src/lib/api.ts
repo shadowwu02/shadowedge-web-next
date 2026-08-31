@@ -124,7 +124,10 @@ export function normalizeApiError(status: number, payload: ApiEnvelope<unknown> 
     });
   }
 
-  if (status === 402 || status === 403 || text.includes("insufficient") || text.includes("not enough credit") || text.includes("credits")) {
+  const normalizedCode = String(code || "").trim().toUpperCase();
+  const creditCode = /(?:^|_)(?:CREDIT|CREDITS)(?:_|$)|(?:^|_)INSUFFICIENT_BALANCE(?:_|$)/.test(normalizedCode);
+  const unstructuredCreditFailure = !normalizedCode && (text.includes("not enough credit") || text.includes("insufficient credit"));
+  if (status === 402 || creditCode || unstructuredCreditFailure) {
     return new ApiError(text.includes("admin") ? "Contact administrator." : message || "Not enough credits.", {
       status,
       code,

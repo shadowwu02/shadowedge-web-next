@@ -21,9 +21,20 @@ describe("image error display", () => {
     }));
     expect(display.category).toBe("REFERENCE");
     expect(display.message).toContain("当前模型暂不支持此参考图请求。");
-    expect(display.message).toContain("Code: IMAGE_REFERENCES_UNSUPPORTED");
+    expect(display.message).not.toContain("IMAGE_REFERENCES_UNSUPPORTED");
     expect(display.message).toContain("Correlation ID: 56dd4f1a-4d2c-4cdc-aee7-9faf94a14a98");
     expect(display.message).not.toContain("internal provider payload");
+  });
+
+  it("productizes unsafe reference failures without exposing the internal code", () => {
+    const display = getImageGenerationErrorDisplay(new ApiError("Reference Image URL validation failed.", {
+      code: "IMAGE_REFERENCE_ASSET_URL_UNSAFE",
+      kind: "unknown",
+    }));
+    expect(display.category).toBe("REFERENCE");
+    expect(display.message).toBe("参考图片不可用，请重新选择或重新上传图片。");
+    expect(display.message).not.toContain("IMAGE_REFERENCE_ASSET_URL_UNSAFE");
+    expect(display.message).not.toContain("积分不足");
   });
 
   it("shows a safe network message and the client correlation ID", () => {
