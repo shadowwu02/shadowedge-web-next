@@ -949,7 +949,17 @@ export function getVideoModelRuleFromRegistry(model: VideoModel): VideoModelRule
       }
     : base.creditRules;
   const generatedAudioReference = model.generatedAudioReference || model.referenceSystemV1?.generatedAudioReference;
-  const fallbackGeneratedAudioImageMax = model.imagePlusGenerateAudio === true ? 1 : 0;
+  const domesticGeneratedAudioImageMax: Record<string, number> = {
+    seedance_2_0: 2,
+    seedance_2_0_fast: 1,
+    seedance_2_0_mini: 1,
+    seedance_2_5: 1,
+  };
+  // Compatibility for the currently deployed catalog assembler, which may
+  // omit the additive generatedAudioReference projection. An explicit public
+  // contract always wins; this bounded fallback mirrors the certified matrix.
+  const fallbackGeneratedAudioImageMax = domesticGeneratedAudioImageMax[model.id] ??
+    (model.imagePlusGenerateAudio === true ? 1 : 0);
   return {
     ...base,
     modelId: model.id,

@@ -129,6 +129,18 @@ describe("Seedance 2.0 two-Image generated-audio capability", () => {
     }
   });
 
+  it("uses the exact bounded compatibility matrix when the legacy catalog assembler omits the additive field", () => {
+    for (const [id, maximum] of [
+      ["seedance_2_0", 2],
+      ["seedance_2_0_mini", 1],
+      ["seedance_2_0_fast", 1],
+      ["seedance_2_5", 1],
+    ] as const) {
+      const legacyResponseModel = { ...model(id), generatedAudioReference: undefined };
+      expect(getVideoModelRuleFromRegistry(legacyResponseModel).generatedAudioReference?.imageMax).toBe(maximum);
+    }
+  });
+
   it("wires picker selection, toggle blocking, and non-truncating model-switch readiness to the shared rule", () => {
     const workspace = readFileSync("src/components/video/VideoWorkspace.tsx", "utf8");
     const upload = readFileSync("src/components/video/UploadBox.tsx", "utf8");
