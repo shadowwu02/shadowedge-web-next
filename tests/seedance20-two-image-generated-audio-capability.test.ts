@@ -147,6 +147,8 @@ describe("Seedance 2.0 two-Image generated-audio capability", () => {
     const drawer = readFileSync("src/components/video/MediaPickerDrawer.tsx", "utf8");
     expect(workspace).toContain("const effectiveGenerateAudio = params.generateAudio");
     expect(workspace).not.toContain("setParams((current) => current.generateAudio ? { ...current, generateAudio: false } : current)");
+    expect(workspace).toContain("if (generatedAudioReferenceIssue) return localizedGeneratedAudioToggleIssue");
+    expect(workspace).toContain("setWorkspaceNotice(localizedGeneratedAudioToggleIssue)");
     expect(workspace).toContain("generateAudio={effectiveGenerateAudio}");
     expect(upload).toContain("validateReferenceSelectionForRule(modelRule, currentMedia, selectedNewItems, generateAudio)");
     expect(drawer).toContain("validateReferenceSelectionForRule(modelRule, referenceMedia, newItems, generateAudio)");

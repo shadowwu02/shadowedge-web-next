@@ -3070,7 +3070,7 @@ export function VideoWorkspace() {
     if (modelUnavailable) return t("generation.modelTemporarilyUnavailable");
     if (tenantMembershipReviewRequired) return t("account.tenantMembershipReviewRequired");
     if (referenceSelectionIssue) return localizedReferenceSelectionIssue;
-    if (generatedAudioReferenceIssue) return t("video.errors.audioReferenceGeneratedAudioConflict");
+    if (generatedAudioReferenceIssue) return localizedGeneratedAudioToggleIssue;
     if (isUploadingMedia) return t("video.errors.mediaUploading");
     if (isProcessing) return concurrencyLimitNotice;
     if (!token && !isSignedIn) return t("video.errors.signInRequired");
@@ -3079,7 +3079,7 @@ export function VideoWorkspace() {
     if (!hasEnoughCredits) return t("video.credits.notEnough");
     if (isPromptTooLong) return tf("video.errors.promptTooLong", { limit: selectedPromptLimitLabel });
     return t("video.credits.beforeSubmit");
-  }, [audioTupleInvalid, catalogStatus, concurrencyLimitNotice, generatedAudioReferenceIssue, hasEnoughCredits, hasPromptForGenerate, internationalExecutionUnavailable, isProcessing, isPromptTooLong, isSignedIn, isUploadingMedia, localizedReferenceSelectionIssue, modelUnavailable, referenceSelectionIssue, selectedPromptLimitLabel, t, tenantMembershipReviewRequired, tf, token, tuplePricingReady]);
+  }, [audioTupleInvalid, catalogStatus, concurrencyLimitNotice, generatedAudioReferenceIssue, hasEnoughCredits, hasPromptForGenerate, internationalExecutionUnavailable, isProcessing, isPromptTooLong, isSignedIn, isUploadingMedia, localizedGeneratedAudioToggleIssue, localizedReferenceSelectionIssue, modelUnavailable, referenceSelectionIssue, selectedPromptLimitLabel, t, tenantMembershipReviewRequired, tf, token, tuplePricingReady]);
 
   const handleGenerateRemakeShot = useCallback(
     async (shot: RemakeShot, queueMeta?: RemakeShotQueueMeta) => {
@@ -3855,7 +3855,7 @@ export function VideoWorkspace() {
     }
 
     if (generatedAudioReferenceIssue) {
-      setWorkspaceNotice(t("video.errors.audioReferenceGeneratedAudioConflict"));
+      setWorkspaceNotice(localizedGeneratedAudioToggleIssue);
       return;
     }
 
@@ -3913,7 +3913,7 @@ export function VideoWorkspace() {
       workspaceAuthority,
       workspaceAuthorityScope,
     });
-  }, [concurrencyLimitNotice, effectiveGenerateAudio, generatedAudioReferenceIssue, hasEnoughCredits, internationalExecutionUnavailable, isProcessing, isSignedIn, isUploadingMedia, localizedReferenceSelectionIssue, maxConcurrency, media, modelUnavailable, params, prompt, reconciledMentionBindings, referenceSelectionIssue, selectedModel, submit, t, tenantMembershipReviewRequired, token, workspaceAuthority, workspaceAuthorityScope]);
+  }, [concurrencyLimitNotice, effectiveGenerateAudio, generatedAudioReferenceIssue, hasEnoughCredits, internationalExecutionUnavailable, isProcessing, isSignedIn, isUploadingMedia, localizedGeneratedAudioToggleIssue, localizedReferenceSelectionIssue, maxConcurrency, media, modelUnavailable, params, prompt, reconciledMentionBindings, referenceSelectionIssue, selectedModel, submit, t, tenantMembershipReviewRequired, token, workspaceAuthority, workspaceAuthorityScope]);
 
   const getGeneratedResultReferenceIssue = useCallback(
     (record: (typeof history)[number]) => {
