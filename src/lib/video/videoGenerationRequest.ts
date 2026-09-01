@@ -16,6 +16,7 @@ import { assertVideoTupleForGeneration, getVideoTuplePricingDecision } from "@/l
 import { isFluxProxyInternationalModel, toFluxProxyReferenceRole } from "@/lib/video/fluxproxyInternational";
 import { resolveVideoPromptBoundReferences } from "@/lib/video/videoPromptBoundReferences";
 import {
+  AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT,
   getGeneratedAudioReferenceIssue,
   validateReferenceSelectionForRule,
 } from "@/lib/video/videoReferenceRules";
@@ -96,7 +97,9 @@ export function buildVideoGenerationRequest(
   );
   if (generatedAudioReferenceIssue) {
     throw Object.assign(new Error(generatedAudioReferenceIssue), {
-      code: "VIDEO_AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT",
+      code: generatedAudioReferenceIssue === AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT
+        ? "VIDEO_AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT"
+        : "VIDEO_CAPABILITY_COMBINATION_UNVERIFIED",
     });
   }
   const mediaList = toGenerationMediaList(referencedMediaItems);

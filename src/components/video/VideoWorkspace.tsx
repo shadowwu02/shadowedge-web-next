@@ -120,6 +120,8 @@ import {
   type VideoMentionBinding,
 } from "@/lib/video/videoMentionBindings";
 import {
+  AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT,
+  VIDEO_REFERENCE_GENERATED_AUDIO_UNVERIFIED,
   getGeneratedAudioReferenceIssue,
   getReferenceRoleIssue,
   normalizeGeneratedAudioForReferences,
@@ -2911,19 +2913,25 @@ export function VideoWorkspace() {
     [params.duration, params.quality, selectedModel],
   );
   const isAudioSupported = selectedTuple?.audio.supported ?? (hasTupleAuthority ? false : selectedModel.supportsAudio === true);
-  const generatedAudioBlockedByReference = useMemo(
-    () => Boolean(getGeneratedAudioReferenceIssue(selectedModelRule, true, promptBoundReferences.activeItems)),
+  const generatedAudioToggleIssue = useMemo(
+    () => getGeneratedAudioReferenceIssue(selectedModelRule, true, promptBoundReferences.activeItems),
     [promptBoundReferences.activeItems, selectedModelRule],
   );
-  useEffect(() => {
-    if (!generatedAudioBlockedByReference || !params.generateAudio) return;
-    const frame = window.requestAnimationFrame(() => {
-      setParams((current) => current.generateAudio ? { ...current, generateAudio: false } : current);
-      setWorkspaceNotice(t("video.errors.audioReferenceGeneratedAudioConflict"));
+  const generatedAudioBlockedByReference = Boolean(generatedAudioToggleIssue);
+  const localizedGeneratedAudioToggleIssue = useMemo(() => {
+    if (!generatedAudioToggleIssue) return "";
+    if (generatedAudioToggleIssue === AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT) {
+      return t("video.errors.audioReferenceGeneratedAudioConflict");
+    }
+    if (generatedAudioToggleIssue === VIDEO_REFERENCE_GENERATED_AUDIO_UNVERIFIED) {
+      return t("video.references.generatedAudioVideoUnverified");
+    }
+    return tf("video.references.generatedAudioImageLimit", {
+      max: selectedModelRule.generatedAudioReference?.imageMax || 0,
+      model: selectedModel.label,
     });
-    return () => window.cancelAnimationFrame(frame);
-  }, [generatedAudioBlockedByReference, params.generateAudio, t]);
-  const effectiveGenerateAudio = generatedAudioBlockedByReference ? false : params.generateAudio;
+  }, [generatedAudioToggleIssue, selectedModel.label, selectedModelRule.generatedAudioReference?.imageMax, t, tf]);
+  const effectiveGenerateAudio = params.generateAudio;
   const audioTupleInvalid = effectiveGenerateAudio && !isAudioSupported;
   const tuplePricingDecision = useMemo(
     () => getVideoTuplePricingDecision(selectedModel, {
@@ -3926,9 +3934,16 @@ export function VideoWorkspace() {
       if (issue.includes("Start and End frame roles require an image")) return t("video.references.imageOnlyForFrame");
       if (issue.includes("does not support Start Frame")) return t("video.references.startFrameUnsupported");
       if (issue.includes("does not support End Frame")) return t("video.references.endFrameUnsupported");
+      if (issue === VIDEO_REFERENCE_GENERATED_AUDIO_UNVERIFIED) return t("video.references.generatedAudioVideoUnverified");
+      if (issue.includes("generated audio is certified with up to")) {
+        return tf("video.references.generatedAudioImageLimit", {
+          max: selectedModelRule.generatedAudioReference?.imageMax || 0,
+          model: selectedModel.label,
+        });
+      }
       return issue;
     },
-    [t],
+    [selectedModel.label, selectedModelRule.generatedAudioReference?.imageMax, t, tf],
   );
 
   useEffect(() => {
@@ -3973,7 +3988,7 @@ export function VideoWorkspace() {
           continue;
         }
 
-        const selectionIssue = validateReferenceSelectionForRule(selectedModelRule, [...media, ...acceptedReferences], [nextAsset]);
+        const selectionIssue = validateReferenceSelectionForRule(selectedModelRule, [...media, ...acceptedReferences], [nextAsset], params.generateAudio);
         if (selectionIssue) {
           referenceNotice ||=
             selectionIssue.includes("Reference limit reached") || selectionIssue.includes("Type limit reached")
@@ -4038,10 +4053,10 @@ export function VideoWorkspace() {
       const roleIssue = getReferenceRoleIssue(selectedModelRule, nextAsset.type, nextAsset.role || "reference");
       if (roleIssue) return localizeReferenceIssue(roleIssue);
 
-      const selectionIssue = validateReferenceSelectionForRule(selectedModelRule, media, [nextAsset]);
+      const selectionIssue = validateReferenceSelectionForRule(selectedModelRule, media, [nextAsset], params.generateAudio);
       return localizeReferenceIssue(selectionIssue);
     },
-    [localizeReferenceIssue, media, selectedModelRule, t],
+    [localizeReferenceIssue, media, params.generateAudio, selectedModelRule, t],
   );
 
   const handleAddHistoryReferenceAsset = useCallback(
@@ -4428,6 +4443,7 @@ export function VideoWorkspace() {
                 {selectedModelRule.uploadSlots.length > 0 && workspaceAuthority ? (
                   <>
                     <UploadBox
+                      generateAudio={effectiveGenerateAudio}
                       media={media}
                       modelRule={selectedModelRule}
                       onBusyChange={setIsAssetPickerUploading}
@@ -4524,10 +4540,10 @@ export function VideoWorkspace() {
                 <AudioToggle
                   checked={effectiveGenerateAudio}
                   disabled={generatedAudioBlockedByReference || (!isAudioSupported && !effectiveGenerateAudio)}
-                  disabledReason={generatedAudioBlockedByReference ? t("video.params.audioReferenceBound") : undefined}
+                  disabledReason={generatedAudioBlockedByReference ? localizedGeneratedAudioToggleIssue : undefined}
                   onChange={(checked) => {
                     if (checked && generatedAudioBlockedByReference) {
-                      setWorkspaceNotice(t("video.errors.audioReferenceGeneratedAudioConflict"));
+                      setWorkspaceNotice(localizedGeneratedAudioToggleIssue);
                       return;
                     }
                     setParams((current) => ({ ...current, generateAudio: checked }));

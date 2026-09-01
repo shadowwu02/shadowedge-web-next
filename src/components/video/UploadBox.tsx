@@ -66,6 +66,7 @@ function validateFileSize(file: File, maximum: number, message: string) {
 }
 
 export function UploadBox({
+  generateAudio = false,
   media,
   modelRule,
   onBusyChange,
@@ -75,6 +76,7 @@ export function UploadBox({
   reusableMedia = [],
   workspaceAuthority,
 }: {
+  generateAudio?: boolean;
   media: UploadMediaItem[];
   modelRule: VideoModelRule;
   onBusyChange?: (isBusy: boolean) => void;
@@ -299,7 +301,7 @@ export function UploadBox({
         Boolean(current.assetId && item.assetId && current.assetId === item.assetId) ||
         Boolean(current.url && current.url === item.url)),
     );
-    const modelLimitMessage = validateReferenceSelectionForRule(modelRule, currentMedia, selectedNewItems);
+    const modelLimitMessage = validateReferenceSelectionForRule(modelRule, currentMedia, selectedNewItems, generateAudio);
 
     if (modelLimitMessage) {
       setPickerNotice(modelLimitMessage);
@@ -352,6 +354,7 @@ export function UploadBox({
         anchorElement={drawerAnchorEl}
         assetLibraryRefreshVersion={assetLibraryRefreshVersion}
         currentMedia={currentMedia}
+        generateAudio={generateAudio}
         inputRef={inputRef}
         isOpen={isPickerOpen}
         localMedia={localStoredMedia}

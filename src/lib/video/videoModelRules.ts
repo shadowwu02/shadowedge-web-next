@@ -64,6 +64,14 @@ export type VideoModelRule = {
   supportsImageReference: boolean;
   supportsGeneratedResultAsReference: boolean;
   audioReference?: VideoAudioReferenceCapability;
+  generatedAudioReference?: {
+    status: string;
+    imageMax: number;
+    videoMax: number;
+    audioMax: number;
+    overflowSemantics: string;
+    selectionPolicy: string;
+  };
   mixedReference?: {
     imageVideo: boolean;
     maxImages?: number;
@@ -940,6 +948,8 @@ export function getVideoModelRuleFromRegistry(model: VideoModel): VideoModelRule
         table: registryCreditRules.table || base.creditRules.table,
       }
     : base.creditRules;
+  const generatedAudioReference = model.generatedAudioReference || model.referenceSystemV1?.generatedAudioReference;
+  const fallbackGeneratedAudioImageMax = model.imagePlusGenerateAudio === true ? 1 : 0;
   return {
     ...base,
     modelId: model.id,
@@ -970,6 +980,14 @@ export function getVideoModelRuleFromRegistry(model: VideoModel): VideoModelRule
     supportsVideoReference: model.referenceVideos === true && videoLimit > 0,
     supportsAudioReference: model.referenceAudios === true && audioLimit > 0,
     audioReference: model.audioReference,
+    generatedAudioReference: {
+      status: String(generatedAudioReference?.status || (fallbackGeneratedAudioImageMax ? "REAL_CERTIFIED" : "UNVERIFIED")),
+      imageMax: Math.max(0, Number(generatedAudioReference?.images?.max ?? fallbackGeneratedAudioImageMax)),
+      videoMax: Math.max(0, Number(generatedAudioReference?.videos?.max || 0)),
+      audioMax: Math.max(0, Number(generatedAudioReference?.audios?.max || 0)),
+      overflowSemantics: String(generatedAudioReference?.overflowSemantics || "UNVERIFIED"),
+      selectionPolicy: String(generatedAudioReference?.selectionPolicy || "preserve_and_block_when_over_limit"),
+    },
     supportsStartFrame: model.referenceImages === true && imageLimit > 0,
     supportsEndFrame: model.referenceImages === true && imageLimit >= 2,
     mixedReference: {

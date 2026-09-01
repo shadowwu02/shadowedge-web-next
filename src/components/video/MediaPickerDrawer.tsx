@@ -101,6 +101,7 @@ export function MediaPickerDrawer({
   anchorElement,
   assetLibraryRefreshVersion = 0,
   currentMedia,
+  generateAudio = false,
   inputRef,
   isOpen,
   localMedia,
@@ -121,6 +122,7 @@ export function MediaPickerDrawer({
   anchorElement: HTMLElement | null;
   assetLibraryRefreshVersion?: number;
   currentMedia: UploadMediaItem[];
+  generateAudio?: boolean;
   inputRef: RefObject<HTMLInputElement | null>;
   isOpen: boolean;
   localMedia: UploadMediaItem[];
@@ -299,12 +301,12 @@ export function MediaPickerDrawer({
         (candidate) => !referenceMedia.some((currentItem) => isSameMediaAsset(currentItem, candidate)),
       );
 
-      const limitMessage = validateReferenceSelectionForRule(modelRule, referenceMedia, newItems);
+      const limitMessage = validateReferenceSelectionForRule(modelRule, referenceMedia, newItems, generateAudio);
       if (limitMessage) issues.set(item.id, limitMessage);
     });
 
     return issues;
-  }, [modelRule, referenceMedia, selectedIds, selectionMedia, slot]);
+  }, [generateAudio, modelRule, referenceMedia, selectedIds, selectionMedia, slot]);
   const unavailableNotice = useMemo(() => {
     if (notice || !visibleMedia.length) return "";
     const failedCount = visibleMedia.filter((item) => item.uploadStatus === "failed").length;
@@ -408,7 +410,7 @@ export function MediaPickerDrawer({
           const newItems = selectedItems.filter(
             (candidate) => !referenceMedia.some((currentItem) => isSameMediaAsset(currentItem, candidate)),
           );
-          if (validateReferenceSelectionForRule(modelRule, referenceMedia, newItems)) return;
+          if (validateReferenceSelectionForRule(modelRule, referenceMedia, newItems, generateAudio)) return;
           next.add(id);
         });
         return next;
@@ -416,7 +418,7 @@ export function MediaPickerDrawer({
     }
 
     previousStatusesRef.current = new Map(selectionMedia.map((item) => [item.id, item.uploadStatus]));
-  }, [isOpen, modelRule, referenceMedia, selectionMedia, slot]);
+  }, [generateAudio, isOpen, modelRule, referenceMedia, selectionMedia, slot]);
 
   useEffect(() => {
     if (!isOpen) return;

@@ -119,6 +119,15 @@ export type VideoAudioReferenceCapability = {
   generatedAudioCompatible?: boolean;
 };
 
+export type VideoGeneratedAudioReferenceCapability = {
+  status: "REAL_CERTIFIED" | string;
+  images: { max: number };
+  videos: { max: number };
+  audios: { max: number };
+  overflowSemantics: "UNVERIFIED" | string;
+  selectionPolicy?: "preserve_and_block_when_over_limit" | string;
+};
+
 export type VideoTuplePricingStatus = "READY" | "MISSING_REQUIRES_OWNER_DECISION";
 
 export type VideoTupleCapability = {
@@ -144,6 +153,7 @@ export type VideoReferenceSystemV1 = {
   limits: { image: number; video: number; audio: number; total: number };
   combinations: Record<string, boolean | number>;
   audioReference: Record<string, unknown>;
+  generatedAudioReference?: VideoGeneratedAudioReferenceCapability;
   generateAudioMutex: "audio_reference_exclusive" | string;
   privateDelivery: Record<UploadMediaType, { status: string; contracts?: string[] }>;
 };
@@ -193,6 +203,7 @@ export type VideoModel = {
   referenceAudios?: boolean;
   maxReferenceAudios?: number;
   audioReference?: VideoAudioReferenceCapability;
+  generatedAudioReference?: VideoGeneratedAudioReferenceCapability;
   maxTotalReferences?: number;
   mixedReference?: {
     imageVideo?: boolean;

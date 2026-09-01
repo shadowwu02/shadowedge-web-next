@@ -10,6 +10,12 @@ import { getCanonicalReferenceIdentity } from "@/lib/reference/referenceIdentity
 type ReferenceCountMap = Record<UploadMediaType, number>;
 
 export const AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT = "Audio Reference cannot be combined with generated audio.";
+export const VIDEO_REFERENCE_GENERATED_AUDIO_UNVERIFIED = "Video Reference with generated audio is awaiting compatibility certification.";
+
+export function getGeneratedAudioImageLimitMessage(rule: VideoModelRule) {
+  const maximum = Math.max(0, Number(rule.generatedAudioReference?.imageMax || 0));
+  return `${rule.label} generated audio is certified with up to ${maximum} reference image${maximum === 1 ? "" : "s"}.`;
+}
 
 const mediaTypeLabels: Record<UploadMediaType, string> = {
   audio: "audio references",
@@ -44,10 +50,20 @@ export function getGeneratedAudioReferenceIssue(
   generateAudio: boolean,
   items: Array<Pick<UploadMediaItem, "type">>,
 ) {
-  if (!generateAudio || !hasAudioReference(items)) return "";
-  return rule.audioReference?.generatedAudioCompatible === true
-    ? ""
-    : AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT;
+  if (!generateAudio) return "";
+  const counts = countMediaTypes(items);
+  if (counts.audio > Math.max(0, Number(rule.generatedAudioReference?.audioMax || 0))) {
+    return rule.audioReference?.generatedAudioCompatible === true
+      ? ""
+      : AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT;
+  }
+  if (counts.video > Math.max(0, Number(rule.generatedAudioReference?.videoMax || 0))) {
+    return VIDEO_REFERENCE_GENERATED_AUDIO_UNVERIFIED;
+  }
+  if (counts.image > Math.max(0, Number(rule.generatedAudioReference?.imageMax || 0))) {
+    return getGeneratedAudioImageLimitMessage(rule);
+  }
+  return "";
 }
 
 export function normalizeGeneratedAudioForReferences<T extends { generateAudio: boolean }>(
@@ -55,7 +71,7 @@ export function normalizeGeneratedAudioForReferences<T extends { generateAudio: 
   params: T,
   items: Array<Pick<UploadMediaItem, "type">>,
 ): T {
-  return getGeneratedAudioReferenceIssue(rule, params.generateAudio, items)
+  return getGeneratedAudioReferenceIssue(rule, params.generateAudio, items) === AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT
     ? { ...params, generateAudio: false }
     : params;
 }
@@ -223,6 +239,7 @@ export function validateReferenceSelectionForRule(
   rule: VideoModelRule,
   currentItems: UploadMediaItem[],
   nextItems: UploadMediaItem[],
+  generateAudio = false,
 ) {
   const uniqueCurrent = uniqueReferenceItems(currentItems);
   const currentKeys = new Set(uniqueCurrent.map(getCanonicalReferenceIdentity));
@@ -246,6 +263,8 @@ export function validateReferenceSelectionForRule(
   }
 
   const counts = countMediaTypes(combined);
+  const generatedAudioIssue = getGeneratedAudioReferenceIssue(rule, generateAudio, combined);
+  if (generatedAudioIssue) return generatedAudioIssue;
   const invalidAudioAsset = combined.find((item) => getAudioAssetIssue(rule, item));
   if (invalidAudioAsset) return getAudioAssetIssue(rule, invalidAudioAsset);
   const mixedIssue = getMixedImageVideoIssue(rule, counts);

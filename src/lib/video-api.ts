@@ -347,6 +347,10 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
   const durationDefault = publicDurations.includes(requestedDefault) ? requestedDefault : publicDurations[0];
   const audioCapability = asRecord(model.audio);
   const audioReferenceCapability = asRecord(model.audioReference);
+  const generatedAudioReferenceCapability = asRecord(model.generatedAudioReference);
+  const generatedAudioImages = asRecord(generatedAudioReferenceCapability.images);
+  const generatedAudioVideos = asRecord(generatedAudioReferenceCapability.videos);
+  const generatedAudioAudios = asRecord(generatedAudioReferenceCapability.audios);
   const supportsAudio = model.supportsAudio === true || audioCapability.supported === true;
   const tupleCapabilities = normalizePublicTupleCapabilities(model.tupleCapabilities);
   const label = String(model.name || model.label || model.id || "Video Model")
@@ -432,6 +436,14 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
       maxMixedImages: Math.max(0, Number(audioReferenceCapability.maxMixedImages || 0)),
       maxMixedVideos: Math.max(0, Number(audioReferenceCapability.maxMixedVideos || 0)),
       generatedAudioCompatible: audioReferenceCapability.generatedAudioCompatible === true,
+    } : undefined,
+    generatedAudioReference: Object.keys(generatedAudioReferenceCapability).length ? {
+      status: String(generatedAudioReferenceCapability.status || ""),
+      images: { max: Math.max(0, Number(generatedAudioImages.max || 0)) },
+      videos: { max: Math.max(0, Number(generatedAudioVideos.max || 0)) },
+      audios: { max: Math.max(0, Number(generatedAudioAudios.max || 0)) },
+      overflowSemantics: String(generatedAudioReferenceCapability.overflowSemantics || "UNVERIFIED"),
+      selectionPolicy: String(generatedAudioReferenceCapability.selectionPolicy || "preserve_and_block_when_over_limit"),
     } : undefined,
     maxTotalReferences: Math.max(0, Number(model.maxTotalReferences || 0)),
     mixedReference: {
