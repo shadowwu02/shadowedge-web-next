@@ -9,6 +9,7 @@ import { buildVideoGenerationRequest } from "@/lib/video/videoGenerationRequest"
 import { createVideoClientRequestId } from "@/lib/video/videoClientRequestId";
 import {
   getAudioReferenceCustomerErrorMessage,
+  getVideoCapabilityCustomerErrorMessage,
   getVideoProviderCustomerErrorMessage,
 } from "@/lib/video/videoErrorDisplay";
 import { countVideoPromptCharacters, formatVideoPromptLimit, getVideoPromptLimit } from "@/lib/video/videoPromptLimits";
@@ -357,6 +358,7 @@ export function useVideoGeneration() {
           ? t("maintenance.errors.generationPaused")
           : formatGenerationConcurrencyLimitError(submitError, t, tf) ||
             getAudioReferenceCustomerErrorMessage(submitError, t) ||
+            getVideoCapabilityCustomerErrorMessage(submitError, t) ||
             getVideoProviderCustomerErrorMessage(submitError, t) ||
             getSafeVideoGenerationErrorMessage(submitError, t("video.errors.generationRequestFailed"));
       setError(message);

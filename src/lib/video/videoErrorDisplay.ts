@@ -40,6 +40,20 @@ export function getAudioReferenceCustomerErrorMessage(error: unknown, t: VideoEr
   return key ? t(key) : "";
 }
 
+const capabilityCustomerErrorKeys = {
+  VIDEO_CAPABILITY_COMBINATION_UNVERIFIED: "video.capability.error.unverified",
+  XINHANKR_ARTSDANCE_IMAGE_GENERATE_AUDIO_UNVERIFIED: "video.capability.error.unverified",
+  XINHANKR_ARTSDANCE_VIDEO_GENERATE_AUDIO_UNVERIFIED: "video.capability.error.unverified",
+  VIDEO_CAPABILITY_COMBINATION_UNSUPPORTED: "video.capability.error.unsupported",
+} as const satisfies Record<string, DictionaryKey>;
+
+export function getVideoCapabilityCustomerErrorMessage(error: unknown, t: VideoErrorTranslator) {
+  const record = error && typeof error === "object" ? error as { code?: unknown } : {};
+  const code = String(record.code || "").trim().toUpperCase();
+  const key = capabilityCustomerErrorKeys[code as keyof typeof capabilityCustomerErrorKeys];
+  return key ? t(key) : "";
+}
+
 const providerCustomerErrorCodes = new Set([
   "XINHANKR_ARTSDANCE_PROVIDER_REJECTED",
   "POLICY_OR_COPYRIGHT",
