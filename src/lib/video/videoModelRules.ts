@@ -69,6 +69,10 @@ export type VideoModelRule = {
     imageMax: number;
     videoMax: number;
     audioMax: number;
+    maxTotal: number;
+    mixedImageVideo: boolean;
+    mixedMaxImages: number;
+    mixedMaxVideos: number;
     overflowSemantics: string;
     selectionPolicy: string;
   };
@@ -180,7 +184,6 @@ const artsdanceMixedReference = {
 
 const duration2To15 = range(2, 15);
 const duration3To15 = range(3, 15);
-const duration4To15 = range(4, 15);
 const duration5To15 = range(5, 15);
 
 const seedanceRatios: VideoRatio[] = ["auto", "16:9", "9:16", "4:3", "3:4", "1:1", "21:9"];
@@ -949,17 +952,9 @@ export function getVideoModelRuleFromRegistry(model: VideoModel): VideoModelRule
       }
     : base.creditRules;
   const generatedAudioReference = model.generatedAudioReference || model.referenceSystemV1?.generatedAudioReference;
-  const domesticGeneratedAudioImageMax: Record<string, number> = {
-    seedance_2_0: 2,
-    seedance_2_0_fast: 1,
-    seedance_2_0_mini: 1,
-    seedance_2_5: 1,
-  };
-  // Compatibility for the currently deployed catalog assembler, which may
-  // omit the additive generatedAudioReference projection. An explicit public
-  // contract always wins; this bounded fallback mirrors the certified matrix.
-  const fallbackGeneratedAudioImageMax = domesticGeneratedAudioImageMax[model.id] ??
-    (model.imagePlusGenerateAudio === true ? 1 : 0);
+  // The Backend catalog is the authority. A missing generated-audio projection
+  // remains fail-closed instead of maintaining a second frontend limit table.
+  const fallbackGeneratedAudioImageMax = 0;
   return {
     ...base,
     modelId: model.id,
@@ -995,7 +990,11 @@ export function getVideoModelRuleFromRegistry(model: VideoModel): VideoModelRule
       imageMax: Math.max(0, Number(generatedAudioReference?.images?.max ?? fallbackGeneratedAudioImageMax)),
       videoMax: Math.max(0, Number(generatedAudioReference?.videos?.max || 0)),
       audioMax: Math.max(0, Number(generatedAudioReference?.audios?.max || 0)),
-      overflowSemantics: String(generatedAudioReference?.overflowSemantics || "UNVERIFIED"),
+      maxTotal: Math.max(0, Number(generatedAudioReference?.maxTotal || 0)),
+      mixedImageVideo: generatedAudioReference?.mixed?.imageVideo === true,
+      mixedMaxImages: Math.max(0, Number(generatedAudioReference?.mixed?.maxImages || 0)),
+      mixedMaxVideos: Math.max(0, Number(generatedAudioReference?.mixed?.maxVideos || 0)),
+      overflowSemantics: String(generatedAudioReference?.overflowSemantics || "UNSUPPORTED"),
       selectionPolicy: String(generatedAudioReference?.selectionPolicy || "preserve_and_block_when_over_limit"),
     },
     supportsStartFrame: model.referenceImages === true && imageLimit > 0,

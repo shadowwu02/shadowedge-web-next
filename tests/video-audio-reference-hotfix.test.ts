@@ -85,18 +85,20 @@ describe("generated-audio and Audio Reference mutual exclusion", () => {
       const rule = getVideoModelRuleFromRegistry(model(id));
       expect(getGeneratedAudioReferenceIssue(rule, true, [audio()])).toBe(AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT);
       expect(normalizeGeneratedAudioForReferences(rule, { generateAudio: true, duration: 5 }, [audio()]))
-        .toEqual({ generateAudio: false, duration: 5 });
+        .toEqual({ generateAudio: true, duration: 5 });
       expect(getGeneratedAudioReferenceIssue(rule, false, [audio()])).toBe("");
       expect(getGeneratedAudioReferenceIssue(rule, true, [])).toBe("");
     }
   });
 
-  it("normalizes legacy draft and model-switch state before it can remain ready", () => {
+  it("preserves draft and model-switch selections while readiness remains fail-closed", () => {
     const draft = { generateAudio: true, duration: 5, quality: "720p", ratio: "16:9" };
     const seedance20 = getVideoModelRuleFromRegistry(model("seedance_2_0"));
     const seedance25 = getVideoModelRuleFromRegistry(model("seedance_2_5"));
-    expect(normalizeGeneratedAudioForReferences(seedance20, draft, [audio()]).generateAudio).toBe(false);
-    expect(normalizeGeneratedAudioForReferences(seedance25, draft, [audio()]).generateAudio).toBe(false);
+    expect(normalizeGeneratedAudioForReferences(seedance20, draft, [audio()]).generateAudio).toBe(true);
+    expect(normalizeGeneratedAudioForReferences(seedance25, draft, [audio()]).generateAudio).toBe(true);
+    expect(getGeneratedAudioReferenceIssue(seedance20, true, [audio()])).toBe(AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT);
+    expect(getGeneratedAudioReferenceIssue(seedance25, true, [audio()])).toBe(AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT);
   });
 
   it("wires normalization, toggle blocking, readiness, and submit guard to the same helper", () => {

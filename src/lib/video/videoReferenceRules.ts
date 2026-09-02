@@ -10,11 +10,21 @@ import { getCanonicalReferenceIdentity } from "@/lib/reference/referenceIdentity
 type ReferenceCountMap = Record<UploadMediaType, number>;
 
 export const AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT = "Audio Reference cannot be combined with generated audio.";
-export const VIDEO_REFERENCE_GENERATED_AUDIO_UNVERIFIED = "Video Reference with generated audio is awaiting compatibility certification.";
 
 export function getGeneratedAudioImageLimitMessage(rule: VideoModelRule) {
   const maximum = Math.max(0, Number(rule.generatedAudioReference?.imageMax || 0));
-  return `${rule.label} generated audio is certified with up to ${maximum} reference image${maximum === 1 ? "" : "s"}.`;
+  return `${rule.label} supports up to ${maximum} reference image${maximum === 1 ? "" : "s"} with generated audio.`;
+}
+
+export function getGeneratedAudioVideoLimitMessage(rule: VideoModelRule) {
+  const maximum = Math.max(0, Number(rule.generatedAudioReference?.videoMax || 0));
+  return `${rule.label} supports up to ${maximum} reference video${maximum === 1 ? "" : "s"} with generated audio.`;
+}
+
+export function getReferenceTypeLimitMessage(rule: VideoModelRule, type: UploadMediaType) {
+  const maximum = getTypeLimit(rule, type);
+  const noun = type === "image" ? "reference images" : type === "video" ? "reference videos" : "audio references";
+  return `This model supports up to ${maximum} ${noun}.`;
 }
 
 const mediaTypeLabels: Record<UploadMediaType, string> = {
@@ -58,10 +68,26 @@ export function getGeneratedAudioReferenceIssue(
       : AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT;
   }
   if (counts.video > Math.max(0, Number(rule.generatedAudioReference?.videoMax || 0))) {
-    return VIDEO_REFERENCE_GENERATED_AUDIO_UNVERIFIED;
+    return getGeneratedAudioVideoLimitMessage(rule);
   }
   if (counts.image > Math.max(0, Number(rule.generatedAudioReference?.imageMax || 0))) {
     return getGeneratedAudioImageLimitMessage(rule);
+  }
+  const total = counts.image + counts.video + counts.audio;
+  const totalMaximum = Math.max(0, Number(rule.generatedAudioReference?.maxTotal || 0));
+  if (total > totalMaximum) {
+    return `This model supports up to ${totalMaximum} reference media items with generated audio.`;
+  }
+  if (counts.image > 0 && counts.video > 0) {
+    if (rule.generatedAudioReference?.mixedImageVideo !== true) {
+      return "This model does not support mixed image and video references with generated audio.";
+    }
+    if (counts.image > Math.max(0, Number(rule.generatedAudioReference.mixedMaxImages || 0))) {
+      return getGeneratedAudioImageLimitMessage(rule);
+    }
+    if (counts.video > Math.max(0, Number(rule.generatedAudioReference.mixedMaxVideos || 0))) {
+      return getGeneratedAudioVideoLimitMessage(rule);
+    }
   }
   return "";
 }
@@ -71,9 +97,11 @@ export function normalizeGeneratedAudioForReferences<T extends { generateAudio: 
   params: T,
   items: Array<Pick<UploadMediaItem, "type">>,
 ): T {
-  return getGeneratedAudioReferenceIssue(rule, params.generateAudio, items) === AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT
-    ? { ...params, generateAudio: false }
-    : params;
+  // Preserve both references and the toggle. Readiness blocks an invalid tuple
+  // until the user explicitly removes Audio Reference or turns generated audio off.
+  void rule;
+  void items;
+  return params;
 }
 
 function getMixedImageVideoIssue(rule: VideoModelRule, counts: ReferenceCountMap) {
@@ -227,7 +255,7 @@ export function validateFilesForReferenceRule(rule: VideoModelRule, files: File[
     (type) => combinedCounts[type] > getTypeLimit(rule, type),
   );
   if (overLimitType) {
-    return `Reference limit reached for this model. It supports up to ${getTypeLimit(rule, overLimitType)} ${mediaTypeLabels[overLimitType]}.`;
+    return getReferenceTypeLimitMessage(rule, overLimitType);
   }
   if (currentItems.length + files.length > getTotalLimit(rule)) {
     return `Reference limit reached for this model. It supports up to ${getTotalLimit(rule)} media items.`;
@@ -256,29 +284,24 @@ export function validateReferenceSelectionForRule(
   if (uniqueNext.some((item) => !isCanonicalReferenceItem(item))) {
     return LEGACY_REFERENCE_REUPLOAD_REQUIRED;
   }
-  const totalLimit = getTotalLimit(rule);
-
-  if (totalLimit >= 0 && combined.length > totalLimit) {
-    return `Reference limit reached for this model. It supports up to ${totalLimit} media item${totalLimit === 1 ? "" : "s"}.`;
-  }
-
   const counts = countMediaTypes(combined);
   const generatedAudioIssue = getGeneratedAudioReferenceIssue(rule, generateAudio, combined);
   if (generatedAudioIssue) return generatedAudioIssue;
   const invalidAudioAsset = combined.find((item) => getAudioAssetIssue(rule, item));
   if (invalidAudioAsset) return getAudioAssetIssue(rule, invalidAudioAsset);
-  const mixedIssue = getMixedImageVideoIssue(rule, counts);
-  if (mixedIssue) return mixedIssue;
-  const audioCombinationIssue = getAudioCombinationIssue(rule, counts);
-  if (audioCombinationIssue) return audioCombinationIssue;
   const overLimitType = (["image", "video", "audio"] as UploadMediaType[]).find((type) => {
     const limit = getTypeLimit(rule, type);
     return counts[type] > limit;
   });
+  if (overLimitType) return getReferenceTypeLimitMessage(rule, overLimitType);
 
-  if (overLimitType) {
-    const limit = getTypeLimit(rule, overLimitType);
-    return `Reference limit reached for this model. It supports up to ${limit} ${mediaTypeLabels[overLimitType]}.`;
+  const mixedIssue = getMixedImageVideoIssue(rule, counts);
+  if (mixedIssue) return mixedIssue;
+  const audioCombinationIssue = getAudioCombinationIssue(rule, counts);
+  if (audioCombinationIssue) return audioCombinationIssue;
+  const totalLimit = getTotalLimit(rule);
+  if (totalLimit >= 0 && combined.length > totalLimit) {
+    return `Reference limit reached for this model. It supports up to ${totalLimit} media item${totalLimit === 1 ? "" : "s"}.`;
   }
 
   return "";
@@ -303,7 +326,7 @@ export function getReferenceMediaIssues(rule: VideoModelRule, items: UploadMedia
     else {
       if (totalLimit >= 0 && totalCount > totalLimit) itemIssues.push("Reference limit reached for this model.");
       if (counts[item.type] > getTypeLimit(rule, item.type)) {
-        itemIssues.push(`This model supports up to ${getTypeLimit(rule, item.type)} ${mediaTypeLabels[item.type]}.`);
+        itemIssues.push(getReferenceTypeLimitMessage(rule, item.type));
       }
     }
 

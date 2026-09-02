@@ -121,8 +121,9 @@ import {
 } from "@/lib/video/videoMentionBindings";
 import {
   AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT,
-  VIDEO_REFERENCE_GENERATED_AUDIO_UNVERIFIED,
+  getGeneratedAudioImageLimitMessage,
   getGeneratedAudioReferenceIssue,
+  getGeneratedAudioVideoLimitMessage,
   getReferenceRoleIssue,
   normalizeGeneratedAudioForReferences,
   validateReferenceSelectionForRule,
@@ -2923,14 +2924,17 @@ export function VideoWorkspace() {
     if (generatedAudioToggleIssue === AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT) {
       return t("video.errors.audioReferenceGeneratedAudioConflict");
     }
-    if (generatedAudioToggleIssue === VIDEO_REFERENCE_GENERATED_AUDIO_UNVERIFIED) {
-      return t("video.references.generatedAudioVideoUnverified");
+    if (generatedAudioToggleIssue === getGeneratedAudioVideoLimitMessage(selectedModelRule)) {
+      return tf("video.references.generatedAudioVideoLimit", {
+        max: selectedModelRule.generatedAudioReference?.videoMax || 0,
+        model: selectedModel.label,
+      });
     }
     return tf("video.references.generatedAudioImageLimit", {
       max: selectedModelRule.generatedAudioReference?.imageMax || 0,
       model: selectedModel.label,
     });
-  }, [generatedAudioToggleIssue, selectedModel.label, selectedModelRule.generatedAudioReference?.imageMax, t, tf]);
+  }, [generatedAudioToggleIssue, selectedModel.label, selectedModelRule, t, tf]);
   const effectiveGenerateAudio = params.generateAudio;
   const audioTupleInvalid = effectiveGenerateAudio && !isAudioSupported;
   const tuplePricingDecision = useMemo(
@@ -3934,16 +3938,27 @@ export function VideoWorkspace() {
       if (issue.includes("Start and End frame roles require an image")) return t("video.references.imageOnlyForFrame");
       if (issue.includes("does not support Start Frame")) return t("video.references.startFrameUnsupported");
       if (issue.includes("does not support End Frame")) return t("video.references.endFrameUnsupported");
-      if (issue === VIDEO_REFERENCE_GENERATED_AUDIO_UNVERIFIED) return t("video.references.generatedAudioVideoUnverified");
-      if (issue.includes("generated audio is certified with up to")) {
+      if (issue === getGeneratedAudioVideoLimitMessage(selectedModelRule)) {
+        return tf("video.references.generatedAudioVideoLimit", {
+          max: selectedModelRule.generatedAudioReference?.videoMax || 0,
+          model: selectedModel.label,
+        });
+      }
+      if (issue === getGeneratedAudioImageLimitMessage(selectedModelRule)) {
         return tf("video.references.generatedAudioImageLimit", {
           max: selectedModelRule.generatedAudioReference?.imageMax || 0,
           model: selectedModel.label,
         });
       }
+      if (issue.includes("reference images")) {
+        return tf("video.references.imageLimit", { max: selectedModelRule.maxReferences.image });
+      }
+      if (issue.includes("reference videos")) {
+        return tf("video.references.videoLimit", { max: selectedModelRule.maxReferences.video });
+      }
       return issue;
     },
-    [selectedModel.label, selectedModelRule.generatedAudioReference?.imageMax, t, tf],
+    [selectedModel.label, selectedModelRule, t, tf],
   );
 
   useEffect(() => {

@@ -351,6 +351,7 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
   const generatedAudioImages = asRecord(generatedAudioReferenceCapability.images);
   const generatedAudioVideos = asRecord(generatedAudioReferenceCapability.videos);
   const generatedAudioAudios = asRecord(generatedAudioReferenceCapability.audios);
+  const generatedAudioMixed = asRecord(generatedAudioReferenceCapability.mixed);
   const supportsAudio = model.supportsAudio === true || audioCapability.supported === true;
   const tupleCapabilities = normalizePublicTupleCapabilities(model.tupleCapabilities);
   const label = String(model.name || model.label || model.id || "Video Model")
@@ -442,7 +443,13 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
       images: { max: Math.max(0, Number(generatedAudioImages.max || 0)) },
       videos: { max: Math.max(0, Number(generatedAudioVideos.max || 0)) },
       audios: { max: Math.max(0, Number(generatedAudioAudios.max || 0)) },
-      overflowSemantics: String(generatedAudioReferenceCapability.overflowSemantics || "UNVERIFIED"),
+      maxTotal: Math.max(0, Number(generatedAudioReferenceCapability.maxTotal || 0)),
+      mixed: {
+        imageVideo: generatedAudioMixed.imageVideo === true,
+        maxImages: Math.max(0, Number(generatedAudioMixed.maxImages || 0)),
+        maxVideos: Math.max(0, Number(generatedAudioMixed.maxVideos || 0)),
+      },
+      overflowSemantics: String(generatedAudioReferenceCapability.overflowSemantics || "UNSUPPORTED"),
       selectionPolicy: String(generatedAudioReferenceCapability.selectionPolicy || "preserve_and_block_when_over_limit"),
     } : undefined,
     maxTotalReferences: Math.max(0, Number(model.maxTotalReferences || 0)),

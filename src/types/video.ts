@@ -124,7 +124,13 @@ export type VideoGeneratedAudioReferenceCapability = {
   images: { max: number };
   videos: { max: number };
   audios: { max: number };
-  overflowSemantics: "UNVERIFIED" | string;
+  maxTotal?: number;
+  mixed?: {
+    imageVideo?: boolean;
+    maxImages?: number;
+    maxVideos?: number;
+  };
+  overflowSemantics: "UNSUPPORTED" | string;
   selectionPolicy?: "preserve_and_block_when_over_limit" | string;
 };
 

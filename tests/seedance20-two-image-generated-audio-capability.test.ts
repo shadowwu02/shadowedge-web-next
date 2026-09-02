@@ -6,20 +6,24 @@ import { buildVideoGenerationRequest } from "@/lib/video/videoGenerationRequest"
 import { getVideoModelRuleFromRegistry } from "@/lib/video/videoModelRules";
 import {
   AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT,
-  VIDEO_REFERENCE_GENERATED_AUDIO_UNVERIFIED,
   getGeneratedAudioReferenceIssue,
   normalizeGeneratedAudioForReferences,
   validateReferenceSelectionForRule,
 } from "@/lib/video/videoReferenceRules";
 import type { UploadMediaItem } from "@/types/video";
 
-function model(id: "seedance_2_0_mini" | "seedance_2_0_fast" | "seedance_2_0" | "seedance_2_5") {
-  const imageMax = id === "seedance_2_0" ? 2 : 1;
+const DOMESTIC_MODELS = [
+  "seedance_2_0_mini",
+  "seedance_2_0_fast",
+  "seedance_2_0",
+  "seedance_2_5",
+] as const;
+
+function model(id: (typeof DOMESTIC_MODELS)[number]) {
   return normalizeVideoModel({
     id,
     name: id === "seedance_2_0" ? "Seedance 2.0" : id,
-    providerModel: id === "seedance_2_0" ? "artsdance-2-0-pro-260801" : id,
-    credits: 23,
+    credits: id === "seedance_2_0_fast" ? 12 : 23,
     durations: [5, 10, 15],
     duration: { type: "values", selection: "discrete", values: [5, 10, 15], default: 5 },
     ratios: id === "seedance_2_0" ? ["16:9", "9:16"] : ["16:9"],
@@ -49,10 +53,12 @@ function model(id: "seedance_2_0_mini" | "seedance_2_0_fast" | "seedance_2_0" | 
     },
     generatedAudioReference: {
       status: "REAL_CERTIFIED",
-      images: { max: imageMax },
-      videos: { max: 0 },
+      images: { max: 9 },
+      videos: { max: 2 },
       audios: { max: 0 },
-      overflowSemantics: "UNVERIFIED",
+      maxTotal: 11,
+      mixed: { imageVideo: true, maxImages: 9, maxVideos: 2 },
+      overflowSemantics: "UNSUPPORTED",
       selectionPolicy: "preserve_and_block_when_over_limit",
     },
   });
@@ -75,78 +81,127 @@ function reference(type: "image" | "video" | "audio", index: number): UploadMedi
   };
 }
 
-describe("Seedance 2.0 two-Image generated-audio capability", () => {
-  it("allows 0/1/2 Images, blocks the third at selection, and classifies 3+ as UNVERIFIED", () => {
-    const rule = getVideoModelRuleFromRegistry(model("seedance_2_0"));
-    const images = [reference("image", 1), reference("image", 2), reference("image", 3)];
-    expect(rule.generatedAudioReference).toMatchObject({ imageMax: 2, overflowSemantics: "UNVERIFIED" });
-    expect(getGeneratedAudioReferenceIssue(rule, true, [])).toBe("");
-    expect(getGeneratedAudioReferenceIssue(rule, true, images.slice(0, 1))).toBe("");
-    expect(getGeneratedAudioReferenceIssue(rule, true, images.slice(0, 2))).toBe("");
-    expect(validateReferenceSelectionForRule(rule, images.slice(0, 1), [images[1]], true)).toBe("");
-    expect(validateReferenceSelectionForRule(rule, images.slice(0, 2), [images[2]], true)).toContain("certified with up to 2");
-    expect(getGeneratedAudioReferenceIssue(rule, true, images)).toContain("certified with up to 2");
+function references(imageCount: number, videoCount: number) {
+  return [
+    ...Array.from({ length: imageCount }, (_value, index) => reference("image", index + 1)),
+    ...Array.from({ length: videoCount }, (_value, index) => reference("video", index + 1)),
+  ];
+}
+
+function mentionPrompt(imageCount: number, videoCount: number) {
+  return [
+    ...Array.from({ length: imageCount }, (_value, index) => `@Image ${index + 1}`),
+    ...Array.from({ length: videoCount }, (_value, index) => `@Video ${index + 1}`),
+    "Create a coherent short video.",
+  ].join(" ");
+}
+
+describe("Domestic video full generated-audio reference capability", () => {
+  it("projects the same 9 Image / 2 Video / 11 total certified contract for all four models", () => {
+    for (const id of DOMESTIC_MODELS) {
+      const rule = getVideoModelRuleFromRegistry(model(id));
+      expect(rule.generatedAudioReference).toMatchObject({
+        imageMax: 9,
+        videoMax: 2,
+        audioMax: 0,
+        maxTotal: 11,
+        mixedImageVideo: true,
+        mixedMaxImages: 9,
+        mixedMaxVideos: 2,
+        overflowSemantics: "UNSUPPORTED",
+      });
+    }
   });
 
-  it("allows the original 10s / 9:16 / 720p scenario and preserves two-ID readiness-submit parity", () => {
+  it("keeps every certified GA tuple ready and preserves request-ID parity", () => {
+    const legalTuples = [[0, 0], [1, 0], [9, 0], [0, 1], [0, 2], [1, 1], [9, 1], [1, 2], [9, 2]] as const;
+    for (const id of DOMESTIC_MODELS) {
+      const selectedModel = model(id);
+      const rule = getVideoModelRuleFromRegistry(selectedModel);
+      for (const [imageCount, videoCount] of legalTuples) {
+        const media = references(imageCount, videoCount);
+        expect(getGeneratedAudioReferenceIssue(rule, true, media)).toBe("");
+        expect(validateReferenceSelectionForRule(rule, [], media, true)).toBe("");
+        const request = buildVideoGenerationRequest({
+          clientRequestId: `VIDEO_full_cap_${id}_${imageCount}_${videoCount}`,
+          duration: 5,
+          generateAudio: true,
+          media,
+          model: selectedModel,
+          prompt: mentionPrompt(imageCount, videoCount),
+          quality: "720p",
+          ratio: "16:9",
+        });
+        expect(request.reference_image_asset_ids).toEqual(media.filter((item) => item.type === "image").map((item) => item.assetId));
+        expect(request.reference_video_asset_ids).toEqual(media.filter((item) => item.type === "video").map((item) => item.assetId));
+      }
+    }
+  });
+
+  it("allows Image 09 and Video 02, then blocks Image 10 and Video 03 at selection with product limits", () => {
+    for (const id of DOMESTIC_MODELS) {
+      const rule = getVideoModelRuleFromRegistry(model(id));
+      const nineImages = references(9, 0);
+      const twoVideos = references(0, 2);
+      expect(validateReferenceSelectionForRule(rule, [], nineImages, true)).toBe("");
+      expect(validateReferenceSelectionForRule(rule, nineImages, [reference("image", 10)], true)).toContain("up to 9 reference images");
+      expect(validateReferenceSelectionForRule(rule, [], twoVideos, true)).toBe("");
+      expect(validateReferenceSelectionForRule(rule, twoVideos, [reference("video", 3)], true)).toContain("up to 2 reference videos");
+      const maxMixed = references(9, 2);
+      expect(validateReferenceSelectionForRule(rule, maxMixed, [reference("image", 10)], true)).toContain("up to 9 reference images");
+      expect(validateReferenceSelectionForRule(rule, maxMixed, [reference("video", 3)], true)).toContain("up to 2 reference videos");
+    }
+  });
+
+  it("blocks the Audio Reference mutex without silently changing the toggle or deleting bindings", () => {
+    for (const id of DOMESTIC_MODELS) {
+      const rule = getVideoModelRuleFromRegistry(model(id));
+      const audio = reference("audio", 1);
+      const params = { generateAudio: true, duration: 5 };
+      expect(getGeneratedAudioReferenceIssue(rule, true, [audio])).toBe(AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT);
+      expect(validateReferenceSelectionForRule(rule, [], [audio], true)).toBe(AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT);
+      expect(normalizeGeneratedAudioForReferences(rule, params, [audio])).toBe(params);
+      expect(getGeneratedAudioReferenceIssue(rule, false, [audio])).toBe("");
+    }
+  });
+
+  it("keeps the original Seedance 2.0 customer tuple ready", () => {
     const selectedModel = model("seedance_2_0");
-    const images = [reference("image", 1), reference("image", 2)];
+    const images = references(2, 0);
     const request = buildVideoGenerationRequest({
-      clientRequestId: "VIDEO_two_image_audio_12345678",
+      clientRequestId: "VIDEO_original_customer_scenario",
       duration: 10,
       generateAudio: true,
       media: images,
       model: selectedModel,
-      prompt: "Use @Image 1 for the opening and @Image 2 for the ending.",
+      prompt: mentionPrompt(2, 0),
       quality: "720p",
       ratio: "9:16",
     });
     expect(request.generate_audio).toBe(true);
     expect(request.reference_image_asset_ids).toEqual(images.map((item) => item.assetId));
-    expect(request.assets.images).toHaveLength(2);
-    expect(request.mediaList.filter((item) => item.type === "image")).toHaveLength(2);
   });
 
-  it("blocks the reverse toggle for three Images without deleting references and recomputes on model switch", () => {
-    const seedance20 = getVideoModelRuleFromRegistry(model("seedance_2_0"));
-    const mini = getVideoModelRuleFromRegistry(model("seedance_2_0_mini"));
-    const images = [reference("image", 1), reference("image", 2), reference("image", 3)];
-    expect(getGeneratedAudioReferenceIssue(seedance20, true, images.slice(0, 2))).toBe("");
-    expect(getGeneratedAudioReferenceIssue(seedance20, true, images)).not.toBe("");
-    expect(normalizeGeneratedAudioForReferences(mini, { generateAudio: true }, images.slice(0, 2))).toEqual({ generateAudio: true });
-    expect(getGeneratedAudioReferenceIssue(mini, true, images.slice(0, 2))).toContain("up to 1");
-    expect(images).toHaveLength(3);
-  });
-
-  it("keeps other models at one Image and preserves Audio Reference and Video Reference guards", () => {
-    for (const id of ["seedance_2_0_mini", "seedance_2_0_fast", "seedance_2_5"] as const) {
+  it("preserves the legal maximum bindings across all Domestic model switches", () => {
+    const bound = references(9, 2);
+    const params = { generateAudio: true, duration: 5, quality: "720p", ratio: "16:9" };
+    for (const id of DOMESTIC_MODELS) {
       const rule = getVideoModelRuleFromRegistry(model(id));
-      expect(rule.generatedAudioReference?.imageMax).toBe(1);
-      expect(getGeneratedAudioReferenceIssue(rule, true, [reference("image", 1), reference("image", 2)])).toContain("up to 1");
-      expect(getGeneratedAudioReferenceIssue(rule, true, [reference("video", 1)])).toBe(VIDEO_REFERENCE_GENERATED_AUDIO_UNVERIFIED);
-      expect(getGeneratedAudioReferenceIssue(rule, true, [reference("audio", 1)])).toBe(AUDIO_REFERENCE_GENERATED_AUDIO_CONFLICT);
-      expect(getGeneratedAudioReferenceIssue(rule, false, [reference("image", 1), reference("image", 2), reference("image", 3)])).toBe("");
+      expect(normalizeGeneratedAudioForReferences(rule, params, bound)).toBe(params);
+      expect(validateReferenceSelectionForRule(rule, [], bound, true)).toBe("");
     }
   });
 
-  it("uses the exact bounded compatibility matrix when the legacy catalog assembler omits the additive field", () => {
-    for (const [id, maximum] of [
-      ["seedance_2_0", 2],
-      ["seedance_2_0_mini", 1],
-      ["seedance_2_0_fast", 1],
-      ["seedance_2_5", 1],
-    ] as const) {
-      const legacyResponseModel = { ...model(id), generatedAudioReference: undefined };
-      expect(getVideoModelRuleFromRegistry(legacyResponseModel).generatedAudioReference?.imageMax).toBe(maximum);
-    }
+  it("fails closed when the authoritative Backend projection is missing", () => {
+    const responseWithoutAuthority = { ...model("seedance_2_0"), generatedAudioReference: undefined };
+    expect(getVideoModelRuleFromRegistry(responseWithoutAuthority).generatedAudioReference?.imageMax).toBe(0);
   });
 
-  it("wires picker selection, toggle blocking, and non-truncating model-switch readiness to the shared rule", () => {
+  it("wires picker selection, readiness, and non-truncating model switches to shared rules", () => {
     const workspace = readFileSync("src/components/video/VideoWorkspace.tsx", "utf8");
     const upload = readFileSync("src/components/video/UploadBox.tsx", "utf8");
     const drawer = readFileSync("src/components/video/MediaPickerDrawer.tsx", "utf8");
     expect(workspace).toContain("const effectiveGenerateAudio = params.generateAudio");
-    expect(workspace).not.toContain("setParams((current) => current.generateAudio ? { ...current, generateAudio: false } : current)");
     expect(workspace).toContain("if (generatedAudioReferenceIssue) return localizedGeneratedAudioToggleIssue");
     expect(workspace).toContain("setWorkspaceNotice(localizedGeneratedAudioToggleIssue)");
     expect(workspace).toContain("generateAudio={effectiveGenerateAudio}");
