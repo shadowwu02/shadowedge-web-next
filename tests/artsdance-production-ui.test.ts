@@ -48,10 +48,10 @@ describe("ArtsDance Seedance production UI contract", () => {
     ])).toBe("");
     expect(validateReferenceSelectionForRule(rule, [], [
       ...Array.from({ length: 10 }, (_value, index) => image(index + 1)), video(1),
-    ])).toContain("Reference limit reached");
+    ])).toContain("up to 9 reference images");
     expect(validateReferenceSelectionForRule(rule, [], [
       ...Array.from({ length: 9 }, (_value, index) => image(index + 1)), video(1), video(2), video(3),
-    ])).toContain("Reference limit reached");
+    ])).toContain("up to 2 reference videos");
     expect(validateReferenceSelectionForRule(rule, [], [{
       id: "audio-1", assetId: assetId("audio", 1), type: "audio", name: "audio-1",
       url: "https://assets.shadowedgeai.com/audio-1.mp3", uploadStatus: "ready",

@@ -55,10 +55,10 @@ describe("ArtsDance registry-driven capabilities", () => {
     ])).toBe("");
     expect(validateReferenceSelectionForRule(rule, [], [
       ...Array.from({ length: 10 }, (_value, index) => image(`i${index + 1}`)), video("v1"),
-    ])).toContain("Reference limit reached");
+    ])).toContain("up to 9 reference images");
     expect(validateReferenceSelectionForRule(rule, [], [
       ...Array.from({ length: 9 }, (_value, index) => image(`i${index + 1}`)), video("v1"), video("v2"), video("v3"),
-    ])).toContain("Reference limit reached");
+    ])).toContain("up to 2 reference videos");
   });
 
   it.each(referenceModels)("drives %s Reference slots from the Backend registry", (id) => {
@@ -83,7 +83,7 @@ describe("ArtsDance registry-driven capabilities", () => {
       ...Array.from({ length: 10 }, (_value, index) => ({ id: `i${index + 1}`, assetId: assetId("image", index + 1), type: "image" as const, name: `i${index + 1}`, url: `https://assets.shadowedgeai.com/i${index + 1}.png`, uploadStatus: "ready" as const })),
       restoredDraft[2],
     ];
-    expect(validateReferenceSelectionForRule(rule, [], unsupportedDraft)).toContain("Reference limit reached");
+    expect(validateReferenceSelectionForRule(rule, [], unsupportedDraft)).toContain("up to 9 reference images");
 
     const workspaceSource = readFileSync(join(process.cwd(), "src/components/video/VideoWorkspace.tsx"), "utf8");
     expect(workspaceSource).toContain("!referenceSelectionIssue");

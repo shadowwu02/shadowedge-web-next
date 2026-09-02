@@ -347,18 +347,39 @@ export function normalizeVideoModel(model: RawModel): VideoModel {
   const durationDefault = publicDurations.includes(requestedDefault) ? requestedDefault : publicDurations[0];
   const audioCapability = asRecord(model.audio);
   const audioReferenceCapability = asRecord(model.audioReference);
-  const generatedAudioReferenceCapability = asRecord(model.generatedAudioReference);
+  const explicitGeneratedAudioReferenceCapability = asRecord(model.generatedAudioReference);
+  const mixedReference = asRecord(model.mixedReference);
+  const supportsAudio = model.supportsAudio === true || audioCapability.supported === true;
+  // Domestic catalog responses deployed before the additive GA projection
+  // already expose the authoritative reference-media limits. Derive from those
+  // values rather than maintaining a second frontend max table.
+  const generatedAudioReferenceCapability = Object.keys(explicitGeneratedAudioReferenceCapability).length
+    ? explicitGeneratedAudioReferenceCapability
+    : String(model.provider || "").trim().toLowerCase() === "seedance" && supportsAudio
+      ? {
+          status: "REAL_CERTIFIED",
+          images: { max: Math.max(0, Number(model.maxReferenceImages || 0)) },
+          videos: { max: Math.max(0, Number(model.maxReferenceVideos || 0)) },
+          audios: { max: 0 },
+          maxTotal: Math.max(0, Number(model.maxTotalReferences || 0)),
+          mixed: {
+            imageVideo: mixedReference.imageVideo === true,
+            maxImages: Math.max(0, Number(mixedReference.maxImages || 0)),
+            maxVideos: Math.max(0, Number(mixedReference.maxVideos || 0)),
+          },
+          overflowSemantics: "UNSUPPORTED",
+          selectionPolicy: "preserve_and_block_when_over_limit",
+        }
+      : {};
   const generatedAudioImages = asRecord(generatedAudioReferenceCapability.images);
   const generatedAudioVideos = asRecord(generatedAudioReferenceCapability.videos);
   const generatedAudioAudios = asRecord(generatedAudioReferenceCapability.audios);
   const generatedAudioMixed = asRecord(generatedAudioReferenceCapability.mixed);
-  const supportsAudio = model.supportsAudio === true || audioCapability.supported === true;
   const tupleCapabilities = normalizePublicTupleCapabilities(model.tupleCapabilities);
   const label = String(model.name || model.label || model.id || "Video Model")
     .replace(/\s*HF\s*$/i, "")
     .trim();
 
-  const mixedReference = asRecord(model.mixedReference);
   const internationalCapabilities = asRecord(model.internationalCapabilities);
   const credits = Number(model.credits || 0);
   const international = model.productLine === "international";

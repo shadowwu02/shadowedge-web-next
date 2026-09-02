@@ -23,6 +23,7 @@ function model(id: (typeof DOMESTIC_MODELS)[number]) {
   return normalizeVideoModel({
     id,
     name: id === "seedance_2_0" ? "Seedance 2.0" : id,
+    provider: "seedance",
     credits: id === "seedance_2_0_fast" ? 12 : 23,
     durations: [5, 10, 15],
     duration: { type: "values", selection: "discrete", values: [5, 10, 15], default: 5 },
@@ -192,9 +193,27 @@ describe("Domestic video full generated-audio reference capability", () => {
     }
   });
 
-  it("fails closed when the authoritative Backend projection is missing", () => {
-    const responseWithoutAuthority = { ...model("seedance_2_0"), generatedAudioReference: undefined };
-    expect(getVideoModelRuleFromRegistry(responseWithoutAuthority).generatedAudioReference?.imageMax).toBe(0);
+  it("derives an omitted additive GA object only from the authoritative Backend reference contract", () => {
+    const responseWithoutAuthority = normalizeVideoModel({
+      ...model("seedance_2_0"),
+      generatedAudioReference: undefined,
+      provider: "seedance",
+    });
+    expect(getVideoModelRuleFromRegistry(responseWithoutAuthority).generatedAudioReference).toMatchObject({
+      imageMax: 9,
+      videoMax: 2,
+      audioMax: 0,
+      maxTotal: 11,
+      mixedImageVideo: true,
+      mixedMaxImages: 9,
+      mixedMaxVideos: 2,
+    });
+    const nonDomesticWithoutAuthority = normalizeVideoModel({
+      ...model("seedance_2_0"),
+      generatedAudioReference: undefined,
+      provider: "other",
+    });
+    expect(getVideoModelRuleFromRegistry(nonDomesticWithoutAuthority).generatedAudioReference?.imageMax).toBe(0);
   });
 
   it("wires picker selection, readiness, and non-truncating model switches to shared rules", () => {
